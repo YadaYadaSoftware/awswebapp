@@ -84,15 +84,15 @@ jobs:
         aws-region: ${{ env.AWS_REGION }}
         
     - name: Deploy Infrastructure CloudFormation stack
-      run: |
-        aws cloudformation deploy \
-          --template-file infrastructure/cloudformation.yaml \
-          --stack-name taskmanager-infrastructure-${{ env.ENVIRONMENT }} \
-          --parameter-overrides \
-            Environment=${{ env.ENVIRONMENT }} \
-            DatabasePassword=${{ secrets.DATABASE_PASSWORD }} \
-          --capabilities CAPABILITY_IAM \
-          --region ${{ env.AWS_REGION }}
+      uses: aws-actions/aws-cloudformation-github-deploy@v1
+      with:
+        name: taskmanager-infrastructure-${{ env.ENVIRONMENT }}
+        template: infrastructure/cloudformation.yaml
+        parameter-overrides: |
+          Environment=${{ env.ENVIRONMENT }},
+          DatabasePassword=${{ secrets.DATABASE_PASSWORD }}
+        capabilities: CAPABILITY_IAM
+        no-fail-on-empty-changeset: "1"
 
   deploy-application:
     name: Deploy Lambda Functions with SAM
@@ -104,17 +104,17 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
       
-    - name: Setup SAM CLI
-      uses: aws-actions/setup-sam@v2
-      with:
-        use-installer: true
-        
     - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v4
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: ${{ env.AWS_REGION }}
+        
+    - name: Setup SAM CLI
+      uses: aws-actions/setup-sam@v2
+      with:
+        use-installer: true
         
     - name: Download Lambda package
       uses: actions/download-artifact@v4
@@ -135,8 +135,9 @@ jobs:
             GoogleClientSecret=${{ secrets.GOOGLE_CLIENT_SECRET }} \
           --capabilities CAPABILITY_IAM \
           --region ${{ env.AWS_REGION }} \
-          --resolve-s3
-          
+          --resolve-s3 \
+          --no-confirm-changeset
+        
     - name: Get API Gateway URL
       run: |
         API_URL=$(aws cloudformation describe-stacks \
@@ -144,7 +145,7 @@ jobs:
           --query 'Stacks[0].Outputs[?OutputKey==`ApiEndpoint`].OutputValue' \
           --output text \
           --region ${{ env.AWS_REGION }})
-        echo "API deployed to: $API_URL"
+        echo "🚀 API deployed to: $API_URL"
         echo "API_URL=$API_URL" >> $GITHUB_ENV
 
   deploy-web:
