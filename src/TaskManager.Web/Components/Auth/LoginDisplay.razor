@@ -1,0 +1,44 @@
+@using Microsoft.AspNetCore.Components.Authorization
+@using System.Security.Claims
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager Navigation
+
+<div class="login-display">
+    <AuthorizeView>
+        <Authorized>
+            <div class="user-info">
+                <span class="user-name">Hello, @GetUserName(context.User)!</span>
+                <a href="/logout" class="btn btn-outline-secondary btn-sm ms-2">Logout</a>
+            </div>
+        </Authorized>
+        <NotAuthorized>
+            <a href="/login" class="btn btn-primary">Login with Google</a>
+        </NotAuthorized>
+    </AuthorizeView>
+</div>
+
+@code {
+    private string GetUserName(ClaimsPrincipal user)
+    {
+        return user.FindFirst(ClaimTypes.Name)?.Value 
+            ?? user.FindFirst(ClaimTypes.Email)?.Value 
+            ?? "User";
+    }
+}
+
+<style>
+    .login-display {
+        display: flex;
+        align-items: center;
+    }
+    
+    .user-info {
+        display: flex;
+        align-items: center;
+    }
+    
+    .user-name {
+        margin-right: 0.5rem;
+        font-weight: 500;
+    }
+</style>

@@ -781,8 +781,8 @@
         "net8.0": {
           "targetAlias": "net8.0",
           "projectReferences": {
-            "c:\\Users\\17034\\repos\\awswebapp\\awswebapp\\src\\TaskManager.Shared\\TaskManager.Shared.csproj": {
-              "projectPath": "c:\\Users\\17034\\repos\\awswebapp\\awswebapp\\src\\TaskManager.Shared\\TaskManager.Shared.csproj"
+            "C:\\Users\\17034\\repos\\awswebapp\\awswebapp\\src\\TaskManager.Shared\\TaskManager.Shared.csproj": {
+              "projectPath": "C:\\Users\\17034\\repos\\awswebapp\\awswebapp\\src\\TaskManager.Shared\\TaskManager.Shared.csproj"
             }
           }
         }

@@ -1,0 +1,12 @@
+@page "/login"
+@using Microsoft.AspNetCore.Authentication
+@{
+    ViewData["Title"] = "Login";
+}
+
+@{
+    await HttpContext.ChallengeAsync("Google", new AuthenticationProperties
+    {
+        RedirectUri = "/login-callback"
+    });
+}

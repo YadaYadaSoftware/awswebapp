@@ -115,6 +115,22 @@
           }
         }
       },
+      "Microsoft.AspNetCore.Authentication.Google/8.0.8": {
+        "type": "package",
+        "compile": {
+          "lib/net8.0/Microsoft.AspNetCore.Authentication.Google.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/net8.0/Microsoft.AspNetCore.Authentication.Google.dll": {
+            "related": ".xml"
+          }
+        },
+        "frameworkReferences": [
+          "Microsoft.AspNetCore.App"
+        ]
+      },
       "Microsoft.AspNetCore.OpenApi/8.0.10": {
         "type": "package",
         "dependencies": {
@@ -653,6 +669,21 @@
         "lib/net8.0/Amazon.Lambda.Serialization.SystemTextJson.xml",
         "lib/netcoreapp3.1/Amazon.Lambda.Serialization.SystemTextJson.dll",
         "lib/netcoreapp3.1/Amazon.Lambda.Serialization.SystemTextJson.xml"
+      ]
+    },
+    "Microsoft.AspNetCore.Authentication.Google/8.0.8": {
+      "sha512": "Hc6PfWcpNCSq9ZhesZSgLD62ACsxBuAx9jhkOv+No5tx+AdPPU+tonrxzM+PuTDvijOVPy4YydzuDK9NR4Z+PQ==",
+      "type": "package",
+      "path": "microsoft.aspnetcore.authentication.google/8.0.8",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "Icon.png",
+        "THIRD-PARTY-NOTICES.TXT",
+        "lib/net8.0/Microsoft.AspNetCore.Authentication.Google.dll",
+        "lib/net8.0/Microsoft.AspNetCore.Authentication.Google.xml",
+        "microsoft.aspnetcore.authentication.google.8.0.8.nupkg.sha512",
+        "microsoft.aspnetcore.authentication.google.nuspec"
       ]
     },
     "Microsoft.AspNetCore.OpenApi/8.0.10": {
@@ -1470,6 +1501,7 @@
     "net8.0": [
       "Amazon.Lambda.Annotations >= 1.7.0",
       "Amazon.Lambda.AspNetCoreServer >= 9.2.0",
+      "Microsoft.AspNetCore.Authentication.Google >= 8.0.8",
       "Microsoft.AspNetCore.OpenApi >= 8.0.10",
       "Swashbuckle.AspNetCore >= 6.6.2",
       "TaskManager.Data >= 1.0.0",
@@ -1515,8 +1547,8 @@
             "C:\\Users\\17034\\repos\\awswebapp\\awswebapp\\src\\TaskManager.Data\\TaskManager.Data.csproj": {
               "projectPath": "C:\\Users\\17034\\repos\\awswebapp\\awswebapp\\src\\TaskManager.Data\\TaskManager.Data.csproj"
             },
-            "c:\\Users\\17034\\repos\\awswebapp\\awswebapp\\src\\TaskManager.Shared\\TaskManager.Shared.csproj": {
-              "projectPath": "c:\\Users\\17034\\repos\\awswebapp\\awswebapp\\src\\TaskManager.Shared\\TaskManager.Shared.csproj"
+            "C:\\Users\\17034\\repos\\awswebapp\\awswebapp\\src\\TaskManager.Shared\\TaskManager.Shared.csproj": {
+              "projectPath": "C:\\Users\\17034\\repos\\awswebapp\\awswebapp\\src\\TaskManager.Shared\\TaskManager.Shared.csproj"
             }
           }
         }
@@ -1543,6 +1575,10 @@
           "Amazon.Lambda.AspNetCoreServer": {
             "target": "Package",
             "version": "[9.2.0, )"
+          },
+          "Microsoft.AspNetCore.Authentication.Google": {
+            "target": "Package",
+            "version": "[8.0.8, )"
           },
           "Microsoft.AspNetCore.OpenApi": {
             "target": "Package",

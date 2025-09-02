@@ -1,0 +1,10 @@
+@page "/logout"
+@using Microsoft.AspNetCore.Authentication
+@{
+    ViewData["Title"] = "Logout";
+}
+
+@{
+    await HttpContext.SignOutAsync("Cookies");
+    Response.Redirect("/");
+}

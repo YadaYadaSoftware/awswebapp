@@ -10,6 +10,7 @@
         "dependencies": {
           "Amazon.Lambda.Annotations": "1.7.0",
           "Amazon.Lambda.AspNetCoreServer": "9.2.0",
+          "Microsoft.AspNetCore.Authentication.Google": "8.0.8",
           "Microsoft.AspNetCore.OpenApi": "8.0.10",
           "Swashbuckle.AspNetCore": "6.6.2",
           "TaskManager.Data": "1.0.0",
@@ -91,6 +92,14 @@
           "lib/net8.0/Amazon.Lambda.Serialization.SystemTextJson.dll": {
             "assemblyVersion": "0.0.0.0",
             "fileVersion": "0.0.0.0"
+          }
+        }
+      },
+      "Microsoft.AspNetCore.Authentication.Google/8.0.8": {
+        "runtime": {
+          "lib/net8.0/Microsoft.AspNetCore.Authentication.Google.dll": {
+            "assemblyVersion": "8.0.8.0",
+            "fileVersion": "8.0.824.36908"
           }
         }
       },
@@ -399,6 +408,13 @@
       "sha512": "sha512-iv/cvqFuZ3v3+NFDyof0IJZvU+4kdpzOe3pWSBwp9HB885I+D32WQxuid9V4GnvRynER9XnWMPaDmImX8qH5cA==",
       "path": "amazon.lambda.serialization.systemtextjson/2.4.4",
       "hashPath": "amazon.lambda.serialization.systemtextjson.2.4.4.nupkg.sha512"
+    },
+    "Microsoft.AspNetCore.Authentication.Google/8.0.8": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-Hc6PfWcpNCSq9ZhesZSgLD62ACsxBuAx9jhkOv+No5tx+AdPPU+tonrxzM+PuTDvijOVPy4YydzuDK9NR4Z+PQ==",
+      "path": "microsoft.aspnetcore.authentication.google/8.0.8",
+      "hashPath": "microsoft.aspnetcore.authentication.google.8.0.8.nupkg.sha512"
     },
     "Microsoft.AspNetCore.OpenApi/8.0.10": {
       "type": "package",

@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "dgSpecHash": "CsVjVUghG7s=",
+  "dgSpecHash": "Apg1zzOQI/0=",
   "success": true,
   "projectFilePath": "c:\\Users\\17034\\repos\\awswebapp\\awswebapp\\src\\TaskManager.Api\\TaskManager.Api.csproj",
   "expectedPackageFiles": [
@@ -11,6 +11,7 @@
     "C:\\Users\\17034\\.nuget\\packages\\amazon.lambda.core\\2.7.0\\amazon.lambda.core.2.7.0.nupkg.sha512",
     "C:\\Users\\17034\\.nuget\\packages\\amazon.lambda.logging.aspnetcore\\4.1.0\\amazon.lambda.logging.aspnetcore.4.1.0.nupkg.sha512",
     "C:\\Users\\17034\\.nuget\\packages\\amazon.lambda.serialization.systemtextjson\\2.4.4\\amazon.lambda.serialization.systemtextjson.2.4.4.nupkg.sha512",
+    "C:\\Users\\17034\\.nuget\\packages\\microsoft.aspnetcore.authentication.google\\8.0.8\\microsoft.aspnetcore.authentication.google.8.0.8.nupkg.sha512",
     "C:\\Users\\17034\\.nuget\\packages\\microsoft.aspnetcore.openapi\\8.0.10\\microsoft.aspnetcore.openapi.8.0.10.nupkg.sha512",
     "C:\\Users\\17034\\.nuget\\packages\\microsoft.entityframeworkcore\\9.0.8\\microsoft.entityframeworkcore.9.0.8.nupkg.sha512",
     "C:\\Users\\17034\\.nuget\\packages\\microsoft.entityframeworkcore.abstractions\\9.0.8\\microsoft.entityframeworkcore.abstractions.9.0.8.nupkg.sha512",

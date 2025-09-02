@@ -58,3 +58,4 @@ c:\Users\17034\repos\awswebapp\awswebapp\src\TaskManager.Api\obj\Debug\net8.0\re
 c:\Users\17034\repos\awswebapp\awswebapp\src\TaskManager.Api\obj\Debug\net8.0\TaskManager.Api.pdb
 c:\Users\17034\repos\awswebapp\awswebapp\src\TaskManager.Api\obj\Debug\net8.0\TaskManager.Api.genruntimeconfig.cache
 c:\Users\17034\repos\awswebapp\awswebapp\src\TaskManager.Api\obj\Debug\net8.0\ref\TaskManager.Api.dll
+c:\Users\17034\repos\awswebapp\awswebapp\src\TaskManager.Api\bin\Debug\net8.0\Microsoft.AspNetCore.Authentication.Google.dll

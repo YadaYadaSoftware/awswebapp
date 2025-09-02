@@ -1,8 +1,10 @@
 {
   "version": 2,
-  "dgSpecHash": "/hsQeFZnN24=",
+  "dgSpecHash": "nE287p4YqQg=",
   "success": true,
-  "projectFilePath": "c:\\Users\\17034\\repos\\awswebapp\\awswebapp\\src\\TaskManager.Web\\TaskManager.Web.csproj",
-  "expectedPackageFiles": [],
+  "projectFilePath": "C:\\Users\\17034\\repos\\awswebapp\\awswebapp\\src\\TaskManager.Web\\TaskManager.Web.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\17034\\.nuget\\packages\\microsoft.aspnetcore.authentication.google\\7.0.20\\microsoft.aspnetcore.authentication.google.7.0.20.nupkg.sha512"
+  ],
   "logs": []
 }

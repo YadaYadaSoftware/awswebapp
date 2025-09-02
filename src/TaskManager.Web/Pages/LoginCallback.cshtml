@@ -1,0 +1,19 @@
+@page "/login-callback"
+@using Microsoft.AspNetCore.Authentication
+@{
+    ViewData["Title"] = "Login Callback";
+}
+
+@{
+    var result = await HttpContext.AuthenticateAsync("Cookies");
+    if (result.Succeeded)
+    {
+        // Redirect to home page after successful login
+        Response.Redirect("/");
+    }
+    else
+    {
+        // Handle authentication failure
+        Response.Redirect("/login-failed");
+    }
+}

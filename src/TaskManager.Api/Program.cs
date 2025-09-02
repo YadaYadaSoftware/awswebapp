@@ -52,8 +52,28 @@ public class Program
             c.SwaggerDoc("v1", new() { Title = "TaskManager API", Version = "v1" });
         });
 
-        // Add authentication (will be configured later)
-        services.AddAuthentication();
+        // Add authentication with Google OAuth
+        services.AddAuthentication(options =>
+        {
+            options.DefaultAuthenticateScheme = "Cookies";
+            options.DefaultSignInScheme = "Cookies";
+            options.DefaultChallengeScheme = "Google";
+        })
+        .AddCookie("Cookies")
+        .AddGoogle("Google", options =>
+        {
+            options.ClientId = configuration["Authentication:Google:ClientId"] ?? throw new InvalidOperationException("Google ClientId not configured");
+            options.ClientSecret = configuration["Authentication:Google:ClientSecret"] ?? throw new InvalidOperationException("Google ClientSecret not configured");
+            options.SaveTokens = true;
+            
+            // Add scopes for user information
+            options.Scope.Add("openid");
+            options.Scope.Add("profile");
+            options.Scope.Add("email");
+            
+            // Claims will be automatically mapped by Google provider
+        });
+        
         services.AddAuthorization();
 
         // Lambda Functions will be registered when we implement them properly

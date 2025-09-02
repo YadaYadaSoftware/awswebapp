@@ -30,3 +30,6 @@ c:\Users\17034\repos\awswebapp\awswebapp\src\TaskManager.Web\obj\Debug\net7.0\re
 c:\Users\17034\repos\awswebapp\awswebapp\src\TaskManager.Web\obj\Debug\net7.0\TaskManager.Web.pdb
 C:\Users\17034\repos\awswebapp\awswebapp\src\TaskManager.Web\obj\Debug\net7.0\TaskManager.Web.genruntimeconfig.cache
 C:\Users\17034\repos\awswebapp\awswebapp\src\TaskManager.Web\obj\Debug\net7.0\ref\TaskManager.Web.dll
+c:\Users\17034\repos\awswebapp\awswebapp\src\TaskManager.Web\bin\Debug\net7.0\Microsoft.AspNetCore.Authentication.Google.dll
+c:\Users\17034\repos\awswebapp\awswebapp\src\TaskManager.Web\obj\Debug\net7.0\TaskManager.Web.csproj.AssemblyReference.cache
+c:\Users\17034\repos\awswebapp\awswebapp\src\TaskManager.Web\obj\Debug\net7.0\TaskMana.9FA75403.Up2Date
