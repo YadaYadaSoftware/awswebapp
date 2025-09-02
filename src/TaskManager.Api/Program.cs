@@ -56,8 +56,7 @@ public class Program
         services.AddAuthentication();
         services.AddAuthorization();
 
-        // Register controllers for Lambda Annotations
-        services.AddScoped<Controllers.ProjectsController>();
+        // Lambda Functions will be registered when we implement them properly
     }
 
     public static void ConfigurePipeline(WebApplication app, IWebHostEnvironment env)

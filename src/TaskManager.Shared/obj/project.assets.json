@@ -15,18 +15,18 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\17034\\repos\\awswebapp\\awswebapp\\src\\TaskManager.Shared\\TaskManager.Shared.csproj",
+      "projectUniqueName": "c:\\Users\\17034\\repos\\awswebapp\\awswebapp\\src\\TaskManager.Shared\\TaskManager.Shared.csproj",
       "projectName": "TaskManager.Shared",
-      "projectPath": "C:\\Users\\17034\\repos\\awswebapp\\awswebapp\\src\\TaskManager.Shared\\TaskManager.Shared.csproj",
+      "projectPath": "c:\\Users\\17034\\repos\\awswebapp\\awswebapp\\src\\TaskManager.Shared\\TaskManager.Shared.csproj",
       "packagesPath": "C:\\Users\\17034\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\17034\\repos\\awswebapp\\awswebapp\\src\\TaskManager.Shared\\obj\\",
+      "outputPath": "c:\\Users\\17034\\repos\\awswebapp\\awswebapp\\src\\TaskManager.Shared\\obj\\",
       "projectStyle": "PackageReference",
       "fallbackFolders": [
         "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages",
         "C:\\Program Files (x86)\\Progress\\ToolboxNuGetPackages"
       ],
       "configFilePaths": [
-        "C:\\Users\\17034\\repos\\awswebapp\\awswebapp\\NuGet.Config",
+        "c:\\Users\\17034\\repos\\awswebapp\\awswebapp\\NuGet.Config",
         "C:\\Users\\17034\\AppData\\Roaming\\NuGet\\NuGet.Config",
         "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
         "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config",
@@ -36,7 +36,6 @@
         "net8.0"
       ],
       "sources": {
-        "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
         "C:\\Program Files\\dotnet\\library-packs": {},
         "https://api.nuget.org/v3/index.json": {}
       },
