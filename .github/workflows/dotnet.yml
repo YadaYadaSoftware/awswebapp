@@ -89,32 +89,20 @@ jobs:
         name: lambda-package
         path: ./src/TaskManager.Api/
         
-    - name: Setup SAM CLI
-      uses: aws-actions/setup-sam@v2
+    - name: Deploy TaskManager Application
+      uses: aws-actions/aws-cloudformation-github-deploy@v1
       with:
-        use-installer: true
+        name: taskmanager-${{ env.ENVIRONMENT }}
+        template: src/TaskManager.Api/template.yaml
+        parameter-overrides: |
+          Environment=${{ env.ENVIRONMENT }},
+          DatabasePassword=${{ secrets.DATABASE_PASSWORD }},
+          GoogleClientId=${{ secrets.GOOGLE_CLIENT_ID }},
+          GoogleClientSecret=${{ secrets.GOOGLE_CLIENT_SECRET }}
+        capabilities: CAPABILITY_IAM
+        no-fail-on-empty-changeset: "1"
         
-    - name: Deploy with SAM
+    - name: Get deployment outputs
       run: |
-        cd src/TaskManager.Api
-        sam deploy \
-          --template-file template.yaml \
-          --stack-name taskmanager-${{ env.ENVIRONMENT }} \
-          --parameter-overrides \
-            Environment=${{ env.ENVIRONMENT }} \
-            DatabasePassword=${{ secrets.DATABASE_PASSWORD }} \
-            GoogleClientId=${{ secrets.GOOGLE_CLIENT_ID }} \
-            GoogleClientSecret=${{ secrets.GOOGLE_CLIENT_SECRET }} \
-          --capabilities CAPABILITY_IAM \
-          --region ${{ env.AWS_REGION }} \
-          --resolve-s3 \
-          --no-confirm-changeset
-        
-    - name: Get API Gateway URL
-      run: |
-        API_URL=$(aws cloudformation describe-stacks \
-          --stack-name taskmanager-${{ env.ENVIRONMENT }} \
-          --query 'Stacks[0].Outputs[?OutputKey==`ApiEndpoint`].OutputValue' \
-          --output text \
-          --region ${{ env.AWS_REGION }})
-        echo "🚀 TaskManager deployed to: $API_URL"
+        echo "🚀 TaskManager deployment completed!"
+        echo "Check AWS Console CloudFormation outputs for API Gateway URL"
