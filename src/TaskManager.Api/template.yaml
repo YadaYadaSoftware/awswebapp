@@ -1,5 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'TaskManager Application Infrastructure - Complete AWS Stack'
+Transform: AWS::Serverless-2016-10-31
+Description: 'TaskManager Complete Application - Infrastructure and Lambda Functions'
 
 Parameters:
   Environment:
@@ -23,6 +24,21 @@ Parameters:
     Type: String
     NoEcho: true
     Description: 'Google OAuth Client Secret'
+
+Globals:
+  Function:
+    Runtime: dotnet8
+    Timeout: 30
+    MemorySize: 512
+    Environment:
+      Variables:
+        ASPNETCORE_ENVIRONMENT: !Ref Environment
+  Api:
+    Cors:
+      AllowMethods: "'*'"
+      AllowHeaders: "'*'"
+      AllowOrigin: "'*'"
+      AllowCredentials: true
 
 Resources:
   # VPC and Networking
@@ -247,7 +263,7 @@ Resources:
         - Key: Environment
           Value: !Ref Environment
 
-  # Lambda Execution Role (for SAM to use)
+  # Lambda Execution Role
   LambdaExecutionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -281,7 +297,63 @@ Resources:
                   - logs:PutLogEvents
                 Resource: !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:*'
 
-  # CloudWatch Alarms (Database only - Lambda alarms will be in SAM)
+  # Lambda Function (SAM)
+  TaskManagerApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'TaskManagerApi-${Environment}'
+      CodeUri: .
+      Handler: TaskManager.Api::TaskManager.Api.LambdaEntryPoint::FunctionHandlerAsync
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Environment:
+        Variables:
+          DATABASE_SECRET_NAME: !Ref DatabaseSecret
+          Authentication__Google__ClientId: !Ref GoogleClientId
+          Authentication__Google__ClientSecret: !Ref GoogleClientSecret
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroup
+        SubnetIds:
+          - !Ref PrivateSubnet1
+          - !Ref PrivateSubnet2
+      Events:
+        ApiGatewayProxy:
+          Type: Api
+          Properties:
+            Path: /{proxy+}
+            Method: ANY
+        ApiGatewayRoot:
+          Type: Api
+          Properties:
+            Path: /
+            Method: ANY
+      Tags:
+        Environment: !Ref Environment
+
+  # CloudWatch Log Group
+  LambdaLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/TaskManagerApi-${Environment}'
+      RetentionInDays: 30
+
+  # CloudWatch Alarms
+  LambdaErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub 'TaskManager-Lambda-Errors-${Environment}'
+      AlarmDescription: 'Lambda function error rate alarm'
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 5
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref TaskManagerApiFunction
+
   DatabaseCPUAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
@@ -301,7 +373,7 @@ Resources:
 Outputs:
   ApiEndpoint:
     Description: 'API Gateway endpoint URL'
-    Value: !Sub 'https://${TaskManagerApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}'
+    Value: !Sub 'https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/'
     Export:
       Name: !Sub '${AWS::StackName}-ApiEndpoint'
 
@@ -319,7 +391,7 @@ Outputs:
 
   LambdaFunctionName:
     Description: 'Lambda function name'
-    Value: !Ref TaskManagerLambda
+    Value: !Ref TaskManagerApiFunction
     Export:
       Name: !Sub '${AWS::StackName}-LambdaFunction'
 

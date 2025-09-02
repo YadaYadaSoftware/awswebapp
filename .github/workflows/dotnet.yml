@@ -66,8 +66,8 @@ jobs:
         name: web-artifacts
         path: ./publish/web
 
-  deploy-infrastructure:
-    name: Deploy AWS Infrastructure
+  deploy:
+    name: Deploy to AWS with SAM
     runs-on: ubuntu-latest
     needs: build
     if: github.ref == 'refs/heads/main'
@@ -83,54 +83,26 @@ jobs:
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: ${{ env.AWS_REGION }}
         
-    - name: Deploy Infrastructure CloudFormation stack
-      uses: aws-actions/aws-cloudformation-github-deploy@v1
-      with:
-        name: taskmanager-infrastructure-${{ env.ENVIRONMENT }}
-        template: infrastructure/cloudformation.yaml
-        parameter-overrides: |
-          Environment=${{ env.ENVIRONMENT }},
-          DatabasePassword=${{ secrets.DATABASE_PASSWORD }}
-        capabilities: CAPABILITY_IAM
-        no-fail-on-empty-changeset: "1"
-
-  deploy-application:
-    name: Deploy Lambda Functions with SAM
-    runs-on: ubuntu-latest
-    needs: [build, deploy-infrastructure]
-    if: github.ref == 'refs/heads/main'
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: ${{ env.AWS_REGION }}
-        
-    - name: Setup SAM CLI
-      uses: aws-actions/setup-sam@v2
-      with:
-        use-installer: true
-        
     - name: Download Lambda package
       uses: actions/download-artifact@v4
       with:
         name: lambda-package
         path: ./src/TaskManager.Api/
         
-    - name: Deploy SAM application
+    - name: Setup SAM CLI
+      uses: aws-actions/setup-sam@v2
+      with:
+        use-installer: true
+        
+    - name: Deploy with SAM
       run: |
         cd src/TaskManager.Api
         sam deploy \
-          --template-file serverless.template \
-          --stack-name taskmanager-api-${{ env.ENVIRONMENT }} \
+          --template-file template.yaml \
+          --stack-name taskmanager-${{ env.ENVIRONMENT }} \
           --parameter-overrides \
             Environment=${{ env.ENVIRONMENT }} \
-            InfrastructureStackName=taskmanager-infrastructure-${{ env.ENVIRONMENT }} \
+            DatabasePassword=${{ secrets.DATABASE_PASSWORD }} \
             GoogleClientId=${{ secrets.GOOGLE_CLIENT_ID }} \
             GoogleClientSecret=${{ secrets.GOOGLE_CLIENT_SECRET }} \
           --capabilities CAPABILITY_IAM \
@@ -141,38 +113,8 @@ jobs:
     - name: Get API Gateway URL
       run: |
         API_URL=$(aws cloudformation describe-stacks \
-          --stack-name taskmanager-api-${{ env.ENVIRONMENT }} \
+          --stack-name taskmanager-${{ env.ENVIRONMENT }} \
           --query 'Stacks[0].Outputs[?OutputKey==`ApiEndpoint`].OutputValue' \
           --output text \
           --region ${{ env.AWS_REGION }})
-        echo "🚀 API deployed to: $API_URL"
-        echo "API_URL=$API_URL" >> $GITHUB_ENV
-
-  deploy-web:
-    name: Deploy Web Application
-    runs-on: ubuntu-latest
-    needs: [build, deploy-application]
-    if: github.ref == 'refs/heads/main'
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: ${{ env.AWS_REGION }}
-        
-    - name: Download Web artifacts
-      uses: actions/download-artifact@v4
-      with:
-        name: web-artifacts
-        path: ./web-app
-        
-    - name: Deploy to S3 (if using S3 for static hosting)
-      run: |
-        # This step would deploy the web app to S3 + CloudFront
-        # For now, we'll use the same Lambda approach
-        echo "Web deployment would go here - currently using Blazor Server in Lambda"
+        echo "🚀 TaskManager deployed to: $API_URL"
