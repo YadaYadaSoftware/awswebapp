@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "Apg1zzOQI/0=",
+  "dgSpecHash": "YpWef5IKxpA=",
   "success": true,
-  "projectFilePath": "c:\\Users\\17034\\repos\\awswebapp\\awswebapp\\src\\TaskManager.Api\\TaskManager.Api.csproj",
+  "projectFilePath": "C:\\Users\\17034\\repos\\awswebapp\\awswebapp\\src\\TaskManager.Api\\TaskManager.Api.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\17034\\.nuget\\packages\\amazon.lambda.annotations\\1.7.0\\amazon.lambda.annotations.1.7.0.nupkg.sha512",
     "C:\\Users\\17034\\.nuget\\packages\\amazon.lambda.apigatewayevents\\2.7.1\\amazon.lambda.apigatewayevents.2.7.1.nupkg.sha512",

@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "EjZGVsSmc6E=",
+  "dgSpecHash": "kmcjvXfyOMY=",
   "success": true,
-  "projectFilePath": "C:\\Users\\17034\\repos\\awswebapp\\awswebapp\\src\\TaskManager.Data\\TaskManager.Data.csproj",
+  "projectFilePath": "c:\\Users\\17034\\repos\\awswebapp\\awswebapp\\src\\TaskManager.Data\\TaskManager.Data.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\17034\\.nuget\\packages\\microsoft.entityframeworkcore\\9.0.8\\microsoft.entityframeworkcore.9.0.8.nupkg.sha512",
     "C:\\Users\\17034\\.nuget\\packages\\microsoft.entityframeworkcore.abstractions\\9.0.8\\microsoft.entityframeworkcore.abstractions.9.0.8.nupkg.sha512",

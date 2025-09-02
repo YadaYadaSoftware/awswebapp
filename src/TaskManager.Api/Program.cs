@@ -59,7 +59,11 @@ public class Program
             options.DefaultSignInScheme = "Cookies";
             options.DefaultChallengeScheme = "Google";
         })
-        .AddCookie("Cookies")
+        .AddCookie("Cookies", options =>
+        {
+            options.Cookie.SameSite = SameSiteMode.Lax;
+            options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+        })
         .AddGoogle("Google", options =>
         {
             options.ClientId = configuration["Authentication:Google:ClientId"] ?? throw new InvalidOperationException("Google ClientId not configured");
@@ -71,7 +75,9 @@ public class Program
             options.Scope.Add("profile");
             options.Scope.Add("email");
             
-            // Claims will be automatically mapped by Google provider
+            // Configure correlation cookie to fix OAuth correlation issues
+            options.CorrelationCookie.SameSite = SameSiteMode.Lax;
+            options.CorrelationCookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
         });
         
         services.AddAuthorization();
