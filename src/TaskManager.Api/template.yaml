@@ -255,7 +255,6 @@ Resources:
           "username": "taskmanager_admin",
           "password": "${DatabasePassword}",
           "engine": "postgres",
-          "host": "${TaskManagerDatabase.Endpoint.Address}",
           "port": 5432,
           "dbname": "taskmanager"
         }
@@ -307,7 +306,8 @@ Resources:
       Role: !GetAtt LambdaExecutionRole.Arn
       Environment:
         Variables:
-          DATABASE_SECRET_NAME: !Ref DatabaseSecret
+          ASPNETCORE_ENVIRONMENT: !Ref Environment
+          ConnectionStrings__DefaultConnection: !Sub 'Host=${TaskManagerDatabase.Endpoint.Address};Database=taskmanager;Username=taskmanager_admin;Password=${DatabasePassword}'
           Authentication__Google__ClientId: !Ref GoogleClientId
           Authentication__Google__ClientSecret: !Ref GoogleClientSecret
       VpcConfig:
