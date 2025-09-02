@@ -1,24 +1,24 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\17034\\repos\\awswebapp\\awswebapp\\src\\TaskManager.Web\\TaskManager.Web.csproj": {}
+    "c:\\Users\\17034\\repos\\awswebapp\\awswebapp\\src\\TaskManager.Web\\TaskManager.Web.csproj": {}
   },
   "projects": {
-    "C:\\Users\\17034\\repos\\awswebapp\\awswebapp\\src\\TaskManager.Web\\TaskManager.Web.csproj": {
+    "c:\\Users\\17034\\repos\\awswebapp\\awswebapp\\src\\TaskManager.Web\\TaskManager.Web.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\17034\\repos\\awswebapp\\awswebapp\\src\\TaskManager.Web\\TaskManager.Web.csproj",
+        "projectUniqueName": "c:\\Users\\17034\\repos\\awswebapp\\awswebapp\\src\\TaskManager.Web\\TaskManager.Web.csproj",
         "projectName": "TaskManager.Web",
-        "projectPath": "C:\\Users\\17034\\repos\\awswebapp\\awswebapp\\src\\TaskManager.Web\\TaskManager.Web.csproj",
+        "projectPath": "c:\\Users\\17034\\repos\\awswebapp\\awswebapp\\src\\TaskManager.Web\\TaskManager.Web.csproj",
         "packagesPath": "C:\\Users\\17034\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\17034\\repos\\awswebapp\\awswebapp\\src\\TaskManager.Web\\obj\\",
+        "outputPath": "c:\\Users\\17034\\repos\\awswebapp\\awswebapp\\src\\TaskManager.Web\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages",
           "C:\\Program Files (x86)\\Progress\\ToolboxNuGetPackages"
         ],
         "configFilePaths": [
-          "C:\\Users\\17034\\repos\\awswebapp\\awswebapp\\NuGet.Config",
+          "c:\\Users\\17034\\repos\\awswebapp\\awswebapp\\NuGet.Config",
           "C:\\Users\\17034\\AppData\\Roaming\\NuGet\\NuGet.Config",
           "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
           "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config",

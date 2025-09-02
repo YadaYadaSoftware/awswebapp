@@ -1,44 +1,141 @@
-var builder = WebApplication.CreateBuilder(args);
+using Amazon.Lambda.Annotations;
+using Amazon.Lambda.AspNetCoreServer;
+using Amazon.Lambda.Core;
+using Microsoft.EntityFrameworkCore;
+using TaskManager.Data;
 
-// Add services to the container.
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+[assembly: LambdaSerializer(typeof(Amazon.Lambda.Serialization.SystemTextJson.DefaultLambdaJsonSerializer))]
 
-var app = builder.Build();
+namespace TaskManager.Api;
 
-// Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
+public class Program
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
+    public static void Main(string[] args)
+    {
+        var builder = WebApplication.CreateBuilder(args);
+
+        // Configure services
+        ConfigureServices(builder.Services, builder.Configuration);
+
+        var app = builder.Build();
+
+        // Configure pipeline
+        ConfigurePipeline(app, app.Environment);
+
+        app.Run();
+    }
+
+    public static void ConfigureServices(IServiceCollection services, IConfiguration configuration)
+    {
+        // Add Entity Framework
+        services.AddDbContext<TaskManagerDbContext>(options =>
+        {
+            var connectionString = configuration.GetConnectionString("DefaultConnection");
+            options.UseNpgsql(connectionString);
+        });
+
+        // Add CORS
+        services.AddCors(options =>
+        {
+            options.AddDefaultPolicy(policy =>
+            {
+                policy.AllowAnyOrigin()
+                      .AllowAnyMethod()
+                      .AllowAnyHeader();
+            });
+        });
+
+        // Add API services
+        services.AddEndpointsApiExplorer();
+        services.AddSwaggerGen(c =>
+        {
+            c.SwaggerDoc("v1", new() { Title = "TaskManager API", Version = "v1" });
+        });
+
+        // Add authentication (will be configured later)
+        services.AddAuthentication();
+        services.AddAuthorization();
+
+        // Register controllers for Lambda Annotations
+        services.AddScoped<Controllers.ProjectsController>();
+    }
+
+    public static void ConfigurePipeline(WebApplication app, IWebHostEnvironment env)
+    {
+        // Configure the HTTP request pipeline
+        if (env.IsDevelopment())
+        {
+            app.UseSwagger();
+            app.UseSwaggerUI(c =>
+            {
+                c.SwaggerEndpoint("/swagger/v1/swagger.json", "TaskManager API v1");
+            });
+        }
+
+        app.UseCors();
+        app.UseAuthentication();
+        app.UseAuthorization();
+
+        // Health check endpoint
+        app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow }))
+           .WithName("HealthCheck")
+           .WithTags("Health");
+
+        // API endpoints will be added via Lambda Annotations in separate controller classes
+    }
 }
 
-app.UseHttpsRedirection();
-
-var summaries = new[]
+/// <summary>
+/// Lambda entry point for the ASP.NET Core application
+/// </summary>
+public class LambdaEntryPoint : Amazon.Lambda.AspNetCoreServer.APIGatewayProxyFunction
 {
-    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-};
+    protected override void Init(IWebHostBuilder builder)
+    {
+        builder.UseStartup<Startup>();
+    }
+}
 
-app.MapGet("/weatherforecast", () =>
+/// <summary>
+/// Startup class for Lambda hosting
+/// </summary>
+public class Startup
 {
-    var forecast =  Enumerable.Range(1, 5).Select(index =>
-        new WeatherForecast
-        (
-            DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-            Random.Shared.Next(-20, 55),
-            summaries[Random.Shared.Next(summaries.Length)]
-        ))
-        .ToArray();
-    return forecast;
-})
-.WithName("GetWeatherForecast")
-.WithOpenApi();
+    public Startup(IConfiguration configuration)
+    {
+        Configuration = configuration;
+    }
 
-app.Run();
+    public IConfiguration Configuration { get; }
 
-record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
-{
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
+    public void ConfigureServices(IServiceCollection services)
+    {
+        Program.ConfigureServices(services, Configuration);
+    }
+
+    public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
+    {
+        // For Lambda, we need to handle this differently since we don't have WebApplication
+        if (env.IsDevelopment())
+        {
+            app.UseSwagger();
+            app.UseSwaggerUI(c =>
+            {
+                c.SwaggerEndpoint("/swagger/v1/swagger.json", "TaskManager API v1");
+            });
+        }
+
+        app.UseCors();
+        app.UseRouting();
+        app.UseAuthentication();
+        app.UseAuthorization();
+        
+        app.UseEndpoints(endpoints =>
+        {
+            endpoints.MapGet("/health", async context =>
+            {
+                await context.Response.WriteAsync(System.Text.Json.JsonSerializer.Serialize(new { status = "healthy", timestamp = DateTime.UtcNow }));
+            });
+        });
+    }
 }
