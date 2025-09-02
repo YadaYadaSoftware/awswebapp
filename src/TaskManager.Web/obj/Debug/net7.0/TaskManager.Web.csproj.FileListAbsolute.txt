@@ -1,3 +1,0 @@
-c:\Users\17034\repos\awswebapp\awswebapp\src\TaskManager.Web\bin\Debug\net7.0\TaskManager.Web.exe
-c:\Users\17034\repos\awswebapp\awswebapp\src\TaskManager.Web\bin\Debug\net7.0\TaskManager.Web.dll
-c:\Users\17034\repos\awswebapp\awswebapp\src\TaskManager.Web\bin\Debug\net7.0\Microsoft.AspNetCore.Authentication.Google.dll
