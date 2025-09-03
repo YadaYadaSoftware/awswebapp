@@ -143,14 +143,16 @@ jobs:
           --template-file template.yaml \
           --stack-name ${{ env.STACK_NAME }} \
           --parameter-overrides \
-            Environment=${{ env.BRANCH_NAME }} \
-            DatabasePassword=${{ secrets.DATABASE_PASSWORD }} \
-            GoogleClientId=${{ secrets.GOOGLE_CLIENT_ID }} \
-            GoogleClientSecret=${{ secrets.GOOGLE_CLIENT_SECRET }} \
+            'Environment=${{ env.BRANCH_NAME }}' \
+            'DatabasePassword=${{ secrets.DATABASE_PASSWORD }}' \
+            'GoogleClientId=${{ secrets.GOOGLE_CLIENT_ID }}' \
+            'GoogleClientSecret=${{ secrets.GOOGLE_CLIENT_SECRET }}' \
           --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND \
           --region ${{ env.AWS_REGION }} \
           --resolve-s3 \
           --no-confirm-changeset
+      env:
+        SAM_CLI_TELEMETRY: 0
         
     - name: Get deployment outputs
       run: |
