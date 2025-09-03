@@ -170,6 +170,10 @@ jobs:
           --output text \
           --region ${{ env.AWS_REGION }})
         
+        # Debug: List downloaded artifacts
+        echo "Downloaded artifacts:"
+        ls -la ./artifacts/
+        
         # Upload nested stack templates
         aws s3 cp src/TaskManager.Api/api-template.yaml s3://$BUCKET_NAME/api-template.yaml
         aws s3 cp src/TaskManager.Web/web-template.yaml s3://$BUCKET_NAME/web-template.yaml
@@ -177,6 +181,10 @@ jobs:
         # Upload Lambda deployment packages
         aws s3 cp ./artifacts/api-lambda-deployment.zip s3://$BUCKET_NAME/api-lambda-deployment.zip
         aws s3 cp ./artifacts/web-lambda-deployment.zip s3://$BUCKET_NAME/web-lambda-deployment.zip
+        
+        # Verify uploads
+        echo "S3 bucket contents:"
+        aws s3 ls s3://$BUCKET_NAME/
         
         echo "TEMPLATE_BUCKET=$BUCKET_NAME" >> $GITHUB_ENV
         
