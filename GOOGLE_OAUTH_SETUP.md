@@ -46,6 +46,31 @@ This guide explains how to set up Google OAuth authentication for the TaskManage
 5. Click **Create**
 6. Copy the **Client ID** and **Client Secret**
 
+## Step 3.5: Update Production Redirect URIs
+
+**After deployment, you need to update the Google Cloud Console with the actual API Gateway URL:**
+
+1. **Get your API Gateway URL** from the CloudFormation outputs:
+   ```bash
+   aws cloudformation describe-stacks \
+     --stack-name taskmanager-main \
+     --query 'Stacks[0].Outputs[?OutputKey==`ApiEndpoint`].OutputValue' \
+     --output text
+   ```
+
+2. **Update Google Cloud Console**:
+   - Go to **APIs & Services** > **Credentials**
+   - Edit your OAuth 2.0 Client ID
+   - Add to **Authorized redirect URIs**:
+     - `https://[YOUR-API-GATEWAY-ID].execute-api.us-east-1.amazonaws.com/Prod/signin-google`
+   - Add to **Authorized JavaScript origins**:
+     - `https://[YOUR-API-GATEWAY-ID].execute-api.us-east-1.amazonaws.com`
+
+3. **Alternative: Use Custom Domain** (Recommended for production):
+   - Configure a custom domain for your API Gateway
+   - Update Google Console with the custom domain
+   - This provides consistent URLs across deployments
+
 ## Step 4: Configure Application Settings
 
 ### For Local Development
@@ -140,8 +165,10 @@ The Web project includes:
 ### Common Issues
 
 1. **"redirect_uri_mismatch" Error**
-   - Verify redirect URIs in Google Console match your application URLs exactly
-   - Check for trailing slashes and protocol (http vs https)
+    - Verify redirect URIs in Google Console match your application URLs exactly
+    - Check for trailing slashes and protocol (http vs https)
+    - **For production deployments**: Update Google Console with the actual API Gateway URL after deployment
+    - **Example**: `https://pkuatgoyed.execute-api.us-east-1.amazonaws.com/Prod/signin-google`
 
 2. **"invalid_client" Error**
    - Verify Client ID and Client Secret are correct
@@ -161,6 +188,38 @@ The Web project includes:
 2. Verify Google Cloud Console configuration
 3. Test with a simple OAuth flow first
 4. Use browser developer tools to inspect network requests
+
+## Production Deployment OAuth Fix
+
+### Quick Fix for Current Deployment
+
+1. **Get your current API Gateway URL**:
+   ```bash
+   aws cloudformation describe-stacks \
+     --stack-name taskmanager-main \
+     --query 'Stacks[0].Outputs[?OutputKey==`ApiEndpoint`].OutputValue' \
+     --output text
+   ```
+
+2. **Update Google Cloud Console**:
+   - Go to [Google Cloud Console](https://console.cloud.google.com/)
+   - Navigate to **APIs & Services** > **Credentials**
+   - Edit your OAuth 2.0 Client ID
+   - Add these **Authorized redirect URIs**:
+     - `https://[YOUR-API-GATEWAY-ID].execute-api.us-east-1.amazonaws.com/Prod/signin-google`
+   - Add these **Authorized JavaScript origins**:
+     - `https://[YOUR-API-GATEWAY-ID].execute-api.us-east-1.amazonaws.com`
+
+3. **Replace `[YOUR-API-GATEWAY-ID]`** with the actual ID from step 1 (e.g., `pkuatgoyed`)
+
+4. **Test the login** - the redirect URI mismatch error should be resolved
+
+### For Future Deployments
+
+Consider setting up a custom domain for your API Gateway to avoid this issue:
+- Use Route 53 + API Gateway custom domain
+- Update Google Console once with the custom domain
+- No need to update Google Console after each deployment
 
 ## Next Steps
 
