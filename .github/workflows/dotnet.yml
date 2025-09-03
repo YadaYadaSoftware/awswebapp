@@ -83,11 +83,22 @@ jobs:
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: ${{ env.AWS_REGION }}
         
+    - name: Setup SAM CLI
+      uses: aws-actions/setup-sam@v2
+      with:
+        use-installer: true
+        
     - name: Download Lambda package
       uses: actions/download-artifact@v4
       with:
         name: lambda-package
         path: ./src/TaskManager.Api/
+        
+    - name: Extract Lambda package
+      run: |
+        cd src/TaskManager.Api
+        unzip -o lambda-deployment.zip
+        rm lambda-deployment.zip
         
     - name: Cleanup failed stack (if exists)
       run: |
@@ -116,18 +127,22 @@ jobs:
           echo "✅ No cleanup needed"
         fi
         
-    - name: Deploy TaskManager Application
-      uses: aws-actions/aws-cloudformation-github-deploy@v1
-      with:
-        name: taskmanager-${{ env.ENVIRONMENT }}
-        template: src/TaskManager.Api/template.yaml
-        parameter-overrides: |
-          Environment=${{ env.ENVIRONMENT }},
-          DatabasePassword=${{ secrets.DATABASE_PASSWORD }},
-          GoogleClientId=${{ secrets.GOOGLE_CLIENT_ID }},
-          GoogleClientSecret=${{ secrets.GOOGLE_CLIENT_SECRET }}
-        capabilities: "CAPABILITY_IAM,CAPABILITY_AUTO_EXPAND"
-        no-fail-on-empty-changeset: "1"
+    - name: Build and Deploy with SAM
+      run: |
+        cd src/TaskManager.Api
+        sam build --template-file template.yaml
+        sam deploy \
+          --template-file template.yaml \
+          --stack-name taskmanager-${{ env.ENVIRONMENT }} \
+          --parameter-overrides \
+            Environment=${{ env.ENVIRONMENT }} \
+            DatabasePassword=${{ secrets.DATABASE_PASSWORD }} \
+            GoogleClientId=${{ secrets.GOOGLE_CLIENT_ID }} \
+            GoogleClientSecret=${{ secrets.GOOGLE_CLIENT_SECRET }} \
+          --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND \
+          --region ${{ env.AWS_REGION }} \
+          --resolve-s3 \
+          --no-confirm-changeset
         disable-rollback: "1"
      
         

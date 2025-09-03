@@ -301,7 +301,13 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub 'TaskManagerApi-${Environment}'
-      CodeUri: .
+      InlineCode: |
+        // Placeholder code - will be replaced by deployment package
+        using Amazon.Lambda.Core;
+        [assembly: LambdaSerializer(typeof(Amazon.Lambda.Serialization.SystemTextJson.DefaultLambdaJsonSerializer))]
+        public class Function {
+          public string Handler(string input, ILambdaContext context) => "Hello from TaskManager";
+        }
       Handler: TaskManager.Api::TaskManager.Api.LambdaEntryPoint::FunctionHandlerAsync
       PackageType: Zip
       Role: !GetAtt LambdaExecutionRole.Arn
