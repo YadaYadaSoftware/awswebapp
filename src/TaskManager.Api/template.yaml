@@ -5,9 +5,8 @@ Description: 'TaskManager Complete Application - Infrastructure and Lambda Funct
 Parameters:
   Environment:
     Type: String
-    Default: prod
-    AllowedValues: [dev, staging, prod]
-    Description: 'Environment name for resource naming'
+    Default: main
+    Description: 'Environment name for resource naming (typically branch name)'
   
   DatabasePassword:
     Type: String
