@@ -1,0 +1,98 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'TaskManager Complete Application - Nested Stacks for API and Web'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: main
+    Description: 'Environment name (typically branch name)'
+    
+  GoogleClientId:
+    Type: String
+    NoEcho: true
+    Description: 'Google OAuth Client ID'
+    
+  GoogleClientSecret:
+    Type: String
+    NoEcho: true
+    Description: 'Google OAuth Client Secret'
+
+Resources:
+  # API Stack (Nested)
+  TaskManagerApiStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: https://s3.amazonaws.com/your-sam-bucket/api-template.yaml
+      Parameters:
+        Environment: !Ref Environment
+        GoogleClientId: !Ref GoogleClientId
+        GoogleClientSecret: !Ref GoogleClientSecret
+      Tags:
+        - Key: Component
+          Value: API
+        - Key: Environment
+          Value: !Ref Environment
+
+  # Web Stack (Nested)
+  TaskManagerWebStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: TaskManagerApiStack
+    Properties:
+      TemplateURL: https://s3.amazonaws.com/your-sam-bucket/web-template.yaml
+      Parameters:
+        Environment: !Ref Environment
+        GoogleClientId: !Ref GoogleClientId
+        GoogleClientSecret: !Ref GoogleClientSecret
+      Tags:
+        - Key: Component
+          Value: Web
+        - Key: Environment
+          Value: !Ref Environment
+
+Outputs:
+  ApiEndpoint:
+    Description: 'API Gateway endpoint URL'
+    Value: !GetAtt TaskManagerApiStack.Outputs.ApiEndpoint
+    Export:
+      Name: !Sub 'TaskManager-${Environment}-ApiEndpoint'
+
+  WebEndpoint:
+    Description: 'Web application endpoint URL'
+    Value: !GetAtt TaskManagerWebStack.Outputs.WebEndpoint
+    Export:
+      Name: !Sub 'TaskManager-${Environment}-WebEndpoint'
+
+  ApiLambdaFunctionName:
+    Description: 'API Lambda function name'
+    Value: !GetAtt TaskManagerApiStack.Outputs.ApiLambdaFunctionName
+    Export:
+      Name: !Sub 'TaskManager-${Environment}-ApiLambdaFunction'
+
+  WebLambdaFunctionName:
+    Description: 'Web Lambda function name'
+    Value: !GetAtt TaskManagerWebStack.Outputs.WebLambdaFunctionName
+    Export:
+      Name: !Sub 'TaskManager-${Environment}-WebLambdaFunction'
+
+  DatabaseName:
+    Description: 'Branch-specific database name'
+    Value: !GetAtt TaskManagerApiStack.Outputs.DatabaseName
+    Export:
+      Name: !Sub 'TaskManager-${Environment}-DatabaseName'
+
+  BranchEnvironment:
+    Description: 'Branch environment name'
+    Value: !Ref Environment
+    Export:
+      Name: !Sub 'TaskManager-${Environment}-Environment'
+
+  DeploymentSummary:
+    Description: 'Deployment summary'
+    Value: !Sub |
+      TaskManager ${Environment} deployed successfully!
+      
+      API Endpoint: ${TaskManagerApiStack.Outputs.ApiEndpoint}
+      Web Endpoint: ${TaskManagerWebStack.Outputs.WebEndpoint}
+      Database: taskmanager_${Environment}
+      
+      Both API and Web applications are running on AWS Lambda.

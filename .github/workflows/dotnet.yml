@@ -149,13 +149,32 @@ jobs:
           echo "✅ Failed branch stack cleaned up"
         fi
         
-    - name: Deploy Branch Application
+    - name: Deploy API Stack
       run: |
         cd src/TaskManager.Api
-        sam build --template-file branch-template.yaml
+        sam build --template-file api-template.yaml
         sam deploy \
-          --template-file branch-template.yaml \
-          --stack-name ${{ env.STACK_NAME }} \
+          --template-file api-template.yaml \
+          --stack-name ${{ env.STACK_NAME }}-api \
+          --parameter-overrides \
+            'Environment=${{ env.BRANCH_NAME }}' \
+            'GoogleClientId=${{ secrets.GOOGLE_CLIENT_ID }}' \
+            'GoogleClientSecret=${{ secrets.GOOGLE_CLIENT_SECRET }}' \
+          --capabilities CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND \
+          --region ${{ env.AWS_REGION }} \
+          --resolve-s3 \
+          --no-confirm-changeset
+      env:
+        SAM_CLI_TELEMETRY: 0
+      timeout-minutes: 15
+        
+    - name: Deploy Web Stack
+      run: |
+        cd src/TaskManager.Web
+        sam build --template-file web-template.yaml
+        sam deploy \
+          --template-file web-template.yaml \
+          --stack-name ${{ env.STACK_NAME }}-web \
           --parameter-overrides \
             'Environment=${{ env.BRANCH_NAME }}' \
             'GoogleClientId=${{ secrets.GOOGLE_CLIENT_ID }}' \
@@ -172,7 +191,7 @@ jobs:
       run: |
         # Trigger database setup function
         API_URL=$(aws cloudformation describe-stacks \
-          --stack-name ${{ env.STACK_NAME }} \
+          --stack-name ${{ env.STACK_NAME }}-api \
           --query 'Stacks[0].Outputs[?OutputKey==`ApiEndpoint`].OutputValue' \
           --output text \
           --region ${{ env.AWS_REGION }})
@@ -183,8 +202,14 @@ jobs:
     - name: Get deployment outputs
       run: |
         API_URL=$(aws cloudformation describe-stacks \
-          --stack-name ${{ env.STACK_NAME }} \
+          --stack-name ${{ env.STACK_NAME }}-api \
           --query 'Stacks[0].Outputs[?OutputKey==`ApiEndpoint`].OutputValue' \
+          --output text \
+          --region ${{ env.AWS_REGION }})
+        
+        WEB_URL=$(aws cloudformation describe-stacks \
+          --stack-name ${{ env.STACK_NAME }}-web \
+          --query 'Stacks[0].Outputs[?OutputKey==`WebEndpoint`].OutputValue' \
           --output text \
           --region ${{ env.AWS_REGION }})
         
@@ -200,8 +225,11 @@ jobs:
           --output text \
           --region ${{ env.AWS_REGION }})
         
-        echo "🚀 TaskManager (${{ env.BRANCH_NAME }}) deployed to: $API_URL"
-        echo "📋 Stack name: ${{ env.STACK_NAME }}"
+        echo "🚀 TaskManager (${{ env.BRANCH_NAME }}) deployed successfully!"
+        echo "📋 API Stack: ${{ env.STACK_NAME }}-api"
+        echo "📋 Web Stack: ${{ env.STACK_NAME }}-web"
+        echo "🌐 Web Application: $WEB_URL"
+        echo "🔗 API Endpoint: $API_URL"
         echo "🖥️ Bastion host IP: $BASTION_IP"
         echo "💾 Database: taskmanager_${{ env.BRANCH_NAME }}"
         echo "🔗 SSH Tunnel: $TUNNEL_CMD"
