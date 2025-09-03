@@ -92,6 +92,7 @@ Resources:
               - iam:ListInstanceProfiles
               - iam:TagRole
               - iam:UntagRole
+              - iam:CreateInstanceProfile
             Resource: 
               - !Sub 'arn:aws:iam::${AWS::AccountId}:role/TaskManager-*'
               - !Sub 'arn:aws:iam::${AWS::AccountId}:instance-profile/TaskManager-*'
