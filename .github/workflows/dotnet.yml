@@ -45,25 +45,30 @@ jobs:
     - name: Publish API for Lambda
       run: dotnet publish src/TaskManager.Api/TaskManager.Api.csproj --configuration Release --output ./publish/api --runtime linux-x64 --self-contained false
       
-    - name: Publish Web Application
-      run: dotnet publish src/TaskManager.Web/TaskManager.Web.csproj --configuration Release --output ./publish/web
+    - name: Publish Web for Lambda
+      run: dotnet publish src/TaskManager.Web/TaskManager.Web.csproj --configuration Release --output ./publish/web --runtime linux-x64 --self-contained false
       
-    - name: Create Lambda deployment package
+    - name: Create API Lambda deployment package
       run: |
         cd ./publish/api
-        zip -r ../../lambda-deployment.zip .
+        zip -r ../../api-lambda-deployment.zip .
         
-    - name: Upload Lambda package
+    - name: Create Web Lambda deployment package
+      run: |
+        cd ./publish/web
+        zip -r ../../web-lambda-deployment.zip .
+        
+    - name: Upload API Lambda package
       uses: actions/upload-artifact@v4
       with:
-        name: lambda-package
-        path: lambda-deployment.zip
+        name: api-lambda-package
+        path: api-lambda-deployment.zip
         
-    - name: Upload Web artifacts
+    - name: Upload Web Lambda package
       uses: actions/upload-artifact@v4
       with:
-        name: web-artifacts
-        path: ./publish/web
+        name: web-lambda-package
+        path: web-lambda-deployment.zip
 
   deploy-infrastructure:
     name: Deploy Shared Infrastructure

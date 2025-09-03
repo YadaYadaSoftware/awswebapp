@@ -142,11 +142,60 @@ Resources:
       Tags:
         Environment: !Ref Environment
 
-  # CloudWatch Log Group
+  # TaskManager Web Function (Blazor Server)
+  TaskManagerWebFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'TaskManagerWeb-${Environment}'
+      CodeUri: ../TaskManager.Web
+      Handler: TaskManager.Web::TaskManager.Web.LambdaEntryPoint::FunctionHandlerAsync
+      Runtime: dotnet8
+      PackageType: Zip
+      Role:
+        Fn::ImportValue: 'TaskManager-SharedLambdaRole'
+      Environment:
+        Variables:
+          ASPNETCORE_ENVIRONMENT: !Ref Environment
+          ConnectionStrings__DefaultConnection: !Sub
+            - 'Host=${DatabaseEndpoint};Database=taskmanager_${DatabaseName};Username=taskmanager_admin;Password=${DatabasePassword}'
+            - DatabaseEndpoint:
+                Fn::ImportValue: 'TaskManager-DatabaseEndpoint'
+              DatabaseName: !Sub '${Environment}'
+              DatabasePassword: !Sub '{{resolve:secretsmanager:taskmanager/database/shared:SecretString:password}}'
+          Authentication__Google__ClientId: !Ref GoogleClientId
+          Authentication__Google__ClientSecret: !Ref GoogleClientSecret
+      VpcConfig:
+        SecurityGroupIds:
+          - Fn::ImportValue: 'TaskManager-LambdaSecurityGroup'
+        SubnetIds:
+          - Fn::ImportValue: 'TaskManager-PrivateSubnet1'
+          - Fn::ImportValue: 'TaskManager-PrivateSubnet2'
+      Events:
+        WebRoot:
+          Type: Api
+          Properties:
+            Path: /
+            Method: ANY
+        WebProxy:
+          Type: Api
+          Properties:
+            Path: /{proxy+}
+            Method: ANY
+      Tags:
+        Environment: !Ref Environment
+
+  # CloudWatch Log Group for API
   LambdaLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub '/aws/lambda/TaskManagerApi-${Environment}'
+      RetentionInDays: 30
+
+  # CloudWatch Log Group for Web
+  WebLambdaLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/TaskManagerWeb-${Environment}'
       RetentionInDays: 30
 
   # CloudWatch Alarms
@@ -166,6 +215,23 @@ Resources:
         - Name: FunctionName
           Value: !Ref TaskManagerApiFunction
 
+  # CloudWatch Alarms for Web
+  WebLambdaErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub 'TaskManager-Web-Errors-${Environment}'
+      AlarmDescription: 'Web Lambda function error rate alarm'
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 5
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref TaskManagerWebFunction
+
 Outputs:
   ApiEndpoint:
     Description: 'API Gateway endpoint URL'
@@ -173,11 +239,23 @@ Outputs:
     Export:
       Name: !Sub 'TaskManager-${Environment}-ApiEndpoint'
 
-  LambdaFunctionName:
-    Description: 'Lambda function name'
+  ApiLambdaFunctionName:
+    Description: 'API Lambda function name'
     Value: !Ref TaskManagerApiFunction
     Export:
-      Name: !Sub 'TaskManager-${Environment}-LambdaFunction'
+      Name: !Sub 'TaskManager-${Environment}-ApiLambdaFunction'
+
+  WebLambdaFunctionName:
+    Description: 'Web Lambda function name'
+    Value: !Ref TaskManagerWebFunction
+    Export:
+      Name: !Sub 'TaskManager-${Environment}-WebLambdaFunction'
+
+  WebEndpoint:
+    Description: 'Web application endpoint URL'
+    Value: !Sub 'https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/'
+    Export:
+      Name: !Sub 'TaskManager-${Environment}-WebEndpoint'
 
   DatabaseName:
     Description: 'Branch-specific database name'
