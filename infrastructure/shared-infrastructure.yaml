@@ -416,7 +416,7 @@ Resources:
          Value: 'CloudFormation Template Storage'
 
  # S3 Bucket Policy for CloudFormation Access
-  TemplatesBucketPolicy:
+ TemplatesBucketPolicy:
    Type: AWS::S3::BucketPolicy
    Properties:
      Bucket: !Ref TemplatesBucket
@@ -429,7 +429,7 @@ Resources:
              Service: cloudformation.amazonaws.com
            Action:
              - s3:GetObject
-           Resource: !Sub '${TemplatesBucket}/*'
+           Resource: !Sub '${TemplatesBucket.Arn}/*'
          - Sid: AllowAccountAccess
            Effect: Allow
            Principal:
@@ -438,7 +438,7 @@ Resources:
              - s3:GetObject
              - s3:PutObject
              - s3:DeleteObject
-           Resource: !Sub '${TemplatesBucket}/*'
+           Resource: !Sub '${TemplatesBucket.Arn}/*'
 
 Outputs:
   VPCId:
