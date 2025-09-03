@@ -46,7 +46,7 @@ jobs:
       run: dotnet publish src/TaskManager.Api/TaskManager.Api.csproj --configuration Release --output ./publish/api --runtime linux-x64 --self-contained false
       
     - name: Publish Web for Lambda
-      run: dotnet publish src/TaskManager.Web/TaskManager.Web.csproj --configuration Release --output ./publish/web --runtime linux-x64 --self-contained false
+      run: dotnet publish src/TaskManager.Web/TaskManager.Web.csproj --configuration Release --output ./publish/web --runtime linux-x64 --self-contained false /p:GenerateRuntimeConfigurationFiles=true
       
     - name: Create API Lambda deployment package
       run: |
@@ -167,6 +167,18 @@ jobs:
       env:
         SAM_CLI_TELEMETRY: 0
       timeout-minutes: 15
+        
+    - name: Download Web Lambda package
+      uses: actions/download-artifact@v4
+      with:
+        name: web-lambda-package
+        path: ./src/TaskManager.Web/
+        
+    - name: Extract Web Lambda package
+      run: |
+        cd src/TaskManager.Web
+        unzip -o web-lambda-deployment.zip
+        rm web-lambda-deployment.zip
         
     - name: Deploy Web Stack
       run: |
