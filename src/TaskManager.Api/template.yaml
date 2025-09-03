@@ -299,6 +299,146 @@ Resources:
                   - logs:PutLogEvents
                 Resource: !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:*'
 
+  # RDS Proxy Role
+  RDSProxyRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub 'TaskManager-RDSProxy-Role-${Environment}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: rds.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: SecretsManagerAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                  - secretsmanager:DescribeSecret
+                Resource: !Ref DatabaseSecret
+
+  # RDS Proxy
+  TaskManagerRDSProxy:
+    Type: AWS::RDS::DBProxy
+    Properties:
+      DBProxyName: !Sub 'taskmanager-proxy-${Environment}'
+      EngineFamily: POSTGRESQL
+      Auth:
+        - AuthScheme: SECRETS
+          SecretArn: !Ref DatabaseSecret
+      RoleArn: !GetAtt RDSProxyRole.Arn
+      VpcSubnetIds:
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+      VpcSecurityGroupIds:
+        - !Ref RDSSecurityGroup
+      RequireTLS: false
+      IdleClientTimeout: 1800
+      MaxConnectionsPercent: 100
+      MaxIdleConnectionsPercent: 50
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  # RDS Proxy Target Group
+  RDSProxyTargetGroup:
+    Type: AWS::RDS::DBProxyTargetGroup
+    Properties:
+      DBProxyName: !Ref TaskManagerRDSProxy
+      TargetGroupName: default
+      DBInstanceIdentifiers:
+        - !Ref TaskManagerDatabase
+
+  # Bastion Host Security Group
+  BastionSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for bastion host
+      VpcId: !Ref TaskManagerVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+          Description: SSH access from anywhere (restrict to your IP for security)
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: !Sub 'TaskManager-Bastion-SG-${Environment}'
+
+  # Bastion Host
+  BastionHost:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-0c02fb55956c7d316  # Amazon Linux 2023 (update for your region)
+      InstanceType: t3.micro
+      SubnetId: !Ref PublicSubnet1
+      SecurityGroupIds:
+        - !Ref BastionSecurityGroup
+      IamInstanceProfile: !Ref BastionInstanceProfile
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          yum update -y
+          yum install -y postgresql15
+          
+          # Create connection script
+          cat > /home/ec2-user/connect-to-db.sh << 'EOF'
+          #!/bin/bash
+          echo "TaskManager Database Connection Helper"
+          echo "RDS Proxy Endpoint: ${TaskManagerRDSProxy.Endpoint}"
+          echo "Database: taskmanager"
+          echo "Username: taskmanager_admin"
+          echo ""
+          echo "To connect:"
+          echo "psql -h ${TaskManagerRDSProxy.Endpoint} -U taskmanager_admin -d taskmanager"
+          EOF
+          
+          chmod +x /home/ec2-user/connect-to-db.sh
+          chown ec2-user:ec2-user /home/ec2-user/connect-to-db.sh
+      Tags:
+        - Key: Name
+          Value: !Sub 'TaskManager-Bastion-${Environment}'
+        - Key: Environment
+          Value: !Ref Environment
+
+  # Bastion Host IAM Role
+  BastionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub 'TaskManager-Bastion-Role-${Environment}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      Policies:
+        - PolicyName: SecretsManagerRead
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource: !Ref DatabaseSecret
+
+  BastionInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref BastionRole
+
   # Lambda Function (SAM)
   TaskManagerApiFunction:
     Type: AWS::Serverless::Function
@@ -383,10 +523,16 @@ Outputs:
       Name: !Sub '${AWS::StackName}-ApiEndpoint'
 
   DatabaseEndpoint:
-    Description: 'RDS PostgreSQL endpoint'
+    Description: 'RDS PostgreSQL endpoint (private)'
     Value: !GetAtt TaskManagerDatabase.Endpoint.Address
     Export:
       Name: !Sub '${AWS::StackName}-DatabaseEndpoint'
+
+  RDSProxyEndpoint:
+    Description: 'RDS Proxy endpoint (private)'
+    Value: !GetAtt TaskManagerRDSProxy.Endpoint
+    Export:
+      Name: !Sub '${AWS::StackName}-RDSProxyEndpoint'
 
   DatabaseSecretArn:
     Description: 'Database secret ARN'
@@ -406,8 +552,34 @@ Outputs:
     Export:
       Name: !Sub '${AWS::StackName}-VPC'
 
+  BastionHostIP:
+    Description: 'Bastion host public IP address'
+    Value: !GetAtt BastionHost.PublicIp
+    Export:
+      Name: !Sub '${AWS::StackName}-BastionIP'
+
+  BastionHostId:
+    Description: 'Bastion host instance ID'
+    Value: !Ref BastionHost
+    Export:
+      Name: !Sub '${AWS::StackName}-BastionHostId'
+
+  PublicSubnet1Id:
+    Description: 'Public subnet ID for bastion host'
+    Value: !Ref PublicSubnet1
+    Export:
+      Name: !Sub '${AWS::StackName}-PublicSubnet1'
+
   PrivateSubnets:
     Description: 'Private subnet IDs'
     Value: !Sub '${PrivateSubnet1},${PrivateSubnet2}'
     Export:
       Name: !Sub '${AWS::StackName}-PrivateSubnets'
+
+  SSHCommand:
+    Description: 'SSH command to connect to bastion host'
+    Value: !Sub 'ssh -i your-key.pem ec2-user@${BastionHost.PublicIp}'
+
+  DatabaseTunnelCommand:
+    Description: 'SSH tunnel command for database access'
+    Value: !Sub 'ssh -i your-key.pem -L 5432:${TaskManagerRDSProxy.Endpoint}:5432 ec2-user@${BastionHost.PublicIp}'
