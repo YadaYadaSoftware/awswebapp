@@ -13,6 +13,7 @@ public class TaskManagerDbContext : DbContext
     public DbSet<Project> Projects { get; set; }
     public DbSet<Entities.Task> Tasks { get; set; }
     public DbSet<ProjectMember> ProjectMembers { get; set; }
+    public DbSet<Invitation> Invitations { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -30,6 +31,7 @@ public class TaskManagerDbContext : DbContext
         ConfigureProjectRelationships(modelBuilder);
         ConfigureTaskRelationships(modelBuilder);
         ConfigureProjectMemberRelationships(modelBuilder);
+        ConfigureInvitationRelationships(modelBuilder);
 
         // Configure indexes
         ConfigureIndexes(modelBuilder);
@@ -81,6 +83,15 @@ public class TaskManagerDbContext : DbContext
         // ProjectMember relationships are already configured in User and Project configurations
     }
 
+    private static void ConfigureInvitationRelationships(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<Invitation>()
+            .HasOne(i => i.InvitedByUser)
+            .WithMany()
+            .HasForeignKey(i => i.InvitedByUserId)
+            .OnDelete(DeleteBehavior.Restrict);
+    }
+
     private static void ConfigureIndexes(ModelBuilder modelBuilder)
     {
         // User indexes
@@ -119,6 +130,17 @@ public class TaskManagerDbContext : DbContext
 
         modelBuilder.Entity<ProjectMember>()
             .HasIndex(pm => pm.ProjectId);
+
+        // Invitation indexes
+        modelBuilder.Entity<Invitation>()
+            .HasIndex(i => i.Email)
+            .IsUnique();
+
+        modelBuilder.Entity<Invitation>()
+            .HasIndex(i => i.InvitedByUserId);
+
+        modelBuilder.Entity<Invitation>()
+            .HasIndex(i => i.IsAccepted);
     }
 
     public override int SaveChanges()

@@ -80,6 +80,19 @@ public class DatabaseMigrationService : IDatabaseMigrationService
             
             _context.Users.Add(sampleUser);
             
+            // Create initial admin invitation for the deployer
+            var adminInvitation = new Invitation
+            {
+                Id = Guid.NewGuid(),
+                Email = "admin@taskmanager.com", // This should be your email
+                InvitedByUserId = sampleUser.Id,
+                InvitedAt = DateTime.UtcNow,
+                IsAccepted = true, // Pre-accepted for admin
+                IsRevoked = false
+            };
+            
+            _context.Invitations.Add(adminInvitation);
+            
             // Create a sample project
             var sampleProject = new Project
             {

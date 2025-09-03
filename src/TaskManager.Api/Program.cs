@@ -40,6 +40,9 @@ public class Program
         
         // Add migration service
         services.AddScoped<IDatabaseMigrationService, DatabaseMigrationService>();
+        
+        // Add invitation service
+        services.AddScoped<IInvitationService, InvitationService>();
 
         // Add CORS
         services.AddCors(options =>
