@@ -30,6 +30,8 @@ This guide walks you through creating AWS credentials for GitHub Actions deploym
    - ✅ `CloudWatchFullAccess`
    - ✅ `IAMFullAccess` (needed for creating roles)
    - ✅ `AmazonS3FullAccess` (needed for SAM deployment artifacts)
+   - ✅ `AmazonEC2FullAccess` (needed for bastion host creation)
+   - ✅ `AmazonSNSFullAccess` (needed for SMS notifications)
 
 **Option B: Create Custom Policy (More Secure)**
 1. Click **Create policy**
