@@ -9,3 +9,4 @@ rules:
   comments:
     min-spaces-from-content: 1
   trailing-spaces: disable
+  
