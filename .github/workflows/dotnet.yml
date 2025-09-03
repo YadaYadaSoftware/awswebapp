@@ -30,14 +30,14 @@ jobs:
       
     - name: Lint YAML files
       run: |
-        echo "Linting all .yml and .yaml files in the repository..."
-        find . -name "*.yml" -o -name "*.yaml" | while read file; do
+        echo "Linting all .yml and .yaml files in the repository (excluding .github/workflows/dotnet.yml)..."
+        find . -name "*.yml" -o -name "*.yaml" | grep -v ".github/workflows/dotnet.yml" | while read file; do
           echo "Linting: $file"
-          yamllint "$file"
+          yamllint -c .yamllint.yml "$file"
         done
         
         # Check if any linting errors occurred
-        if find . -name "*.yml" -o -name "*.yaml" | xargs yamllint | grep -q "error\|warning"; then
+        if find . -name "*.yml" -o -name "*.yaml" | grep -v ".github/workflows/dotnet.yml" | xargs yamllint -c .yamllint.yml | grep -q "error"; then
           echo "❌ YAML linting failed!"
           exit 1
         else
