@@ -28,9 +28,17 @@ Globals:
         ASPNETCORE_ENVIRONMENT: !Ref Environment
 
 Resources:
+  # CloudWatch Log Group for Web
+  WebLambdaLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/TaskManagerWeb-${Environment}'
+      RetentionInDays: 7
+
   # TaskManager Web Function (Blazor Server)
   TaskManagerWebFunction:
     Type: AWS::Serverless::Function
+    DependsOn: WebLambdaLogGroup
     Properties:
       FunctionName: !Sub 'TaskManagerWeb-${Environment}'
       CodeUri: .
@@ -69,13 +77,6 @@ Resources:
             Method: ANY
       Tags:
         Environment: !Ref Environment
-
-  # CloudWatch Log Group for Web
-  WebLambdaLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub '/aws/lambda/TaskManagerWeb-${Environment}'
-      RetentionInDays: 7
 
   # CloudWatch Alarms for Web
   WebLambdaErrorAlarm:

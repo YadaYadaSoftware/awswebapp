@@ -28,9 +28,24 @@ Globals:
         ASPNETCORE_ENVIRONMENT: !Ref Environment
 
 Resources:
+  # CloudWatch Log Group for Database Setup
+  DatabaseSetupLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/TaskManager-DbSetup-${Environment}'
+      RetentionInDays: 7
+
+  # CloudWatch Log Group for API
+  ApiLambdaLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/TaskManagerApi-${Environment}'
+      RetentionInDays: 7
+
   # Branch-specific database creation Lambda
   DatabaseSetupFunction:
     Type: AWS::Serverless::Function
+    DependsOn: DatabaseSetupLogGroup
     Properties:
       FunctionName: !Sub 'TaskManager-DbSetup-${Environment}'
       InlineCode: |
@@ -96,7 +111,9 @@ Resources:
   # TaskManager API Function
   TaskManagerApiFunction:
     Type: AWS::Serverless::Function
-    DependsOn: DatabaseSetupFunction
+    DependsOn:
+      - DatabaseSetupFunction
+      - ApiLambdaLogGroup
     Properties:
       FunctionName: !Sub 'TaskManagerApi-${Environment}'
       CodeUri: .
@@ -130,20 +147,6 @@ Resources:
             Method: ANY
       Tags:
         Environment: !Ref Environment
-
-  # CloudWatch Log Group for API
-  ApiLambdaLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub '/aws/lambda/TaskManagerApi-${Environment}'
-      RetentionInDays: 7
-
-  # CloudWatch Log Group for Database Setup
-  DatabaseSetupLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub '/aws/lambda/TaskManager-DbSetup-${Environment}'
-      RetentionInDays: 7
 
   # CloudWatch Alarms for API
   LambdaErrorAlarm:
