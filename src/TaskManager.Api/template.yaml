@@ -225,7 +225,7 @@ Resources:
       DBInstanceIdentifier: !Sub 'taskmanager-db-${Environment}'
       DBInstanceClass: db.t4g.micro
       Engine: postgres
-      EngineVersion: '15.4'
+      EngineVersion: '15.7'
       MasterUsername: taskmanager_admin
       MasterUserPassword: !Ref DatabasePassword
       AllocatedStorage: 20
