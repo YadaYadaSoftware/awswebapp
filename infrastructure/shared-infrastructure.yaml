@@ -394,7 +394,7 @@ Resources:
            Resource: !Ref DeploymentNotificationTopic
 
  # S3 Bucket for CloudFormation Templates
- TemplatesBucket:
+  TemplatesBucket:
    Type: AWS::S3::Bucket
    Properties:
      BucketName: !Sub 'taskmanager-templates-${AWS::AccountId}-${AWS::Region}'
