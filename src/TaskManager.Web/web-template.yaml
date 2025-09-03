@@ -67,8 +67,7 @@ Resources:
             - DatabaseEndpoint:
                 Fn::ImportValue: 'TaskManager-DatabaseEndpoint'
               DatabaseName: !Sub '${Environment}'
-              DatabasePassword: !Sub
-                - '{{resolve:secretsmanager:taskmanager/database/shared:SecretString:password}}'
+              DatabasePassword: !Sub '{{resolve:secretsmanager:taskmanager/database/shared:SecretString:password}}'
           Authentication__Google__ClientId: !Ref GoogleClientId
           Authentication__Google__ClientSecret: !Ref GoogleClientSecret
       VpcConfig:
