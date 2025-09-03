@@ -47,7 +47,7 @@ psql -h your-rds-endpoint -U taskmanager_admin -d taskmanager
 
 #### **Create Database Query Lambda**
 ```yaml
-# Add to shared-infrastructure.yaml or branch-template.yaml
+# Add to shared-infrastructure.yaml
 DatabaseQueryFunction:
   Type: AWS::Serverless::Function
   Properties:

@@ -15,34 +15,6 @@ GitHub Actions → AWS Lambda (API only)
 Local Development → Blazor Server Web Project
 ```
 
-## Deployment Options for Blazor Server
-
-### **Option 1: Lambda + API Gateway (Recommended)**
-**Deploy Blazor Server to Lambda alongside the API**
-
-#### **Benefits**
-- ✅ **Unified Deployment**: Single Lambda function hosts both API and web
-- ✅ **Cost Effective**: No additional infrastructure needed
-- ✅ **Shared Authentication**: Same authentication system
-- ✅ **Simple Architecture**: One deployment, one endpoint
-
-#### **Implementation**
-```yaml
-# Update branch-template.yaml
-TaskManagerWebFunction:
-  Type: AWS::Serverless::Function
-  Properties:
-    FunctionName: !Sub 'TaskManagerWeb-${Environment}'
-    CodeUri: ../TaskManager.Web
-    Handler: TaskManager.Web::TaskManager.Web.LambdaEntryPoint::FunctionHandlerAsync
-    Runtime: dotnet8
-    Events:
-      WebProxy:
-        Type: Api
-        Properties:
-          Path: /web/{proxy+}
-          Method: ANY
-```
 
 ### **Option 2: Elastic Beanstalk**
 **Deploy Blazor Server to Elastic Beanstalk**
@@ -95,7 +67,6 @@ TaskManagerWebFunction:
 - ✅ **Shared Auth**: Same authentication and session management
 
 #### **Implementation Steps**
-1. **Update branch-template.yaml** to include web function
 2. **Create LambdaEntryPoint** for Blazor Server
 3. **Configure routing** between API and web endpoints
 4. **Update GitHub Actions** to deploy both projects
@@ -111,45 +82,6 @@ TaskManagerWebFunction:
 
 ### **To Deploy Web Project to Lambda**
 
-#### **Step 1: Add Web Lambda to Branch Template**
-```yaml
-# Add to branch-template.yaml
-TaskManagerWebFunction:
-  Type: AWS::Serverless::Function
-  Properties:
-    FunctionName: !Sub 'TaskManagerWeb-${Environment}'
-    CodeUri: ../TaskManager.Web
-    Handler: TaskManager.Web::TaskManager.Web.LambdaEntryPoint::FunctionHandlerAsync
-    Runtime: dotnet8
-    Environment:
-      Variables:
-        ASPNETCORE_ENVIRONMENT: !Ref Environment
-        ConnectionStrings__DefaultConnection: !Sub 
-          - 'Host=${DatabaseEndpoint};Database=taskmanager_${DatabaseName};Username=taskmanager_admin;Password=${DatabasePassword}'
-          - DatabaseEndpoint: 
-              Fn::ImportValue: 'TaskManager-DatabaseEndpoint'
-            DatabaseName: !Sub '${Environment}'
-            DatabasePassword: !Sub '{{resolve:secretsmanager:taskmanager/database/shared:SecretString:password}}'
-        Authentication__Google__ClientId: !Ref GoogleClientId
-        Authentication__Google__ClientSecret: !Ref GoogleClientSecret
-    VpcConfig:
-      SecurityGroupIds:
-        - Fn::ImportValue: 'TaskManager-LambdaSecurityGroup'
-      SubnetIds:
-        - Fn::ImportValue: 'TaskManager-PrivateSubnet1'
-        - Fn::ImportValue: 'TaskManager-PrivateSubnet2'
-    Events:
-      WebRoot:
-        Type: Api
-        Properties:
-          Path: /
-          Method: ANY
-      WebProxy:
-        Type: Api
-        Properties:
-          Path: /{proxy+}
-          Method: ANY
-```
 
 #### **Step 2: Create Web Lambda Entry Point**
 ```csharp
