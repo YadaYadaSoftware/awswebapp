@@ -10,7 +10,6 @@ on:
 
 env:
   AWS_REGION: us-east-1
-  ENVIRONMENT: prod
 
 jobs:
   build:
@@ -102,9 +101,15 @@ jobs:
         
     - name: Cleanup failed stack (if exists)
       run: |
+        # Extract branch name and create stack name
+        BRANCH_NAME=${GITHUB_REF#refs/heads/}
+        STACK_NAME="taskmanager-${BRANCH_NAME}"
+        echo "Branch: $BRANCH_NAME"
+        echo "Stack name: $STACK_NAME"
+        
         # Check if stack exists and is in failed state
         STACK_STATUS=$(aws cloudformation describe-stacks \
-          --stack-name taskmanager-${{ env.ENVIRONMENT }} \
+          --stack-name $STACK_NAME \
           --region ${{ env.AWS_REGION }} \
           --query 'Stacks[0].StackStatus' \
           --output text 2>/dev/null || echo "STACK_NOT_FOUND")
@@ -112,14 +117,14 @@ jobs:
         echo "Stack status: $STACK_STATUS"
         
         if [ "$STACK_STATUS" = "ROLLBACK_COMPLETE" ] || [ "$STACK_STATUS" = "CREATE_FAILED" ] || [ "$STACK_STATUS" = "DELETE_FAILED" ]; then
-          echo "🗑️ Deleting failed stack: taskmanager-${{ env.ENVIRONMENT }}"
+          echo "🗑️ Deleting failed stack: $STACK_NAME"
           aws cloudformation delete-stack \
-            --stack-name taskmanager-${{ env.ENVIRONMENT }} \
+            --stack-name $STACK_NAME \
             --region ${{ env.AWS_REGION }}
           
           echo "⏳ Waiting for stack deletion..."
           aws cloudformation wait stack-delete-complete \
-            --stack-name taskmanager-${{ env.ENVIRONMENT }} \
+            --stack-name $STACK_NAME \
             --region ${{ env.AWS_REGION }}
           
           echo "✅ Failed stack cleaned up"
@@ -127,15 +132,19 @@ jobs:
           echo "✅ No cleanup needed"
         fi
         
+        # Export stack name for next step
+        echo "STACK_NAME=$STACK_NAME" >> $GITHUB_ENV
+        echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
+        
     - name: Build and Deploy with SAM
       run: |
         cd src/TaskManager.Api
         sam build --template-file template.yaml
         sam deploy \
           --template-file template.yaml \
-          --stack-name taskmanager-${{ env.ENVIRONMENT }} \
+          --stack-name ${{ env.STACK_NAME }} \
           --parameter-overrides \
-            Environment=${{ env.ENVIRONMENT }} \
+            Environment=${{ env.BRANCH_NAME }} \
             DatabasePassword=${{ secrets.DATABASE_PASSWORD }} \
             GoogleClientId=${{ secrets.GOOGLE_CLIENT_ID }} \
             GoogleClientSecret=${{ secrets.GOOGLE_CLIENT_SECRET }} \

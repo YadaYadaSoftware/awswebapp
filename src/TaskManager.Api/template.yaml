@@ -302,14 +302,26 @@ Resources:
     Properties:
       FunctionName: !Sub 'TaskManagerApi-${Environment}'
       InlineCode: |
-        // Placeholder code - will be replaced by deployment package
         using Amazon.Lambda.Core;
+        using Amazon.Lambda.APIGatewayEvents;
+        using System.Text.Json;
+        
         [assembly: LambdaSerializer(typeof(Amazon.Lambda.Serialization.SystemTextJson.DefaultLambdaJsonSerializer))]
-        public class Function {
-          public string Handler(string input, ILambdaContext context) => "Hello from TaskManager";
+        
+        public class Function
+        {
+          public APIGatewayProxyResponse Handler(APIGatewayProxyRequest request, ILambdaContext context)
+          {
+            return new APIGatewayProxyResponse
+            {
+              StatusCode = 200,
+              Body = JsonSerializer.Serialize(new { message = "TaskManager API is running!", timestamp = DateTime.UtcNow }),
+              Headers = new Dictionary<string, string> { { "Content-Type", "application/json" } }
+            };
+          }
         }
-      Handler: TaskManager.Api::TaskManager.Api.LambdaEntryPoint::FunctionHandlerAsync
-      PackageType: Zip
+      Handler: Function::Function::Handler
+      Runtime: dotnet8
       Role: !GetAtt LambdaExecutionRole.Arn
       Environment:
         Variables:
