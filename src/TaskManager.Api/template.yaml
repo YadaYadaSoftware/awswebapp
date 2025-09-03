@@ -224,20 +224,22 @@ Resources:
     Type: AWS::RDS::DBInstance
     Properties:
       DBInstanceIdentifier: !Sub 'taskmanager-db-${Environment}'
-      DBInstanceClass: db.t3.micro
+      DBInstanceClass: db.t4g.micro
       Engine: postgres
       EngineVersion: '15.4'
       MasterUsername: taskmanager_admin
       MasterUserPassword: !Ref DatabasePassword
       AllocatedStorage: 20
+      MaxAllocatedStorage: 20
       StorageType: gp2
       VPCSecurityGroups:
         - !Ref RDSSecurityGroup
       DBSubnetGroupName: !Ref DBSubnetGroup
-      BackupRetentionPeriod: 7
-      StorageEncrypted: true
+      BackupRetentionPeriod: 0
+      StorageEncrypted: false
       DeletionProtection: false
       PubliclyAccessible: false
+      MultiAZ: false
       Tags:
         - Key: Name
           Value: !Sub 'TaskManager-Database-${Environment}'
