@@ -82,8 +82,8 @@ Resources:
       Environment:
         Variables:
           BRANCH_NAME: !Ref Environment
-          DB_HOST: 
-            Fn::ImportValue: 'TaskManager-RDSProxyEndpoint'
+          DB_HOST:
+            Fn::ImportValue: 'TaskManager-DatabaseEndpoint'
           DB_USER: taskmanager_admin
           DB_PASSWORD: !Sub '{{resolve:secretsmanager:taskmanager/database/shared:SecretString:password}}'
       VpcConfig:
@@ -116,8 +116,8 @@ Resources:
           ASPNETCORE_ENVIRONMENT: !Ref Environment
           ConnectionStrings__DefaultConnection: !Sub 
             - 'Host=${ProxyEndpoint};Database=taskmanager_${DatabaseName};Username=taskmanager_admin;Password=${DatabasePassword}'
-            - ProxyEndpoint: 
-                Fn::ImportValue: 'TaskManager-RDSProxyEndpoint'
+            - ProxyEndpoint:
+                Fn::ImportValue: 'TaskManager-DatabaseEndpoint'
               DatabaseName: !Sub '${Environment}'
               DatabasePassword: !Sub '{{resolve:secretsmanager:taskmanager/database/shared:SecretString:password}}'
           Authentication__Google__ClientId: !Ref GoogleClientId

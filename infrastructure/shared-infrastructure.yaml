@@ -236,57 +236,6 @@ Resources:
         - Key: Purpose
           Value: 'Shared Infrastructure'
 
-  # RDS Proxy (Shared)
-  RDSProxyRole:
-    Type: AWS::IAM::Role
-    Properties:
-      RoleName: 'TaskManager-RDSProxy-Role'
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: rds.amazonaws.com
-            Action: sts:AssumeRole
-      Policies:
-        - PolicyName: SecretsManagerAccess
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - secretsmanager:GetSecretValue
-                  - secretsmanager:DescribeSecret
-                Resource: !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:taskmanager/database/*'
-
-  TaskManagerRDSProxy:
-    Type: AWS::RDS::DBProxy
-    Properties:
-      DBProxyName: 'taskmanager-shared-proxy'
-      EngineFamily: POSTGRESQL
-      Auth:
-        - AuthScheme: SECRETS
-          SecretArn: !Ref DatabaseSecret
-      RoleArn: !GetAtt RDSProxyRole.Arn
-      VpcSubnetIds:
-        - !Ref PrivateSubnet1
-        - !Ref PrivateSubnet2
-      VpcSecurityGroupIds:
-        - !Ref RDSSecurityGroup
-      RequireTLS: false
-      IdleClientTimeout: 1800
-      Tags:
-        - Key: Name
-          Value: 'TaskManager-Shared-Proxy'
-
-  RDSProxyTargetGroup:
-    Type: AWS::RDS::DBProxyTargetGroup
-    Properties:
-      DBProxyName: !Ref TaskManagerRDSProxy
-      TargetGroupName: default
-      DBInstanceIdentifiers:
-        - !Ref TaskManagerDatabase
-
   # Secrets Manager for database credentials
   DatabaseSecret:
     Type: AWS::SecretsManager::Secret
@@ -356,10 +305,9 @@ Resources:
           #!/bin/bash
           echo "TaskManager Shared Database Connection Helper"
           echo "RDS Endpoint: ${TaskManagerDatabase.Endpoint.Address}"
-          echo "RDS Proxy Endpoint: ${TaskManagerRDSProxy.Endpoint}"
           echo ""
           echo "To connect to shared database:"
-          echo "psql -h ${TaskManagerRDSProxy.Endpoint} -U taskmanager_admin"
+          echo "psql -h ${TaskManagerDatabase.Endpoint.Address} -U taskmanager_admin"
           echo ""
           echo "Available databases:"
           echo "- Connect and run: \\l to list all databases"
@@ -482,11 +430,6 @@ Outputs:
     Export:
       Name: 'TaskManager-DatabaseEndpoint'
 
-  RDSProxyEndpoint:
-    Description: 'Shared RDS Proxy endpoint'
-    Value: !GetAtt TaskManagerRDSProxy.Endpoint
-    Export:
-      Name: 'TaskManager-RDSProxyEndpoint'
 
   DatabaseSecretArn:
     Description: 'Database secret ARN'
@@ -514,7 +457,7 @@ Outputs:
 
   DatabaseTunnelCommand:
     Description: 'SSH tunnel command for database access'
-    Value: !Sub 'ssh -i your-key.pem -L 5432:${TaskManagerRDSProxy.Endpoint}:5432 ec2-user@${BastionHost.PublicIp}'
+    Value: !Sub 'ssh -i your-key.pem -L 5432:${TaskManagerDatabase.Endpoint.Address}:5432 ec2-user@${BastionHost.PublicIp}'
     Export:
       Name: 'TaskManager-DatabaseTunnelCommand'
 
