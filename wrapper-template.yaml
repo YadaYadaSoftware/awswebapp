@@ -22,7 +22,9 @@ Resources:
   TaskManagerApiStack:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: https://s3.amazonaws.com/your-sam-bucket/api-template.yaml
+      TemplateURL: !Sub
+        - 'https://s3.amazonaws.com/${BucketName}/api-template.yaml'
+        - BucketName: !ImportValue 'TaskManager-TemplatesBucket'
       Parameters:
         Environment: !Ref Environment
         GoogleClientId: !Ref GoogleClientId
@@ -38,7 +40,9 @@ Resources:
     Type: AWS::CloudFormation::Stack
     DependsOn: TaskManagerApiStack
     Properties:
-      TemplateURL: https://s3.amazonaws.com/your-sam-bucket/web-template.yaml
+      TemplateURL: !Sub
+        - 'https://s3.amazonaws.com/${BucketName}/web-template.yaml'
+        - BucketName: !ImportValue 'TaskManager-TemplatesBucket'
       Parameters:
         Environment: !Ref Environment
         GoogleClientId: !Ref GoogleClientId

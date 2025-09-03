@@ -393,6 +393,28 @@ Resources:
              - sns:Subscribe
            Resource: !Ref DeploymentNotificationTopic
 
+ # S3 Bucket for CloudFormation Templates
+ TemplatesBucket:
+   Type: AWS::S3::Bucket
+   Properties:
+     BucketName: !Sub 'taskmanager-templates-${AWS::AccountId}-${AWS::Region}'
+     VersioningConfiguration:
+       Status: Enabled
+     PublicAccessBlockConfiguration:
+       BlockPublicAcls: true
+       BlockPublicPolicy: true
+       IgnorePublicAcls: true
+       RestrictPublicBuckets: true
+     BucketEncryption:
+       ServerSideEncryptionConfiguration:
+         - ServerSideEncryptionByDefault:
+             SSEAlgorithm: AES256
+     Tags:
+       - Key: Name
+         Value: 'TaskManager-Templates-Bucket'
+       - Key: Purpose
+         Value: 'CloudFormation Template Storage'
+
 Outputs:
   VPCId:
     Description: 'VPC ID for branch applications'
@@ -466,3 +488,9 @@ Outputs:
     Value: !Ref DeploymentNotificationTopic
     Export:
       Name: 'TaskManager-DeploymentNotificationTopic'
+
+  TemplatesBucketName:
+    Description: 'S3 bucket name for CloudFormation templates'
+    Value: !Ref TemplatesBucket
+    Export:
+      Name: 'TaskManager-TemplatesBucket'

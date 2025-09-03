@@ -151,21 +151,18 @@ jobs:
         
     - name: Upload templates to S3 for nested stacks
       run: |
-        # Create S3 bucket for templates if it doesn't exist
-        BUCKET_NAME="taskmanager-templates-${{ github.repository_owner }}-${{ env.AWS_REGION }}"
-        aws s3 mb s3://$BUCKET_NAME --region ${{ env.AWS_REGION }} || echo "Bucket already exists"
+        # Get S3 bucket name from shared infrastructure stack
+        BUCKET_NAME=$(aws cloudformation describe-stacks \
+          --stack-name taskmanager-shared-infrastructure \
+          --query 'Stacks[0].Outputs[?OutputKey==`TemplatesBucketName`].OutputValue' \
+          --output text \
+          --region ${{ env.AWS_REGION }})
         
         # Upload nested stack templates
         aws s3 cp src/TaskManager.Api/api-template.yaml s3://$BUCKET_NAME/api-template.yaml
         aws s3 cp src/TaskManager.Web/web-template.yaml s3://$BUCKET_NAME/web-template.yaml
         
         echo "TEMPLATE_BUCKET=$BUCKET_NAME" >> $GITHUB_ENV
-        
-    - name: Update wrapper template with S3 URLs
-      run: |
-        # Update wrapper template with actual S3 URLs
-        sed -i "s|https://s3.amazonaws.com/your-sam-bucket/api-template.yaml|https://s3.amazonaws.com/${{ env.TEMPLATE_BUCKET }}/api-template.yaml|g" wrapper-template.yaml
-        sed -i "s|https://s3.amazonaws.com/your-sam-bucket/web-template.yaml|https://s3.amazonaws.com/${{ env.TEMPLATE_BUCKET }}/web-template.yaml|g" wrapper-template.yaml
         
     - name: Deploy Wrapper Template (Nested Stacks)
       uses: aws-actions/aws-cloudformation-github-deploy@v1
