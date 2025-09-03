@@ -37,8 +37,8 @@ Globals:
     Cors:
       AllowMethods: "'*'"
       AllowHeaders: "'*'"
-      AllowOrigin: "'https://localhost:7162,http://localhost:5071'"
-      AllowCredentials: true
+      AllowOrigin: "'https://localhost:7162'"
+      AllowCredentials: false
 
 Resources:
   # VPC and Networking
@@ -301,8 +301,9 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub 'TaskManagerApi-${Environment}'
-      CodeUri: lambda-deployment.zip
+      CodeUri: .
       Handler: TaskManager.Api::TaskManager.Api.LambdaEntryPoint::FunctionHandlerAsync
+      PackageType: Zip
       Role: !GetAtt LambdaExecutionRole.Arn
       Environment:
         Variables:
