@@ -18,9 +18,14 @@ Parameters:
     NoEcho: true
     Description: 'Google OAuth Client Secret'
     
-  ApiCodeUri:
+  ApiCodeBucket:
     Type: String
-    Description: 'S3 URI for API Lambda deployment package'
+    Description: 'S3 bucket name for API Lambda deployment package'
+    
+  ApiCodeKey:
+    Type: String
+    Description: 'S3 key for API Lambda deployment package'
+    Default: 'api-lambda-deployment.zip'
 
 Globals:
   Function:
@@ -120,7 +125,9 @@ Resources:
       - ApiLambdaLogGroup
     Properties:
       FunctionName: !Sub 'TaskManagerApi-${Environment}'
-      CodeUri: !Ref ApiCodeUri
+      CodeUri:
+        Bucket: !Ref ApiCodeBucket
+        Key: !Ref ApiCodeKey
       Handler: TaskManager.Api::TaskManager.Api.LambdaEntryPoint::FunctionHandlerAsync
       Runtime: dotnet8
       PackageType: Zip

@@ -229,8 +229,8 @@ jobs:
           Environment=${{ env.BRANCH_NAME }},
           GoogleClientId=${{ secrets.GOOGLE_CLIENT_ID }},
           GoogleClientSecret=${{ secrets.GOOGLE_CLIENT_SECRET }},
-          ApiCodeUri=s3://${{ env.TEMPLATE_BUCKET }}/api-lambda-deployment.zip,
-          WebCodeUri=s3://${{ env.TEMPLATE_BUCKET }}/web-lambda-deployment.zip
+          ApiCodeBucket=${{ env.TEMPLATE_BUCKET }},
+          WebCodeBucket=${{ env.TEMPLATE_BUCKET }}
         capabilities: "CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND"
         no-fail-on-empty-changeset: "1"
       timeout-minutes: 20
