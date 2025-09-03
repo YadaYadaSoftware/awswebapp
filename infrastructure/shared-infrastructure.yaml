@@ -227,7 +227,7 @@ Resources:
       DBSubnetGroupName: !Ref DBSubnetGroup
       BackupRetentionPeriod: 7
       StorageEncrypted: true
-      DeletionProtection: true
+      DeletionProtection: false
       PubliclyAccessible: false
       MultiAZ: false
       Tags:
