@@ -196,11 +196,7 @@ Outputs:
   DatabaseName:
     Description: 'Branch-specific database name'
     Value: !Sub 'taskmanager_${Environment}'
-    Export:
-      Name: !Sub 'TaskManager-${Environment}-DatabaseName'
 
   BranchEnvironment:
     Description: 'Branch environment name'
     Value: !Ref Environment
-    Export:
-      Name: !Sub 'TaskManager-${Environment}-Environment'
