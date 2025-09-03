@@ -198,3 +198,28 @@ jobs:
         echo "🖥️ Bastion host IP: $BASTION_IP"
         echo "💾 Database: taskmanager_${{ env.BRANCH_NAME }}"
         echo "🔗 SSH Tunnel: $TUNNEL_CMD"
+        
+    - name: Send SMS Notification
+      run: |
+        # Get SNS topic ARN
+        SNS_TOPIC=$(aws cloudformation describe-stacks \
+          --stack-name taskmanager-shared-infrastructure \
+          --query 'Stacks[0].Outputs[?OutputKey==`DeploymentNotificationTopicArn`].OutputValue' \
+          --output text \
+          --region ${{ env.AWS_REGION }})
+        
+        # Send SMS notification
+        aws sns publish \
+          --topic-arn $SNS_TOPIC \
+          --message "🚀 TaskManager deployment complete!
+        
+        Branch: ${{ env.BRANCH_NAME }}
+        API: $API_URL
+        Database: taskmanager_${{ env.BRANCH_NAME }}
+        Bastion IP: $BASTION_IP
+        
+        Ready for testing!" \
+          --subject "TaskManager Deployed - ${{ env.BRANCH_NAME }}" \
+          --region ${{ env.AWS_REGION }}
+        
+        echo "📱 SMS notification sent to 703-474-0324"

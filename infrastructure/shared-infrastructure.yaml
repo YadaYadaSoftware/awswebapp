@@ -419,6 +419,33 @@ Resources:
                   - rds:DescribeDBInstances
                 Resource: !Sub 'arn:aws:rds:${AWS::Region}:${AWS::AccountId}:db:taskmanager-shared-db'
 
+ # SNS Topic for Deployment Notifications
+ DeploymentNotificationTopic:
+   Type: AWS::SNS::Topic
+   Properties:
+     TopicName: 'TaskManager-Deployment-Notifications'
+     DisplayName: 'TaskManager Deployment Notifications'
+     Subscription:
+       - Protocol: sms
+         Endpoint: '+17034740324'
+
+ # SNS Topic Policy
+ DeploymentNotificationTopicPolicy:
+   Type: AWS::SNS::TopicPolicy
+   Properties:
+     Topics:
+       - !Ref DeploymentNotificationTopic
+     PolicyDocument:
+       Version: '2012-10-17'
+       Statement:
+         - Effect: Allow
+           Principal:
+             AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+           Action:
+             - sns:Publish
+             - sns:Subscribe
+           Resource: !Ref DeploymentNotificationTopic
+
 Outputs:
   VPCId:
     Description: 'VPC ID for branch applications'
@@ -491,3 +518,9 @@ Outputs:
     Value: !Sub 'ssh -i your-key.pem -L 5432:${TaskManagerRDSProxy.Endpoint}:5432 ec2-user@${BastionHost.PublicIp}'
     Export:
       Name: 'TaskManager-DatabaseTunnelCommand'
+
+  DeploymentNotificationTopicArn:
+    Description: 'SNS topic ARN for deployment notifications'
+    Value: !Ref DeploymentNotificationTopic
+    Export:
+      Name: 'TaskManager-DeploymentNotificationTopic'
