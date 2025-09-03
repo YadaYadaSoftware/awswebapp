@@ -16,4 +16,9 @@
     <ProjectReference Include="..\TaskManager.Data\TaskManager.Data.csproj" />
   </ItemGroup>
 
+  <!-- Include wwwroot static files in Lambda deployment -->
+  <ItemGroup>
+    <Content Include="wwwroot\**" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>
