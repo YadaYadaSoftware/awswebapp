@@ -53,7 +53,8 @@ Resources:
       CodeUri:
         Bucket: !Ref WebCodeBucket
         Key: !Ref WebCodeKey
-      Handler: TaskManager.Web::TaskManager.Web.LambdaEntryPoint::FunctionHandlerAsync
+      Handler: >-
+        TaskManager.Web::TaskManager.Web.LambdaEntryPoint::FunctionHandlerAsync
       Runtime: dotnet8
       PackageType: Zip
       Role: 
@@ -61,12 +62,13 @@ Resources:
       Environment:
         Variables:
           ASPNETCORE_ENVIRONMENT: !Ref Environment
-          ConnectionStrings__DefaultConnection: !Sub 
+          ConnectionStrings__DefaultConnection: !Sub
             - 'Host=${DatabaseEndpoint};Database=taskmanager_${DatabaseName};Username=taskmanager_admin;Password=${DatabasePassword}'
-            - DatabaseEndpoint: 
+            - DatabaseEndpoint:
                 Fn::ImportValue: 'TaskManager-DatabaseEndpoint'
               DatabaseName: !Sub '${Environment}'
-              DatabasePassword: !Sub '{{resolve:secretsmanager:taskmanager/database/shared:SecretString:password}}'
+              DatabasePassword: !Sub
+                - '{{resolve:secretsmanager:taskmanager/database/shared:SecretString:password}}'
           Authentication__Google__ClientId: !Ref GoogleClientId
           Authentication__Google__ClientSecret: !Ref GoogleClientSecret
       VpcConfig:
@@ -109,7 +111,10 @@ Resources:
 Outputs:
   WebEndpoint:
     Description: 'Web application endpoint URL'
-    Value: !Sub 'https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/'
+    Value: !Sub
+      - 'https://${ApiId}.execute-api.${Region}.amazonaws.com/Prod/'
+      - ApiId: !Ref ServerlessRestApi
+        Region: !Ref AWS::Region
     Export:
       Name: !Sub 'TaskManager-${Environment}-WebEndpoint'
 

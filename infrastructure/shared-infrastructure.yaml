@@ -366,79 +366,79 @@ Resources:
                   - rds:DescribeDBInstances
                 Resource: !Sub 'arn:aws:rds:${AWS::Region}:${AWS::AccountId}:db:taskmanager-shared-db'
 
- # SNS Topic for Deployment Notifications
+  # SNS Topic for Deployment Notifications
   DeploymentNotificationTopic:
-   Type: AWS::SNS::Topic
-   Properties:
-     TopicName: 'TaskManager-Deployment-Notifications'
-     DisplayName: 'TaskManager Deployment Notifications'
-     Subscription:
-       - Protocol: sms
-         Endpoint: '+17034740324'
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: 'TaskManager-Deployment-Notifications'
+      DisplayName: 'TaskManager Deployment Notifications'
+      Subscription:
+        - Protocol: sms
+          Endpoint: '+17034740324'
 
- # SNS Topic Policy
+  # SNS Topic Policy
   DeploymentNotificationTopicPolicy:
-   Type: AWS::SNS::TopicPolicy
-   Properties:
-     Topics:
-       - !Ref DeploymentNotificationTopic
-     PolicyDocument:
-       Version: '2012-10-17'
-       Statement:
-         - Effect: Allow
-           Principal:
-             AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
-           Action:
-             - sns:Publish
-             - sns:Subscribe
-           Resource: !Ref DeploymentNotificationTopic
+    Type: AWS::SNS::TopicPolicy
+    Properties:
+      Topics:
+        - !Ref DeploymentNotificationTopic
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+            Action:
+              - sns:Publish
+              - sns:Subscribe
+            Resource: !Ref DeploymentNotificationTopic
 
- # S3 Bucket for CloudFormation Templates
+  # S3 Bucket for CloudFormation Templates
   TemplatesBucket:
-   Type: AWS::S3::Bucket
-   Properties:
-     BucketName: !Sub 'taskmanager-templates-${AWS::AccountId}-${AWS::Region}'
-     VersioningConfiguration:
-       Status: Enabled
-     PublicAccessBlockConfiguration:
-       BlockPublicAcls: true
-       BlockPublicPolicy: true
-       IgnorePublicAcls: true
-       RestrictPublicBuckets: true
-     BucketEncryption:
-       ServerSideEncryptionConfiguration:
-         - ServerSideEncryptionByDefault:
-             SSEAlgorithm: AES256
-     Tags:
-       - Key: Name
-         Value: 'TaskManager-Templates-Bucket'
-       - Key: Purpose
-         Value: 'CloudFormation Template Storage'
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub 'taskmanager-templates-${AWS::AccountId}-${AWS::Region}'
+      VersioningConfiguration:
+        Status: Enabled
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      Tags:
+        - Key: Name
+          Value: 'TaskManager-Templates-Bucket'
+        - Key: Purpose
+          Value: 'CloudFormation Template Storage'
 
- # S3 Bucket Policy for CloudFormation Access
+  # S3 Bucket Policy for CloudFormation Access
   TemplatesBucketPolicy:
-   Type: AWS::S3::BucketPolicy
-   Properties:
-     Bucket: !Ref TemplatesBucket
-     PolicyDocument:
-       Version: '2012-10-17'
-       Statement:
-         - Sid: AllowCloudFormationAccess
-           Effect: Allow
-           Principal:
-             Service: cloudformation.amazonaws.com
-           Action:
-             - s3:GetObject
-           Resource: !Sub '${TemplatesBucket.Arn}/*'
-         - Sid: AllowAccountAccess
-           Effect: Allow
-           Principal:
-             AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
-           Action:
-             - s3:GetObject
-             - s3:PutObject
-             - s3:DeleteObject
-           Resource: !Sub '${TemplatesBucket.Arn}/*'
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref TemplatesBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowCloudFormationAccess
+            Effect: Allow
+            Principal:
+              Service: cloudformation.amazonaws.com
+            Action:
+              - s3:GetObject
+            Resource: !Sub '${TemplatesBucket.Arn}/*'
+          - Sid: AllowAccountAccess
+            Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+            Action:
+              - s3:GetObject
+              - s3:PutObject
+              - s3:DeleteObject
+            Resource: !Sub '${TemplatesBucket.Arn}/*'
 
 Outputs:
   VPCId:
@@ -504,7 +504,10 @@ Outputs:
 
   DatabaseTunnelCommand:
     Description: 'SSH tunnel command for database access'
-    Value: !Sub 'ssh -i your-key.pem -L 5432:${TaskManagerDatabase.Endpoint.Address}:5432 ec2-user@${BastionHost.PublicIp}'
+    Value: !Sub
+      - 'ssh -i your-key.pem -L 5432:${DbEndpoint}:5432 ec2-user@${BastionIp}'
+      - DbEndpoint: !GetAtt TaskManagerDatabase.Endpoint.Address
+        BastionIp: !GetAtt BastionHost.PublicIp
     Export:
       Name: 'TaskManager-DatabaseTunnelCommand'
 

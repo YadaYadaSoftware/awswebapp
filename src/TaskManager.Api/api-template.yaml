@@ -103,7 +103,8 @@ Resources:
           DB_HOST:
             Fn::ImportValue: 'TaskManager-DatabaseEndpoint'
           DB_USER: taskmanager_admin
-          DB_PASSWORD: !Sub '{{resolve:secretsmanager:taskmanager/database/shared:SecretString:password}}'
+          DB_PASSWORD: !Sub
+            - '{{resolve:secretsmanager:taskmanager/database/shared:SecretString:password}}'
       VpcConfig:
         SecurityGroupIds:
           - Fn::ImportValue: 'TaskManager-LambdaSecurityGroup'
@@ -128,7 +129,8 @@ Resources:
       CodeUri:
         Bucket: !Ref ApiCodeBucket
         Key: !Ref ApiCodeKey
-      Handler: TaskManager.Api::TaskManager.Api.LambdaEntryPoint::FunctionHandlerAsync
+      Handler: >-
+        TaskManager.Api::TaskManager.Api.LambdaEntryPoint::FunctionHandlerAsync
       Runtime: dotnet8
       PackageType: Zip
       Role: 
@@ -136,12 +138,13 @@ Resources:
       Environment:
         Variables:
           ASPNETCORE_ENVIRONMENT: !Ref Environment
-          ConnectionStrings__DefaultConnection: !Sub 
+          ConnectionStrings__DefaultConnection: !Sub
             - 'Host=${DatabaseEndpoint};Database=taskmanager_${DatabaseName};Username=taskmanager_admin;Password=${DatabasePassword}'
-            - DatabaseEndpoint: 
+            - DatabaseEndpoint:
                 Fn::ImportValue: 'TaskManager-DatabaseEndpoint'
               DatabaseName: !Sub '${Environment}'
-              DatabasePassword: !Sub '{{resolve:secretsmanager:taskmanager/database/shared:SecretString:password}}'
+              DatabasePassword: !Sub
+                - '{{resolve:secretsmanager:taskmanager/database/shared:SecretString:password}}'
           Authentication__Google__ClientId: !Ref GoogleClientId
           Authentication__Google__ClientSecret: !Ref GoogleClientSecret
       VpcConfig:
@@ -179,7 +182,10 @@ Resources:
 Outputs:
   ApiEndpoint:
     Description: 'API Gateway endpoint URL'
-    Value: !Sub 'https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/'
+    Value: !Sub
+      - 'https://${ApiId}.execute-api.${Region}.amazonaws.com/Prod/'
+      - ApiId: !Ref ServerlessRestApi
+        Region: !Ref AWS::Region
     Export:
       Name: !Sub 'TaskManager-${Environment}-ApiEndpoint'
 
