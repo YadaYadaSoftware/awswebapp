@@ -1,0 +1,192 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: 'TaskManager Branch Application - Lambda Function with Branch-Specific Database'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: main
+    Description: 'Environment name (typically branch name)'
+    
+  GoogleClientId:
+    Type: String
+    NoEcho: true
+    Description: 'Google OAuth Client ID'
+    
+  GoogleClientSecret:
+    Type: String
+    NoEcho: true
+    Description: 'Google OAuth Client Secret'
+
+Globals:
+  Function:
+    Runtime: dotnet8
+    Timeout: 30
+    MemorySize: 512
+    Environment:
+      Variables:
+        ASPNETCORE_ENVIRONMENT: !Ref Environment
+  Api:
+    Cors:
+      AllowMethods: "'*'"
+      AllowHeaders: "'*'"
+      AllowOrigin: "'https://localhost:7162'"
+      AllowCredentials: false
+
+Resources:
+  # Branch-specific database creation Lambda
+  DatabaseSetupFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'TaskManager-DbSetup-${Environment}'
+      InlineCode: |
+        import json
+        import boto3
+        import psycopg2
+        import os
+        
+        def lambda_handler(event, context):
+            # Create branch-specific database
+            db_name = f"taskmanager_{os.environ['BRANCH_NAME'].replace('-', '_')}"
+            
+            # Connect to shared RDS instance
+            conn = psycopg2.connect(
+                host=os.environ['DB_HOST'],
+                user=os.environ['DB_USER'],
+                password=os.environ['DB_PASSWORD'],
+                database='postgres'
+            )
+            conn.autocommit = True
+            
+            cursor = conn.cursor()
+            
+            # Create database if it doesn't exist
+            cursor.execute(f"SELECT 1 FROM pg_database WHERE datname = '{db_name}'")
+            if not cursor.fetchone():
+                cursor.execute(f'CREATE DATABASE "{db_name}"')
+                print(f"Created database: {db_name}")
+            else:
+                print(f"Database already exists: {db_name}")
+            
+            cursor.close()
+            conn.close()
+            
+            return {
+                'statusCode': 200,
+                'body': json.dumps(f'Database {db_name} ready')
+            }
+      Handler: index.lambda_handler
+      Runtime: python3.9
+      Role: 
+        Fn::ImportValue: 'TaskManager-SharedLambdaRole'
+      Environment:
+        Variables:
+          BRANCH_NAME: !Ref Environment
+          DB_HOST: 
+            Fn::ImportValue: 'TaskManager-RDSProxyEndpoint'
+          DB_USER: taskmanager_admin
+          DB_PASSWORD: !Sub '{{resolve:secretsmanager:taskmanager/database/shared:SecretString:password}}'
+      VpcConfig:
+        SecurityGroupIds:
+          - Fn::ImportValue: 'TaskManager-LambdaSecurityGroup'
+        SubnetIds:
+          - Fn::ImportValue: 'TaskManager-PrivateSubnet1'
+          - Fn::ImportValue: 'TaskManager-PrivateSubnet2'
+      Events:
+        CreateDatabase:
+          Type: Api
+          Properties:
+            Path: /setup-database
+            Method: POST
+
+  # Main TaskManager API Function
+  TaskManagerApiFunction:
+    Type: AWS::Serverless::Function
+    DependsOn: DatabaseSetupFunction
+    Properties:
+      FunctionName: !Sub 'TaskManagerApi-${Environment}'
+      CodeUri: .
+      Handler: TaskManager.Api::TaskManager.Api.LambdaEntryPoint::FunctionHandlerAsync
+      Runtime: dotnet8
+      PackageType: Zip
+      Role: 
+        Fn::ImportValue: 'TaskManager-SharedLambdaRole'
+      Environment:
+        Variables:
+          ASPNETCORE_ENVIRONMENT: !Ref Environment
+          ConnectionStrings__DefaultConnection: !Sub 
+            - 'Host=${ProxyEndpoint};Database=taskmanager_${DatabaseName};Username=taskmanager_admin;Password=${DatabasePassword}'
+            - ProxyEndpoint: 
+                Fn::ImportValue: 'TaskManager-RDSProxyEndpoint'
+              DatabaseName: !Sub '${Environment}'
+              DatabasePassword: !Sub '{{resolve:secretsmanager:taskmanager/database/shared:SecretString:password}}'
+          Authentication__Google__ClientId: !Ref GoogleClientId
+          Authentication__Google__ClientSecret: !Ref GoogleClientSecret
+      VpcConfig:
+        SecurityGroupIds:
+          - Fn::ImportValue: 'TaskManager-LambdaSecurityGroup'
+        SubnetIds:
+          - Fn::ImportValue: 'TaskManager-PrivateSubnet1'
+          - Fn::ImportValue: 'TaskManager-PrivateSubnet2'
+      Events:
+        ApiGatewayProxy:
+          Type: Api
+          Properties:
+            Path: /{proxy+}
+            Method: ANY
+        ApiGatewayRoot:
+          Type: Api
+          Properties:
+            Path: /
+            Method: ANY
+      Tags:
+        Environment: !Ref Environment
+
+  # CloudWatch Log Group
+  LambdaLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/TaskManagerApi-${Environment}'
+      RetentionInDays: 30
+
+  # CloudWatch Alarms
+  LambdaErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub 'TaskManager-Lambda-Errors-${Environment}'
+      AlarmDescription: 'Lambda function error rate alarm'
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 5
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref TaskManagerApiFunction
+
+Outputs:
+  ApiEndpoint:
+    Description: 'API Gateway endpoint URL'
+    Value: !Sub 'https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/'
+    Export:
+      Name: !Sub 'TaskManager-${Environment}-ApiEndpoint'
+
+  LambdaFunctionName:
+    Description: 'Lambda function name'
+    Value: !Ref TaskManagerApiFunction
+    Export:
+      Name: !Sub 'TaskManager-${Environment}-LambdaFunction'
+
+  DatabaseName:
+    Description: 'Branch-specific database name'
+    Value: !Sub 'taskmanager_${Environment}'
+    Export:
+      Name: !Sub 'TaskManager-${Environment}-DatabaseName'
+
+  BranchEnvironment:
+    Description: 'Branch environment name'
+    Value: !Ref Environment
+    Export:
+      Name: !Sub 'TaskManager-${Environment}-Environment'

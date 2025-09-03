@@ -1,0 +1,494 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'TaskManager Shared Infrastructure - VPC, RDS, Bastion Host'
+
+Parameters:
+  DatabasePassword:
+    Type: String
+    NoEcho: true
+    MinLength: 8
+    Description: 'Password for the RDS PostgreSQL database'
+
+Resources:
+  # VPC and Networking
+  TaskManagerVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      Tags:
+        - Key: Name
+          Value: 'TaskManager-VPC'
+        - Key: Purpose
+          Value: 'Shared Infrastructure'
+
+  # Internet Gateway
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: 'TaskManager-IGW'
+
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref TaskManagerVPC
+      InternetGatewayId: !Ref InternetGateway
+
+  # Public Subnets for NAT Gateway and Bastion
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref TaskManagerVPC
+      CidrBlock: 10.0.1.0/24
+      AvailabilityZone: !Select [0, !GetAZs '']
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: 'TaskManager-Public-Subnet-1'
+
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref TaskManagerVPC
+      CidrBlock: 10.0.2.0/24
+      AvailabilityZone: !Select [1, !GetAZs '']
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: 'TaskManager-Public-Subnet-2'
+
+  # Private Subnets for Lambda and RDS
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref TaskManagerVPC
+      CidrBlock: 10.0.3.0/24
+      AvailabilityZone: !Select [0, !GetAZs '']
+      Tags:
+        - Key: Name
+          Value: 'TaskManager-Private-Subnet-1'
+
+  PrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref TaskManagerVPC
+      CidrBlock: 10.0.4.0/24
+      AvailabilityZone: !Select [1, !GetAZs '']
+      Tags:
+        - Key: Name
+          Value: 'TaskManager-Private-Subnet-2'
+
+  # NAT Gateway for private subnet internet access
+  NATGateway1EIP:
+    Type: AWS::EC2::EIP
+    DependsOn: AttachGateway
+    Properties:
+      Domain: vpc
+
+  NATGateway1:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NATGateway1EIP.AllocationId
+      SubnetId: !Ref PublicSubnet1
+
+  # Route Tables
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref TaskManagerVPC
+      Tags:
+        - Key: Name
+          Value: 'TaskManager-Public-RT'
+
+  DefaultPublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: AttachGateway
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnet1
+
+  PublicSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnet2
+
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref TaskManagerVPC
+      Tags:
+        - Key: Name
+          Value: 'TaskManager-Private-RT'
+
+  DefaultPrivateRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NATGateway1
+
+  PrivateSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      SubnetId: !Ref PrivateSubnet1
+
+  PrivateSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      SubnetId: !Ref PrivateSubnet2
+
+  # Security Groups
+  RDSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for RDS PostgreSQL
+      VpcId: !Ref TaskManagerVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          SourceSecurityGroupId: !Ref LambdaSecurityGroup
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          SourceSecurityGroupId: !Ref BastionSecurityGroup
+      Tags:
+        - Key: Name
+          Value: 'TaskManager-RDS-SG'
+
+  LambdaSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for Lambda functions
+      VpcId: !Ref TaskManagerVPC
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: 'TaskManager-Lambda-SG'
+
+  BastionSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for bastion host
+      VpcId: !Ref TaskManagerVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+          Description: SSH access from anywhere
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: 'TaskManager-Bastion-SG'
+
+  # RDS Database (Shared)
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Subnet group for TaskManager RDS
+      SubnetIds:
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+      Tags:
+        - Key: Name
+          Value: 'TaskManager-DB-SubnetGroup'
+
+  TaskManagerDatabase:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBInstanceIdentifier: 'taskmanager-shared-db'
+      DBInstanceClass: db.t4g.micro
+      Engine: postgres
+      EngineVersion: '15.7'
+      MasterUsername: taskmanager_admin
+      MasterUserPassword: !Ref DatabasePassword
+      AllocatedStorage: 20
+      MaxAllocatedStorage: 100
+      StorageType: gp2
+      VPCSecurityGroups:
+        - !Ref RDSSecurityGroup
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      BackupRetentionPeriod: 7
+      StorageEncrypted: true
+      DeletionProtection: true
+      PubliclyAccessible: false
+      MultiAZ: false
+      Tags:
+        - Key: Name
+          Value: 'TaskManager-Shared-Database'
+        - Key: Purpose
+          Value: 'Shared Infrastructure'
+
+  # RDS Proxy (Shared)
+  RDSProxyRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: 'TaskManager-RDSProxy-Role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: rds.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: SecretsManagerAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                  - secretsmanager:DescribeSecret
+                Resource: !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:taskmanager/database/*'
+
+  TaskManagerRDSProxy:
+    Type: AWS::RDS::DBProxy
+    Properties:
+      DBProxyName: 'taskmanager-shared-proxy'
+      EngineFamily: POSTGRESQL
+      Auth:
+        - AuthScheme: SECRETS
+          SecretArn: !Ref DatabaseSecret
+      RoleArn: !GetAtt RDSProxyRole.Arn
+      VpcSubnetIds:
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+      VpcSecurityGroupIds:
+        - !Ref RDSSecurityGroup
+      RequireTLS: false
+      IdleClientTimeout: 1800
+      MaxConnectionsPercent: 100
+      MaxIdleConnectionsPercent: 50
+      Tags:
+        - Key: Name
+          Value: 'TaskManager-Shared-Proxy'
+
+  RDSProxyTargetGroup:
+    Type: AWS::RDS::DBProxyTargetGroup
+    Properties:
+      DBProxyName: !Ref TaskManagerRDSProxy
+      TargetGroupName: default
+      DBInstanceIdentifiers:
+        - !Ref TaskManagerDatabase
+
+  # Secrets Manager for database credentials
+  DatabaseSecret:
+    Type: AWS::SecretsManager::Secret
+    DependsOn: TaskManagerDatabase
+    Properties:
+      Name: 'taskmanager/database/shared'
+      Description: Database credentials for shared TaskManager RDS instance
+      SecretString: !Sub |
+        {
+          "username": "taskmanager_admin",
+          "password": "${DatabasePassword}",
+          "engine": "postgres",
+          "host": "${TaskManagerDatabase.Endpoint.Address}",
+          "port": 5432
+        }
+      Tags:
+        - Key: Purpose
+          Value: 'Shared Infrastructure'
+
+  # Bastion Host
+  BastionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: 'TaskManager-Bastion-Role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      Policies:
+        - PolicyName: SecretsManagerRead
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource: !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:taskmanager/database/*'
+
+  BastionInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref BastionRole
+
+  BastionHost:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-0c02fb55956c7d316  # Amazon Linux 2023
+      InstanceType: t3.micro
+      SubnetId: !Ref PublicSubnet1
+      SecurityGroupIds:
+        - !Ref BastionSecurityGroup
+      IamInstanceProfile: !Ref BastionInstanceProfile
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          yum update -y
+          yum install -y postgresql15
+          
+          # Create connection helper script
+          cat > /home/ec2-user/connect-to-db.sh << 'EOF'
+          #!/bin/bash
+          echo "TaskManager Shared Database Connection Helper"
+          echo "RDS Endpoint: ${TaskManagerDatabase.Endpoint.Address}"
+          echo "RDS Proxy Endpoint: ${TaskManagerRDSProxy.Endpoint}"
+          echo ""
+          echo "To connect to shared database:"
+          echo "psql -h ${TaskManagerRDSProxy.Endpoint} -U taskmanager_admin"
+          echo ""
+          echo "Available databases:"
+          echo "- Connect and run: \\l to list all databases"
+          echo "- Each branch creates its own database (e.g., taskmanager_main, taskmanager_feature1)"
+          EOF
+          
+          chmod +x /home/ec2-user/connect-to-db.sh
+          chown ec2-user:ec2-user /home/ec2-user/connect-to-db.sh
+      Tags:
+        - Key: Name
+          Value: 'TaskManager-Bastion'
+        - Key: Purpose
+          Value: 'Shared Infrastructure'
+
+  # Lambda Execution Role (for branch applications to use)
+  SharedLambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: 'TaskManager-Shared-Lambda-Role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+      Policies:
+        - PolicyName: SecretsManagerAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                  - secretsmanager:DescribeSecret
+                Resource: !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:taskmanager/database/*'
+        - PolicyName: CloudWatchLogs
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:*'
+        - PolicyName: RDSAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - rds:CreateDatabase
+                  - rds:DescribeDBInstances
+                Resource: !Sub 'arn:aws:rds:${AWS::Region}:${AWS::AccountId}:db:taskmanager-shared-db'
+
+Outputs:
+  VPCId:
+    Description: 'VPC ID for branch applications'
+    Value: !Ref TaskManagerVPC
+    Export:
+      Name: 'TaskManager-VPC'
+
+  PrivateSubnet1Id:
+    Description: 'Private subnet 1 ID'
+    Value: !Ref PrivateSubnet1
+    Export:
+      Name: 'TaskManager-PrivateSubnet1'
+
+  PrivateSubnet2Id:
+    Description: 'Private subnet 2 ID'
+    Value: !Ref PrivateSubnet2
+    Export:
+      Name: 'TaskManager-PrivateSubnet2'
+
+  LambdaSecurityGroupId:
+    Description: 'Security group for Lambda functions'
+    Value: !Ref LambdaSecurityGroup
+    Export:
+      Name: 'TaskManager-LambdaSecurityGroup'
+
+  RDSSecurityGroupId:
+    Description: 'Security group for RDS access'
+    Value: !Ref RDSSecurityGroup
+    Export:
+      Name: 'TaskManager-RDSSecurityGroup'
+
+  DatabaseEndpoint:
+    Description: 'Shared RDS PostgreSQL endpoint'
+    Value: !GetAtt TaskManagerDatabase.Endpoint.Address
+    Export:
+      Name: 'TaskManager-DatabaseEndpoint'
+
+  RDSProxyEndpoint:
+    Description: 'Shared RDS Proxy endpoint'
+    Value: !GetAtt TaskManagerRDSProxy.Endpoint
+    Export:
+      Name: 'TaskManager-RDSProxyEndpoint'
+
+  DatabaseSecretArn:
+    Description: 'Database secret ARN'
+    Value: !Ref DatabaseSecret
+    Export:
+      Name: 'TaskManager-DatabaseSecret'
+
+  SharedLambdaRoleArn:
+    Description: 'Shared Lambda execution role ARN'
+    Value: !GetAtt SharedLambdaExecutionRole.Arn
+    Export:
+      Name: 'TaskManager-SharedLambdaRole'
+
+  BastionHostIP:
+    Description: 'Bastion host public IP address'
+    Value: !GetAtt BastionHost.PublicIp
+    Export:
+      Name: 'TaskManager-BastionIP'
+
+  BastionHostId:
+    Description: 'Bastion host instance ID'
+    Value: !Ref BastionHost
+    Export:
+      Name: 'TaskManager-BastionHostId'
+
+  DatabaseTunnelCommand:
+    Description: 'SSH tunnel command for database access'
+    Value: !Sub 'ssh -i your-key.pem -L 5432:${TaskManagerRDSProxy.Endpoint}:5432 ec2-user@${BastionHost.PublicIp}'
+    Export:
+      Name: 'TaskManager-DatabaseTunnelCommand'

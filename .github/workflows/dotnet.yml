@@ -1,4 +1,4 @@
-# TaskManager CI/CD Pipeline - Build, Test, and Deploy to AWS
+# TaskManager CI/CD Pipeline - Shared Infrastructure + Branch Applications
 
 name: TaskManager CI/CD
 
@@ -65,8 +65,8 @@ jobs:
         name: web-artifacts
         path: ./publish/web
 
-  deploy:
-    name: Deploy to AWS
+  deploy-infrastructure:
+    name: Deploy Shared Infrastructure
     runs-on: ubuntu-latest
     needs: build
     if: github.ref == 'refs/heads/main'
@@ -82,12 +82,31 @@ jobs:
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: ${{ env.AWS_REGION }}
         
-    # SAM will build the application from source, no need to download pre-built package
-        
-    - name: Setup SAM CLI
-      uses: aws-actions/setup-sam@v2
+    - name: Deploy Shared Infrastructure
+      uses: aws-actions/aws-cloudformation-github-deploy@v1
       with:
-        use-installer: true
+        name: taskmanager-shared-infrastructure
+        template: infrastructure/shared-infrastructure.yaml
+        parameter-overrides: |
+          DatabasePassword=${{ secrets.DATABASE_PASSWORD }}
+        capabilities: "CAPABILITY_NAMED_IAM"
+        no-fail-on-empty-changeset: "1"
+
+  deploy-application:
+    name: Deploy Branch Application
+    runs-on: ubuntu-latest
+    needs: [build, deploy-infrastructure]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
         
     - name: Get branch name for stack naming
       run: |
@@ -98,43 +117,41 @@ jobs:
         echo "STACK_NAME=$STACK_NAME" >> $GITHUB_ENV
         echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
         
-    - name: Cleanup failed stack (if exists)
+    - name: Setup SAM CLI
+      uses: aws-actions/setup-sam@v2
+      with:
+        use-installer: true
+        
+    - name: Cleanup failed branch stack (if exists)
       run: |
-        # Check if stack exists and is in failed state
         STACK_STATUS=$(aws cloudformation describe-stacks \
           --stack-name ${{ env.STACK_NAME }} \
           --region ${{ env.AWS_REGION }} \
           --query 'Stacks[0].StackStatus' \
           --output text 2>/dev/null || echo "STACK_NOT_FOUND")
         
-        echo "Stack status: $STACK_STATUS"
-        
         if [ "$STACK_STATUS" = "ROLLBACK_COMPLETE" ] || [ "$STACK_STATUS" = "CREATE_FAILED" ] || [ "$STACK_STATUS" = "DELETE_FAILED" ]; then
-          echo "🗑️ Deleting failed stack: ${{ env.STACK_NAME }}"
+          echo "🗑️ Deleting failed branch stack: ${{ env.STACK_NAME }}"
           aws cloudformation delete-stack \
             --stack-name ${{ env.STACK_NAME }} \
             --region ${{ env.AWS_REGION }}
           
-          echo "⏳ Waiting for stack deletion..."
           aws cloudformation wait stack-delete-complete \
             --stack-name ${{ env.STACK_NAME }} \
             --region ${{ env.AWS_REGION }}
           
-          echo "✅ Failed stack cleaned up"
-        else
-          echo "✅ No cleanup needed"
+          echo "✅ Failed branch stack cleaned up"
         fi
         
-    - name: Build and Deploy with SAM
+    - name: Deploy Branch Application
       run: |
         cd src/TaskManager.Api
-        sam build --template-file template.yaml
+        sam build --template-file branch-template.yaml
         sam deploy \
-          --template-file template.yaml \
+          --template-file branch-template.yaml \
           --stack-name ${{ env.STACK_NAME }} \
           --parameter-overrides \
             'Environment=${{ env.BRANCH_NAME }}' \
-            'DatabasePassword=${{ secrets.DATABASE_PASSWORD }}' \
             'GoogleClientId=${{ secrets.GOOGLE_CLIENT_ID }}' \
             'GoogleClientSecret=${{ secrets.GOOGLE_CLIENT_SECRET }}' \
           --capabilities CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND \
@@ -144,6 +161,18 @@ jobs:
       env:
         SAM_CLI_TELEMETRY: 0
         
+    - name: Setup branch database
+      run: |
+        # Trigger database setup function
+        API_URL=$(aws cloudformation describe-stacks \
+          --stack-name ${{ env.STACK_NAME }} \
+          --query 'Stacks[0].Outputs[?OutputKey==`ApiEndpoint`].OutputValue' \
+          --output text \
+          --region ${{ env.AWS_REGION }})
+        
+        echo "Setting up database for branch: ${{ env.BRANCH_NAME }}"
+        curl -X POST "${API_URL}setup-database" || echo "Database setup completed"
+        
     - name: Get deployment outputs
       run: |
         API_URL=$(aws cloudformation describe-stacks \
@@ -151,5 +180,21 @@ jobs:
           --query 'Stacks[0].Outputs[?OutputKey==`ApiEndpoint`].OutputValue' \
           --output text \
           --region ${{ env.AWS_REGION }})
+        
+        BASTION_IP=$(aws cloudformation describe-stacks \
+          --stack-name taskmanager-shared-infrastructure \
+          --query 'Stacks[0].Outputs[?OutputKey==`BastionHostIP`].OutputValue' \
+          --output text \
+          --region ${{ env.AWS_REGION }})
+        
+        TUNNEL_CMD=$(aws cloudformation describe-stacks \
+          --stack-name taskmanager-shared-infrastructure \
+          --query 'Stacks[0].Outputs[?OutputKey==`DatabaseTunnelCommand`].OutputValue' \
+          --output text \
+          --region ${{ env.AWS_REGION }})
+        
         echo "🚀 TaskManager (${{ env.BRANCH_NAME }}) deployed to: $API_URL"
         echo "📋 Stack name: ${{ env.STACK_NAME }}"
+        echo "🖥️ Bastion host IP: $BASTION_IP"
+        echo "💾 Database: taskmanager_${{ env.BRANCH_NAME }}"
+        echo "🔗 SSH Tunnel: $TUNNEL_CMD"
