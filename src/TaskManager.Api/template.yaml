@@ -245,9 +245,10 @@ Resources:
         - Key: Environment
           Value: !Ref Environment
 
-  # Secrets Manager for database credentials
+  # Secrets Manager for database credentials (created after database)
   DatabaseSecret:
     Type: AWS::SecretsManager::Secret
+    DependsOn: TaskManagerDatabase
     Properties:
       Name: !Sub 'taskmanager/database/${Environment}'
       Description: Database credentials for TaskManager
@@ -256,6 +257,7 @@ Resources:
           "username": "taskmanager_admin",
           "password": "${DatabasePassword}",
           "engine": "postgres",
+          "host": "${TaskManagerDatabase.Endpoint.Address}",
           "port": 5432,
           "dbname": "taskmanager"
         }
