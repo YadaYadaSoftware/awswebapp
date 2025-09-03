@@ -82,19 +82,7 @@ jobs:
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: ${{ env.AWS_REGION }}
         
-    - name: Download Lambda package
-      uses: actions/download-artifact@v4
-      with:
-        name: lambda-package
-        path: ./src/TaskManager.Api/
-        
-    - name: Prepare SAM build directory
-      run: |
-        cd src/TaskManager.Api
-        # Extract the built application files
-        unzip -o lambda-deployment.zip
-        rm lambda-deployment.zip
-        # SAM build will package these files properly
+    # SAM will build the application from source, no need to download pre-built package
         
     - name: Setup SAM CLI
       uses: aws-actions/setup-sam@v2
