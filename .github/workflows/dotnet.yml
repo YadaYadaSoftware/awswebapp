@@ -149,55 +149,36 @@ jobs:
           echo "✅ Failed branch stack cleaned up"
         fi
         
-    - name: Deploy API Stack
+    - name: Upload templates to S3 for nested stacks
       run: |
-        cd src/TaskManager.Api
-        sam build --template-file api-template.yaml
-        sam deploy \
-          --template-file api-template.yaml \
-          --stack-name ${{ env.STACK_NAME }}-api \
-          --parameter-overrides \
-            'Environment=${{ env.BRANCH_NAME }}' \
-            'GoogleClientId=${{ secrets.GOOGLE_CLIENT_ID }}' \
-            'GoogleClientSecret=${{ secrets.GOOGLE_CLIENT_SECRET }}' \
-          --capabilities CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND \
-          --region ${{ env.AWS_REGION }} \
-          --resolve-s3 \
-          --no-confirm-changeset
-      env:
-        SAM_CLI_TELEMETRY: 0
-      timeout-minutes: 15
+        # Create S3 bucket for templates if it doesn't exist
+        BUCKET_NAME="taskmanager-templates-${{ github.repository_owner }}-${{ env.AWS_REGION }}"
+        aws s3 mb s3://$BUCKET_NAME --region ${{ env.AWS_REGION }} || echo "Bucket already exists"
         
-    - name: Download Web Lambda package
-      uses: actions/download-artifact@v4
+        # Upload nested stack templates
+        aws s3 cp src/TaskManager.Api/api-template.yaml s3://$BUCKET_NAME/api-template.yaml
+        aws s3 cp src/TaskManager.Web/web-template.yaml s3://$BUCKET_NAME/web-template.yaml
+        
+        echo "TEMPLATE_BUCKET=$BUCKET_NAME" >> $GITHUB_ENV
+        
+    - name: Update wrapper template with S3 URLs
+      run: |
+        # Update wrapper template with actual S3 URLs
+        sed -i "s|https://s3.amazonaws.com/your-sam-bucket/api-template.yaml|https://s3.amazonaws.com/${{ env.TEMPLATE_BUCKET }}/api-template.yaml|g" wrapper-template.yaml
+        sed -i "s|https://s3.amazonaws.com/your-sam-bucket/web-template.yaml|https://s3.amazonaws.com/${{ env.TEMPLATE_BUCKET }}/web-template.yaml|g" wrapper-template.yaml
+        
+    - name: Deploy Wrapper Template (Nested Stacks)
+      uses: aws-actions/aws-cloudformation-github-deploy@v1
       with:
-        name: web-lambda-package
-        path: ./src/TaskManager.Web/
-        
-    - name: Extract Web Lambda package
-      run: |
-        cd src/TaskManager.Web
-        unzip -o web-lambda-deployment.zip
-        rm web-lambda-deployment.zip
-        
-    - name: Deploy Web Stack
-      run: |
-        cd src/TaskManager.Web
-        sam build --template-file web-template.yaml
-        sam deploy \
-          --template-file web-template.yaml \
-          --stack-name ${{ env.STACK_NAME }}-web \
-          --parameter-overrides \
-            'Environment=${{ env.BRANCH_NAME }}' \
-            'GoogleClientId=${{ secrets.GOOGLE_CLIENT_ID }}' \
-            'GoogleClientSecret=${{ secrets.GOOGLE_CLIENT_SECRET }}' \
-          --capabilities CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND \
-          --region ${{ env.AWS_REGION }} \
-          --resolve-s3 \
-          --no-confirm-changeset
-      env:
-        SAM_CLI_TELEMETRY: 0
-      timeout-minutes: 15
+        name: ${{ env.STACK_NAME }}
+        template: wrapper-template.yaml
+        parameter-overrides: |
+          Environment=${{ env.BRANCH_NAME }},
+          GoogleClientId=${{ secrets.GOOGLE_CLIENT_ID }},
+          GoogleClientSecret=${{ secrets.GOOGLE_CLIENT_SECRET }}
+        capabilities: "CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND"
+        no-fail-on-empty-changeset: "1"
+      timeout-minutes: 20
         
     - name: Setup branch database
       run: |
