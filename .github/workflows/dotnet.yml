@@ -88,11 +88,13 @@ jobs:
         name: lambda-package
         path: ./src/TaskManager.Api/
         
-    - name: Extract Lambda package
+    - name: Prepare SAM build directory
       run: |
         cd src/TaskManager.Api
+        # Extract the built application files
         unzip -o lambda-deployment.zip
         rm lambda-deployment.zip
+        # SAM build will package these files properly
         
     - name: Setup SAM CLI
       uses: aws-actions/setup-sam@v2

@@ -304,27 +304,10 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub 'TaskManagerApi-${Environment}'
-      InlineCode: |
-        using Amazon.Lambda.Core;
-        using Amazon.Lambda.APIGatewayEvents;
-        using System.Text.Json;
-        
-        [assembly: LambdaSerializer(typeof(Amazon.Lambda.Serialization.SystemTextJson.DefaultLambdaJsonSerializer))]
-        
-        public class Function
-        {
-          public APIGatewayProxyResponse Handler(APIGatewayProxyRequest request, ILambdaContext context)
-          {
-            return new APIGatewayProxyResponse
-            {
-              StatusCode = 200,
-              Body = JsonSerializer.Serialize(new { message = "TaskManager API is running!", timestamp = DateTime.UtcNow }),
-              Headers = new Dictionary<string, string> { { "Content-Type", "application/json" } }
-            };
-          }
-        }
-      Handler: Function::Function::Handler
+      CodeUri: ./
+      Handler: TaskManager.Api::TaskManager.Api.LambdaEntryPoint::FunctionHandlerAsync
       Runtime: dotnet8
+      PackageType: Zip
       Role: !GetAtt LambdaExecutionRole.Arn
       Environment:
         Variables:
