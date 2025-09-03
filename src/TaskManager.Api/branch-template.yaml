@@ -132,12 +132,7 @@ Resources:
         ApiGatewayProxy:
           Type: Api
           Properties:
-            Path: /{proxy+}
-            Method: ANY
-        ApiGatewayRoot:
-          Type: Api
-          Properties:
-            Path: /
+            Path: /api/{proxy+}
             Method: ANY
       Tags:
         Environment: !Ref Environment
