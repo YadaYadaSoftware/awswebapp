@@ -93,9 +93,22 @@ Resources:
               - iam:TagRole
               - iam:UntagRole
               - iam:CreateInstanceProfile
-            Resource: 
+            Resource:
               - !Sub 'arn:aws:iam::${AWS::AccountId}:role/TaskManager-*'
+              - !Sub 'arn:aws:iam::${AWS::AccountId}:role/taskmanager-*'
               - !Sub 'arn:aws:iam::${AWS::AccountId}:instance-profile/TaskManager-*'
+              - !Sub 'arn:aws:iam::${AWS::AccountId}:instance-profile/taskmanager-*'
+          
+          # Additional IAM permissions for CloudFormation stack operations
+          - Effect: Allow
+            Action:
+              - iam:RemoveRoleFromInstanceProfile
+              - iam:ListInstanceProfilesForRole
+              - iam:TagInstanceProfile
+              - iam:UntagInstanceProfile
+              - iam:UpdateRole
+              - iam:UpdateAssumeRolePolicy
+            Resource: '*'
           
           # S3 permissions (for SAM deployment)
           - Effect: Allow
