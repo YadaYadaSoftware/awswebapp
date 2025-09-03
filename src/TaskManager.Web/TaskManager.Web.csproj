@@ -5,6 +5,8 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UserSecretsId>taskmanager-web-secrets</UserSecretsId>
+    <!-- Ensure wwwroot files are included in Lambda deployment -->
+    <EnableDefaultContentItems>false</EnableDefaultContentItems>
   </PropertyGroup>
 
   <ItemGroup>
@@ -16,7 +18,7 @@
     <ProjectReference Include="..\TaskManager.Data\TaskManager.Data.csproj" />
   </ItemGroup>
 
-  <!-- Include wwwroot static files in Lambda deployment -->
+  <!-- Explicitly include wwwroot static files for Lambda deployment -->
   <ItemGroup>
     <Content Include="wwwroot\**" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
