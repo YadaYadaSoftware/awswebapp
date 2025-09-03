@@ -149,7 +149,19 @@ jobs:
           echo "✅ Failed branch stack cleaned up"
         fi
         
-    - name: Upload templates to S3 for nested stacks
+    - name: Download Lambda packages
+      uses: actions/download-artifact@v4
+      with:
+        name: api-lambda-package
+        path: ./artifacts/
+        
+    - name: Download Web Lambda package
+      uses: actions/download-artifact@v4
+      with:
+        name: web-lambda-package
+        path: ./artifacts/
+        
+    - name: Upload templates and packages to S3
       run: |
         # Get S3 bucket name from shared infrastructure stack
         BUCKET_NAME=$(aws cloudformation describe-stacks \
@@ -162,6 +174,10 @@ jobs:
         aws s3 cp src/TaskManager.Api/api-template.yaml s3://$BUCKET_NAME/api-template.yaml
         aws s3 cp src/TaskManager.Web/web-template.yaml s3://$BUCKET_NAME/web-template.yaml
         
+        # Upload Lambda deployment packages
+        aws s3 cp ./artifacts/api-lambda-deployment.zip s3://$BUCKET_NAME/api-lambda-deployment.zip
+        aws s3 cp ./artifacts/web-lambda-deployment.zip s3://$BUCKET_NAME/web-lambda-deployment.zip
+        
         echo "TEMPLATE_BUCKET=$BUCKET_NAME" >> $GITHUB_ENV
         
     - name: Deploy Wrapper Template (Nested Stacks)
@@ -172,7 +188,9 @@ jobs:
         parameter-overrides: |
           Environment=${{ env.BRANCH_NAME }},
           GoogleClientId=${{ secrets.GOOGLE_CLIENT_ID }},
-          GoogleClientSecret=${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GoogleClientSecret=${{ secrets.GOOGLE_CLIENT_SECRET }},
+          ApiCodeUri=s3://${{ env.TEMPLATE_BUCKET }}/api-lambda-deployment.zip,
+          WebCodeUri=s3://${{ env.TEMPLATE_BUCKET }}/web-lambda-deployment.zip
         capabilities: "CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND"
         no-fail-on-empty-changeset: "1"
       timeout-minutes: 20

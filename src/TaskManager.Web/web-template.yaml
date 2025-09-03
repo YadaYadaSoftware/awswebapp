@@ -17,6 +17,10 @@ Parameters:
     Type: String
     NoEcho: true
     Description: 'Google OAuth Client Secret'
+    
+  WebCodeUri:
+    Type: String
+    Description: 'S3 URI for Web Lambda deployment package'
 
 Globals:
   Function:
@@ -41,7 +45,7 @@ Resources:
     DependsOn: WebLambdaLogGroup
     Properties:
       FunctionName: !Sub 'TaskManagerWeb-${Environment}'
-      CodeUri: .
+      CodeUri: !Ref WebCodeUri
       Handler: TaskManager.Web::TaskManager.Web.LambdaEntryPoint::FunctionHandlerAsync
       Runtime: dotnet8
       PackageType: Zip

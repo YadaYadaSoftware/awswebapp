@@ -16,6 +16,14 @@ Parameters:
     Type: String
     NoEcho: true
     Description: 'Google OAuth Client Secret'
+    
+  ApiCodeUri:
+    Type: String
+    Description: 'S3 URI for API Lambda deployment package'
+    
+  WebCodeUri:
+    Type: String
+    Description: 'S3 URI for Web Lambda deployment package'
 
 Resources:
   # API Stack (Nested)
@@ -29,6 +37,7 @@ Resources:
         Environment: !Ref Environment
         GoogleClientId: !Ref GoogleClientId
         GoogleClientSecret: !Ref GoogleClientSecret
+        ApiCodeUri: !Ref ApiCodeUri
       Tags:
         - Key: Component
           Value: API
@@ -47,6 +56,7 @@ Resources:
         Environment: !Ref Environment
         GoogleClientId: !Ref GoogleClientId
         GoogleClientSecret: !Ref GoogleClientSecret
+        WebCodeUri: !Ref WebCodeUri
       Tags:
         - Key: Component
           Value: Web
