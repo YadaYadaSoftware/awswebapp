@@ -216,7 +216,7 @@ Resources:
       DBInstanceIdentifier: 'taskmanager-shared-db'
       DBInstanceClass: db.t4g.micro
       Engine: postgres
-      EngineVersion: '15.7'
+      EngineVersion: '17.6'
       MasterUsername: taskmanager_admin
       MasterUserPassword: !Ref DatabasePassword
       AllocatedStorage: 20
@@ -276,7 +276,6 @@ Resources:
       RequireTLS: false
       IdleClientTimeout: 1800
       MaxConnectionsPercent: 100
-      MaxIdleConnectionsPercent: 50
       Tags:
         - Key: Name
           Value: 'TaskManager-Shared-Proxy'
