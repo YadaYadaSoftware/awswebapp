@@ -40,7 +40,7 @@
 
 #### **Automated Creation (CloudFormation)**
 ```bash
-# Add to template.yaml (optional)
+# Already included in shared-infrastructure.yaml
 BastionHost:
   Type: AWS::EC2::Instance
   Properties:
