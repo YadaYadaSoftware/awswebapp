@@ -419,7 +419,7 @@ Resources:
                 Resource: !Sub 'arn:aws:rds:${AWS::Region}:${AWS::AccountId}:db:taskmanager-shared-db'
 
  # SNS Topic for Deployment Notifications
- DeploymentNotificationTopic:
+  DeploymentNotificationTopic:
    Type: AWS::SNS::Topic
    Properties:
      TopicName: 'TaskManager-Deployment-Notifications'
@@ -429,7 +429,7 @@ Resources:
          Endpoint: '+17034740324'
 
  # SNS Topic Policy
- DeploymentNotificationTopicPolicy:
+  DeploymentNotificationTopicPolicy:
    Type: AWS::SNS::TopicPolicy
    Properties:
      Topics:
