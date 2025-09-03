@@ -2,6 +2,7 @@ using Amazon.Lambda.Annotations;
 using Amazon.Lambda.AspNetCoreServer;
 using Amazon.Lambda.Core;
 using Microsoft.EntityFrameworkCore;
+using TaskManager.Api.Services;
 using TaskManager.Data;
 
 [assembly: LambdaSerializer(typeof(Amazon.Lambda.Serialization.SystemTextJson.DefaultLambdaJsonSerializer))]
@@ -10,7 +11,7 @@ namespace TaskManager.Api;
 
 public class Program
 {
-    public static void Main(string[] args)
+    public static async System.Threading.Tasks.Task Main(string[] args)
     {
         var builder = WebApplication.CreateBuilder(args);
 
@@ -18,6 +19,9 @@ public class Program
         ConfigureServices(builder.Services, builder.Configuration);
 
         var app = builder.Build();
+
+        // Apply database migrations on startup
+        await ApplyDatabaseMigrations(app);
 
         // Configure pipeline
         ConfigurePipeline(app, app.Environment);
@@ -33,6 +37,9 @@ public class Program
             var connectionString = configuration.GetConnectionString("DefaultConnection");
             options.UseNpgsql(connectionString);
         });
+        
+        // Add migration service
+        services.AddScoped<IDatabaseMigrationService, DatabaseMigrationService>();
 
         // Add CORS
         services.AddCors(options =>
@@ -107,6 +114,29 @@ public class Program
            .WithTags("Health");
 
         // API endpoints will be added via Lambda Annotations in separate controller classes
+    }
+
+    private static async Task ApplyDatabaseMigrations(WebApplication app)
+    {
+        using var scope = app.Services.CreateScope();
+        var services = scope.ServiceProvider;
+        var logger = services.GetRequiredService<ILogger<Program>>();
+        
+        try
+        {
+            logger.LogInformation("Applying database migrations...");
+            
+            var migrationService = services.GetRequiredService<IDatabaseMigrationService>();
+            await migrationService.MigrateAsync();
+            
+            logger.LogInformation("Database migrations applied successfully.");
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "An error occurred while applying database migrations.");
+            // Don't throw - let the application start even if migrations fail
+            // This prevents Lambda cold start issues
+        }
     }
 }
 
