@@ -114,17 +114,11 @@ Outputs:
       - 'https://${ApiId}.execute-api.${Region}.amazonaws.com/Prod/'
       - ApiId: !Ref ServerlessRestApi
         Region: !Ref AWS::Region
-    Export:
-      Name: !Sub 'TaskManager-${Environment}-WebEndpoint'
 
   WebLambdaFunctionName:
     Description: 'Web Lambda function name'
     Value: !Ref TaskManagerWebFunction
-    Export:
-      Name: !Sub 'TaskManager-${Environment}-WebLambdaFunction'
 
   WebApiId:
     Description: 'Web API Gateway ID'
     Value: !Ref ServerlessRestApi
-    Export:
-      Name: !Sub 'TaskManager-${Environment}-WebApiId'

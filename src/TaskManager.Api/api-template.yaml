@@ -184,14 +184,10 @@ Outputs:
       - 'https://${ApiId}.execute-api.${Region}.amazonaws.com/Prod/'
       - ApiId: !Ref ServerlessRestApi
         Region: !Ref AWS::Region
-    Export:
-      Name: !Sub 'TaskManager-${Environment}-ApiEndpoint'
 
   ApiLambdaFunctionName:
     Description: 'API Lambda function name'
     Value: !Ref TaskManagerApiFunction
-    Export:
-      Name: !Sub 'TaskManager-${Environment}-ApiLambdaFunction'
 
   DatabaseName:
     Description: 'Branch-specific database name'
