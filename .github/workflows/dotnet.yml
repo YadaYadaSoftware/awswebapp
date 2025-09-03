@@ -66,7 +66,7 @@ jobs:
         path: ./publish/web
 
   deploy:
-    name: Deploy to AWS with SAM
+    name: Deploy to AWS
     runs-on: ubuntu-latest
     needs: build
     if: github.ref == 'refs/heads/main'
@@ -82,11 +82,6 @@ jobs:
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: ${{ env.AWS_REGION }}
         
-    - name: Setup SAM CLI
-      uses: aws-actions/setup-sam@v2
-      with:
-        use-installer: true
-        
     - name: Download Lambda package
       uses: actions/download-artifact@v4
       with:
@@ -99,17 +94,25 @@ jobs:
         unzip -o lambda-deployment.zip
         rm lambda-deployment.zip
         
-    - name: Cleanup failed stack (if exists)
+    - name: Setup SAM CLI
+      uses: aws-actions/setup-sam@v2
+      with:
+        use-installer: true
+        
+    - name: Get branch name for stack naming
       run: |
-        # Extract branch name and create stack name
         BRANCH_NAME=${GITHUB_REF#refs/heads/}
         STACK_NAME="taskmanager-${BRANCH_NAME}"
         echo "Branch: $BRANCH_NAME"
         echo "Stack name: $STACK_NAME"
+        echo "STACK_NAME=$STACK_NAME" >> $GITHUB_ENV
+        echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
         
+    - name: Cleanup failed stack (if exists)
+      run: |
         # Check if stack exists and is in failed state
         STACK_STATUS=$(aws cloudformation describe-stacks \
-          --stack-name $STACK_NAME \
+          --stack-name ${{ env.STACK_NAME }} \
           --region ${{ env.AWS_REGION }} \
           --query 'Stacks[0].StackStatus' \
           --output text 2>/dev/null || echo "STACK_NOT_FOUND")
@@ -117,24 +120,20 @@ jobs:
         echo "Stack status: $STACK_STATUS"
         
         if [ "$STACK_STATUS" = "ROLLBACK_COMPLETE" ] || [ "$STACK_STATUS" = "CREATE_FAILED" ] || [ "$STACK_STATUS" = "DELETE_FAILED" ]; then
-          echo "🗑️ Deleting failed stack: $STACK_NAME"
+          echo "🗑️ Deleting failed stack: ${{ env.STACK_NAME }}"
           aws cloudformation delete-stack \
-            --stack-name $STACK_NAME \
+            --stack-name ${{ env.STACK_NAME }} \
             --region ${{ env.AWS_REGION }}
           
           echo "⏳ Waiting for stack deletion..."
           aws cloudformation wait stack-delete-complete \
-            --stack-name $STACK_NAME \
+            --stack-name ${{ env.STACK_NAME }} \
             --region ${{ env.AWS_REGION }}
           
           echo "✅ Failed stack cleaned up"
         else
           echo "✅ No cleanup needed"
         fi
-        
-        # Export stack name for next step
-        echo "STACK_NAME=$STACK_NAME" >> $GITHUB_ENV
-        echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
         
     - name: Build and Deploy with SAM
       run: |
@@ -144,18 +143,21 @@ jobs:
           --template-file template.yaml \
           --stack-name ${{ env.STACK_NAME }} \
           --parameter-overrides \
-            "Environment=${{ env.BRANCH_NAME }}" \
-            "DatabasePassword=${{ secrets.DATABASE_PASSWORD }}" \
-            "GoogleClientId=${{ secrets.GOOGLE_CLIENT_ID }}" \
-            "GoogleClientSecret=${{ secrets.GOOGLE_CLIENT_SECRET }}" \
+            Environment=${{ env.BRANCH_NAME }} \
+            DatabasePassword=${{ secrets.DATABASE_PASSWORD }} \
+            GoogleClientId=${{ secrets.GOOGLE_CLIENT_ID }} \
+            GoogleClientSecret=${{ secrets.GOOGLE_CLIENT_SECRET }} \
           --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND \
           --region ${{ env.AWS_REGION }} \
           --resolve-s3 \
           --no-confirm-changeset
-        disable-rollback: "1"
-     
         
     - name: Get deployment outputs
       run: |
-        echo "🚀 TaskManager deployment completed!"
-        echo "Check AWS Console CloudFormation outputs for API Gateway URL"
+        API_URL=$(aws cloudformation describe-stacks \
+          --stack-name ${{ env.STACK_NAME }} \
+          --query 'Stacks[0].Outputs[?OutputKey==`ApiEndpoint`].OutputValue' \
+          --output text \
+          --region ${{ env.AWS_REGION }})
+        echo "🚀 TaskManager (${{ env.BRANCH_NAME }}) deployed to: $API_URL"
+        echo "📋 Stack name: ${{ env.STACK_NAME }}"
