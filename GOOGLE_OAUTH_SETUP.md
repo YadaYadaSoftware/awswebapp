@@ -46,9 +46,27 @@ This guide explains how to set up Google OAuth authentication for the TaskManage
 5. Click **Create**
 6. Copy the **Client ID** and **Client Secret**
 
-## Step 3.5: Update Production Redirect URIs
+## Step 3.5: Automated OAuth Configuration
 
-**After deployment, you need to update the Google Cloud Console with the actual API Gateway URL:**
+The GitHub Actions workflow now includes automated OAuth configuration that generates the exact values needed for production deployments.
+
+**Required GitHub Secrets for Automation:**
+Add these to your repository secrets (Settings → Secrets and variables → Actions):
+
+- `GOOGLE_OAUTH_CLIENT_ID` - Your Google OAuth 2.0 Client ID
+- `GOOGLE_CLOUD_SERVICE_ACCOUNT_KEY` - Service account key JSON (for future API automation)
+- `GOOGLE_CLOUD_PROJECT_ID` - Your Google Cloud project ID
+- `GOOGLE_CLOUD_SERVICE_ACCOUNT_EMAIL` - Service account email
+
+**Automated Process:**
+1. After successful deployment, the workflow extracts your API Gateway ID
+2. Generates the correct redirect URI and JavaScript origin URLs
+3. Provides clear instructions for updating Google Cloud Console
+4. Runs automatically on every main branch deployment
+
+## Step 3.6: Manual Production Redirect URIs
+
+**If you prefer manual updates, here's how to update the Google Cloud Console with the actual API Gateway URL:**
 
 1. **Get your API Gateway URL** from the CloudFormation outputs:
    ```bash

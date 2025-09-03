@@ -134,6 +134,9 @@ jobs:
     name: Deploy Branch Application
     runs-on: ubuntu-latest
     needs: [build, deploy-infrastructure, yaml-lint]
+    outputs:
+      api-endpoint: ${{ steps.get-endpoints.outputs.api-endpoint }}
+      web-endpoint: ${{ steps.get-endpoints.outputs.web-endpoint }}
     
     steps:
     - name: Checkout code
@@ -237,42 +240,48 @@ jobs:
         
     - name: Setup branch database
       run: |
-        # Trigger database setup function
+        # Get API URL from parent stack outputs
         API_URL=$(aws cloudformation describe-stacks \
-          --stack-name ${{ env.STACK_NAME }}-api \
-          --query 'Stacks[0].Outputs[?OutputKey==`ApiEndpoint`].OutputValue' \
+          --stack-name ${{ env.STACK_NAME }} \
+          --query 'Stacks[0].Outputs[?OutputKey==`TaskManager-main-ApiEndpoint`].OutputValue' \
           --output text \
           --region ${{ env.AWS_REGION }})
-        
+
         echo "Setting up database for branch: ${{ env.BRANCH_NAME }}"
+        echo "Using API URL: $API_URL"
         curl -X POST "${API_URL}setup-database" || echo "Database setup completed"
         
     - name: Get deployment outputs
+      id: get-endpoints
       run: |
+        # Get outputs from parent stack instead of nested stacks
         API_URL=$(aws cloudformation describe-stacks \
-          --stack-name ${{ env.STACK_NAME }}-api \
-          --query 'Stacks[0].Outputs[?OutputKey==`ApiEndpoint`].OutputValue' \
+          --stack-name ${{ env.STACK_NAME }} \
+          --query 'Stacks[0].Outputs[?OutputKey==`TaskManager-main-ApiEndpoint`].OutputValue' \
           --output text \
           --region ${{ env.AWS_REGION }})
-        
+
         WEB_URL=$(aws cloudformation describe-stacks \
-          --stack-name ${{ env.STACK_NAME }}-web \
-          --query 'Stacks[0].Outputs[?OutputKey==`WebEndpoint`].OutputValue' \
+          --stack-name ${{ env.STACK_NAME }} \
+          --query 'Stacks[0].Outputs[?OutputKey==`TaskManager-main-WebEndpoint`].OutputValue' \
           --output text \
           --region ${{ env.AWS_REGION }})
-        
+
         BASTION_IP=$(aws cloudformation describe-stacks \
           --stack-name taskmanager-shared-infrastructure \
           --query 'Stacks[0].Outputs[?OutputKey==`BastionHostIP`].OutputValue' \
           --output text \
           --region ${{ env.AWS_REGION }})
-        
+
         TUNNEL_CMD=$(aws cloudformation describe-stacks \
           --stack-name taskmanager-shared-infrastructure \
           --query 'Stacks[0].Outputs[?OutputKey==`DatabaseTunnelCommand`].OutputValue' \
           --output text \
           --region ${{ env.AWS_REGION }})
-        
+
+        # Extract API Gateway ID from URL
+        API_GATEWAY_ID=$(echo $API_URL | sed 's|https://||' | sed 's|\.execute-api.*||')
+
         echo "🚀 TaskManager (${{ env.BRANCH_NAME }}) deployed successfully!"
         echo "📋 API Stack: ${{ env.STACK_NAME }}-api"
         echo "📋 Web Stack: ${{ env.STACK_NAME }}-web"
@@ -281,6 +290,11 @@ jobs:
         echo "🖥️ Bastion host IP: $BASTION_IP"
         echo "💾 Database: taskmanager_${{ env.BRANCH_NAME }}"
         echo "🔗 SSH Tunnel: $TUNNEL_CMD"
+
+        # Set outputs for other jobs
+        echo "api-endpoint=$API_URL" >> $GITHUB_OUTPUT
+        echo "web-endpoint=$WEB_URL" >> $GITHUB_OUTPUT
+        echo "api-gateway-id=$API_GATEWAY_ID" >> $GITHUB_OUTPUT
         
     - name: Send SMS Notification
       run: |
@@ -290,19 +304,65 @@ jobs:
           --query 'Stacks[0].Outputs[?OutputKey==`DeploymentNotificationTopicArn`].OutputValue' \
           --output text \
           --region ${{ env.AWS_REGION }})
-        
+
         # Send SMS notification
         aws sns publish \
           --topic-arn $SNS_TOPIC \
           --message "🚀 TaskManager deployment complete!
-        
+
         Branch: ${{ env.BRANCH_NAME }}
+        Web App: $WEB_URL
         API: $API_URL
         Database: taskmanager_${{ env.BRANCH_NAME }}
         Bastion IP: $BASTION_IP
-        
+
         Ready for testing!" \
           --subject "TaskManager Deployed - ${{ env.BRANCH_NAME }}" \
           --region ${{ env.AWS_REGION }}
         
         echo "📱 SMS notification sent to 703-474-0324"
+
+  update-google-oauth:
+    name: Generate Google OAuth Update Instructions
+    runs-on: ubuntu-latest
+    needs: deploy-application
+    if: github.ref == 'refs/heads/main' && needs.deploy-application.result == 'success'
+
+    steps:
+    - name: Generate OAuth Update Instructions
+      run: |
+        # Get the API Gateway ID from the deployment outputs
+        API_GATEWAY_ID="${{ needs.deploy-application.outputs.api-gateway-id }}"
+        API_ENDPOINT="${{ needs.deploy-application.outputs.api-endpoint }}"
+        WEB_ENDPOINT="${{ needs.deploy-application.outputs.web-endpoint }}"
+
+        echo "🔧 Google OAuth Configuration Update Required"
+        echo "=============================================="
+        echo ""
+        echo "📋 Copy these values to update your Google OAuth configuration:"
+        echo ""
+        echo "🌐 Google Cloud Console URL:"
+        echo "   https://console.cloud.google.com/apis/credentials"
+        echo ""
+        echo "📝 OAuth Client ID:"
+        echo "   ${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}"
+        echo ""
+        echo "🔗 Authorized redirect URIs (add this):"
+        echo "   https://${API_GATEWAY_ID}.execute-api.us-east-1.amazonaws.com/Prod/signin-google"
+        echo ""
+        echo "🌍 Authorized JavaScript origins (add this):"
+        echo "   https://${API_GATEWAY_ID}.execute-api.us-east-1.amazonaws.com"
+        echo ""
+        echo "📋 Steps:"
+        echo "   1. Go to Google Cloud Console (link above)"
+        echo "   2. Find and edit your OAuth 2.0 Client ID"
+        echo "   3. Add the redirect URI listed above"
+        echo "   4. Add the JavaScript origin listed above"
+        echo "   5. Save changes"
+        echo ""
+        echo "✅ After updating, Google OAuth login will work!"
+        echo ""
+        echo "🔍 Current deployment URLs:"
+        echo "   Web App: ${{ needs.deploy-application.outputs.web-endpoint }}"
+        echo "   API: ${{ needs.deploy-application.outputs.api-endpoint }}"
+        echo "   API Gateway ID: ${API_GATEWAY_ID}"
