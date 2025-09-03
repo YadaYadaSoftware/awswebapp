@@ -132,11 +132,18 @@ Resources:
         Environment: !Ref Environment
 
   # CloudWatch Log Group for API
-  LambdaLogGroup:
+  ApiLambdaLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub '/aws/lambda/TaskManagerApi-${Environment}'
-      RetentionInDays: 30
+      RetentionInDays: 7
+
+  # CloudWatch Log Group for Database Setup
+  DatabaseSetupLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/TaskManager-DbSetup-${Environment}'
+      RetentionInDays: 7
 
   # CloudWatch Alarms for API
   LambdaErrorAlarm:

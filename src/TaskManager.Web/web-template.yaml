@@ -75,7 +75,7 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub '/aws/lambda/TaskManagerWeb-${Environment}'
-      RetentionInDays: 30
+      RetentionInDays: 7
 
   # CloudWatch Alarms for Web
   WebLambdaErrorAlarm:
