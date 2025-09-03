@@ -275,7 +275,6 @@ Resources:
         - !Ref RDSSecurityGroup
       RequireTLS: false
       IdleClientTimeout: 1800
-      MaxConnectionsPercent: 100
       Tags:
         - Key: Name
           Value: 'TaskManager-Shared-Proxy'
