@@ -15,7 +15,7 @@ COPY ["NuGet.config", "NuGet.config"]
 WORKDIR /src/src/TaskManager.Web
 
 # Restore dependencies for the entire solution
-RUN dotnet restore "../TaskManager.sln"
+RUN dotnet restore "../../TaskManager.sln"
 
 # Build the web project
 RUN dotnet build "TaskManager.Web.csproj" -c Release -o /app/build
