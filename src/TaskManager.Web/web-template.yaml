@@ -33,7 +33,7 @@ Resources:
   WebLoadBalancer:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:
-      Name: !Sub 'TaskManagerWeb-${Environment}'
+      Name: !Sub 'web-${Environment}'
       Type: application
       Scheme: internet-facing
       SecurityGroups:
@@ -49,7 +49,7 @@ Resources:
   WebTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
-      Name: !Sub 'TaskManagerWeb-${Environment}'
+      Name: !Sub 'webtg-${Environment}'
       Protocol: HTTP
       Port: 80
       VpcId:
@@ -76,7 +76,7 @@ Resources:
   WebTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
-      Family: !Sub 'TaskManagerWeb-${Environment}'
+      Family: !Sub 'webtd-${Environment}'
       NetworkMode: awsvpc
       RequiresCompatibilities:
         - FARGATE
@@ -119,7 +119,7 @@ Resources:
     Type: AWS::ECS::Service
     DependsOn: WebListener
     Properties:
-      ServiceName: !Sub 'TaskManagerWeb-${Environment}'
+      ServiceName: !Sub 'websvc-${Environment}'
       Cluster:
         Fn::ImportValue: 'TaskManager-ECSCluster'
       TaskDefinition: !Ref WebTaskDefinition
