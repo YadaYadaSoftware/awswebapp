@@ -230,7 +230,6 @@ jobs:
           GoogleClientId=${{ secrets.GOOGLE_CLIENT_ID }},
           GoogleClientSecret=${{ secrets.GOOGLE_CLIENT_SECRET }},
           ApiCodeBucket=${{ env.TEMPLATE_BUCKET }},
-          WebCodeBucket=${{ env.TEMPLATE_BUCKET }},
           WebContainerImage=991795635857.dkr.ecr.us-east-1.amazonaws.com/taskmanager-web:${{ env.BRANCH_NAME }}
         capabilities: "CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND"
         no-fail-on-empty-changeset: "1"
