@@ -63,6 +63,7 @@ Resources:
           Value: Web
         - Key: Environment
           Value: !Ref Environment
+      Timeout: 900  # 15 minutes
 
 Outputs:
   ApiEndpoint:

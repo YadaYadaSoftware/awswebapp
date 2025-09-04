@@ -100,6 +100,35 @@ jobs:
         name: web-lambda-package
         path: web-lambda-deployment.zip
 
+    - name: Build and Push Web Container Image
+      run: |
+        # Get branch name for tagging
+        BRANCH_NAME=${GITHUB_REF#refs/heads/}
+        IMAGE_TAG=${BRANCH_NAME:-main}
+
+        # Create ECR repository if it doesn't exist
+        aws ecr describe-repositories --repository-names taskmanager-web --region ${{ env.AWS_REGION }} || \
+        aws ecr create-repository --repository-name taskmanager-web --region ${{ env.AWS_REGION }}
+
+        # Build container image
+        docker build -t taskmanager-web:$IMAGE_TAG src/TaskManager.Web
+
+        # Login to ECR
+        aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
+
+        # Tag and push image
+        ECR_REPO=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/taskmanager-web
+        docker tag taskmanager-web:$IMAGE_TAG $ECR_REPO:$IMAGE_TAG
+        docker push $ECR_REPO:$IMAGE_TAG
+
+        # Also tag as latest for main branch
+        if [ "$BRANCH_NAME" = "main" ]; then
+          docker tag taskmanager-web:$IMAGE_TAG $ECR_REPO:latest
+          docker push $ECR_REPO:latest
+        fi
+
+        echo "CONTAINER_IMAGE=$ECR_REPO:$IMAGE_TAG" >> $GITHUB_ENV
+
   deploy-infrastructure:
     name: Deploy Shared Infrastructure
     runs-on: ubuntu-latest
@@ -230,7 +259,7 @@ jobs:
           GoogleClientId=${{ secrets.GOOGLE_CLIENT_ID }},
           GoogleClientSecret=${{ secrets.GOOGLE_CLIENT_SECRET }},
           ApiCodeBucket=${{ env.TEMPLATE_BUCKET }},
-          WebContainerImage=991795635857.dkr.ecr.us-east-1.amazonaws.com/taskmanager-web:${{ env.BRANCH_NAME }}
+          WebContainerImage=${{ env.CONTAINER_IMAGE }}
         capabilities: "CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND"
         no-fail-on-empty-changeset: "1"
       timeout-minutes: 20
