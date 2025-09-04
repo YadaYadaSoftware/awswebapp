@@ -27,120 +27,48 @@ Resources:
       PolicyDocument:
         Version: '2012-10-17'
         Statement:
-          # CloudFormation permissions
+          # Core AWS service permissions
           - Effect: Allow
             Action:
               - cloudformation:*
-            Resource: '*'
-          
-          # Lambda permissions
-          - Effect: Allow
-            Action:
               - lambda:*
-            Resource: '*'
-          
-          # API Gateway permissions
-          - Effect: Allow
-            Action:
               - apigateway:*
-            Resource: '*'
-          
-          # RDS permissions
-          - Effect: Allow
-            Action:
               - rds:*
-            Resource: '*'
-          
-          # VPC permissions
-          - Effect: Allow
-            Action:
               - ec2:*
-            Resource: '*'
-          
-          # Secrets Manager permissions
-          - Effect: Allow
-            Action:
               - secretsmanager:*
-            Resource: '*'
-          
-          # CloudWatch permissions
-          - Effect: Allow
-            Action:
               - logs:*
               - cloudwatch:*
+              - s3:*
+              - sns:*
+              - ecs:*
+              - ecr:*
+              - elasticloadbalancing:*
             Resource: '*'
-          
-          # IAM permissions (limited to what's needed)
+
+          # IAM permissions (consolidated)
           - Effect: Allow
             Action:
-              - iam:CreateRole
-              - iam:DeleteRole
-              - iam:GetRole
-              - iam:PassRole
-              - iam:AttachRolePolicy
-              - iam:DetachRolePolicy
-              - iam:PutRolePolicy
-              - iam:DeleteRolePolicy
-              - iam:GetRolePolicy
-              - iam:ListRolePolicies
-              - iam:ListAttachedRolePolicies
-              - iam:CreateInstanceProfile
-              - iam:DeleteInstanceProfile
-              - iam:AddRoleToInstanceProfile
-              - iam:RemoveRoleFromInstanceProfile
-              - iam:GetInstanceProfile
-              - iam:ListInstanceProfiles
-              - iam:TagRole
-              - iam:UntagRole
-              - iam:CreateInstanceProfile
+              - iam:*
             Resource:
               - !Sub 'arn:aws:iam::${AWS::AccountId}:role/TaskManager-*'
               - !Sub 'arn:aws:iam::${AWS::AccountId}:role/taskmanager-*'
               - !Sub 'arn:aws:iam::${AWS::AccountId}:instance-profile/TaskManager-*'
               - !Sub 'arn:aws:iam::${AWS::AccountId}:instance-profile/taskmanager-*'
-          
-          # Additional IAM permissions for CloudFormation stack operations
-          - Effect: Allow
-            Action:
-              - iam:RemoveRoleFromInstanceProfile
-              - iam:ListInstanceProfilesForRole
-              - iam:TagInstanceProfile
-              - iam:UntagInstanceProfile
-              - iam:UpdateRole
-              - iam:UpdateAssumeRolePolicy
-            Resource: '*'
-          
-          # S3 permissions (for SAM deployment)
-          - Effect: Allow
-            Action:
-              - s3:*
-            Resource: '*'
-          
-          # SNS permissions (for notifications)
-          - Effect: Allow
-            Action:
-              - sns:*
-            Resource: '*'
+              - 'arn:aws:iam::*:role/aws-service-role/elasticloadbalancing.amazonaws.com/AWSServiceRoleForElasticLoadBalancing'
+              - 'arn:aws:iam::*:role/aws-service-role/ecs.amazonaws.com/AWSServiceRoleForECS'
 
-          # ECS permissions (for container deployment)
+          # Service-linked role creation
           - Effect: Allow
             Action:
-              - ecs:*
+              - iam:CreateServiceLinkedRole
             Resource: '*'
+            Condition:
+              StringEquals:
+                iam:AWSServiceName:
+                  - 'elasticloadbalancing.amazonaws.com'
+                  - 'ecs.amazonaws.com'
 
-          # ECR permissions (for container registry)
-          - Effect: Allow
-            Action:
-              - ecr:*
-            Resource: '*'
-
-          # ELB permissions (for load balancers)
-          - Effect: Allow
-            Action:
-              - elasticloadbalancing:*
-            Resource: '*'
-
-          # Additional permissions for CloudFormation
+          # STS permissions
           - Effect: Allow
             Action:
               - sts:GetCallerIdentity

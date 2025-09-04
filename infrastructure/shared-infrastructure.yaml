@@ -243,6 +243,13 @@ Resources:
         - Key: Name
           Value: 'TaskManager-ECS-Task-SG'
 
+  # ECS Service-Linked Role (required for ECS services)
+  ECSServiceLinkedRole:
+    Type: AWS::IAM::ServiceLinkedRole
+    Properties:
+      AWSServiceName: 'ecs.amazonaws.com'
+      Description: 'Service-linked role for Amazon ECS'
+
   # ECS Cluster
   ECSCluster:
     Type: AWS::ECS::Cluster
