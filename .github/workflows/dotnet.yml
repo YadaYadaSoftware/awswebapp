@@ -175,7 +175,7 @@ jobs:
         docker build -t taskmanager-web:$IMAGE_TAG -f src/TaskManager.Web/Dockerfile .
 
         # Login to ECR
-        aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
+        aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin $ECR_REPO
 
         # Tag and push image
         docker tag taskmanager-web:$IMAGE_TAG $ECR_REPO:$IMAGE_TAG
