@@ -4,9 +4,7 @@ name: TaskManager CI/CD
 
 on:
   push:
-    branches: [ "main" ]
   pull_request:
-    branches: [ "main" ]
 
 env:
   AWS_REGION: us-east-1
