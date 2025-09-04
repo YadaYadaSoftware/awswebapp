@@ -100,37 +100,6 @@ jobs:
         name: web-lambda-package
         path: web-lambda-deployment.zip
 
-    - name: Build and Push Web Container Image
-      run: |
-        # Get branch name for tagging
-        BRANCH_NAME=${GITHUB_REF#refs/heads/}
-        IMAGE_TAG=${BRANCH_NAME:-main}
-
-        # Get ECR repository URI from CloudFormation outputs
-        ECR_REPO=$(aws cloudformation describe-stacks \
-          --stack-name taskmanager-shared-infrastructure \
-          --query 'Stacks[0].Outputs[?OutputKey==`WebECRRepositoryUri`].OutputValue' \
-          --output text \
-          --region ${{ env.AWS_REGION }})
-
-        # Build container image
-        docker build -t taskmanager-web:$IMAGE_TAG src/TaskManager.Web
-
-        # Login to ECR
-        aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
-
-        # Tag and push image
-        docker tag taskmanager-web:$IMAGE_TAG $ECR_REPO:$IMAGE_TAG
-        docker push $ECR_REPO:$IMAGE_TAG
-
-        # Also tag as latest for main branch
-        if [ "$BRANCH_NAME" = "main" ]; then
-          docker tag taskmanager-web:$IMAGE_TAG $ECR_REPO:latest
-          docker push $ECR_REPO:latest
-        fi
-
-        echo "CONTAINER_IMAGE=$ECR_REPO:$IMAGE_TAG" >> $GITHUB_ENV
-
   deploy-infrastructure:
     name: Deploy Shared Infrastructure
     runs-on: ubuntu-latest
@@ -176,7 +145,42 @@ jobs:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: ${{ env.AWS_REGION }}
-        
+
+    - name: Build and Push Web Container Image
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        AWS_DEFAULT_REGION: ${{ env.AWS_REGION }}
+      run: |
+        # Get branch name for tagging
+        BRANCH_NAME=${GITHUB_REF#refs/heads/}
+        IMAGE_TAG=${BRANCH_NAME:-main}
+
+        # Get ECR repository URI from CloudFormation outputs
+        ECR_REPO=$(aws cloudformation describe-stacks \
+          --stack-name taskmanager-shared-infrastructure \
+          --query 'Stacks[0].Outputs[?OutputKey==`WebECRRepositoryUri`].OutputValue' \
+          --output text \
+          --region ${{ env.AWS_REGION }})
+
+        # Build container image
+        docker build -t taskmanager-web:$IMAGE_TAG src/TaskManager.Web
+
+        # Login to ECR
+        aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
+
+        # Tag and push image
+        docker tag taskmanager-web:$IMAGE_TAG $ECR_REPO:$IMAGE_TAG
+        docker push $ECR_REPO:$IMAGE_TAG
+
+        # Also tag as latest for main branch
+        if [ "$BRANCH_NAME" = "main" ]; then
+          docker tag taskmanager-web:$IMAGE_TAG $ECR_REPO:latest
+          docker push $ECR_REPO:latest
+        fi
+
+        echo "CONTAINER_IMAGE=$ECR_REPO:$IMAGE_TAG" >> $GITHUB_ENV
+
     - name: Get branch name for stack naming
       run: |
         BRANCH_NAME=${GITHUB_REF#refs/heads/}
