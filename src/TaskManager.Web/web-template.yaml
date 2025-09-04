@@ -14,7 +14,7 @@ Parameters:
 
 Resources:
   # S3 Bucket for Static Web Hosting
-  WebHostingBucket:
+  WebBucket:
     Type: AWS::S3::Bucket
     Properties:
       BucketName: !Ref WebHostingBucket
@@ -34,10 +34,10 @@ Resources:
             MaxAge: 3000
 
   # S3 Bucket Policy for Public Read Access
-  WebHostingBucketPolicy:
+  WebBucketPolicy:
     Type: AWS::S3::BucketPolicy
     Properties:
-      Bucket: !Ref WebHostingBucket
+      Bucket: !Ref WebBucket
       PolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -53,7 +53,7 @@ Resources:
     Properties:
       DistributionConfig:
         Origins:
-          - DomainName: !GetAtt WebHostingBucket.RegionalDomainName
+          - DomainName: !GetAtt WebBucket.RegionalDomainName
             Id: S3Origin
             S3OriginConfig:
               OriginAccessIdentity: ''
@@ -112,7 +112,7 @@ Outputs:
 
   WebHostingBucketName:
     Description: 'S3 bucket name for static web hosting'
-    Value: !Ref WebHostingBucket
+    Value: !Ref WebBucket
     Export:
       Name: !Sub 'TaskManager-${Environment}-WebHostingBucket'
 
