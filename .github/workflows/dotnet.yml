@@ -4,9 +4,7 @@ name: TaskManager CI/CD
 
 on:
   push:
-    branches: [ "main" ]
   pull_request:
-    branches: [ "main" ]
 
 env:
   AWS_REGION: us-east-1
@@ -77,30 +75,19 @@ jobs:
     - name: Publish API for Lambda
       run: dotnet publish src/TaskManager.Api/TaskManager.Api.csproj --configuration Release --output ./publish/api --runtime linux-x64 --self-contained false
       
-    - name: Publish Web for Lambda
-      run: dotnet publish src/TaskManager.Web/TaskManager.Web.csproj --configuration Release --output ./publish/web --runtime linux-x64 --self-contained false /p:GenerateRuntimeConfigurationFiles=true
+    - name: Publish Web for Static Hosting
+      run: dotnet publish src/TaskManager.Web/TaskManager.Web.csproj --configuration Release --output ./publish/web
       
     - name: Create API Lambda deployment package
       run: |
         cd ./publish/api
         zip -r ../../api-lambda-deployment.zip .
-        
-    - name: Create Web Lambda deployment package
-      run: |
-        cd ./publish/web
-        zip -r ../../web-lambda-deployment.zip .
-        
+
     - name: Upload API Lambda package
       uses: actions/upload-artifact@v4
       with:
         name: api-lambda-package
         path: api-lambda-deployment.zip
-        
-    - name: Upload Web Lambda package
-      uses: actions/upload-artifact@v4
-      with:
-        name: web-lambda-package
-        path: web-lambda-deployment.zip
 
   deploy-infrastructure:
     name: Deploy Shared Infrastructure
@@ -184,18 +171,12 @@ jobs:
           echo "✅ Failed branch stack cleaned up"
         fi
         
-    - name: Download Lambda packages
+    - name: Download API Lambda package
       uses: actions/download-artifact@v4
       with:
         name: api-lambda-package
         path: ./artifacts/
-        
-    - name: Download Web Lambda package
-      uses: actions/download-artifact@v4
-      with:
-        name: web-lambda-package
-        path: ./artifacts/
-        
+
     - name: Upload templates and packages to S3
       run: |
         # Get S3 bucket name from shared infrastructure stack
@@ -204,23 +185,22 @@ jobs:
           --query 'Stacks[0].Outputs[?OutputKey==`TemplatesBucketName`].OutputValue' \
           --output text \
           --region ${{ env.AWS_REGION }})
-        
+
         # Debug: List downloaded artifacts
         echo "Downloaded artifacts:"
         ls -la ./artifacts/
-        
+
         # Upload nested stack templates
         aws s3 cp src/TaskManager.Api/api-template.yaml s3://$BUCKET_NAME/api-template.yaml
         aws s3 cp src/TaskManager.Web/web-template.yaml s3://$BUCKET_NAME/web-template.yaml
-        
-        # Upload Lambda deployment packages
+
+        # Upload API Lambda deployment package
         aws s3 cp ./artifacts/api-lambda-deployment.zip s3://$BUCKET_NAME/api-lambda-deployment.zip
-        aws s3 cp ./artifacts/web-lambda-deployment.zip s3://$BUCKET_NAME/web-lambda-deployment.zip
-        
+
         # Verify uploads
         echo "S3 bucket contents:"
         aws s3 ls s3://$BUCKET_NAME/
-        
+
         echo "TEMPLATE_BUCKET=$BUCKET_NAME" >> $GITHUB_ENV
         
     - name: Deploy Wrapper Template (Nested Stacks)
@@ -233,10 +213,35 @@ jobs:
           GoogleClientId=${{ secrets.GOOGLE_CLIENT_ID }},
           GoogleClientSecret=${{ secrets.GOOGLE_CLIENT_SECRET }},
           ApiCodeBucket=${{ env.TEMPLATE_BUCKET }},
-          WebCodeBucket=${{ env.TEMPLATE_BUCKET }}
+          WebHostingBucket=taskmanager-web-${{ env.BRANCH_NAME }}
         capabilities: "CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND"
         no-fail-on-empty-changeset: "1"
       timeout-minutes: 20
+
+    - name: Upload static web files to S3
+      run: |
+        # Get the web hosting bucket name from the web stack
+        WEB_BUCKET=$(aws cloudformation describe-stacks \
+          --stack-name ${{ env.STACK_NAME }}-web \
+          --query 'Stacks[0].Outputs[?OutputKey==`WebHostingBucketName`].OutputValue' \
+          --output text \
+          --region ${{ env.AWS_REGION }})
+
+        echo "Uploading static web files to: $WEB_BUCKET"
+
+        # Upload all files from the published web directory
+        aws s3 sync ./publish/web/wwwroot/ s3://$WEB_BUCKET/ \
+          --delete \
+          --cache-control "max-age=31536000,public" \
+          --exclude "*.json" \
+          --exclude "*.txt"
+
+        # Upload framework files with different cache settings
+        aws s3 sync ./publish/web/wwwroot/_framework/ s3://$WEB_BUCKET/_framework/ \
+          --delete \
+          --cache-control "max-age=31536000,public,immutable"
+
+        echo "Static web files uploaded successfully!"
         
     - name: Setup branch database
       run: |

@@ -1,124 +1,123 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: 'TaskManager Web Frontend - Blazor Server Lambda Function'
+Description: 'TaskManager Web Frontend - Blazor WebAssembly Static Hosting'
 
 Parameters:
   Environment:
     Type: String
     Default: main
     Description: 'Environment name (typically branch name)'
-    
-  GoogleClientId:
-    Type: String
-    NoEcho: true
-    Description: 'Google OAuth Client ID'
-    
-  GoogleClientSecret:
-    Type: String
-    NoEcho: true
-    Description: 'Google OAuth Client Secret'
-    
-  WebCodeBucket:
-    Type: String
-    Description: 'S3 bucket name for Web Lambda deployment package'
-    
-  WebCodeKey:
-    Type: String
-    Description: 'S3 key for Web Lambda deployment package'
-    Default: 'web-lambda-deployment.zip'
 
-Globals:
-  Function:
-    Runtime: dotnet8
-    Timeout: 30
-    MemorySize: 512
-    Environment:
-      Variables:
-        ASPNETCORE_ENVIRONMENT: !Ref Environment
+  WebHostingBucket:
+    Type: String
+    Description: 'S3 bucket name for static web hosting'
 
 Resources:
-  # CloudWatch Log Group for Web
-  WebLambdaLogGroup:
-    Type: AWS::Logs::LogGroup
+  # S3 Bucket for Static Web Hosting
+  WebHostingBucket:
+    Type: AWS::S3::Bucket
     Properties:
-      LogGroupName: !Sub '/aws/lambda/TaskManagerWeb-${Environment}'
-      RetentionInDays: 7
+      BucketName: !Ref WebHostingBucket
+      WebsiteConfiguration:
+        IndexDocument: index.html
+        ErrorDocument: index.html
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: false
+        BlockPublicPolicy: false
+        IgnorePublicAcls: false
+        RestrictPublicBuckets: false
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders: ['*']
+            AllowedMethods: [GET, PUT, POST, DELETE, HEAD]
+            AllowedOrigins: ['*']
+            MaxAge: 3000
 
-  # TaskManager Web Function (Blazor Server)
-  TaskManagerWebFunction:
-    Type: AWS::Serverless::Function
-    DependsOn: WebLambdaLogGroup
+  # S3 Bucket Policy for Public Read Access
+  WebHostingBucketPolicy:
+    Type: AWS::S3::BucketPolicy
     Properties:
-      FunctionName: !Sub 'TaskManagerWeb-${Environment}'
-      CodeUri:
-        Bucket: !Ref WebCodeBucket
-        Key: !Ref WebCodeKey
-      Handler: >-
-        TaskManager.Web::TaskManager.Web.LambdaEntryPoint::FunctionHandlerAsync
-      Runtime: dotnet8
-      PackageType: Zip
-      Role: 
-        Fn::ImportValue: 'TaskManager-SharedLambdaRole'
-      Environment:
-        Variables:
-          ASPNETCORE_ENVIRONMENT: !Ref Environment
-          ConnectionStrings__DefaultConnection: !Sub
-            - 'Host=${DatabaseEndpoint};Database=taskmanager_${DatabaseName};Username=taskmanager_admin;Password=${DatabasePassword}'
-            - DatabaseEndpoint:
-                Fn::ImportValue: 'TaskManager-DatabaseEndpoint'
-              DatabaseName: !Sub '${Environment}'
-              DatabasePassword: !Sub '{{resolve:secretsmanager:taskmanager/database/shared:SecretString:password}}'
-          Authentication__Google__ClientId: !Ref GoogleClientId
-          Authentication__Google__ClientSecret: !Ref GoogleClientSecret
-      VpcConfig:
-        SecurityGroupIds:
-          - Fn::ImportValue: 'TaskManager-LambdaSecurityGroup'
-        SubnetIds:
-          - Fn::ImportValue: 'TaskManager-PrivateSubnet1'
-          - Fn::ImportValue: 'TaskManager-PrivateSubnet2'
-      Events:
-        WebRoot:
-          Type: Api
-          Properties:
-            Path: /
-            Method: ANY
-        WebProxy:
-          Type: Api
-          Properties:
-            Path: /{proxy+}
-            Method: ANY
-      Tags:
-        Environment: !Ref Environment
+      Bucket: !Ref WebHostingBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: PublicReadGetObject
+            Effect: Allow
+            Principal: '*'
+            Action: s3:GetObject
+            Resource: !Sub '${WebHostingBucket}/*'
 
-  # CloudWatch Alarms for Web
-  WebLambdaErrorAlarm:
-    Type: AWS::CloudWatch::Alarm
+  # CloudFront Distribution
+  CloudFrontDistribution:
+    Type: AWS::CloudFront::Distribution
     Properties:
-      AlarmName: !Sub 'TaskManager-Web-Errors-${Environment}'
-      AlarmDescription: 'Web Lambda function error rate alarm'
-      MetricName: Errors
-      Namespace: AWS/Lambda
-      Statistic: Sum
-      Period: 300
-      EvaluationPeriods: 2
-      Threshold: 5
-      ComparisonOperator: GreaterThanThreshold
-      Dimensions:
-        - Name: FunctionName
-          Value: !Ref TaskManagerWebFunction
+      DistributionConfig:
+        Origins:
+          - DomainName: !GetAtt WebHostingBucket.RegionalDomainName
+            Id: S3Origin
+            S3OriginConfig:
+              OriginAccessIdentity: ''
+        Enabled: true
+        DefaultRootObject: index.html
+        DefaultCacheBehavior:
+          TargetOriginId: S3Origin
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods: [GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE]
+          Compress: true
+          ForwardedValues:
+            QueryString: false
+            Cookies:
+              Forward: none
+          CachePolicyId: '4135ea2d-6df8-44a3-9df3-4b5a84be39ad' # CachingDisabled
+        CacheBehaviors:
+          - PathPattern: '_framework/*'
+            TargetOriginId: S3Origin
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD, OPTIONS]
+            Compress: true
+            ForwardedValues:
+              QueryString: false
+              Cookies:
+                Forward: none
+            CachePolicyId: '4cc58ec2-f86d-4fc4-8f25-7c6f7890f63a' # CachingOptimizedForUncompressedObjects
+          - PathPattern: '*.css'
+            TargetOriginId: S3Origin
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD, OPTIONS]
+            Compress: true
+            ForwardedValues:
+              QueryString: false
+              Cookies:
+                Forward: none
+            CachePolicyId: '4cc58ec2-f86d-4fc4-8f25-7c6f7890f63a' # CachingOptimizedForUncompressedObjects
+          - PathPattern: '*.js'
+            TargetOriginId: S3Origin
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD, OPTIONS]
+            Compress: true
+            ForwardedValues:
+              QueryString: false
+              Cookies:
+                Forward: none
+            CachePolicyId: '4cc58ec2-f86d-4fc4-8f25-7c6f7890f63a' # CachingOptimizedForUncompressedObjects
+        PriceClass: PriceClass_100
+        HttpVersion: http2
 
 Outputs:
   WebEndpoint:
-    Description: 'Web application endpoint URL'
-    Value: !Sub
-      - 'https://${ApiId}.execute-api.${Region}.amazonaws.com/Prod/'
-      - ApiId: !Ref ServerlessRestApi
-        Region: !Ref AWS::Region
+    Description: 'Web application CloudFront URL'
+    Value: !Sub 'https://${CloudFrontDistribution.DomainName}'
+    Export:
+      Name: !Sub 'TaskManager-${Environment}-WebEndpoint'
 
-  WebLambdaFunctionName:
-    Description: 'Web Lambda function name'
-    Value: !Ref TaskManagerWebFunction
+  WebHostingBucketName:
+    Description: 'S3 bucket name for static web hosting'
+    Value: !Ref WebHostingBucket
+    Export:
+      Name: !Sub 'TaskManager-${Environment}-WebHostingBucket'
 
-  WebApiId:
-    Description: 'Web API Gateway ID'
-    Value: !Ref ServerlessRestApi
+  CloudFrontDistributionId:
+    Description: 'CloudFront distribution ID'
+    Value: !Ref CloudFrontDistribution
+    Export:
+      Name: !Sub 'TaskManager-${Environment}-CloudFrontId'
