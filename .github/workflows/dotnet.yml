@@ -106,9 +106,12 @@ jobs:
         BRANCH_NAME=${GITHUB_REF#refs/heads/}
         IMAGE_TAG=${BRANCH_NAME:-main}
 
-        # Create ECR repository if it doesn't exist
-        aws ecr describe-repositories --repository-names taskmanager-web --region ${{ env.AWS_REGION }} || \
-        aws ecr create-repository --repository-name taskmanager-web --region ${{ env.AWS_REGION }}
+        # Get ECR repository URI from CloudFormation outputs
+        ECR_REPO=$(aws cloudformation describe-stacks \
+          --stack-name taskmanager-shared-infrastructure \
+          --query 'Stacks[0].Outputs[?OutputKey==`WebECRRepositoryUri`].OutputValue' \
+          --output text \
+          --region ${{ env.AWS_REGION }})
 
         # Build container image
         docker build -t taskmanager-web:$IMAGE_TAG src/TaskManager.Web
@@ -117,7 +120,6 @@ jobs:
         aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
 
         # Tag and push image
-        ECR_REPO=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/taskmanager-web
         docker tag taskmanager-web:$IMAGE_TAG $ECR_REPO:$IMAGE_TAG
         docker push $ECR_REPO:$IMAGE_TAG
 

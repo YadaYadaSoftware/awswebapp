@@ -250,6 +250,20 @@ Resources:
       AWSServiceName: 'ecs.amazonaws.com'
       Description: 'Service-linked role for Amazon ECS'
 
+  # ECR Repository for Web Application
+  WebECRRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: 'taskmanager-web'
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      ImageTagMutability: 'MUTABLE'
+      Tags:
+        - Key: Name
+          Value: 'TaskManager-Web-ECR'
+        - Key: Purpose
+          Value: 'Container Registry'
+
   # ECS Cluster
   ECSCluster:
     Type: AWS::ECS::Cluster
@@ -615,3 +629,9 @@ Outputs:
     Value: !Ref ECSTaskSecurityGroup
     Export:
       Name: 'TaskManager-ECSTaskSecurityGroup'
+
+  WebECRRepositoryUri:
+    Description: 'ECR repository URI for web application'
+    Value: !Sub '${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/taskmanager-web'
+    Export:
+      Name: 'TaskManager-WebECRRepositoryUri'
