@@ -107,8 +107,6 @@ Outputs:
   WebEndpoint:
     Description: 'Web application CloudFront URL'
     Value: !Sub 'https://${CloudFrontDistribution.DomainName}'
-    Export:
-      Name: !Sub 'TaskManager-${Environment}-WebEndpoint'
 
   WebHostingBucketName:
     Description: 'S3 bucket name for static web hosting'
