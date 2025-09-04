@@ -163,8 +163,8 @@ jobs:
           --output text \
           --region ${{ env.AWS_REGION }})
 
-        # Build container image
-        docker build -t taskmanager-web:$IMAGE_TAG src/TaskManager.Web
+        # Build container image from root context
+        docker build -t taskmanager-web:$IMAGE_TAG -f src/TaskManager.Web/Dockerfile .
 
         # Login to ECR
         aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com

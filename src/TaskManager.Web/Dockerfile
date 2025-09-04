@@ -2,12 +2,22 @@
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
 
-# Copy csproj and restore dependencies
-COPY ["TaskManager.Web.csproj", "."]
-RUN dotnet restore "TaskManager.Web.csproj"
+# Copy solution file
+COPY ["TaskManager.sln", "TaskManager.sln"]
 
-# Copy everything else and build
-COPY . .
+# Copy all project directories
+COPY ["src/", "src/"]
+
+# Copy NuGet.config if it exists
+COPY ["NuGet.config", "NuGet.config"]
+
+# Set working directory to the web project
+WORKDIR /src/src/TaskManager.Web
+
+# Restore dependencies for the entire solution
+RUN dotnet restore "../TaskManager.sln"
+
+# Build the web project
 RUN dotnet build "TaskManager.Web.csproj" -c Release -o /app/build
 
 # Publish the app
