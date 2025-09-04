@@ -5,10 +5,6 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UserSecretsId>taskmanager-web-secrets</UserSecretsId>
-    <!-- Ensure wwwroot files are included in Lambda deployment -->
-    <EnableDefaultContentItems>false</EnableDefaultContentItems>
-    <!-- Enable scoped CSS processing -->
-    <ScopedCssEnabled>true</ScopedCssEnabled>
   </PropertyGroup>
 
   <ItemGroup>
@@ -18,17 +14,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\TaskManager.Data\TaskManager.Data.csproj" />
-  </ItemGroup>
-
-  <!-- Explicitly include wwwroot static files for Lambda deployment -->
-  <ItemGroup>
-    <Content Include="wwwroot\**" CopyToPublishDirectory="PreserveNewest" />
-  </ItemGroup>
-
-  <!-- Exclude problematic scoped CSS files from build -->
-  <ItemGroup>
-    <None Remove="Shared\MainLayout.razor.css" />
-    <None Remove="Shared\NavMenu.razor.css" />
   </ItemGroup>
 
 </Project>
