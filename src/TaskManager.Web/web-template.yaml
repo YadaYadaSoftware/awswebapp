@@ -1,124 +1,177 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Transform: AWS::Serverless-2016-10-31
-Description: 'TaskManager Web Frontend - Blazor Server Lambda Function'
+Description: 'TaskManager Web Frontend - Blazor Server ECS Container'
 
 Parameters:
   Environment:
     Type: String
     Default: main
     Description: 'Environment name (typically branch name)'
-    
+
   GoogleClientId:
     Type: String
     NoEcho: true
     Description: 'Google OAuth Client ID'
-    
+
   GoogleClientSecret:
     Type: String
     NoEcho: true
     Description: 'Google OAuth Client Secret'
-    
-  WebCodeBucket:
-    Type: String
-    Description: 'S3 bucket name for Web Lambda deployment package'
-    
-  WebCodeKey:
-    Type: String
-    Description: 'S3 key for Web Lambda deployment package'
-    Default: 'web-lambda-deployment.zip'
 
-Globals:
-  Function:
-    Runtime: dotnet8
-    Timeout: 30
-    MemorySize: 512
-    Environment:
-      Variables:
-        ASPNETCORE_ENVIRONMENT: !Ref Environment
+  WebContainerImage:
+    Type: String
+    Description: 'Container image URI for the web application'
 
 Resources:
-  # CloudWatch Log Group for Web
-  WebLambdaLogGroup:
+  # CloudWatch Log Group for ECS
+  WebECSLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub '/aws/lambda/TaskManagerWeb-${Environment}'
+      LogGroupName: !Sub '/ecs/TaskManagerWeb-${Environment}'
       RetentionInDays: 7
 
-  # TaskManager Web Function (Blazor Server)
-  TaskManagerWebFunction:
-    Type: AWS::Serverless::Function
-    DependsOn: WebLambdaLogGroup
+  # Application Load Balancer
+  WebLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:
-      FunctionName: !Sub 'TaskManagerWeb-${Environment}'
-      CodeUri:
-        Bucket: !Ref WebCodeBucket
-        Key: !Ref WebCodeKey
-      Handler: >-
-        TaskManager.Web::TaskManager.Web.LambdaEntryPoint::FunctionHandlerAsync
-      Runtime: dotnet8
-      PackageType: Zip
-      Role: 
-        Fn::ImportValue: 'TaskManager-SharedLambdaRole'
-      Environment:
-        Variables:
-          ASPNETCORE_ENVIRONMENT: !Ref Environment
-          ConnectionStrings__DefaultConnection: !Sub
-            - 'Host=${DatabaseEndpoint};Database=taskmanager_${DatabaseName};Username=taskmanager_admin;Password=${DatabasePassword}'
-            - DatabaseEndpoint:
-                Fn::ImportValue: 'TaskManager-DatabaseEndpoint'
-              DatabaseName: !Sub '${Environment}'
-              DatabasePassword: !Sub '{{resolve:secretsmanager:taskmanager/database/shared:SecretString:password}}'
-          Authentication__Google__ClientId: !Ref GoogleClientId
-          Authentication__Google__ClientSecret: !Ref GoogleClientSecret
-      VpcConfig:
-        SecurityGroupIds:
-          - Fn::ImportValue: 'TaskManager-LambdaSecurityGroup'
-        SubnetIds:
-          - Fn::ImportValue: 'TaskManager-PrivateSubnet1'
-          - Fn::ImportValue: 'TaskManager-PrivateSubnet2'
-      Events:
-        WebRoot:
-          Type: Api
-          Properties:
-            Path: /
-            Method: ANY
-        WebProxy:
-          Type: Api
-          Properties:
-            Path: /{proxy+}
-            Method: ANY
+      Name: !Sub 'TaskManagerWeb-${Environment}'
+      Type: application
+      Scheme: internet-facing
+      SecurityGroups:
+        - Fn::ImportValue: 'TaskManager-ALBSecurityGroup'
+      Subnets:
+        - Fn::ImportValue: 'TaskManager-PublicSubnet1'
+        - Fn::ImportValue: 'TaskManager-PublicSubnet2'
       Tags:
-        Environment: !Ref Environment
+        - Key: Environment
+          Value: !Ref Environment
+
+  # Target Group
+  WebTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub 'TaskManagerWeb-${Environment}'
+      Protocol: HTTP
+      Port: 80
+      VpcId:
+        Fn::ImportValue: 'TaskManager-VPC'
+      TargetType: ip
+      HealthCheckPath: /
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 2
+
+  # ALB Listener
+  WebListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref WebLoadBalancer
+      Protocol: HTTP
+      Port: 80
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref WebTargetGroup
+
+  # ECS Task Definition
+  WebTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub 'TaskManagerWeb-${Environment}'
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: '256'
+      Memory: '512'
+      ExecutionRoleArn:
+        Fn::ImportValue: 'TaskManager-SharedLambdaRole'
+      TaskRoleArn:
+        Fn::ImportValue: 'TaskManager-SharedLambdaRole'
+      ContainerDefinitions:
+        - Name: web
+          Image: !Ref WebContainerImage
+          Essential: true
+          PortMappings:
+            - ContainerPort: 80
+              Protocol: tcp
+          Environment:
+            - Name: ASPNETCORE_ENVIRONMENT
+              Value: !Ref Environment
+            - Name: ConnectionStrings__DefaultConnection
+              Value: !Sub
+                - 'Host=${DatabaseEndpoint};Database=taskmanager_${DatabaseName};Username=taskmanager_admin;Password=${DatabasePassword}'
+                - DatabaseEndpoint:
+                    Fn::ImportValue: 'TaskManager-DatabaseEndpoint'
+                  DatabaseName: !Sub '${Environment}'
+                  DatabasePassword: !Sub '{{resolve:secretsmanager:taskmanager/database/shared:SecretString:password}}'
+            - Name: Authentication__Google__ClientId
+              Value: !Ref GoogleClientId
+            - Name: Authentication__Google__ClientSecret
+              Value: !Ref GoogleClientSecret
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref WebECSLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+
+  # ECS Service
+  WebService:
+    Type: AWS::ECS::Service
+    DependsOn: WebListener
+    Properties:
+      ServiceName: !Sub 'TaskManagerWeb-${Environment}'
+      Cluster:
+        Fn::ImportValue: 'TaskManager-ECSCluster'
+      TaskDefinition: !Ref WebTaskDefinition
+      DesiredCount: 1
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          SecurityGroups:
+            - Fn::ImportValue: 'TaskManager-ECSTaskSecurityGroup'
+          Subnets:
+            - Fn::ImportValue: 'TaskManager-PrivateSubnet1'
+            - Fn::ImportValue: 'TaskManager-PrivateSubnet2'
+      LoadBalancers:
+        - TargetGroupArn: !Ref WebTargetGroup
+          ContainerName: web
+          ContainerPort: 80
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
 
   # CloudWatch Alarms for Web
-  WebLambdaErrorAlarm:
+  WebECSServiceAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName: !Sub 'TaskManager-Web-Errors-${Environment}'
-      AlarmDescription: 'Web Lambda function error rate alarm'
-      MetricName: Errors
-      Namespace: AWS/Lambda
-      Statistic: Sum
+      AlarmName: !Sub 'TaskManager-Web-Unhealthy-${Environment}'
+      AlarmDescription: 'Web ECS service unhealthy targets alarm'
+      MetricName: UnHealthyHostCount
+      Namespace: AWS/ApplicationELB
+      Statistic: Maximum
       Period: 300
       EvaluationPeriods: 2
-      Threshold: 5
+      Threshold: 1
       ComparisonOperator: GreaterThanThreshold
       Dimensions:
-        - Name: FunctionName
-          Value: !Ref TaskManagerWebFunction
+        - Name: LoadBalancer
+          Value: !GetAtt WebLoadBalancer.LoadBalancerFullName
+        - Name: TargetGroup
+          Value: !GetAtt WebTargetGroup.TargetGroupFullName
 
 Outputs:
   WebEndpoint:
     Description: 'Web application endpoint URL'
-    Value: !Sub
-      - 'https://${ApiId}.execute-api.${Region}.amazonaws.com/Prod/'
-      - ApiId: !Ref ServerlessRestApi
-        Region: !Ref AWS::Region
+    Value: !Sub 'http://${WebLoadBalancer.DNSName}'
 
-  WebLambdaFunctionName:
-    Description: 'Web Lambda function name'
-    Value: !Ref TaskManagerWebFunction
+  WebLoadBalancerDNS:
+    Description: 'Web Load Balancer DNS name'
+    Value: !GetAtt WebLoadBalancer.DNSName
 
-  WebApiId:
-    Description: 'Web API Gateway ID'
-    Value: !Ref ServerlessRestApi
+  WebServiceName:
+    Description: 'Web ECS service name'
+    Value: !Ref WebService
+
+  WebTaskDefinition:
+    Description: 'Web ECS task definition'
+    Value: !Ref WebTaskDefinition
