@@ -161,7 +161,15 @@ jobs:
           --stack-name taskmanager-shared-infrastructure \
           --query 'Stacks[0].Outputs[?OutputKey==`WebECRRepositoryUri`].OutputValue' \
           --output text \
-          --region ${{ env.AWS_REGION }})
+          --region ${{ env.AWS_REGION }} 2>/dev/null || echo "")
+
+        # Fallback: construct ECR repo URI if CloudFormation query fails
+        if [ -z "$ECR_REPO" ] || [ "$ECR_REPO" = "None" ]; then
+          echo "CloudFormation ECR query failed, using fallback URI"
+          ECR_REPO="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/taskmanager-web"
+        fi
+
+        echo "Using ECR repository: $ECR_REPO"
 
         # Build container image from root context
         docker build -t taskmanager-web:$IMAGE_TAG -f src/TaskManager.Web/Dockerfile .
