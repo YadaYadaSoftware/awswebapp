@@ -121,7 +121,25 @@ Resources:
             Action:
               - sns:*
             Resource: '*'
-          
+
+          # ECS permissions (for container deployment)
+          - Effect: Allow
+            Action:
+              - ecs:*
+            Resource: '*'
+
+          # ECR permissions (for container registry)
+          - Effect: Allow
+            Action:
+              - ecr:*
+            Resource: '*'
+
+          # ELB permissions (for load balancers)
+          - Effect: Allow
+            Action:
+              - elasticloadbalancing:*
+            Resource: '*'
+
           # Additional permissions for CloudFormation
           - Effect: Allow
             Action:

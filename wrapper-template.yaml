@@ -25,6 +25,10 @@ Parameters:
     Type: String
     Description: 'S3 bucket name for Web Lambda deployment package'
 
+  WebContainerImage:
+    Type: String
+    Description: 'Container image URI for the web application'
+
 Resources:
   # API Stack (Nested)
   TaskManagerApiStack:
@@ -57,6 +61,7 @@ Resources:
         GoogleClientId: !Ref GoogleClientId
         GoogleClientSecret: !Ref GoogleClientSecret
         WebCodeBucket: !Ref WebCodeBucket
+        WebContainerImage: !Ref WebContainerImage
       Tags:
         - Key: Component
           Value: Web
