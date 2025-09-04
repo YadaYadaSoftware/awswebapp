@@ -24,7 +24,6 @@ Parameters:
   WebHostingBucket:
     Type: String
     Description: 'S3 bucket name for Web static hosting'
-    Default: !Sub 'taskmanager-web-${Environment}'
 
 Resources:
   # API Stack (Nested)
