@@ -114,31 +114,31 @@ Resources:
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
 
-  # ECS Service
-  WebService:
-    Type: AWS::ECS::Service
-    DependsOn: WebListener
-    Properties:
-      ServiceName: !Sub 'websvc-${Environment}'
-      Cluster:
-        Fn::ImportValue: 'TaskManager-ECSCluster'
-      TaskDefinition: !Ref WebTaskDefinition
-      DesiredCount: 1
-      LaunchType: FARGATE
-      NetworkConfiguration:
-        AwsvpcConfiguration:
-          SecurityGroups:
-            - Fn::ImportValue: 'TaskManager-ECSTaskSecurityGroup'
-          Subnets:
-            - Fn::ImportValue: 'TaskManager-PrivateSubnet1'
-            - Fn::ImportValue: 'TaskManager-PrivateSubnet2'
-      LoadBalancers:
-        - TargetGroupArn: !Ref WebTargetGroup
-          ContainerName: web
-          ContainerPort: 80
-      Tags:
-        - Key: Environment
-          Value: !Ref Environment
+  # ECS Service - COMMENTED OUT FOR TESTING
+  # WebService:
+  #   Type: AWS::ECS::Service
+  #   DependsOn: WebListener
+  #   Properties:
+  #     ServiceName: !Sub 'websvc-${Environment}'
+  #     Cluster:
+  #       Fn::ImportValue: 'TaskManager-ECSCluster'
+  #     TaskDefinition: !Ref WebTaskDefinition
+  #     DesiredCount: 1
+  #     LaunchType: FARGATE
+  #     NetworkConfiguration:
+  #       AwsvpcConfiguration:
+  #         SecurityGroups:
+  #           - Fn::ImportValue: 'TaskManager-ECSTaskSecurityGroup'
+  #         Subnets:
+  #           - Fn::ImportValue: 'TaskManager-PrivateSubnet1'
+  #           - Fn::ImportValue: 'TaskManager-PrivateSubnet2'
+  #     LoadBalancers:
+  #       - TargetGroupArn: !Ref WebTargetGroup
+  #         ContainerName: web
+  #         ContainerPort: 80
+  #     Tags:
+  #       - Key: Environment
+  #         Value: !Ref Environment
 
   # CloudWatch Alarms for Web
   WebECSServiceAlarm:
@@ -168,9 +168,9 @@ Outputs:
     Description: 'Web Load Balancer DNS name'
     Value: !GetAtt WebLoadBalancer.DNSName
 
-  WebServiceName:
-    Description: 'Web ECS service name'
-    Value: !Ref WebService
+  # WebServiceName:
+  #   Description: 'Web ECS service name'
+  #   Value: !Ref WebService
 
   WebTaskDefinition:
     Description: 'Web ECS task definition'

@@ -27,29 +27,28 @@ Parameters:
     Description: 'Container image URI for the web application'
 
 Resources:
-  # API Stack (Nested)
-  TaskManagerApiStack:
-    Type: AWS::CloudFormation::Stack
-    Properties:
-      TemplateURL: !Sub
-        - 'https://s3.amazonaws.com/${BucketName}/api-template.yaml'
-        - BucketName: !ImportValue 'TaskManager-TemplatesBucket'
-      Parameters:
-        Environment: !Ref Environment
-        GoogleClientId: !Ref GoogleClientId
-        GoogleClientSecret: !Ref GoogleClientSecret
-        ApiCodeBucket: !Ref ApiCodeBucket
-      Tags:
-        - Key: Component
-          Value: API
-        - Key: Environment
-          Value: !Ref Environment
-      TimeoutInMinutes: 30
+  # API Stack (Nested) - COMMENTED OUT FOR TESTING
+  # TaskManagerApiStack:
+  #   Type: AWS::CloudFormation::Stack
+  #   Properties:
+  #     TemplateURL: !Sub
+  #       - 'https://s3.amazonaws.com/${BucketName}/api-template.yaml'
+  #       - BucketName: !ImportValue 'TaskManager-TemplatesBucket'
+  #     Parameters:
+  #       Environment: !Ref Environment
+  #       GoogleClientId: !Ref GoogleClientId
+  #       GoogleClientSecret: !Ref GoogleClientSecret
+  #       ApiCodeBucket: !Ref ApiCodeBucket
+  #     Tags:
+  #       - Key: Component
+  #         Value: API
+  #       - Key: Environment
+  #         Value: !Ref Environment
+  #     TimeoutInMinutes: 30
 
   # Web Stack (Nested)
   TaskManagerWebStack:
     Type: AWS::CloudFormation::Stack
-    DependsOn: TaskManagerApiStack
     Properties:
       TemplateURL: !Sub
         - 'https://s3.amazonaws.com/${BucketName}/web-template.yaml'
@@ -67,11 +66,11 @@ Resources:
       TimeoutInMinutes: 30
 
 Outputs:
-  ApiEndpoint:
-    Description: 'API Gateway endpoint URL'
-    Value: !GetAtt TaskManagerApiStack.Outputs.ApiEndpoint
-    Export:
-      Name: !Sub 'TaskManager-${Environment}-ApiEndpoint'
+  # ApiEndpoint:
+  #   Description: 'API Gateway endpoint URL'
+  #   Value: !GetAtt TaskManagerApiStack.Outputs.ApiEndpoint
+  #   Export:
+  #     Name: !Sub 'TaskManager-${Environment}-ApiEndpoint'
 
   WebEndpoint:
     Description: 'Web application endpoint URL'
@@ -79,23 +78,23 @@ Outputs:
     Export:
       Name: !Sub 'TaskManager-${Environment}-WebEndpoint'
 
-  ApiLambdaFunctionName:
-    Description: 'API Lambda function name'
-    Value: !GetAtt TaskManagerApiStack.Outputs.ApiLambdaFunctionName
-    Export:
-      Name: !Sub 'TaskManager-${Environment}-ApiLambdaFunction'
+  # ApiLambdaFunctionName:
+  #   Description: 'API Lambda function name'
+  #   Value: !GetAtt TaskManagerApiStack.Outputs.ApiLambdaFunctionName
+  #   Export:
+  #     Name: !Sub 'TaskManager-${Environment}-ApiLambdaFunction'
 
-  WebLambdaFunctionName:
-    Description: 'Web Lambda function name'
-    Value: !GetAtt TaskManagerWebStack.Outputs.WebLambdaFunctionName
-    Export:
-      Name: !Sub 'TaskManager-${Environment}-WebLambdaFunction'
+  # WebLambdaFunctionName:
+  #   Description: 'Web Lambda function name'
+  #   Value: !GetAtt TaskManagerWebStack.Outputs.WebLambdaFunctionName
+  #   Export:
+  #     Name: !Sub 'TaskManager-${Environment}-WebLambdaFunction'
 
-  DatabaseName:
-    Description: 'Branch-specific database name'
-    Value: !GetAtt TaskManagerApiStack.Outputs.DatabaseName
-    Export:
-      Name: !Sub 'TaskManager-${Environment}-DatabaseName'
+  # DatabaseName:
+  #   Description: 'Branch-specific database name'
+  #   Value: !GetAtt TaskManagerApiStack.Outputs.DatabaseName
+  #   Export:
+  #     Name: !Sub 'TaskManager-${Environment}-DatabaseName'
 
   BranchEnvironment:
     Description: 'Branch environment name'
@@ -106,10 +105,8 @@ Outputs:
   DeploymentSummary:
     Description: 'Deployment summary'
     Value: !Sub |
-      TaskManager ${Environment} deployed successfully!
-      
-      API Endpoint: ${TaskManagerApiStack.Outputs.ApiEndpoint}
+      TaskManager ${Environment} web infrastructure deployed successfully!
+
       Web Endpoint: ${TaskManagerWebStack.Outputs.WebEndpoint}
-      Database: taskmanager_${Environment}
-      
-      Both API and Web applications are running on AWS Lambda.
+
+      Web infrastructure is ready for ECS container deployment.
