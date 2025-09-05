@@ -45,6 +45,7 @@ Resources:
         - Key: Environment
           Value: !Ref Environment
       TimeoutInMinutes: 30
+      DisableRollback: true
 
   # Web Stack (Nested)
   TaskManagerWebStack:
@@ -65,6 +66,7 @@ Resources:
         - Key: Environment
           Value: !Ref Environment
       TimeoutInMinutes: 30
+      DisableRollback: true
 
 Outputs:
   ApiEndpoint:
