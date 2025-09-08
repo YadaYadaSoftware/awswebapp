@@ -264,6 +264,20 @@ Resources:
         - Key: Purpose
           Value: 'Container Registry'
 
+  # ECR Repository for Web Application
+  WebECRRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: 'taskmanager-web'
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      ImageTagMutability: 'MUTABLE'
+      Tags:
+        - Key: Name
+          Value: 'TaskManager-Web-ECR'
+        - Key: Purpose
+          Value: 'Container Registry'
+
   # ECS Cluster
   ECSCluster:
     Type: AWS::ECS::Cluster

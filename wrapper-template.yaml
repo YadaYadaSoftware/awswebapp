@@ -22,9 +22,7 @@ Parameters:
     Description: 'S3 bucket name for API Lambda deployment package'
     
 
-  WebContainerImage:
-    Type: String
-    Description: 'Container image URI for the web application'
+  # WebContainerImage parameter removed - now using ECR repository from shared infrastructure
 
 Resources:
   # API Stack (Nested)
@@ -58,7 +56,9 @@ Resources:
         Environment: !Ref Environment
         GoogleClientId: !Ref GoogleClientId
         GoogleClientSecret: !Ref GoogleClientSecret
-        WebContainerImage: !Ref WebContainerImage
+        WebContainerImage: !Sub
+          - '${RepositoryUri}:${Environment}'
+          - RepositoryUri: !ImportValue 'TaskManager-WebECRRepositoryUri'
       Tags:
         - Key: Component
           Value: Web
