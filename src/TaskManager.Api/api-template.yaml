@@ -51,6 +51,18 @@ Resources:
       LogGroupName: !Sub '/aws/lambda/TaskManagerApi-${Environment}'
       RetentionInDays: 7
 
+  # Lambda Layer for PostgreSQL dependencies
+  PostgresLayer:
+    Type: AWS::Lambda::LayerVersion
+    Properties:
+      LayerName: !Sub 'taskmanager-postgres-layer-${Environment}'
+      Description: 'PostgreSQL dependencies for Lambda'
+      Content:
+        S3Bucket: !Ref ApiCodeBucket
+        S3Key: 'postgres-layer.zip'
+      CompatibleRuntimes:
+        - python3.9
+
   # Branch-specific database creation Lambda
   DatabaseSetupFunction:
     Type: AWS::Serverless::Function
