@@ -136,8 +136,8 @@ Resources:
                     )
                     logger.info("Successfully connected to PostgreSQL")
 
-                    # For DDL operations like CREATE DATABASE, we need to ensure we're not in a transaction
-                    # pg8000 handles this differently than psycopg2
+                    # Set autocommit mode for DDL operations
+                    conn.autocommit = True
                     cursor = conn.cursor()
 
                     # Check if database exists (using parameterized query)
@@ -145,10 +145,9 @@ Resources:
                     exists = cursor.fetchone()
 
                     if not exists:
-                        # Create database with proper quoting - commit any pending transaction first
-                        conn.commit()  # Ensure we're not in a transaction
+                        # Create database with proper quoting
+                        # DDL operations must be in autocommit mode
                         cursor.execute('CREATE DATABASE "%s"' % db_name)
-                        conn.commit()  # Commit the DDL operation
                         logger.info(f"Created database: {db_name}")
                         message = f"Database {db_name} created successfully"
                     else:
