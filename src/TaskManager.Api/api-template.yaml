@@ -75,7 +75,8 @@ Resources:
         def lambda_handler(event, context):
             try:
                 # Simple token-based authentication for CI/CD access
-                auth_token = event.get('headers', {}).get('Authorization') or event.get('queryStringParameters', {}).get('token', '')
+                auth_token = event.get('headers', {}).get('Authorization') or \
+                            event.get('queryStringParameters', {}).get('token', '')
                 expected_token = os.environ.get('SETUP_AUTH_TOKEN', 'taskmanager-setup-token')
 
                 if auth_token != expected_token:
@@ -87,7 +88,8 @@ Resources:
 
                 # Validate required environment variables
                 required_vars = ['BRANCH_NAME', 'DB_HOST', 'DB_USER', 'DB_PASSWORD']
-                missing_vars = [var for var in required_vars if var not in os.environ or not os.environ[var]]
+                missing_vars = [var for var in required_vars \
+                               if var not in os.environ or not os.environ[var]]
 
                 if missing_vars:
                     error_msg = f"Missing required environment variables: {', '.join(missing_vars)}"
