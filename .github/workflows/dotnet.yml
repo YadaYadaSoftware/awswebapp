@@ -272,35 +272,23 @@ jobs:
       run: |
         echo "Setting up database for branch: ${{ env.BRANCH_NAME }}"
 
-        # Get API endpoint directly from API stack (more reliable than parent stack)
-        MAX_ATTEMPTS=30
-        ATTEMPT=1
+        # Get API endpoint from wrapper stack exports (most reliable method)
+        # The wrapper stack exports the API endpoint with name: TaskManager-{Environment}-ApiEndpoint
+        EXPORT_NAME="TaskManager-${{ env.BRANCH_NAME }}-ApiEndpoint"
 
-        while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
-          echo "Attempt $ATTEMPT/$MAX_ATTEMPTS: Getting API endpoint from API stack..."
+        echo "Looking for CloudFormation export: $EXPORT_NAME"
+        API_URL=$(aws cloudformation list-exports \
+          --query "Exports[?Name=='$EXPORT_NAME'].Value" \
+          --output text \
+          --region ${{ env.AWS_REGION }} 2>/dev/null || echo "")
 
-          # Get API endpoint directly from the API stack (more reliable)
-          API_STACK_NAME="${{ env.STACK_NAME }}-api"
-          API_URL=$(aws cloudformation describe-stacks \
-            --stack-name $API_STACK_NAME \
-            --query 'Stacks[0].Outputs[?OutputKey==`ApiEndpoint`].OutputValue' \
-            --output text \
-            --region ${{ env.AWS_REGION }} 2>/dev/null)
-
-          if [ "$API_URL" != "None" ] && [ -n "$API_URL" ] && [ "$API_URL" != "null" ]; then
-            echo "✅ API endpoint found: $API_URL"
-            break
-          fi
-
-          echo "⏳ API stack not ready yet, waiting 30 seconds..."
-          sleep 30
-          ATTEMPT=$((ATTEMPT + 1))
-        done
-
-        if [ "$API_URL" = "None" ] || [ -z "$API_URL" ] || [ "$API_URL" = "null" ]; then
-          echo "❌ Failed to get API endpoint after $MAX_ATTEMPTS attempts"
+        if [ -z "$API_URL" ] || [ "$API_URL" = "None" ]; then
+          echo "❌ API endpoint export not found: $EXPORT_NAME"
+          echo "This indicates the CloudFormation deployment failed or the export is not ready"
           exit 1
         fi
+
+        echo "✅ API endpoint from export: $API_URL"
 
         # Test API connectivity first
         echo "Testing API connectivity..."
@@ -345,47 +333,32 @@ jobs:
     - name: Get deployment outputs
       id: get-endpoints
       run: |
-        echo "Getting deployment outputs..."
+        echo "Getting deployment outputs from CloudFormation exports..."
 
-        # Get API URL directly from API stack (more reliable)
-        MAX_ATTEMPTS=10
-        ATTEMPT=1
-
-        while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
-          echo "Attempt $ATTEMPT/$MAX_ATTEMPTS: Getting API endpoint from API stack..."
-
-          # Get API endpoint directly from the API stack (more reliable)
-          API_STACK_NAME="${{ env.STACK_NAME }}-api"
-          API_URL=$(aws cloudformation describe-stacks \
-            --stack-name $API_STACK_NAME \
-            --query 'Stacks[0].Outputs[?OutputKey==`ApiEndpoint`].OutputValue' \
-            --output text \
-            --region ${{ env.AWS_REGION }} 2>/dev/null)
-
-          if [ "$API_URL" != "None" ] && [ -n "$API_URL" ] && [ "$API_URL" != "null" ]; then
-            echo "✅ API endpoint: $API_URL"
-            break
-          fi
-
-          echo "⏳ API stack not ready, waiting 15 seconds..."
-          sleep 15
-          ATTEMPT=$((ATTEMPT + 1))
-        done
-
-        if [ "$API_URL" = "None" ] || [ -z "$API_URL" ] || [ "$API_URL" = "null" ]; then
-          echo "❌ Failed to get API endpoint"
-          exit 1
-        fi
-
-        # Get Web URL
-        WEB_URL=$(aws cloudformation describe-stacks \
-          --stack-name ${{ env.STACK_NAME }} \
-          --query 'Stacks[0].Outputs[?OutputKey==`TaskManager-main-WebLoadBalancerDNS`].OutputValue' \
+        # Get API endpoint from wrapper stack exports
+        API_EXPORT_NAME="TaskManager-${{ env.BRANCH_NAME }}-ApiEndpoint"
+        API_URL=$(aws cloudformation list-exports \
+          --query "Exports[?Name=='$API_EXPORT_NAME'].Value" \
           --output text \
           --region ${{ env.AWS_REGION }} 2>/dev/null || echo "")
 
-        if [ -z "$WEB_URL" ] || [ "$WEB_URL" = "None" ] || [ "$WEB_URL" = "null" ]; then
-          echo "⚠️ Web endpoint not available yet"
+        if [ -z "$API_URL" ] || [ "$API_URL" = "None" ]; then
+          echo "❌ API endpoint export not found: $API_EXPORT_NAME"
+          echo "Available exports:"
+          aws cloudformation list-exports --region ${{ env.AWS_REGION }} 2>/dev/null || echo "No exports found"
+          exit 1
+        fi
+        echo "✅ API endpoint: $API_URL"
+
+        # Get Web endpoint from wrapper stack exports
+        WEB_EXPORT_NAME="TaskManager-${{ env.BRANCH_NAME }}-WebLoadBalancerDNS"
+        WEB_URL=$(aws cloudformation list-exports \
+          --query "Exports[?Name=='$WEB_EXPORT_NAME'].Value" \
+          --output text \
+          --region ${{ env.AWS_REGION }} 2>/dev/null || echo "")
+
+        if [ -z "$WEB_URL" ] || [ "$WEB_URL" = "None" ]; then
+          echo "⚠️ Web endpoint export not found: $WEB_EXPORT_NAME"
           WEB_URL=""
         else
           echo "✅ Web endpoint: $WEB_URL"
