@@ -30,7 +30,7 @@ Parameters:
 Globals:
   Function:
     Runtime: dotnet8
-    Timeout: 30
+    Timeout: 60
     MemorySize: 512
     Environment:
       Variables:
@@ -57,42 +57,108 @@ Resources:
     DependsOn: DatabaseSetupLogGroup
     Properties:
       FunctionName: !Sub 'TaskManager-DbSetup-${Environment}'
+      Timeout: 120
       InlineCode: |
         import json
         import boto3
         import psycopg2
         import os
-        
+        import logging
+
+        logger = logging.getLogger()
+        logger.setLevel(logging.INFO)
+
         def lambda_handler(event, context):
-            # Create branch-specific database
-            db_name = f"taskmanager_{os.environ['BRANCH_NAME']}"
-            
-            # Connect to shared RDS instance
-            conn = psycopg2.connect(
-                host=os.environ['DB_HOST'],
-                user=os.environ['DB_USER'],
-                password=os.environ['DB_PASSWORD'],
-                database='postgres'
-            )
-            conn.autocommit = True
-            
-            cursor = conn.cursor()
-            
-            # Create database if it doesn't exist
-            cursor.execute(f"SELECT 1 FROM pg_database WHERE datname = '{db_name}'")
-            if not cursor.fetchone():
-                cursor.execute(f'CREATE DATABASE "{db_name}"')
-                print(f"Created database: {db_name}")
-            else:
-                print(f"Database already exists: {db_name}")
-            
-            cursor.close()
-            conn.close()
-            
-            return {
-                'statusCode': 200,
-                'body': json.dumps(f'Database {db_name} ready')
-            }
+            try:
+                # Validate required environment variables
+                required_vars = ['BRANCH_NAME', 'DB_HOST', 'DB_USER', 'DB_PASSWORD']
+                missing_vars = [var for var in required_vars if var not in os.environ or not os.environ[var]]
+
+                if missing_vars:
+                    error_msg = f"Missing required environment variables: {', '.join(missing_vars)}"
+                    logger.error(error_msg)
+                    return {
+                        'statusCode': 500,
+                        'body': json.dumps({'error': error_msg})
+                    }
+
+                # Create branch-specific database name with proper escaping
+                branch_name = os.environ['BRANCH_NAME']
+                db_name = f"taskmanager_{branch_name}"
+
+                # Validate database name (prevent SQL injection)
+                if not db_name.replace('_', '').replace('-', '').isalnum():
+                    error_msg = f"Invalid database name: {db_name}"
+                    logger.error(error_msg)
+                    return {
+                        'statusCode': 400,
+                        'body': json.dumps({'error': error_msg})
+                    }
+
+                logger.info(f"Attempting to setup database: {db_name}")
+
+                # Connect to shared RDS instance
+                try:
+                    conn = psycopg2.connect(
+                        host=os.environ['DB_HOST'],
+                        user=os.environ['DB_USER'],
+                        password=os.environ['DB_PASSWORD'],
+                        database='postgres',
+                        connect_timeout=30
+                    )
+                    conn.autocommit = True
+                    logger.info("Successfully connected to PostgreSQL")
+                except Exception as e:
+                    error_msg = f"Failed to connect to database: {str(e)}"
+                    logger.error(error_msg)
+                    return {
+                        'statusCode': 500,
+                        'body': json.dumps({'error': error_msg})
+                    }
+
+                cursor = None
+                try:
+                    cursor = conn.cursor()
+
+                    # Check if database exists (using parameterized query to prevent SQL injection)
+                    cursor.execute("SELECT 1 FROM pg_database WHERE datname = %s", (db_name,))
+                    exists = cursor.fetchone()
+
+                    if not exists:
+                        # Create database with proper quoting
+                        cursor.execute('CREATE DATABASE %s', (db_name,))
+                        logger.info(f"Created database: {db_name}")
+                        message = f"Database {db_name} created successfully"
+                    else:
+                        logger.info(f"Database already exists: {db_name}")
+                        message = f"Database {db_name} already exists"
+
+                    return {
+                        'statusCode': 200,
+                        'body': json.dumps({'message': message, 'database': db_name})
+                    }
+
+                except Exception as e:
+                    error_msg = f"Database operation failed: {str(e)}"
+                    logger.error(error_msg)
+                    return {
+                        'statusCode': 500,
+                        'body': json.dumps({'error': error_msg})
+                    }
+                finally:
+                    if cursor:
+                        cursor.close()
+                    if conn:
+                        conn.close()
+                        logger.info("Database connection closed")
+
+            except Exception as e:
+                error_msg = f"Unexpected error: {str(e)}"
+                logger.error(error_msg)
+                return {
+                    'statusCode': 500,
+                    'body': json.dumps({'error': error_msg})
+                }
       Handler: index.lambda_handler
       Runtime: python3.9
       Role: 
