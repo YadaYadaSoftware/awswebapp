@@ -61,7 +61,6 @@ Resources:
       InlineCode: |
         import json
         import boto3
-        import psycopg2
         import os
         import logging
 
@@ -71,7 +70,7 @@ Resources:
         def lambda_handler(event, context):
             try:
                 # Validate required environment variables
-                required_vars = ['BRANCH_NAME', 'DB_HOST', 'DB_USER', 'DB_PASSWORD']
+                required_vars = ['BRANCH_NAME', 'DB_INSTANCE_ARN', 'DB_SECRET_ARN']
                 missing_vars = [var for var in required_vars if var not in os.environ or not os.environ[var]]
 
                 if missing_vars:
@@ -82,12 +81,12 @@ Resources:
                         'body': json.dumps({'error': error_msg})
                     }
 
-                # Create branch-specific database name with proper escaping
+                # Create branch-specific database name
                 branch_name = os.environ['BRANCH_NAME']
                 db_name = f"taskmanager_{branch_name}"
 
-                # Validate database name (prevent SQL injection)
-                if not db_name.replace('_', '').replace('-', '').isalnum():
+                # Validate database name (basic validation)
+                if not all(c.isalnum() or c in '_-' for c in db_name):
                     error_msg = f"Invalid database name: {db_name}"
                     logger.error(error_msg)
                     return {
@@ -97,36 +96,36 @@ Resources:
 
                 logger.info(f"Attempting to setup database: {db_name}")
 
-                # Connect to shared RDS instance
+                # Use RDS Data API instead of direct PostgreSQL connection
+                rds_client = boto3.client('rds-data')
+
                 try:
-                    conn = psycopg2.connect(
-                        host=os.environ['DB_HOST'],
-                        user=os.environ['DB_USER'],
-                        password=os.environ['DB_PASSWORD'],
+                    # Check if database exists
+                    check_sql = "SELECT 1 FROM pg_database WHERE datname = :db_name"
+                    check_response = rds_client.execute_statement(
+                        resourceArn=os.environ['DB_INSTANCE_ARN'],
+                        secretArn=os.environ['DB_SECRET_ARN'],
                         database='postgres',
-                        connect_timeout=30
+                        sql=check_sql,
+                        parameters=[
+                            {
+                                'name': 'db_name',
+                                'value': {'stringValue': db_name}
+                            }
+                        ]
                     )
-                    conn.autocommit = True
-                    logger.info("Successfully connected to PostgreSQL")
-                except Exception as e:
-                    error_msg = f"Failed to connect to database: {str(e)}"
-                    logger.error(error_msg)
-                    return {
-                        'statusCode': 500,
-                        'body': json.dumps({'error': error_msg})
-                    }
 
-                cursor = None
-                try:
-                    cursor = conn.cursor()
+                    database_exists = len(check_response.get('records', [])) > 0
 
-                    # Check if database exists (using parameterized query to prevent SQL injection)
-                    cursor.execute("SELECT 1 FROM pg_database WHERE datname = %s", (db_name,))
-                    exists = cursor.fetchone()
-
-                    if not exists:
-                        # Create database with proper quoting
-                        cursor.execute('CREATE DATABASE %s', (db_name,))
+                    if not database_exists:
+                        # Create database
+                        create_sql = f'CREATE DATABASE "{db_name}"'
+                        rds_client.execute_statement(
+                            resourceArn=os.environ['DB_INSTANCE_ARN'],
+                            secretArn=os.environ['DB_SECRET_ARN'],
+                            database='postgres',
+                            sql=create_sql
+                        )
                         logger.info(f"Created database: {db_name}")
                         message = f"Database {db_name} created successfully"
                     else:
@@ -145,12 +144,6 @@ Resources:
                         'statusCode': 500,
                         'body': json.dumps({'error': error_msg})
                     }
-                finally:
-                    if cursor:
-                        cursor.close()
-                    if conn:
-                        conn.close()
-                        logger.info("Database connection closed")
 
             except Exception as e:
                 error_msg = f"Unexpected error: {str(e)}"
@@ -166,10 +159,9 @@ Resources:
       Environment:
         Variables:
           BRANCH_NAME: !Ref Environment
-          DB_HOST:
-            Fn::ImportValue: 'TaskManager-DatabaseEndpoint'
-          DB_USER: taskmanager_admin
-          DB_PASSWORD: !Sub '{{resolve:secretsmanager:taskmanager/database/shared:SecretString:password}}'
+          DB_INSTANCE_ARN: !Sub 'arn:aws:rds:${AWS::Region}:${AWS::AccountId}:db:taskmanager-shared-db'
+          DB_SECRET_ARN:
+            Fn::ImportValue: 'TaskManager-DatabaseSecret'
       VpcConfig:
         SecurityGroupIds:
           - Fn::ImportValue: 'TaskManager-LambdaSecurityGroup'

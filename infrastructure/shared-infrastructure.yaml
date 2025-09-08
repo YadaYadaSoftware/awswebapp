@@ -443,6 +443,8 @@ Resources:
                 Action:
                   - rds:CreateDatabase
                   - rds:DescribeDBInstances
+                  - rds-data:ExecuteStatement
+                  - rds-data:BatchExecuteStatement
                 Resource: !Sub 'arn:aws:rds:${AWS::Region}:${AWS::AccountId}:db:taskmanager-shared-db'
 
   # SNS Topic for Deployment Notifications
