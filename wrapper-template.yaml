@@ -101,6 +101,12 @@ Outputs:
     Export:
       Name: !Sub 'TaskManager-${Environment}-WebTaskDefinition'
 
+  WebServiceName:
+    Description: 'Web ECS service name'
+    Value: !GetAtt TaskManagerWebStack.Outputs.WebServiceName
+    Export:
+      Name: !Sub 'TaskManager-${Environment}-WebService'
+
 
   DatabaseName:
     Description: 'Branch-specific database name'
@@ -120,9 +126,8 @@ Outputs:
       TaskManager ${Environment} deployed successfully!
 
       API Endpoint: ${TaskManagerApiStack.Outputs.ApiEndpoint}
-      Web Load Balancer: ${TaskManagerWebStack.Outputs.WebLoadBalancerDNS}
+      Web Application: http://${TaskManagerWebStack.Outputs.WebLoadBalancerDNS}
       Database: taskmanager_${Environment}
 
       API is running on AWS Lambda with API Gateway.
-      Web infrastructure is ready (ALB, Target Group, Task Definition created).
-      ECS Service is commented out for infrastructure testing.
+      Web is running on AWS ECS containers with Application Load Balancer.

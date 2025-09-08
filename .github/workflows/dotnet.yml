@@ -314,9 +314,9 @@ jobs:
 
         echo "🚀 TaskManager (${{ env.BRANCH_NAME }}) deployed successfully!"
         echo "📋 API Stack: ${{ env.STACK_NAME }}-api"
-        echo "📋 Web Infrastructure Stack: ${{ env.STACK_NAME }}-web"
+        echo "📋 Web Stack: ${{ env.STACK_NAME }}-web"
         echo "🔗 API Endpoint: $API_URL"
-        echo "🌐 Web Load Balancer: $WEB_URL"
+        echo "🌐 Web Application: http://$WEB_URL"
         echo "🖥️ Bastion host IP: $BASTION_IP"
         echo "💾 Database: taskmanager_${{ env.BRANCH_NAME }}"
         echo "🔗 SSH Tunnel: $TUNNEL_CMD"
@@ -342,11 +342,11 @@ jobs:
 
         Branch: ${{ env.BRANCH_NAME }}
         API: $API_URL
-        Web Load Balancer: $WEB_URL
+        Web App: http://$WEB_URL
         Database: taskmanager_${{ env.BRANCH_NAME }}
         Bastion IP: $BASTION_IP
 
-        Web infrastructure ready (ECS service commented out for testing)!" \
+        Both API and Web are fully deployed and running!" \
           --subject "TaskManager Deployed - ${{ env.BRANCH_NAME }}" \
           --region ${{ env.AWS_REGION }}
         
@@ -394,5 +394,5 @@ jobs:
         echo ""
         echo "🔍 Current deployment URLs:"
         echo "   API: ${{ needs.deploy-application.outputs.api-endpoint }}"
-        echo "   Web Load Balancer: ${{ needs.deploy-application.outputs.web-endpoint }}"
+        echo "   Web Application: http://${{ needs.deploy-application.outputs.web-endpoint }}"
         echo "   API Gateway ID: ${API_GATEWAY_ID}"
