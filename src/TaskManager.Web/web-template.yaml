@@ -1,5 +1,12 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: 'TaskManager Web Frontend - Blazor Server ECS Container with Application Load Balancer'
+# Fixed ECS service getting stuck by:
+# - Changed health check path from /health to /
+# - Increased health check interval to 60s and timeout to 10s
+# - Increased CPU to 512 and Memory to 1024
+# - Added 120s health check grace period
+# - Added container environment variables for proper startup
+# - Added dependency on TaskDefinition for service creation
 
 Parameters:
   Environment:
@@ -55,11 +62,11 @@ Resources:
       VpcId:
         Fn::ImportValue: 'TaskManager-VPC'
       TargetType: ip
-      HealthCheckPath: /health
-      HealthCheckIntervalSeconds: 30
-      HealthCheckTimeoutSeconds: 5
+      HealthCheckPath: /
+      HealthCheckIntervalSeconds: 60
+      HealthCheckTimeoutSeconds: 10
       HealthyThresholdCount: 2
-      UnhealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
 
   # ALB Listener
   WebListener:
@@ -80,8 +87,8 @@ Resources:
       NetworkMode: awsvpc
       RequiresCompatibilities:
         - FARGATE
-      Cpu: '256'
-      Memory: '512'
+      Cpu: '512'
+      Memory: '1024'
       ExecutionRoleArn:
         Fn::ImportValue: 'TaskManager-SharedLambdaRole'
       TaskRoleArn:
@@ -107,6 +114,10 @@ Resources:
               Value: !Ref GoogleClientId
             - Name: Authentication__Google__ClientSecret
               Value: !Ref GoogleClientSecret
+            - Name: ASPNETCORE_URLS
+              Value: 'http://+:80'
+            - Name: DOTNET_RUNNING_IN_CONTAINER
+              Value: 'true'
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -117,7 +128,9 @@ Resources:
   # ECS Service
   WebService:
     Type: AWS::ECS::Service
-    DependsOn: WebListener
+    DependsOn:
+      - WebListener
+      - WebTaskDefinition
     Properties:
       ServiceName: !Sub 'websvc-${Environment}'
       Cluster:
@@ -136,6 +149,7 @@ Resources:
         - TargetGroupArn: !Ref WebTargetGroup
           ContainerName: web
           ContainerPort: 80
+      HealthCheckGracePeriodSeconds: 120
       Tags:
         - Key: Environment
           Value: !Ref Environment
@@ -149,8 +163,8 @@ Resources:
       MetricName: UnHealthyHostCount
       Namespace: AWS/ApplicationELB
       Statistic: Maximum
-      Period: 300
-      EvaluationPeriods: 2
+      Period: 60
+      EvaluationPeriods: 3
       Threshold: 1
       ComparisonOperator: GreaterThanThreshold
       Dimensions:
