@@ -139,12 +139,12 @@ Resources:
                     cursor = conn.cursor()
 
                     # Check if database exists (using parameterized query)
-                    cursor.execute("SELECT 1 FROM pg_database WHERE datname = %s", (db_name,))
+                    cursor.execute("SELECT 1 FROM pg_database WHERE datname = %s", [db_name])
                     exists = cursor.fetchone()
 
                     if not exists:
-                        # Create database with proper quoting
-                        cursor.execute('CREATE DATABASE %s', (db_name,))
+                        # Create database with proper quoting - use string formatting for database name
+                        cursor.execute('CREATE DATABASE "%s"' % db_name)
                         logger.info(f"Created database: {db_name}")
                         message = f"Database {db_name} created successfully"
                     else:
