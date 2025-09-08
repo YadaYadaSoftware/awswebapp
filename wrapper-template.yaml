@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'TaskManager API Application - Lambda-based API with Database'
+Description: 'TaskManager Application - API (Lambda) + Web Infrastructure (ALB, Target Group, Task Definition)'
 
 Parameters:
   Environment:
@@ -20,6 +20,11 @@ Parameters:
   ApiCodeBucket:
     Type: String
     Description: 'S3 bucket name for API Lambda deployment package'
+
+  WebContainerImage:
+    Type: String
+    Description: 'Container image URI for the web application'
+    Default: 'nginx:latest'
     
 
 
@@ -43,6 +48,26 @@ Resources:
           Value: !Ref Environment
       TimeoutInMinutes: 30
 
+  # Web Stack (Nested) - Infrastructure Only
+  TaskManagerWebStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: TaskManagerApiStack
+    Properties:
+      TemplateURL: !Sub
+        - 'https://s3.amazonaws.com/${BucketName}/web-template.yaml'
+        - BucketName: !ImportValue 'TaskManager-TemplatesBucket'
+      Parameters:
+        Environment: !Ref Environment
+        GoogleClientId: !Ref GoogleClientId
+        GoogleClientSecret: !Ref GoogleClientSecret
+        WebContainerImage: !Ref WebContainerImage
+      Tags:
+        - Key: Component
+          Value: Web-Infrastructure
+        - Key: Environment
+          Value: !Ref Environment
+      TimeoutInMinutes: 30
+
 
 Outputs:
   ApiEndpoint:
@@ -57,6 +82,24 @@ Outputs:
     Value: !GetAtt TaskManagerApiStack.Outputs.ApiLambdaFunctionName
     Export:
       Name: !Sub 'TaskManager-${Environment}-ApiLambdaFunction'
+
+  WebEndpoint:
+    Description: 'Web application endpoint URL'
+    Value: !GetAtt TaskManagerWebStack.Outputs.WebEndpoint
+    Export:
+      Name: !Sub 'TaskManager-${Environment}-WebEndpoint'
+
+  WebLoadBalancerDNS:
+    Description: 'Web Load Balancer DNS name'
+    Value: !GetAtt TaskManagerWebStack.Outputs.WebLoadBalancerDNS
+    Export:
+      Name: !Sub 'TaskManager-${Environment}-WebLoadBalancerDNS'
+
+  WebTaskDefinition:
+    Description: 'Web ECS task definition'
+    Value: !GetAtt TaskManagerWebStack.Outputs.WebTaskDefinition
+    Export:
+      Name: !Sub 'TaskManager-${Environment}-WebTaskDefinition'
 
 
   DatabaseName:
@@ -74,9 +117,12 @@ Outputs:
   DeploymentSummary:
     Description: 'Deployment summary'
     Value: !Sub |
-      TaskManager ${Environment} API deployed successfully!
+      TaskManager ${Environment} deployed successfully!
 
       API Endpoint: ${TaskManagerApiStack.Outputs.ApiEndpoint}
+      Web Load Balancer: ${TaskManagerWebStack.Outputs.WebLoadBalancerDNS}
       Database: taskmanager_${Environment}
 
       API is running on AWS Lambda with API Gateway.
+      Web infrastructure is ready (ALB, Target Group, Task Definition created).
+      ECS Service is commented out for infrastructure testing.

@@ -1,6 +1,31 @@
 @TaskManager.Api_HostAddress = http://localhost:5276
 
+### Health Check Endpoint
+GET {{TaskManager.Api_HostAddress}}/health
+Accept: application/json
+
+###
+
+### Weather Forecast (Sample Endpoint)
 GET {{TaskManager.Api_HostAddress}}/weatherforecast/
 Accept: application/json
+
+###
+
+### API Info
+GET {{TaskManager.Api_HostAddress}}/api/info
+Accept: application/json
+
+###
+
+### Swagger Documentation
+GET {{TaskManager.Api_HostAddress}}/swagger/v1/swagger.json
+Accept: application/json
+
+###
+
+### Swagger UI
+GET {{TaskManager.Api_HostAddress}}/swagger/index.html
+Accept: text/html
 
 ###

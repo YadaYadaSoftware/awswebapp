@@ -74,7 +74,10 @@ jobs:
       
     - name: Publish API for Lambda
       run: dotnet publish src/TaskManager.Api/TaskManager.Api.csproj --configuration Release --output ./publish/api --runtime linux-x64 --self-contained false
-      
+
+    - name: Publish Web for Container
+      run: dotnet publish src/TaskManager.Web/TaskManager.Web.csproj --configuration Release --output ./publish/web --runtime linux-x64 --self-contained false
+
     - name: Create API Lambda deployment package
       run: |
         cd ./publish/api
@@ -119,6 +122,7 @@ jobs:
     needs: [build, deploy-infrastructure, yaml-lint]
     outputs:
       api-endpoint: ${{ steps.get-endpoints.outputs.api-endpoint }}
+      web-endpoint: ${{ steps.get-endpoints.outputs.web-endpoint }}
     
     steps:
     - name: Checkout code
@@ -131,6 +135,55 @@ jobs:
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: ${{ env.AWS_REGION }}
 
+    - name: Build and Push Web Container Image
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        AWS_DEFAULT_REGION: ${{ env.AWS_REGION }}
+      run: |
+        # Get branch name for tagging
+        BRANCH_NAME=${GITHUB_REF#refs/heads/}
+        IMAGE_TAG=${BRANCH_NAME:-main}
+
+        # Get ECR repository URI from CloudFormation outputs
+        echo "Querying CloudFormation for ECR repository URI..."
+        ECR_REPO=$(aws cloudformation describe-stacks \
+          --stack-name taskmanager-shared-infrastructure \
+          --query 'Stacks[0].Outputs[?OutputKey==`WebECRRepositoryUri`].OutputValue' \
+          --output text \
+          --region ${{ env.AWS_REGION }} 2>/dev/null || echo "")
+
+        # Debug: Show what we got from CloudFormation
+        echo "CloudFormation query result: '$ECR_REPO'"
+
+        # Fallback: construct ECR repo URI if CloudFormation query fails
+        if [ -z "$ECR_REPO" ] || [ "$ECR_REPO" = "None" ] || [ "$ECR_REPO" = "null" ]; then
+          echo "❌ CloudFormation ECR query failed or returned empty, using fallback URI"
+          ECR_REPO="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/taskmanager-web"
+          echo "📝 Constructed fallback ECR URI: $ECR_REPO"
+        else
+          echo "✅ Successfully retrieved ECR URI from CloudFormation: $ECR_REPO"
+        fi
+
+        echo "🎯 Final ECR repository: $ECR_REPO"
+
+        # Build container image from root context
+        docker build -t taskmanager-web:$IMAGE_TAG -f src/TaskManager.Web/Dockerfile .
+
+        # Login to ECR
+        aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin $ECR_REPO
+
+        # Tag and push image
+        docker tag taskmanager-web:$IMAGE_TAG $ECR_REPO:$IMAGE_TAG
+        docker push $ECR_REPO:$IMAGE_TAG
+
+        # Also tag as latest for main branch
+        if [ "$BRANCH_NAME" = "main" ]; then
+          docker tag taskmanager-web:$IMAGE_TAG $ECR_REPO:latest
+          docker push $ECR_REPO:latest
+        fi
+
+        echo "CONTAINER_IMAGE=$ECR_REPO:$IMAGE_TAG" >> $GITHUB_ENV
 
     - name: Get branch name for stack naming
       run: |
@@ -189,7 +242,8 @@ jobs:
         
         # Upload nested stack templates
         aws s3 cp src/TaskManager.Api/api-template.yaml s3://$BUCKET_NAME/api-template.yaml
-        
+        aws s3 cp src/TaskManager.Web/web-template.yaml s3://$BUCKET_NAME/web-template.yaml
+
         # Upload Lambda deployment packages
         aws s3 cp ./artifacts/api-lambda-deployment.zip s3://$BUCKET_NAME/api-lambda-deployment.zip
         
@@ -208,7 +262,8 @@ jobs:
           Environment=${{ env.BRANCH_NAME }},
           GoogleClientId=${{ secrets.GOOGLE_CLIENT_ID }},
           GoogleClientSecret=${{ secrets.GOOGLE_CLIENT_SECRET }},
-          ApiCodeBucket=${{ env.TEMPLATE_BUCKET }}
+          ApiCodeBucket=${{ env.TEMPLATE_BUCKET }},
+          WebContainerImage=${{ env.CONTAINER_IMAGE }}
         capabilities: "CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND"
         no-fail-on-empty-changeset: "1"
       timeout-minutes: 20
@@ -236,6 +291,11 @@ jobs:
           --output text \
           --region ${{ env.AWS_REGION }})
 
+        WEB_URL=$(aws cloudformation describe-stacks \
+          --stack-name ${{ env.STACK_NAME }} \
+          --query 'Stacks[0].Outputs[?OutputKey==`TaskManager-main-WebLoadBalancerDNS`].OutputValue' \
+          --output text \
+          --region ${{ env.AWS_REGION }})
 
         BASTION_IP=$(aws cloudformation describe-stacks \
           --stack-name taskmanager-shared-infrastructure \
@@ -252,15 +312,18 @@ jobs:
         # Extract API Gateway ID from URL
         API_GATEWAY_ID=$(echo $API_URL | sed 's|https://||' | sed 's|\.execute-api.*||')
 
-        echo "🚀 TaskManager API (${{ env.BRANCH_NAME }}) deployed successfully!"
+        echo "🚀 TaskManager (${{ env.BRANCH_NAME }}) deployed successfully!"
         echo "📋 API Stack: ${{ env.STACK_NAME }}-api"
+        echo "📋 Web Infrastructure Stack: ${{ env.STACK_NAME }}-web"
         echo "🔗 API Endpoint: $API_URL"
+        echo "🌐 Web Load Balancer: $WEB_URL"
         echo "🖥️ Bastion host IP: $BASTION_IP"
         echo "💾 Database: taskmanager_${{ env.BRANCH_NAME }}"
         echo "🔗 SSH Tunnel: $TUNNEL_CMD"
 
         # Set outputs for other jobs
         echo "api-endpoint=$API_URL" >> $GITHUB_OUTPUT
+        echo "web-endpoint=$WEB_URL" >> $GITHUB_OUTPUT
         echo "api-gateway-id=$API_GATEWAY_ID" >> $GITHUB_OUTPUT
         
     - name: Send SMS Notification
@@ -275,15 +338,16 @@ jobs:
         # Send SMS notification
         aws sns publish \
           --topic-arn $SNS_TOPIC \
-          --message "🚀 TaskManager API deployment complete!
+          --message "🚀 TaskManager deployment complete!
 
         Branch: ${{ env.BRANCH_NAME }}
         API: $API_URL
+        Web Load Balancer: $WEB_URL
         Database: taskmanager_${{ env.BRANCH_NAME }}
         Bastion IP: $BASTION_IP
 
-        Ready for testing!" \
-          --subject "TaskManager API Deployed - ${{ env.BRANCH_NAME }}" \
+        Web infrastructure ready (ECS service commented out for testing)!" \
+          --subject "TaskManager Deployed - ${{ env.BRANCH_NAME }}" \
           --region ${{ env.AWS_REGION }}
         
         echo "📱 SMS notification sent to 703-474-0324"
@@ -300,6 +364,7 @@ jobs:
         # Get the API Gateway ID from the deployment outputs
         API_GATEWAY_ID="${{ needs.deploy-application.outputs.api-gateway-id }}"
         API_ENDPOINT="${{ needs.deploy-application.outputs.api-endpoint }}"
+        WEB_ENDPOINT="${{ needs.deploy-application.outputs.web-endpoint }}"
 
         echo "🔧 Google OAuth Configuration Update Required"
         echo "=============================================="
@@ -329,4 +394,5 @@ jobs:
         echo ""
         echo "🔍 Current deployment URLs:"
         echo "   API: ${{ needs.deploy-application.outputs.api-endpoint }}"
+        echo "   Web Load Balancer: ${{ needs.deploy-application.outputs.web-endpoint }}"
         echo "   API Gateway ID: ${API_GATEWAY_ID}"
