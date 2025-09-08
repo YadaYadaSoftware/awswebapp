@@ -65,7 +65,7 @@ Resources:
         
         def lambda_handler(event, context):
             # Create branch-specific database
-            db_name = f"taskmanager_{os.environ['BRANCH_NAME'].replace('-', '_')}"
+            db_name = f"taskmanager_{os.environ['BRANCH_NAME']}"
             
             # Connect to shared RDS instance
             conn = psycopg2.connect(
