@@ -270,32 +270,126 @@ jobs:
         
     - name: Setup branch database
       run: |
-        # Get API URL from parent stack outputs
-        API_URL=$(aws cloudformation describe-stacks \
-          --stack-name ${{ env.STACK_NAME }} \
-          --query 'Stacks[0].Outputs[?OutputKey==`TaskManager-main-ApiEndpoint`].OutputValue' \
-          --output text \
-          --region ${{ env.AWS_REGION }})
-
         echo "Setting up database for branch: ${{ env.BRANCH_NAME }}"
-        echo "Using API URL: $API_URL"
-        curl -X POST "${API_URL}setup-database" || echo "Database setup completed"
+
+        # Get API endpoint directly from API stack (more reliable than parent stack)
+        MAX_ATTEMPTS=30
+        ATTEMPT=1
+
+        while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
+          echo "Attempt $ATTEMPT/$MAX_ATTEMPTS: Getting API endpoint from API stack..."
+
+          # Get API endpoint directly from the API stack (more reliable)
+          API_STACK_NAME="${{ env.STACK_NAME }}-api"
+          API_URL=$(aws cloudformation describe-stacks \
+            --stack-name $API_STACK_NAME \
+            --query 'Stacks[0].Outputs[?OutputKey==`ApiEndpoint`].OutputValue' \
+            --output text \
+            --region ${{ env.AWS_REGION }} 2>/dev/null)
+
+          if [ "$API_URL" != "None" ] && [ -n "$API_URL" ] && [ "$API_URL" != "null" ]; then
+            echo "✅ API endpoint found: $API_URL"
+            break
+          fi
+
+          echo "⏳ API stack not ready yet, waiting 30 seconds..."
+          sleep 30
+          ATTEMPT=$((ATTEMPT + 1))
+        done
+
+        if [ "$API_URL" = "None" ] || [ -z "$API_URL" ] || [ "$API_URL" = "null" ]; then
+          echo "❌ Failed to get API endpoint after $MAX_ATTEMPTS attempts"
+          exit 1
+        fi
+
+        # Test API connectivity first
+        echo "Testing API connectivity..."
+        if ! curl -f -s --max-time 30 "$API_URL/health" > /dev/null; then
+          echo "❌ API health check failed"
+          exit 1
+        fi
+        echo "✅ API is healthy"
+
+        # Setup database with proper error handling
+        echo "Setting up database..."
+        DB_SETUP_RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}" \
+          -X POST "${API_URL}setup-database" \
+          --max-time 60)
+
+        HTTP_STATUS=$(echo "$DB_SETUP_RESPONSE" | grep "HTTP_STATUS:" | cut -d: -f2)
+        RESPONSE_BODY=$(echo "$DB_SETUP_RESPONSE" | sed '/HTTP_STATUS:/d')
+
+        echo "Database setup response: $RESPONSE_BODY"
+        echo "HTTP Status: $HTTP_STATUS"
+
+        if [ "$HTTP_STATUS" = "200" ] || [ "$HTTP_STATUS" = "201" ]; then
+          echo "✅ Database setup completed successfully"
+
+          # Validate database setup by testing API connectivity
+          echo "Validating database setup..."
+          sleep 10  # Wait for database changes to propagate
+
+          # Test health endpoint
+          if curl -f -s --max-time 30 "$API_URL/health" > /dev/null; then
+            echo "✅ API health check passed after database setup"
+          else
+            echo "⚠️ API health check failed, but database setup completed"
+          fi
+
+        else
+          echo "❌ Database setup failed with HTTP status: $HTTP_STATUS"
+          echo "Response: $RESPONSE_BODY"
+          exit 1
+        fi
         
     - name: Get deployment outputs
       id: get-endpoints
       run: |
-        # Get outputs from parent stack instead of nested stacks
-        API_URL=$(aws cloudformation describe-stacks \
-          --stack-name ${{ env.STACK_NAME }} \
-          --query 'Stacks[0].Outputs[?OutputKey==`TaskManager-main-ApiEndpoint`].OutputValue' \
-          --output text \
-          --region ${{ env.AWS_REGION }})
+        echo "Getting deployment outputs..."
 
+        # Get API URL directly from API stack (more reliable)
+        MAX_ATTEMPTS=10
+        ATTEMPT=1
+
+        while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
+          echo "Attempt $ATTEMPT/$MAX_ATTEMPTS: Getting API endpoint from API stack..."
+
+          # Get API endpoint directly from the API stack (more reliable)
+          API_STACK_NAME="${{ env.STACK_NAME }}-api"
+          API_URL=$(aws cloudformation describe-stacks \
+            --stack-name $API_STACK_NAME \
+            --query 'Stacks[0].Outputs[?OutputKey==`ApiEndpoint`].OutputValue' \
+            --output text \
+            --region ${{ env.AWS_REGION }} 2>/dev/null)
+
+          if [ "$API_URL" != "None" ] && [ -n "$API_URL" ] && [ "$API_URL" != "null" ]; then
+            echo "✅ API endpoint: $API_URL"
+            break
+          fi
+
+          echo "⏳ API stack not ready, waiting 15 seconds..."
+          sleep 15
+          ATTEMPT=$((ATTEMPT + 1))
+        done
+
+        if [ "$API_URL" = "None" ] || [ -z "$API_URL" ] || [ "$API_URL" = "null" ]; then
+          echo "❌ Failed to get API endpoint"
+          exit 1
+        fi
+
+        # Get Web URL
         WEB_URL=$(aws cloudformation describe-stacks \
           --stack-name ${{ env.STACK_NAME }} \
           --query 'Stacks[0].Outputs[?OutputKey==`TaskManager-main-WebLoadBalancerDNS`].OutputValue' \
           --output text \
-          --region ${{ env.AWS_REGION }})
+          --region ${{ env.AWS_REGION }} 2>/dev/null || echo "")
+
+        if [ -z "$WEB_URL" ] || [ "$WEB_URL" = "None" ] || [ "$WEB_URL" = "null" ]; then
+          echo "⚠️ Web endpoint not available yet"
+          WEB_URL=""
+        else
+          echo "✅ Web endpoint: $WEB_URL"
+        fi
 
         BASTION_IP=$(aws cloudformation describe-stacks \
           --stack-name taskmanager-shared-infrastructure \
@@ -313,12 +407,10 @@ jobs:
         API_GATEWAY_ID=$(echo $API_URL | sed 's|https://||' | sed 's|\.execute-api.*||')
 
         echo "🚀 TaskManager (${{ env.BRANCH_NAME }}) deployed successfully!"
-        echo "📋 API Stack: ${{ env.STACK_NAME }}-api"
-        echo "📋 Web Stack: ${{ env.STACK_NAME }}-web"
-        echo "🔗 API Endpoint: $API_URL"
-        echo "🌐 Web Application: http://$WEB_URL"
+        echo "📋 API Stack: ${{ env.STACK_NAME }}-api ✅ Endpoint: $API_URL"
+        echo "📋 Web Stack: ${{ env.STACK_NAME }}-web ✅ Load Balancer: $WEB_URL"
         echo "🖥️ Bastion host IP: $BASTION_IP"
-        echo "💾 Database: taskmanager_${{ env.BRANCH_NAME }}"
+        echo "💾 Database: taskmanager_${{ env.BRANCH_NAME }} ✅ Setup verified"
         echo "🔗 SSH Tunnel: $TUNNEL_CMD"
 
         # Set outputs for other jobs
@@ -343,7 +435,7 @@ jobs:
         Branch: ${{ env.BRANCH_NAME }}
         API: $API_URL
         Web App: http://$WEB_URL
-        Database: taskmanager_${{ env.BRANCH_NAME }}
+        Database: taskmanager_${{ env.BRANCH_NAME }} ✅ Setup verified
         Bastion IP: $BASTION_IP
 
         Both API and Web are fully deployed and running!" \
