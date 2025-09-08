@@ -1,6 +1,7 @@
 using Amazon.Lambda.Annotations;
 using Amazon.Lambda.AspNetCoreServer;
 using Amazon.Lambda.Core;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using TaskManager.Api.Services;
 using TaskManager.Data;
@@ -108,13 +109,15 @@ public class Program
         }
 
         app.UseCors();
-        app.UseAuthentication();
-        app.UseAuthorization();
 
-        // Health check endpoint
+        // Health check endpoint - must be before auth middleware
         app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow }))
            .WithName("HealthCheck")
-           .WithTags("Health");
+           .WithTags("Health")
+           .AllowAnonymous(); // Explicitly allow anonymous access
+
+        app.UseAuthentication();
+        app.UseAuthorization();
 
         // API endpoints will be added via Lambda Annotations in separate controller classes
     }
@@ -185,15 +188,17 @@ public class Startup
 
         app.UseCors();
         app.UseRouting();
-        app.UseAuthentication();
-        app.UseAuthorization();
-        
+
+        // Health check endpoint - must be before auth middleware
         app.UseEndpoints(endpoints =>
         {
             endpoints.MapGet("/health", async context =>
             {
                 await context.Response.WriteAsync(System.Text.Json.JsonSerializer.Serialize(new { status = "healthy", timestamp = DateTime.UtcNow }));
-            });
+            }).AllowAnonymous(); // Explicitly allow anonymous access
         });
+
+        app.UseAuthentication();
+        app.UseAuthorization();
     }
 }

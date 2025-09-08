@@ -152,6 +152,13 @@ Resources:
           - Fn::ImportValue: 'TaskManager-PrivateSubnet1'
           - Fn::ImportValue: 'TaskManager-PrivateSubnet2'
       Events:
+        # Health check endpoint for deployment verification
+        HealthCheck:
+          Type: Api
+          Properties:
+            Path: /health
+            Method: GET
+        # Main API routes for application functionality
         ApiGatewayProxy:
           Type: Api
           Properties:
