@@ -54,23 +54,39 @@ Resources:
   # Branch-specific database creation Lambda
   DatabaseSetupFunction:
     Type: AWS::Serverless::Function
-    DependsOn: DatabaseSetupLogGroup
+    DependsOn:
+      - DatabaseSetupLogGroup
+      - PostgresLayer
     Properties:
       FunctionName: !Sub 'TaskManager-DbSetup-${Environment}'
       Timeout: 120
+      Layers:
+        - !Ref PostgresLayer
       InlineCode: |
         import json
         import boto3
         import os
         import logging
+        import pg8000
 
         logger = logging.getLogger()
         logger.setLevel(logging.INFO)
 
         def lambda_handler(event, context):
             try:
+                # Simple token-based authentication for CI/CD access
+                auth_token = event.get('headers', {}).get('Authorization') or event.get('queryStringParameters', {}).get('token', '')
+                expected_token = os.environ.get('SETUP_AUTH_TOKEN', 'taskmanager-setup-token')
+
+                if auth_token != expected_token:
+                    logger.warning("Unauthorized access attempt to setup-database endpoint")
+                    return {
+                        'statusCode': 401,
+                        'body': json.dumps({'error': 'Unauthorized'})
+                    }
+
                 # Validate required environment variables
-                required_vars = ['BRANCH_NAME', 'DB_INSTANCE_ARN', 'DB_SECRET_ARN']
+                required_vars = ['BRANCH_NAME', 'DB_HOST', 'DB_USER', 'DB_PASSWORD']
                 missing_vars = [var for var in required_vars if var not in os.environ or not os.environ[var]]
 
                 if missing_vars:
@@ -96,41 +112,33 @@ Resources:
 
                 logger.info(f"Attempting to setup database: {db_name}")
 
-                # Use RDS Data API instead of direct PostgreSQL connection
-                rds_client = boto3.client('rds-data')
-
+                # Connect to PostgreSQL using pg8000
                 try:
-                    # Check if database exists
-                    check_sql = "SELECT 1 FROM pg_database WHERE datname = :db_name"
-                    check_response = rds_client.execute_statement(
-                        resourceArn=os.environ['DB_INSTANCE_ARN'],
-                        secretArn=os.environ['DB_SECRET_ARN'],
-                        database='postgres',
-                        sql=check_sql,
-                        parameters=[
-                            {
-                                'name': 'db_name',
-                                'value': {'stringValue': db_name}
-                            }
-                        ]
+                    conn = pg8000.connect(
+                        host=os.environ['DB_HOST'],
+                        user=os.environ['DB_USER'],
+                        password=os.environ['DB_PASSWORD'],
+                        database='postgres'
                     )
+                    logger.info("Successfully connected to PostgreSQL")
 
-                    database_exists = len(check_response.get('records', [])) > 0
+                    cursor = conn.cursor()
 
-                    if not database_exists:
-                        # Create database
-                        create_sql = f'CREATE DATABASE "{db_name}"'
-                        rds_client.execute_statement(
-                            resourceArn=os.environ['DB_INSTANCE_ARN'],
-                            secretArn=os.environ['DB_SECRET_ARN'],
-                            database='postgres',
-                            sql=create_sql
-                        )
+                    # Check if database exists (using parameterized query)
+                    cursor.execute("SELECT 1 FROM pg_database WHERE datname = %s", (db_name,))
+                    exists = cursor.fetchone()
+
+                    if not exists:
+                        # Create database with proper quoting
+                        cursor.execute('CREATE DATABASE %s', (db_name,))
                         logger.info(f"Created database: {db_name}")
                         message = f"Database {db_name} created successfully"
                     else:
                         logger.info(f"Database already exists: {db_name}")
                         message = f"Database {db_name} already exists"
+
+                    cursor.close()
+                    conn.close()
 
                     return {
                         'statusCode': 200,
@@ -159,9 +167,11 @@ Resources:
       Environment:
         Variables:
           BRANCH_NAME: !Ref Environment
-          DB_INSTANCE_ARN: !Sub 'arn:aws:rds:${AWS::Region}:${AWS::AccountId}:db:taskmanager-shared-db'
-          DB_SECRET_ARN:
-            Fn::ImportValue: 'TaskManager-DatabaseSecret'
+          DB_HOST:
+            Fn::ImportValue: 'TaskManager-DatabaseEndpoint'
+          DB_USER: taskmanager_admin
+          DB_PASSWORD: !Sub '{{resolve:secretsmanager:taskmanager/database/shared:SecretString:password}}'
+          SETUP_AUTH_TOKEN: 'taskmanager-setup-secure-token-2024'
       VpcConfig:
         SecurityGroupIds:
           - Fn::ImportValue: 'TaskManager-LambdaSecurityGroup'
