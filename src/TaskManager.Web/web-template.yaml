@@ -55,7 +55,7 @@ Resources:
       VpcId:
         Fn::ImportValue: 'TaskManager-VPC'
       TargetType: ip
-      HealthCheckPath: /
+      HealthCheckPath: /health
       HealthCheckIntervalSeconds: 30
       HealthCheckTimeoutSeconds: 5
       HealthyThresholdCount: 2

@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'TaskManager Complete Application - Nested Stacks for API and Web'
+Description: 'TaskManager API Application - Lambda-based API with Database'
 
 Parameters:
   Environment:
@@ -22,10 +22,6 @@ Parameters:
     Description: 'S3 bucket name for API Lambda deployment package'
     
 
-  WebContainerImage:
-    Type: String
-    Description: 'Container image URI for the web application'
-    Default: 'nginx:latest'
 
 Resources:
   # API Stack (Nested)
@@ -47,25 +43,6 @@ Resources:
           Value: !Ref Environment
       TimeoutInMinutes: 30
 
-  # Web Stack (Nested)
-  TaskManagerWebStack:
-    Type: AWS::CloudFormation::Stack
-    DependsOn: TaskManagerApiStack
-    Properties:
-      TemplateURL: !Sub
-        - 'https://s3.amazonaws.com/${BucketName}/web-template.yaml'
-        - BucketName: !ImportValue 'TaskManager-TemplatesBucket'
-      Parameters:
-        Environment: !Ref Environment
-        GoogleClientId: !Ref GoogleClientId
-        GoogleClientSecret: !Ref GoogleClientSecret
-        WebContainerImage: !Ref WebContainerImage
-      Tags:
-        - Key: Component
-          Value: Web
-        - Key: Environment
-          Value: !Ref Environment
-      TimeoutInMinutes: 30
 
 Outputs:
   ApiEndpoint:
@@ -74,11 +51,6 @@ Outputs:
     Export:
       Name: !Sub 'TaskManager-${Environment}-ApiEndpoint'
 
-  WebEndpoint:
-    Description: 'Web application endpoint URL'
-    Value: !GetAtt TaskManagerWebStack.Outputs.WebEndpoint
-    Export:
-      Name: !Sub 'TaskManager-${Environment}-WebEndpoint'
 
   ApiLambdaFunctionName:
     Description: 'API Lambda function name'
@@ -86,11 +58,6 @@ Outputs:
     Export:
       Name: !Sub 'TaskManager-${Environment}-ApiLambdaFunction'
 
-  WebServiceName:
-    Description: 'Web ECS service name'
-    Value: !GetAtt TaskManagerWebStack.Outputs.WebServiceName
-    Export:
-      Name: !Sub 'TaskManager-${Environment}-WebService'
 
   DatabaseName:
     Description: 'Branch-specific database name'
@@ -107,10 +74,9 @@ Outputs:
   DeploymentSummary:
     Description: 'Deployment summary'
     Value: !Sub |
-      TaskManager ${Environment} deployed successfully!
+      TaskManager ${Environment} API deployed successfully!
 
       API Endpoint: ${TaskManagerApiStack.Outputs.ApiEndpoint}
-      Web Endpoint: ${TaskManagerWebStack.Outputs.WebEndpoint}
       Database: taskmanager_${Environment}
 
-      API is running on AWS Lambda, Web is running on AWS ECS containers.
+      API is running on AWS Lambda with API Gateway.
