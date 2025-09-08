@@ -1,12 +1,16 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: 'TaskManager Web Frontend - Blazor Server ECS Container with Application Load Balancer'
-# Fixed ECS service getting stuck by:
-# - Changed health check path from /health to /
-# - Increased health check interval to 60s and timeout to 10s
+# Fixed ECS service getting stuck and 502 Bad Gateway by:
+# - Health check path: /health (excluded from authentication)
+# - Adjusted health check timing (30s interval, 5s timeout)
 # - Increased CPU to 512 and Memory to 1024
-# - Added 120s health check grace period
+# - Extended health check grace period to 300s (5 minutes)
 # - Added container environment variables for proper startup
 # - Added dependency on TaskDefinition for service creation
+# - Set ASPNETCORE_ENVIRONMENT to Production
+# - Configured ASPNETCORE_URLS for all interfaces (*:80)
+# - Added Kestrel limits for better container performance
+# - Excluded health, login, logout, error, and OAuth endpoints from authentication
 
 Parameters:
   Environment:
@@ -62,11 +66,12 @@ Resources:
       VpcId:
         Fn::ImportValue: 'TaskManager-VPC'
       TargetType: ip
-      HealthCheckPath: /
-      HealthCheckIntervalSeconds: 60
-      HealthCheckTimeoutSeconds: 10
+      HealthCheckPath: /health
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 5
       HealthyThresholdCount: 2
-      UnhealthyThresholdCount: 3
+      UnhealthyThresholdCount: 2
+      HealthCheckPort: 80
 
   # ALB Listener
   WebListener:
@@ -102,7 +107,7 @@ Resources:
               Protocol: tcp
           Environment:
             - Name: ASPNETCORE_ENVIRONMENT
-              Value: !Ref Environment
+              Value: 'Production'
             - Name: ConnectionStrings__DefaultConnection
               Value: !Sub
                 - 'Host=${DatabaseEndpoint};Database=taskmanager_${DatabaseName};Username=taskmanager_admin;Password=${DatabasePassword}'
@@ -115,7 +120,7 @@ Resources:
             - Name: Authentication__Google__ClientSecret
               Value: !Ref GoogleClientSecret
             - Name: ASPNETCORE_URLS
-              Value: 'http://+:80'
+              Value: 'http://*:80'
             - Name: DOTNET_RUNNING_IN_CONTAINER
               Value: 'true'
           LogConfiguration:
@@ -149,7 +154,7 @@ Resources:
         - TargetGroupArn: !Ref WebTargetGroup
           ContainerName: web
           ContainerPort: 80
-      HealthCheckGracePeriodSeconds: 120
+      HealthCheckGracePeriodSeconds: 300
       Tags:
         - Key: Environment
           Value: !Ref Environment

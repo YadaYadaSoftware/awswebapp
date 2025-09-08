@@ -78,10 +78,34 @@ app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
 
-// Health check endpoint
+// Health check endpoint - EXCLUDED FROM AUTHENTICATION
 app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow }))
+   .AllowAnonymous()
    .WithName("HealthCheck")
    .WithTags("Health");
+
+// Login and logout endpoints - EXCLUDED FROM AUTHENTICATION
+app.MapGet("/login", () => Results.Redirect("/"))
+   .AllowAnonymous()
+   .WithName("Login");
+
+app.MapGet("/logout", () => Results.Redirect("/"))
+   .AllowAnonymous()
+   .WithName("Logout");
+
+// Google OAuth callback endpoints - EXCLUDED FROM AUTHENTICATION
+app.MapGet("/signin-google", () => Results.Redirect("/"))
+   .AllowAnonymous()
+   .WithName("GoogleSignIn");
+
+app.MapGet("/signout-google", () => Results.Redirect("/"))
+   .AllowAnonymous()
+   .WithName("GoogleSignOut");
+
+// Error page - EXCLUDED FROM AUTHENTICATION
+app.MapGet("/Error", () => Results.Content("<h1>Application Error</h1><p>An error occurred while processing your request.</p>", "text/html"))
+   .AllowAnonymous()
+   .WithName("Error");
 
 app.MapBlazorHub();
 app.MapFallbackToPage("/_Host");
