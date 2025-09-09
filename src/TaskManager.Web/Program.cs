@@ -113,11 +113,9 @@ app.MapGet("/logout", async (HttpContext context) =>
     logger.LogInformation("Signing out from Cookies authentication scheme");
     await context.SignOutAsync("Cookies");
 
-    logger.LogInformation("Signing out from Google authentication scheme");
-    await context.SignOutAsync("Google", new AuthenticationProperties
-    {
-        RedirectUri = "/"
-    });
+    logger.LogInformation("Google OAuth sign-out handled via session cleanup");
+    // Note: Google OAuth doesn't support direct sign-out via SignOutAsync
+    // The user's Google session will remain active, but our local session is cleared
 
     logger.LogInformation("Logout completed, redirecting to home page");
     return Results.Redirect("/");
