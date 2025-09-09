@@ -47,6 +47,8 @@ jobs:
   build:
     name: Build and Test
     runs-on: ubuntu-latest
+    outputs:
+      semVer: ${{ steps.gitversion.outputs.semVer }}
 
     steps:
     - name: Checkout code
@@ -194,7 +196,7 @@ jobs:
       run: |
         # Use GitVersion for unique image tagging
         BRANCH_NAME=${GITHUB_REF#refs/heads/}
-        IMAGE_TAG=${{ steps.gitversion.outputs.semVer }}
+        IMAGE_TAG=${{ needs.build.outputs.semVer }}
         BRANCH_TAG=${BRANCH_NAME:-main}
 
         # Get ECR repository URI from CloudFormation outputs
