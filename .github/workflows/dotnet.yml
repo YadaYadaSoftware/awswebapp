@@ -469,6 +469,9 @@ jobs:
     if: needs.deploy-application.result == 'success'
 
     steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
     - name: Update Google OAuth Configuration
       run: |
         chmod +x update-google-oauth.sh
