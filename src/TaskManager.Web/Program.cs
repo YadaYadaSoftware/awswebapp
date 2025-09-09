@@ -31,6 +31,7 @@ builder.Services.AddRazorPages();
 builder.Services.AddServerSideBlazor();
 builder.Services.AddSingleton<WeatherForecastService>();
 builder.Services.AddAntiforgery();
+builder.Services.AddHttpContextAccessor();
 
 // Add Entity Framework
 builder.Services.AddDbContext<TaskManagerDbContext>(options =>
@@ -50,6 +51,8 @@ builder.Services.AddAuthentication(options =>
 {
     options.ClientId = builder.Configuration["Authentication:Google:ClientId"];
     options.ClientSecret = builder.Configuration["Authentication:Google:ClientSecret"];
+    options.SaveTokens = true;
+
 });
 
 builder.Services.AddAuthorization(options =>
@@ -60,6 +63,39 @@ builder.Services.AddAuthorization(options =>
 });
 
 var app = builder.Build();
+
+// Custom logout to sign out from cookie scheme
+// app.MapPost("/logout", async (HttpContext context) =>
+// {
+//     await context.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+//     context.Response.Redirect("/logout");
+// });
+app.MapPost("/logout", async context =>
+{
+    // OPTIONAL: Revoke the tokens your app has (access or refresh token)
+    var accessToken = await context.GetTokenAsync("access_token");
+    var refreshToken = await context.GetTokenAsync("refresh_token");
+
+    async Task RevokeAsync(string? token)
+    {
+        if (string.IsNullOrEmpty(token)) return;
+        using var http = new HttpClient();
+        var content = new FormUrlEncodedContent(new[]
+        {
+            new KeyValuePair<string,string>("token", token)
+        });
+        // Google token revocation endpoint
+        await http.PostAsync("https://oauth2.googleapis.com/revoke", content);
+    }
+
+    await RevokeAsync(refreshToken ?? accessToken);
+
+    // Sign out of YOUR app (clears cookie)
+    await context.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+
+    // Send them somewhere nice
+    context.Response.Redirect("/");
+});
 
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())

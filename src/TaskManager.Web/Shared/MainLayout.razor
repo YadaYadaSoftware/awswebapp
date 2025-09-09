@@ -1,4 +1,10 @@
 ﻿@inherits LayoutComponentBase
+@using Microsoft.AspNetCore.Authentication
+@using Microsoft.AspNetCore.Authentication.Cookies
+@using Microsoft.AspNetCore.Authentication.Google
+@inject Microsoft.AspNetCore.Antiforgery.IAntiforgery Antiforgery
+@inject Microsoft.AspNetCore.Http.IHttpContextAccessor HttpContextAccessor
+@inject NavigationManager Navigation
 
 <PageTitle>TaskManager.Web</PageTitle>
 
@@ -12,6 +18,28 @@
             <div>
                 <a href="https://docs.microsoft.com/aspnet/" target="_blank">About</a>
             </div>
+            @if (Navigation.Uri.EndsWith("/logout"))
+            {
+                <span>You have been logged out.</span>
+            }
+            else
+            {
+                <AuthorizeView>
+                    <Authorized>
+                        <div class="d-flex align-items-center">
+                            <span class="me-3">Hello, @context.User.Identity?.Name</span>
+                            <form method="post" action="/logout">
+                                <input name="__RequestVerificationToken" type="hidden" value="@(HttpContextAccessor.HttpContext != null ? Antiforgery.GetAndStoreTokens(HttpContextAccessor.HttpContext).RequestToken : "")" />
+                                <input name="returnUrl" type="hidden" value="/logout" />
+                                <button type="submit" class="btn btn-outline-primary">Logout</button>
+                            </form>
+                        </div>
+                    </Authorized>
+                    <NotAuthorized>
+                        <span>You are not logged in.</span>
+                    </NotAuthorized>
+                </AuthorizeView>
+            }
         </div>
 
         <article class="content px-4">
