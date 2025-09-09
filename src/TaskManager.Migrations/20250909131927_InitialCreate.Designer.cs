@@ -12,7 +12,7 @@ using TaskManager.Data;
 namespace TaskManager.Data.Migrations
 {
     [DbContext(typeof(TaskManagerDbContext))]
-    [Migration("20250903095337_InitialCreate")]
+    [Migration("20250909131927_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -24,6 +24,44 @@ namespace TaskManager.Data.Migrations
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
+
+            modelBuilder.Entity("TaskManager.Data.Entities.Invitation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("AcceptedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<DateTime>("InvitedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("InvitedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsAccepted")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsRevoked")
+                        .HasColumnType("boolean");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Email")
+                        .IsUnique();
+
+                    b.HasIndex("InvitedByUserId");
+
+                    b.HasIndex("IsAccepted");
+
+                    b.ToTable("Invitations");
+                });
 
             modelBuilder.Entity("TaskManager.Data.Entities.Project", b =>
                 {
@@ -202,6 +240,17 @@ namespace TaskManager.Data.Migrations
                         .HasFilter("\"GoogleId\" IS NOT NULL");
 
                     b.ToTable("Users", (string)null);
+                });
+
+            modelBuilder.Entity("TaskManager.Data.Entities.Invitation", b =>
+                {
+                    b.HasOne("TaskManager.Data.Entities.User", "InvitedByUser")
+                        .WithMany()
+                        .HasForeignKey("InvitedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("InvitedByUser");
                 });
 
             modelBuilder.Entity("TaskManager.Data.Entities.Project", b =>

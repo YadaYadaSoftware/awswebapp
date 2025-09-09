@@ -18,6 +18,7 @@
   <ItemGroup>
     <ProjectReference Include="..\TaskManager.Data\TaskManager.Data.csproj" />
     <ProjectReference Include="..\TaskManager.Shared\TaskManager.Shared.csproj" />
+    <ProjectReference Include="..\TaskManager.Migrations\TaskManager.Migrations.csproj" />
   </ItemGroup>
 
 </Project>
