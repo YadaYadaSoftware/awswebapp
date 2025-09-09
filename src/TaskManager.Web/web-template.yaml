@@ -37,16 +37,6 @@ Parameters:
     Default: main
     Description: 'Environment name (typically branch name)'
 
-  GoogleClientId:
-    Type: String
-    NoEcho: true
-    Description: 'Google OAuth Client ID'
-
-  GoogleClientSecret:
-    Type: String
-    NoEcho: true
-    Description: 'Google OAuth Client Secret'
-
   WebContainerImage:
     Type: String
     Description: 'Container image URI for the web application'
@@ -190,10 +180,6 @@ Resources:
                     Fn::ImportValue: 'TaskManager-DatabaseEndpoint'
                   DatabaseName: !Sub '${Environment}'
                   DatabasePassword: !Sub '{{resolve:secretsmanager:taskmanager/database/shared:SecretString:password}}'
-            - Name: Authentication__Google__ClientId
-              Value: !Ref GoogleClientId
-            - Name: Authentication__Google__ClientSecret
-              Value: !Ref GoogleClientSecret
             - Name: ASPNETCORE_URLS
               Value: 'http://*:80'
             - Name: DOTNET_RUNNING_IN_CONTAINER

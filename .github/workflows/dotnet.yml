@@ -332,8 +332,6 @@ jobs:
         template: wrapper-template.yaml
         parameter-overrides: |
           Environment=${{ env.BRANCH_NAME }},
-          GoogleClientId=${{ secrets.GOOGLE_CLIENT_ID }},
-          GoogleClientSecret=${{ secrets.GOOGLE_CLIENT_SECRET }},
           ApiCodeBucket=${{ env.TEMPLATE_BUCKET }},
           WebContainerImage=${{ env.CONTAINER_IMAGE }},
           DeploymentToken=${{ github.sha }},
