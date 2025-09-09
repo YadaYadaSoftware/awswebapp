@@ -43,6 +43,8 @@ Resources:
               - ecs:*
               - ecr:*
               - elasticloadbalancing:*
+              - acm:*
+              - route53:*
             Resource: '*'
 
           # IAM permissions (consolidated)
