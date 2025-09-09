@@ -341,7 +341,7 @@ Resources:
   BastionKeyPair:
     Type: AWS::EC2::KeyPair
     Properties:
-      KeyName: !Sub 'taskmanager-bastion-key-${AWS::StackName}'
+      KeyName: !Sub 'taskmanager-bastion-key-${AWS::StackName}-updated'
       KeyType: rsa
       KeyFormat: pem
       PublicKeyMaterial: !Ref BastionPublicKeyMaterial
