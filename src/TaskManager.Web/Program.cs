@@ -9,7 +9,7 @@ using AWS.Logger.AspNetCore;
 var builder = WebApplication.CreateBuilder(args);
 
 // Configure logging to CloudWatch
-builder.Logging.AddAWSProvider(builder.Configuration.GetAWSLoggingConfigSection());
+builder.Logging.AddAWSProvider();
 
 // Add services to the container.
 builder.Services.AddRazorPages();

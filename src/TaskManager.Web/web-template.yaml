@@ -191,6 +191,10 @@ Resources:
               Value: 'http://*:80'
             - Name: DOTNET_RUNNING_IN_CONTAINER
               Value: 'true'
+            - Name: AWS__Logging__LogGroup
+              Value: !Ref WebECSLogGroup
+            - Name: AWS__Logging__Region
+              Value: !Ref AWS::Region
           LogConfiguration:
             LogDriver: awslogs
             Options:
