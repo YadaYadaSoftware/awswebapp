@@ -78,7 +78,7 @@ Resources:
       UnhealthyThresholdCount: 2
       HealthCheckPort: 80
 
-  # ALB HTTP Listener (redirects to HTTPS)
+  # ALB HTTP Listener (forwards to target group)
   WebListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
     Properties:
@@ -86,14 +86,8 @@ Resources:
       Protocol: HTTP
       Port: 80
       DefaultActions:
-        - Type: redirect
-          RedirectConfig:
-            Protocol: HTTPS
-            Port: 443
-            Host: '#{host}'
-            Path: '/#{path}'
-            Query: '#{query}'
-            StatusCode: HTTP_301
+        - Type: forward
+          TargetGroupArn: !Ref WebTargetGroup
 
   # ALB HTTPS Listener (uncomment when you have SSL certificate)
   # WebHttpsListener:
