@@ -28,8 +28,12 @@ Parameters:
 
   DomainName:
     Type: String
-    Default: 'example.com'
+    Default: 'appcloud.systems'
     Description: 'Domain name for SSL certificate'
+
+  HostedZoneId:
+    Type: String
+    Description: 'Route 53 hosted zone ID for the domain'
     
 
 
@@ -67,6 +71,7 @@ Resources:
         GoogleClientSecret: !Ref GoogleClientSecret
         WebContainerImage: !Ref WebContainerImage
         DomainName: !Ref DomainName
+        HostedZoneId: !Ref HostedZoneId
       Tags:
         - Key: Component
           Value: Web-Infrastructure
