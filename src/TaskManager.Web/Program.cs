@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.EntityFrameworkCore;
@@ -10,6 +11,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddRazorPages();
 builder.Services.AddServerSideBlazor();
 builder.Services.AddSingleton<WeatherForecastService>();
+builder.Services.AddAntiforgery();
 
 // Add Entity Framework
 builder.Services.AddDbContext<TaskManagerDbContext>(options =>
@@ -96,12 +98,20 @@ app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = Dat
 
 // Login and logout endpoints - EXCLUDED FROM AUTHENTICATION
 app.MapGet("/login", () => Results.Redirect("/"))
-   .AllowAnonymous()
-   .WithName("Login");
+    .AllowAnonymous()
+    .WithName("Login");
 
-app.MapGet("/logout", () => Results.Redirect("/"))
-   .AllowAnonymous()
-   .WithName("Logout");
+app.MapPost("/logout", async (HttpContext context) =>
+{
+    await context.SignOutAsync("Cookies");
+    await context.SignOutAsync("Google", new AuthenticationProperties
+    {
+        RedirectUri = "/"
+    });
+    return Results.Redirect("/");
+})
+.AllowAnonymous()
+.WithName("Logout");
 
 // Google OAuth callback endpoints - EXCLUDED FROM AUTHENTICATION
 app.MapGet("/signin-google", () => Results.Redirect("/"))

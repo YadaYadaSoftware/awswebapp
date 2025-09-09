@@ -1,14 +1,19 @@
 @using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Antiforgery
 @using System.Security.Claims
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject NavigationManager Navigation
+@inject IAntiforgery Antiforgery
 
 <div class="login-display">
     <AuthorizeView>
         <Authorized>
             <div class="user-info">
                 <span class="user-name">Hello, @GetUserName(context.User)!</span>
-                <a href="/logout" class="btn btn-outline-secondary btn-sm ms-2">Logout</a>
+                <form method="post" action="/logout" class="d-inline ms-2">
+                    <AntiforgeryToken />
+                    <button type="submit" class="btn btn-outline-secondary btn-sm">Logout</button>
+                </form>
             </div>
         </Authorized>
         <NotAuthorized>
