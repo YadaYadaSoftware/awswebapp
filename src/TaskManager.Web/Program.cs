@@ -128,30 +128,12 @@ app.MapGet("/logout", async (HttpContext context) =>
         logger.LogInformation("Signing out from Cookies authentication scheme");
         await context.SignOutAsync("Cookies");
 
-        logger.LogInformation("Google OAuth sign-out handled via session cleanup");
-        // Note: Google OAuth doesn't support direct sign-out via SignOutAsync
-        // The user's Google session will remain active, but our local session is cleared
-
-        logger.LogInformation("Logout completed, forcing page reload to refresh Blazor state");
+        logger.LogInformation("Logout completed, redirecting to Google sign-out");
     }
 
-    // Force full page reload to break Blazor circuit and refresh authentication state
-    var reloadHtml = $@"
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>Logging out...</title>
-        <script>
-            setTimeout(function() {{
-                window.location.href = '/';
-            }}, 100);
-        </script>
-    </head>
-    <body>
-        <p>Logging out... Please wait.</p>
-    </body>
-    </html>";
-    return Results.Content(reloadHtml, "text/html");
+    // Redirect to Google sign-out to clear Google session
+    var googleLogoutUrl = "https://accounts.google.com/logout?continue=" + Uri.EscapeDataString(context.Request.Scheme + "://" + context.Request.Host + "/");
+    return Results.Redirect(googleLogoutUrl);
 })
 .AllowAnonymous()
 .WithName("Logout");
