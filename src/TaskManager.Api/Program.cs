@@ -73,45 +73,7 @@ public class Program
             options.KnownProxies.Clear();
         });
 
-        // Add authentication with Google OAuth
-        services.AddAuthentication(options =>
-        {
-            options.DefaultAuthenticateScheme = "Cookies";
-            options.DefaultSignInScheme = "Cookies";
-            options.DefaultChallengeScheme = "Google";
-        })
-        .AddCookie("Cookies", options =>
-        {
-            options.Cookie.SameSite = SameSiteMode.Lax;
-            options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
-        })
-        .AddGoogle("Google", options =>
-        {
-            options.ClientId = configuration["Authentication:Google:ClientId"] ?? throw new InvalidOperationException("Google ClientId not configured");
-            options.ClientSecret = configuration["Authentication:Google:ClientSecret"] ?? throw new InvalidOperationException("Google ClientSecret not configured");
-            options.SaveTokens = true;
-
-            // Add scopes for user information
-            options.Scope.Add("openid");
-            options.Scope.Add("profile");
-            options.Scope.Add("email");
-
-            // Configure correlation cookie to fix OAuth correlation issues
-            options.CorrelationCookie.SameSite = SameSiteMode.Lax;
-            options.CorrelationCookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
-
-            // Force HTTPS for OAuth callbacks
-            options.CallbackPath = "/signin-google";
-
-            // Ensure HTTPS is used for OAuth redirects
-            options.Events.OnRedirectToAuthorizationEndpoint = context =>
-            {
-                context.Response.Redirect(context.RedirectUri.Replace("http://", "https://"));
-                return System.Threading.Tasks.Task.CompletedTask;
-            };
-        });
-        
-        services.AddAuthorization();
+        // No authentication - API runs anonymously
 
         // Lambda Functions will be registered when we implement them properly
     }
@@ -139,8 +101,6 @@ public class Program
            .WithTags("Health")
            .AllowAnonymous(); // Explicitly allow anonymous access
 
-        app.UseAuthentication();
-        app.UseAuthorization();
 
         // API endpoints will be added via Lambda Annotations in separate controller classes
     }
@@ -212,16 +172,14 @@ public class Startup
         app.UseCors();
         app.UseRouting();
 
-        // Health check endpoint - must be before auth middleware
+        // Health check endpoint
         app.UseEndpoints(endpoints =>
         {
             endpoints.MapGet("/health", async context =>
             {
                 await context.Response.WriteAsync(System.Text.Json.JsonSerializer.Serialize(new { status = "healthy", timestamp = DateTime.UtcNow }));
-            }).AllowAnonymous(); // Explicitly allow anonymous access
+            });
         });
 
-        app.UseAuthentication();
-        app.UseAuthorization();
     }
 }

@@ -65,11 +65,6 @@ app.UseRouting();
  app.MapGet("/logout", () => Results.Redirect("/"))
     .WithName("Logout");
 
- app.MapGet("/signin-google", () => Results.Redirect("/"))
-    .WithName("GoogleSignIn");
-
- app.MapGet("/signout-google", () => Results.Redirect("/"))
-    .WithName("GoogleSignOut");
 
  // Error page
  app.MapGet("/Error", () => Results.Content("<h1>Application Error</h1><p>An error occurred while processing your request.</p>", "text/html"))
