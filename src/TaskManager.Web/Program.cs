@@ -101,13 +101,21 @@ app.MapGet("/login", () => Results.Redirect("/"))
     .AllowAnonymous()
     .WithName("Login");
 
-app.MapPost("/logout", async (HttpContext context) =>
+app.MapGet("/logout", async (HttpContext context) =>
 {
+    var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
+    logger.LogInformation("Logout endpoint called");
+
+    logger.LogInformation("Signing out from Cookies authentication scheme");
     await context.SignOutAsync("Cookies");
+
+    logger.LogInformation("Signing out from Google authentication scheme");
     await context.SignOutAsync("Google", new AuthenticationProperties
     {
         RedirectUri = "/"
     });
+
+    logger.LogInformation("Logout completed, redirecting to home page");
     return Results.Redirect("/");
 })
 .AllowAnonymous()
