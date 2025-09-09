@@ -53,7 +53,7 @@ builder.Services.AddAuthentication(options =>
     options.LogoutPath = "/logout";
     options.AccessDeniedPath = "/login";
 })
-.AddGoogle("Google", options =>
+.AddGoogle( "Google", options =>
 {
     options.ClientId = builder.Configuration["Authentication:Google:ClientId"] ?? throw new InvalidOperationException("Google ClientId not configured");
     options.ClientSecret = builder.Configuration["Authentication:Google:ClientSecret"] ?? throw new InvalidOperationException("Google ClientSecret not configured");
@@ -70,6 +70,7 @@ builder.Services.AddAuthentication(options =>
 
     // Force HTTPS for OAuth callbacks
     options.CallbackPath = "/signin-google";
+    
 
     // Ensure HTTPS is used for OAuth redirects
     options.Events.OnRedirectToAuthorizationEndpoint = context =>
@@ -130,10 +131,7 @@ app.MapGet("/logout", async (HttpContext context) =>
 
         logger.LogInformation("Logout completed, redirecting to Google sign-out");
     }
-
-    // Redirect to Google sign-out to clear Google session
-    var googleLogoutUrl = "https://accounts.google.com/logout?continue=" + Uri.EscapeDataString(context.Request.Scheme + "://" + context.Request.Host + "/");
-    return Results.Redirect(googleLogoutUrl);
+    context.Response.Redirect("/");
 })
 .AllowAnonymous()
 .WithName("Logout");
