@@ -469,40 +469,7 @@ jobs:
     if: needs.deploy-application.result == 'success'
 
     steps:
-    - name: Generate OAuth Update Instructions
+    - name: Update Google OAuth Configuration
       run: |
-        # Get the API Gateway ID from the deployment outputs
-        API_GATEWAY_ID="${{ needs.deploy-application.outputs.api-gateway-id }}"
-        API_ENDPOINT="${{ needs.deploy-application.outputs.api-endpoint }}"
-        WEB_ENDPOINT="${{ needs.deploy-application.outputs.web-endpoint }}"
-
-        echo "🔧 Google OAuth Configuration Update Required"
-        echo "=============================================="
-        echo ""
-        echo "📋 Copy these values to update your Google OAuth configuration:"
-        echo ""
-        echo "🌐 Google Cloud Console URL:"
-        echo "   https://console.cloud.google.com/apis/credentials"
-        echo ""
-        echo "📝 OAuth Client ID:"
-        echo "   ${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}"
-        echo ""
-        echo "🔗 Authorized redirect URIs (add this):"
-        echo "   https://${API_GATEWAY_ID}.execute-api.us-east-1.amazonaws.com/Prod/signin-google"
-        echo ""
-        echo "🌍 Authorized JavaScript origins (add this):"
-        echo "   https://${API_GATEWAY_ID}.execute-api.us-east-1.amazonaws.com"
-        echo ""
-        echo "📋 Steps:"
-        echo "   1. Go to Google Cloud Console (link above)"
-        echo "   2. Find and edit your OAuth 2.0 Client ID"
-        echo "   3. Add the redirect URI listed above"
-        echo "   4. Add the JavaScript origin listed above"
-        echo "   5. Save changes"
-        echo ""
-        echo "✅ After updating, Google OAuth login will work!"
-        echo ""
-        echo "🔍 Current deployment URLs:"
-        echo "   API: ${{ needs.deploy-application.outputs.api-endpoint }}"
-        echo "   Web Application: http://${{ needs.deploy-application.outputs.web-endpoint }}"
-        echo "   API Gateway ID: ${API_GATEWAY_ID}"
+        chmod +x update-google-oauth.sh
+        ./update-google-oauth.sh "${{ needs.deploy-application.outputs.api-endpoint }}" "${{ needs.deploy-application.outputs.web-endpoint }}"

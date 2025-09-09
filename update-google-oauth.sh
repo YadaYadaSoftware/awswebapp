@@ -3,16 +3,18 @@
 # Script to update Google OAuth redirect URIs for production deployment
 # Run this after deploying to AWS to get the correct API Gateway URL
 
-echo "🔍 Getting API Gateway URL from CloudFormation..."
+API_ENDPOINT=${1}
+WEB_ENDPOINT=${2}
 
-API_ENDPOINT=$(aws cloudformation describe-stacks \
-  --stack-name taskmanager-main \
-  --query 'Stacks[0].Outputs[?OutputKey==`ApiEndpoint`].OutputValue' \
-  --output text)
-
-if [ -z "$API_ENDPOINT" ] || [ "$API_ENDPOINT" = "None" ]; then
-  echo "❌ Failed to get API Gateway URL. Make sure the stack is deployed."
+if [ -z "$API_ENDPOINT" ]; then
+  echo "Usage: $0 <api-endpoint> [web-endpoint]"
+  echo "Example: $0 https://abc123.execute-api.us-east-1.amazonaws.com/Prod https://myapp.example.com"
   exit 1
+fi
+
+echo "🔍 Using API Gateway URL: $API_ENDPOINT"
+if [ -n "$WEB_ENDPOINT" ]; then
+  echo "🔍 Using Web Application URL: $WEB_ENDPOINT"
 fi
 
 # Extract the API Gateway ID from the URL
@@ -26,8 +28,15 @@ echo ""
 echo "Authorized redirect URIs:"
 echo "  https://$API_GATEWAY_ID.execute-api.us-east-1.amazonaws.com/Prod/signin-google"
 echo ""
-echo "Authorized JavaScript origins:"
-echo "  https://$API_GATEWAY_ID.execute-api.us-east-1.amazonaws.com"
+if [ -n "$WEB_ENDPOINT" ]; then
+  # Extract domain from web endpoint
+  WEB_DOMAIN=$(echo $WEB_ENDPOINT | sed 's|https://||' | sed 's|http://||' | sed 's|/.*||')
+  echo "Authorized JavaScript origins:"
+  echo "  https://$WEB_DOMAIN"
+else
+  echo "Authorized JavaScript origins:"
+  echo "  https://$API_GATEWAY_ID.execute-api.us-east-1.amazonaws.com"
+fi
 echo ""
 echo "🔗 Google Cloud Console: https://console.cloud.google.com/apis/credentials"
 echo "   → Select your OAuth 2.0 Client ID"
