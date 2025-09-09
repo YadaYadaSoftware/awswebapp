@@ -22,7 +22,9 @@ RUN dotnet build "TaskManager.Web.csproj" -c Release -o /app/build
 
 # Publish the app
 FROM build AS publish
-RUN dotnet publish "TaskManager.Web.csproj" -c Release -o /app/publish /p:UseAppHost=false
+ARG VERSION=1.0.0
+ARG INFORMATIONAL_VERSION=1.0.0
+RUN dotnet publish "TaskManager.Web.csproj" -c Release -o /app/publish /p:UseAppHost=false /p:Version=$VERSION /p:InformationalVersion=$INFORMATIONAL_VERSION
 
 # Use the official ASP.NET runtime image
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS final

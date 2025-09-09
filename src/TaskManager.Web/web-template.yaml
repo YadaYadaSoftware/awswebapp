@@ -51,6 +51,11 @@ Parameters:
     Type: String
     Description: 'Container image URI for the web application'
 
+  DeploymentToken:
+    Type: String
+    Description: 'Deployment token to force task definition updates'
+    Default: 'default'
+
   DomainName:
     Type: String
     Default: 'appcloud.systems'
@@ -197,6 +202,8 @@ Resources:
               Value: !Ref WebECSLogGroup
             - Name: AWS__Logging__Region
               Value: !Ref AWS::Region
+            - Name: DEPLOYMENT_TOKEN
+              Value: !Ref DeploymentToken
           LogConfiguration:
             LogDriver: awslogs
             Options:

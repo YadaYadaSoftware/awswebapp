@@ -26,6 +26,11 @@ Parameters:
     Description: 'Container image URI for the web application'
     Default: 'nginx:latest'
 
+  DeploymentToken:
+    Type: String
+    Description: 'Deployment token to force task definition updates'
+    Default: 'default'
+
   DomainName:
     Type: String
     Default: 'appcloud.systems'
@@ -70,6 +75,7 @@ Resources:
         GoogleClientId: !Ref GoogleClientId
         GoogleClientSecret: !Ref GoogleClientSecret
         WebContainerImage: !Ref WebContainerImage
+        DeploymentToken: !Ref DeploymentToken
         DomainName: !Ref DomainName
         HostedZoneId: !Ref HostedZoneId
       Tags:

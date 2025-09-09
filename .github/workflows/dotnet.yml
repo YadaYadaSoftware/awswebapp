@@ -336,6 +336,7 @@ jobs:
           GoogleClientSecret=${{ secrets.GOOGLE_CLIENT_SECRET }},
           ApiCodeBucket=${{ env.TEMPLATE_BUCKET }},
           WebContainerImage=${{ env.CONTAINER_IMAGE }},
+          DeploymentToken=${{ github.sha }},
           DomainName=appcloud.systems,
           HostedZoneId=Z06422172SASV44F5Y8VA
         capabilities: "CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND"
