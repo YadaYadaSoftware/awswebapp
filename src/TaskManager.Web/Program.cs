@@ -4,8 +4,12 @@ using Microsoft.AspNetCore.Components.Web;
 using Microsoft.EntityFrameworkCore;
 using TaskManager.Data;
 using TaskManager.Web.Data;
+using AWS.Logger.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Configure logging to CloudWatch
+builder.Logging.AddAWSProvider(builder.Configuration.GetAWSLoggingConfigSection());
 
 // Add services to the container.
 builder.Services.AddRazorPages();
