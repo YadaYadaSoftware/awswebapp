@@ -8,6 +8,11 @@ Parameters:
     MinLength: 8
     Description: 'Password for the RDS PostgreSQL database'
 
+  BastionPublicKeyMaterial:
+    Type: String
+    Description: 'Public key material for bastion SSH access (generate locally with ssh-keygen and paste the .pub content here)'
+    Default: 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCuSPS013ezN5lbrX/yOgu2d5n+97vzyj0P7oD2n5mCyblEG184U6r0LOu+DWURveDTLOtBEUCa5cCfnW3vTd6A25t9fHJFB0V+DuOCQ+tMVLxvs3yu61Cmz4ChNEK/qUX9YtpDwXJP1SmnKUPJOnFAfUwyClBqbQjd6rkyYYKmuRLD3llEXZDO/GwLpWO3KvNWLYJnz+MAJL4LU1JXimYfJqVmd3PUGUyUI55d5lqfZYCGxwzb3Eg31bZ4ljf0vBT6ztgwrVvBvpRlkmTRqcqvypS/3zDd6USmf8rLOB5VwnFw+f4o88K1x3O5iqZrRxApjdlLA8IDIH7uFP89KjKX 17034@DESKTOP-3BGTTVG'
+
 Resources:
   # VPC and Networking
   TaskManagerVPC:
@@ -339,6 +344,7 @@ Resources:
       KeyName: !Sub 'taskmanager-bastion-key-${AWS::StackName}'
       KeyType: rsa
       KeyFormat: pem
+      PublicKeyMaterial: !Ref BastionPublicKeyMaterial
 
   # Bastion Host
   BastionRole:

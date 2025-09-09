@@ -472,3 +472,5 @@ logs/
 
 # AWS SAM build artifacts
 .aws-sam/
+taskmanager-bastion-key
+taskmanager-bastion-key.pub
