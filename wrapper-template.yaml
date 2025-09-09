@@ -132,7 +132,7 @@ Outputs:
       TaskManager ${Environment} deployed successfully!
 
       API Endpoint: ${TaskManagerApiStack.Outputs.ApiEndpoint}
-      Web Application: http://${TaskManagerWebStack.Outputs.WebLoadBalancerDNS}
+      Web Application: https://${Environment}.${DomainName}
       Database: taskmanager_${Environment}
 
       API is running on AWS Lambda with API Gateway.

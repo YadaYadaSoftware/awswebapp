@@ -292,7 +292,8 @@ jobs:
           GoogleClientSecret=${{ secrets.GOOGLE_CLIENT_SECRET }},
           ApiCodeBucket=${{ env.TEMPLATE_BUCKET }},
           WebContainerImage=${{ env.CONTAINER_IMAGE }},
-          DomainName=${{ secrets.DOMAIN_NAME }}
+          DomainName=appcloud.systems,
+          HostedZoneId=Z06422172SASV44F5Y8VA
         capabilities: "CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND"
         no-fail-on-empty-changeset: "1"
       timeout-minutes: 20
@@ -453,7 +454,7 @@ jobs:
 
         Branch: ${{ env.BRANCH_NAME }}
         API: $API_URL
-        Web App: http://$WEB_URL
+        Web App: https://$BRANCH_NAME.appcloud.systems
         Database: taskmanager_${{ env.BRANCH_NAME }} ✅ Setup verified
         Bastion IP: $BASTION_IP
 

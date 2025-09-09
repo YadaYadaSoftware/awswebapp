@@ -34,8 +34,12 @@ Parameters:
 
   DomainName:
     Type: String
-    Default: 'example.com'
-    Description: 'Domain name for SSL certificate (e.g., yourdomain.com)'
+    Default: 'appcloud.systems'
+    Description: 'Domain name for SSL certificate'
+
+  HostedZoneId:
+    Type: String
+    Description: 'Route 53 hosted zone ID for the domain'
 
 Resources:
   # CloudWatch Log Group for ECS
@@ -78,7 +82,7 @@ Resources:
       UnhealthyThresholdCount: 2
       HealthCheckPort: 80
 
-  # ALB HTTP Listener (forwards to target group)
+  # ALB HTTP Listener (redirects to HTTPS)
   WebListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
     Properties:
@@ -86,35 +90,45 @@ Resources:
       Protocol: HTTP
       Port: 80
       DefaultActions:
+        - Type: redirect
+          RedirectConfig:
+            Protocol: HTTPS
+            Port: 443
+            Host: '#{host}'
+            Path: '/#{path}'
+            Query: '#{query}'
+            StatusCode: HTTP_301
+
+  # ALB HTTPS Listener
+  WebHttpsListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref WebLoadBalancer
+      Protocol: HTTPS
+      Port: 443
+      Certificates:
+        - CertificateArn: !Ref WebSSLCertificate
+      DefaultActions:
         - Type: forward
           TargetGroupArn: !Ref WebTargetGroup
 
-  # ALB HTTPS Listener (uncomment when you have SSL certificate)
-  # WebHttpsListener:
-  #   Type: AWS::ElasticLoadBalancingV2::Listener
-  #   Properties:
-  #     LoadBalancerArn: !Ref WebLoadBalancer
-  #     Protocol: HTTPS
-  #     Port: 443
-  #     Certificates:
-  #       - CertificateArn: !Ref WebSSLCertificate
-  #     DefaultActions:
-  #       - Type: forward
-  #         TargetGroupArn: !Ref WebTargetGroup
+  # Route 53 Record for subdomain
+  WebDNSRecord:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Sub '${Environment}.${DomainName}'
+      Type: A
+      AliasTarget:
+        DNSName: !GetAtt WebLoadBalancer.DNSName
+        HostedZoneId: !GetAtt WebLoadBalancer.CanonicalHostedZoneId
 
-  # Note: For HTTPS without custom domain, you have these options:
-  # 1. Use a custom domain with Route 53 + ACM certificate
-  # 2. Import your own SSL certificate
-  # 3. Use HTTP only (not recommended for production)
-
-  # Uncomment and modify for custom domain approach:
-  # WebSSLCertificate:
-  #   Type: AWS::CertificateManager::Certificate
-  #   Properties:
-  #     DomainName: !Ref DomainName
-  #     ValidationMethod: DNS
-  #     SubjectAlternativeNames:
-  #       - !Sub '*.${DomainName}'
+  # SSL Certificate for HTTPS (subdomain)
+  WebSSLCertificate:
+    Type: AWS::CertificateManager::Certificate
+    Properties:
+      DomainName: !Sub '${Environment}.${DomainName}'
+      ValidationMethod: DNS
 
   # ECS Task Definition
   WebTaskDefinition:
@@ -213,7 +227,7 @@ Resources:
 Outputs:
   WebEndpoint:
     Description: 'Web application endpoint URL'
-    Value: !Sub 'http://${WebLoadBalancer.DNSName}'
+    Value: !Sub 'https://${Environment}.${DomainName}'
 
   WebLoadBalancerDNS:
     Description: 'Web Load Balancer DNS name'
