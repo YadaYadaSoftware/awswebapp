@@ -170,6 +170,8 @@ Resources:
         - Name: web
           Image: !Ref WebContainerImage
           Essential: true
+          # Force ECS to pull the image on every deployment
+          # This ensures version changes are picked up immediately
           PortMappings:
             - ContainerPort: 80
               Protocol: tcp
@@ -227,6 +229,9 @@ Resources:
           ContainerName: web
           ContainerPort: 80
       HealthCheckGracePeriodSeconds: 300
+      # Force new deployment when task definition changes
+      # This ensures immediate deployment of new image versions
+      ForceNewDeployment: true
       Tags:
         - Key: Environment
           Value: !Ref Environment

@@ -192,9 +192,10 @@ jobs:
         AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         AWS_DEFAULT_REGION: ${{ env.AWS_REGION }}
       run: |
-        # Get branch name for tagging
+        # Use GitVersion for unique image tagging
         BRANCH_NAME=${GITHUB_REF#refs/heads/}
-        IMAGE_TAG=${BRANCH_NAME:-main}
+        IMAGE_TAG=${{ steps.gitversion.outputs.semVer }}
+        BRANCH_TAG=${BRANCH_NAME:-main}
 
         # Get ECR repository URI from CloudFormation outputs
         echo "Querying CloudFormation for ECR repository URI..."
@@ -217,6 +218,8 @@ jobs:
         fi
 
         echo "🎯 Final ECR repository: $ECR_REPO"
+        echo "🏷️ Version tag: $IMAGE_TAG"
+        echo "🌿 Branch tag: $BRANCH_TAG"
 
         # Build container image from root context
         docker build -t taskmanager-web:$IMAGE_TAG -f src/TaskManager.Web/Dockerfile .
@@ -224,14 +227,21 @@ jobs:
         # Login to ECR
         aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin $ECR_REPO
 
-        # Tag and push image
+        # Tag and push versioned image
         docker tag taskmanager-web:$IMAGE_TAG $ECR_REPO:$IMAGE_TAG
         docker push $ECR_REPO:$IMAGE_TAG
+        echo "✅ Pushed versioned image: $ECR_REPO:$IMAGE_TAG"
+
+        # Tag and push branch-specific image (for easy reference)
+        docker tag taskmanager-web:$IMAGE_TAG $ECR_REPO:$BRANCH_TAG
+        docker push $ECR_REPO:$BRANCH_TAG
+        echo "✅ Pushed branch image: $ECR_REPO:$BRANCH_TAG"
 
         # Also tag as latest for main branch
         if [ "$BRANCH_NAME" = "main" ]; then
           docker tag taskmanager-web:$IMAGE_TAG $ECR_REPO:latest
           docker push $ECR_REPO:latest
+          echo "✅ Pushed latest image: $ECR_REPO:latest"
         fi
 
         echo "CONTAINER_IMAGE=$ECR_REPO:$IMAGE_TAG" >> $GITHUB_ENV
