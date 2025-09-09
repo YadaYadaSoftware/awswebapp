@@ -1,0 +1,132 @@
+@page "/invites"
+@using Microsoft.AspNetCore.Authorization
+@using TaskManager.Shared.Models
+@attribute [Authorize]
+@inject HttpClient Http
+
+<PageTitle>Invitations - TaskManager</PageTitle>
+
+<h1>Pending Invitations</h1>
+
+<p>Manage user invitations to your TaskManager application.</p>
+
+@if (invitations == null)
+{
+    <p><em>Loading invitations...</em></p>
+}
+else if (!invitations.Any())
+{
+    <p>No pending invitations found.</p>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>Email</th>
+                    <th>Invited By</th>
+                    <th>Invited At</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var invitation in invitations)
+                {
+                    <tr>
+                        <td>@invitation.Email</td>
+                        <td>@invitation.InvitedByName</td>
+                        <td>@invitation.InvitedAt.ToLocalTime().ToString("g")</td>
+                        <td>
+                            <span class="badge bg-secondary">Pending</span>
+                        </td>
+                        <td>
+                            <button class="btn btn-sm btn-danger" @onclick="() => RevokeInvitation(invitation.Email)">
+                                <span class="oi oi-trash" aria-hidden="true"></span> Revoke
+                            </button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+<div class="mt-4">
+    <button class="btn btn-primary" @onclick="LoadInvitations">
+        <span class="oi oi-reload" aria-hidden="true"></span> Refresh
+    </button>
+</div>
+
+@if (!string.IsNullOrEmpty(errorMessage))
+{
+    <div class="alert alert-danger mt-3">
+        <strong>Error:</strong> @errorMessage
+    </div>
+}
+
+@if (!string.IsNullOrEmpty(successMessage))
+{
+    <div class="alert alert-success mt-3">
+        <strong>Success:</strong> @successMessage
+    </div>
+}
+
+@code {
+    private List<InvitationDto>? invitations;
+    private string? errorMessage;
+    private string? successMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadInvitations();
+    }
+
+    private async Task LoadInvitations()
+    {
+        try
+        {
+            errorMessage = null;
+            successMessage = null;
+
+            invitations = await Http.GetFromJsonAsync<List<InvitationDto>>("api/invitation/pending");
+
+            if (invitations == null)
+            {
+                invitations = new List<InvitationDto>();
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Failed to load invitations: {ex.Message}";
+            invitations = new List<InvitationDto>();
+        }
+    }
+
+    private async Task RevokeInvitation(string email)
+    {
+        try
+        {
+            errorMessage = null;
+            successMessage = null;
+
+            var response = await Http.DeleteAsync($"api/invitation/revoke/{email}");
+
+            if (response.IsSuccessStatusCode)
+            {
+                successMessage = $"Invitation for {email} has been revoked.";
+                await LoadInvitations(); // Refresh the list
+            }
+            else
+            {
+                var errorContent = await response.Content.ReadAsStringAsync();
+                errorMessage = $"Failed to revoke invitation: {errorContent}";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Failed to revoke invitation: {ex.Message}";
+        }
+    }
+}
