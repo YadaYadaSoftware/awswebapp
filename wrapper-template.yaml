@@ -7,16 +7,6 @@ Parameters:
     Default: main
     Description: 'Environment name (typically branch name)'
     
-  GoogleClientId:
-    Type: String
-    NoEcho: true
-    Description: 'Google OAuth Client ID'
-    
-  GoogleClientSecret:
-    Type: String
-    NoEcho: true
-    Description: 'Google OAuth Client Secret'
-    
   ApiCodeBucket:
     Type: String
     Description: 'S3 bucket name for API Lambda deployment package'
@@ -52,8 +42,6 @@ Resources:
         - BucketName: !ImportValue 'TaskManager-TemplatesBucket'
       Parameters:
         Environment: !Ref Environment
-        GoogleClientId: !Ref GoogleClientId
-        GoogleClientSecret: !Ref GoogleClientSecret
         ApiCodeBucket: !Ref ApiCodeBucket
       Tags:
         - Key: Component
@@ -72,8 +60,6 @@ Resources:
         - BucketName: !ImportValue 'TaskManager-TemplatesBucket'
       Parameters:
         Environment: !Ref Environment
-        GoogleClientId: !Ref GoogleClientId
-        GoogleClientSecret: !Ref GoogleClientSecret
         WebContainerImage: !Ref WebContainerImage
         DeploymentToken: !Ref DeploymentToken
         DomainName: !Ref DomainName
