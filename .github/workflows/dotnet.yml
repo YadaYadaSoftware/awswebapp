@@ -336,7 +336,9 @@ jobs:
           WebContainerImage=${{ env.CONTAINER_IMAGE }},
           DeploymentToken=${{ github.sha }},
           DomainName=appcloud.systems,
-          HostedZoneId=Z06422172SASV44F5Y8VA
+          HostedZoneId=Z06422172SASV44F5Y8VA,
+          GoogleClientId=${{ secrets.GOOGLE_CLIENT_ID }},
+          GoogleClientSecret=${{ secrets.GOOGLE_CLIENT_SECRET }}
         capabilities: "CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND"
         no-fail-on-empty-changeset: "1"
       timeout-minutes: 20

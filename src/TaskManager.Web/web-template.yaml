@@ -55,6 +55,16 @@ Parameters:
     Type: String
     Description: 'Route 53 hosted zone ID for the domain'
 
+  GoogleClientId:
+    Type: String
+    Description: 'Google OAuth Client ID'
+    NoEcho: true
+
+  GoogleClientSecret:
+    Type: String
+    Description: 'Google OAuth Client Secret'
+    NoEcho: true
+
 Resources:
   # CloudWatch Log Group for ECS
   WebECSLogGroup:
@@ -190,6 +200,10 @@ Resources:
               Value: !Ref AWS::Region
             - Name: DEPLOYMENT_TOKEN
               Value: !Ref DeploymentToken
+            - Name: Authentication__Google__ClientId
+              Value: !Ref GoogleClientId
+            - Name: Authentication__Google__ClientSecret
+              Value: !Ref GoogleClientSecret
           LogConfiguration:
             LogDriver: awslogs
             Options:
