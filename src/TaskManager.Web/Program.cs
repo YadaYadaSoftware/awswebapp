@@ -40,15 +40,25 @@ builder.Services.AddAuthentication(options =>
     options.ClientId = builder.Configuration["Authentication:Google:ClientId"] ?? throw new InvalidOperationException("Google ClientId not configured");
     options.ClientSecret = builder.Configuration["Authentication:Google:ClientSecret"] ?? throw new InvalidOperationException("Google ClientSecret not configured");
     options.SaveTokens = true;
-    
+
     // Add scopes for user information
     options.Scope.Add("openid");
     options.Scope.Add("profile");
     options.Scope.Add("email");
-    
+
     // Configure correlation cookie
     options.CorrelationCookie.SameSite = SameSiteMode.Lax;
     options.CorrelationCookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+
+    // Force HTTPS for OAuth callbacks
+    options.CallbackPath = "/signin-google";
+
+    // Ensure HTTPS is used for OAuth redirects
+    options.Events.OnRedirectToAuthorizationEndpoint = context =>
+    {
+        context.Response.Redirect(context.RedirectUri.Replace("http://", "https://"));
+        return System.Threading.Tasks.Task.CompletedTask;
+    };
 });
 
 builder.Services.AddAuthorization(options =>

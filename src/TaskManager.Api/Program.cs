@@ -2,6 +2,7 @@ using Amazon.Lambda.Annotations;
 using Amazon.Lambda.AspNetCoreServer;
 using Amazon.Lambda.Core;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using TaskManager.Api.Services;
 using TaskManager.Data;
@@ -63,6 +64,15 @@ public class Program
             c.SwaggerDoc("v1", new() { Title = "TaskManager API", Version = "v1" });
         });
 
+        // Configure forwarded headers for proper HTTPS detection behind load balancer
+        services.Configure<ForwardedHeadersOptions>(options =>
+        {
+            options.ForwardedHeaders = ForwardedHeaders.XForwardedFor |
+                                      ForwardedHeaders.XForwardedProto;
+            options.KnownNetworks.Clear();
+            options.KnownProxies.Clear();
+        });
+
         // Add authentication with Google OAuth
         services.AddAuthentication(options =>
         {
@@ -80,15 +90,25 @@ public class Program
             options.ClientId = configuration["Authentication:Google:ClientId"] ?? throw new InvalidOperationException("Google ClientId not configured");
             options.ClientSecret = configuration["Authentication:Google:ClientSecret"] ?? throw new InvalidOperationException("Google ClientSecret not configured");
             options.SaveTokens = true;
-            
+
             // Add scopes for user information
             options.Scope.Add("openid");
             options.Scope.Add("profile");
             options.Scope.Add("email");
-            
+
             // Configure correlation cookie to fix OAuth correlation issues
             options.CorrelationCookie.SameSite = SameSiteMode.Lax;
             options.CorrelationCookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+
+            // Force HTTPS for OAuth callbacks
+            options.CallbackPath = "/signin-google";
+
+            // Ensure HTTPS is used for OAuth redirects
+            options.Events.OnRedirectToAuthorizationEndpoint = context =>
+            {
+                context.Response.Redirect(context.RedirectUri.Replace("http://", "https://"));
+                return System.Threading.Tasks.Task.CompletedTask;
+            };
         });
         
         services.AddAuthorization();
@@ -109,6 +129,9 @@ public class Program
         }
 
         app.UseCors();
+
+        // Configure forwarded headers middleware
+        app.UseForwardedHeaders();
 
         // Health check endpoint - must be before auth middleware
         app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow }))
