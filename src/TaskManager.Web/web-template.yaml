@@ -229,9 +229,6 @@ Resources:
           ContainerName: web
           ContainerPort: 80
       HealthCheckGracePeriodSeconds: 300
-      # Force new deployment when task definition changes
-      # This ensures immediate deployment of new image versions
-      ForceNewDeployment: true
       Tags:
         - Key: Environment
           Value: !Ref Environment
