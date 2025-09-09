@@ -8,6 +8,14 @@ Parameters:
     MinLength: 8
     Description: 'Password for the RDS PostgreSQL database'
 
+  BastionKeyPairName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: 'Name of the SSH key pair for bastion host access'
+    Default: ''
+
+Conditions:
+  HasBastionKeyPair: !Not [!Equals [!Ref BastionKeyPairName, '']]
+
 Resources:
   # VPC and Networking
   TaskManagerVPC:
@@ -371,6 +379,7 @@ Resources:
       SecurityGroupIds:
         - !Ref BastionSecurityGroup
       IamInstanceProfile: !Ref BastionInstanceProfile
+      KeyName: !If [HasBastionKeyPair, !Ref BastionKeyPairName, !Ref AWS::NoValue]
       UserData:
         Fn::Base64: !Sub |
           #!/bin/bash
