@@ -8,14 +8,6 @@ Parameters:
     MinLength: 8
     Description: 'Password for the RDS PostgreSQL database'
 
-  BastionKeyPairName:
-    Type: AWS::EC2::KeyPair::KeyName
-    Description: 'Name of the SSH key pair for bastion host access'
-    Default: ''
-
-Conditions:
-  HasBastionKeyPair: !Not [!Equals [!Ref BastionKeyPairName, '']]
-
 Resources:
   # VPC and Networking
   TaskManagerVPC:
@@ -340,6 +332,14 @@ Resources:
         - Key: Purpose
           Value: 'Shared Infrastructure'
 
+  # SSH Key Pair for Bastion
+  BastionKeyPair:
+    Type: AWS::EC2::KeyPair
+    Properties:
+      KeyName: !Sub 'taskmanager-bastion-key-${AWS::StackName}'
+      KeyType: rsa
+      KeyFormat: pem
+
   # Bastion Host
   BastionRole:
     Type: AWS::IAM::Role
@@ -379,7 +379,7 @@ Resources:
       SecurityGroupIds:
         - !Ref BastionSecurityGroup
       IamInstanceProfile: !Ref BastionInstanceProfile
-      KeyName: !If [HasBastionKeyPair, !Ref BastionKeyPairName, !Ref AWS::NoValue]
+      KeyName: !Ref BastionKeyPair
       UserData:
         Fn::Base64: !Sub |
           #!/bin/bash
@@ -603,6 +603,12 @@ Outputs:
     Value: !Ref BastionHost
     Export:
       Name: 'TaskManager-BastionHostId'
+
+  BastionKeyPairName:
+    Description: 'Name of the SSH key pair for bastion access'
+    Value: !Ref BastionKeyPair
+    Export:
+      Name: 'TaskManager-BastionKeyPairName'
 
   DatabaseTunnelCommand:
     Description: 'SSH tunnel command for database access'
