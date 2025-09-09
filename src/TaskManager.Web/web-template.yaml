@@ -131,6 +131,17 @@ Resources:
         - Type: forward
           TargetGroupArn: !Ref WebTargetGroup
 
+  # DNS Validation Records for SSL Certificate
+  WebSSLCertificateValidationRecord:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !GetAtt WebSSLCertificate.DomainValidationOptions.0.ResourceRecord.Name
+      Type: !GetAtt WebSSLCertificate.DomainValidationOptions.0.ResourceRecord.Type
+      TTL: 300
+      ResourceRecords:
+        - !GetAtt WebSSLCertificate.DomainValidationOptions.0.ResourceRecord.Value
+
   # Route 53 Record for subdomain
   WebDNSRecord:
     Type: AWS::Route53::RecordSet
@@ -148,6 +159,9 @@ Resources:
     Properties:
       DomainName: !Sub '${Environment}.${DomainName}'
       ValidationMethod: DNS
+      DomainValidationOptions:
+        - DomainName: !Sub '${Environment}.${DomainName}'
+          HostedZoneId: !Ref HostedZoneId
 
   # ECS Task Definition
   WebTaskDefinition:
