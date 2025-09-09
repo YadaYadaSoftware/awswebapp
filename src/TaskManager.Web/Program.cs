@@ -9,7 +9,8 @@ using AWS.Logger.AspNetCore;
 var builder = WebApplication.CreateBuilder(args);
 
 // Get version information
-var version = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "1.0.0.0";
+var informationalVersion = Attribute.GetCustomAttribute(typeof(Program).Assembly, typeof(System.Reflection.AssemblyInformationalVersionAttribute)) as System.Reflection.AssemblyInformationalVersionAttribute;
+var version = informationalVersion?.InformationalVersion ?? "1.0.0.0";
 
 // Configure logging to CloudWatch
 builder.Logging.AddAWSProvider();
@@ -119,7 +120,6 @@ app.MapGet("/login", () => Results.Redirect("/"))
 app.MapGet("/logout", async (HttpContext context) =>
 {
     var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
-    var version = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "1.0.0.0";
 
     using (logger.BeginScope(new Dictionary<string, object> { ["Version"] = version }))
     {
@@ -132,9 +132,26 @@ app.MapGet("/logout", async (HttpContext context) =>
         // Note: Google OAuth doesn't support direct sign-out via SignOutAsync
         // The user's Google session will remain active, but our local session is cleared
 
-        logger.LogInformation("Logout completed, redirecting to home page");
+        logger.LogInformation("Logout completed, forcing page reload to refresh Blazor state");
     }
-    return Results.Redirect("/");
+
+    // Force full page reload to break Blazor circuit and refresh authentication state
+    var reloadHtml = $@"
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Logging out...</title>
+        <script>
+            setTimeout(function() {{
+                window.location.href = '/';
+            }}, 100);
+        </script>
+    </head>
+    <body>
+        <p>Logging out... Please wait.</p>
+    </body>
+    </html>";
+    return Results.Content(reloadHtml, "text/html");
 })
 .AllowAnonymous()
 .WithName("Logout");
