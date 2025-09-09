@@ -114,9 +114,15 @@ app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = Dat
    .WithTags("Health");
 
 // Login and logout endpoints - EXCLUDED FROM AUTHENTICATION
-app.MapGet("/login", () => Results.Redirect("/"))
-    .AllowAnonymous()
-    .WithName("Login");
+app.MapGet("/login", async (HttpContext context) =>
+{
+    var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
+    logger.LogInformation("Login endpoint called - initiating Google challenge");
+    var properties = new AuthenticationProperties { RedirectUri = "/" };
+    await context.ChallengeAsync("Google", properties);
+})
+.AllowAnonymous()
+.WithName("Login");
 
 app.MapGet("/logout", async (HttpContext context) =>
 {
@@ -129,9 +135,15 @@ app.MapGet("/logout", async (HttpContext context) =>
         logger.LogInformation("Signing out from Cookies authentication scheme");
         await context.SignOutAsync("Cookies");
 
+        logger.LogInformation("Google OAuth sign-out initiated");
+
         logger.LogInformation("Logout completed, redirecting to Google sign-out");
     }
-    context.Response.Redirect("/");
+
+    // Redirect to Google sign-out to clear Google session, continue to /login
+    var appUrl = Uri.EscapeDataString(context.Request.Scheme + "://" + context.Request.Host + "/login");
+    var googleLogoutUrl = "https://accounts.google.com/logout?continue=" + appUrl;
+    return Results.Redirect(googleLogoutUrl);
 })
 .AllowAnonymous()
 .WithName("Logout");
