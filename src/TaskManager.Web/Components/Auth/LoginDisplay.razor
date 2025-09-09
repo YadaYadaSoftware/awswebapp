@@ -1,44 +1,6 @@
-@using Microsoft.AspNetCore.Components.Authorization
-@using Microsoft.AspNetCore.Components
-@using System.Security.Claims
-@inject AuthenticationStateProvider AuthenticationStateProvider
-@inject NavigationManager Navigation
-
 <div class="login-display">
-    <AuthorizeView>
-        <Authorized Context="authContext">
-            @{
-                Console.WriteLine($"User is authenticated: {authContext.User.Identity?.Name ?? "Unknown"}");
-            }
-            <div class="user-info">
-                <span class="user-name">Hello, @GetUserName(authContext.User)!</span>
-                <button @onclick="Logout" class="btn btn-outline-secondary btn-sm ms-2">Logout</button>
-            </div>
-        </Authorized>
-        <NotAuthorized>
-            @{
-                Console.WriteLine("User is not authenticated - showing login button");
-            }
-            <a href="/login" class="btn btn-primary">Login with Google</a>
-        </NotAuthorized>
-    </AuthorizeView>
+    <span class="user-name">App runs anonymously - no authentication required</span>
 </div>
-
-@code {
-    private string GetUserName(ClaimsPrincipal user)
-    {
-        return user.FindFirst(ClaimTypes.Name)?.Value
-            ?? user.FindFirst(ClaimTypes.Email)?.Value
-            ?? "User";
-    }
-
-    private void Logout()
-    {
-        Console.WriteLine("User initiated logout from LoginDisplay component");
-        Console.WriteLine("Navigating to /logout with forceLoad=true");
-        Navigation.NavigateTo("/logout", forceLoad: true);
-    }
-}
 
 <style>
     .login-display {
@@ -46,13 +8,7 @@
         align-items: center;
     }
     
-    .user-info {
-        display: flex;
-        align-items: center;
-    }
-    
     .user-name {
-        margin-right: 0.5rem;
         font-weight: 500;
     }
 </style>

@@ -35,58 +35,7 @@ builder.Services.AddDbContext<TaskManagerDbContext>(options =>
     var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
     options.UseNpgsql(connectionString);
 });
-
-// Add authentication with Google OAuth
-builder.Services.AddAuthentication(options =>
-{
-    options.DefaultAuthenticateScheme = "Cookies";
-    options.DefaultSignInScheme = "Cookies";
-    options.DefaultChallengeScheme = "Google";
-})
-.AddCookie("Cookies", options =>
-{
-    options.Cookie.SameSite = SameSiteMode.Lax;
-    options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
-    options.ExpireTimeSpan = TimeSpan.FromMinutes(15);
-    options.SlidingExpiration = true;
-    options.LoginPath = "/login";
-    options.LogoutPath = "/logout";
-    options.AccessDeniedPath = "/login";
-})
-.AddGoogle( "Google", options =>
-{
-    options.ClientId = builder.Configuration["Authentication:Google:ClientId"] ?? throw new InvalidOperationException("Google ClientId not configured");
-    options.ClientSecret = builder.Configuration["Authentication:Google:ClientSecret"] ?? throw new InvalidOperationException("Google ClientSecret not configured");
-    options.SaveTokens = true;
-
-    // Add scopes for user information
-    options.Scope.Add("openid");
-    options.Scope.Add("profile");
-    options.Scope.Add("email");
-
-    // Configure correlation cookie
-    options.CorrelationCookie.SameSite = SameSiteMode.Lax;
-    options.CorrelationCookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
-
-    // Force HTTPS for OAuth callbacks
-    options.CallbackPath = "/signin-google";
-    
-
-    // Ensure HTTPS is used for OAuth redirects
-    options.Events.OnRedirectToAuthorizationEndpoint = context =>
-    {
-        context.Response.Redirect(context.RedirectUri.Replace("http://", "https://"));
-        return System.Threading.Tasks.Task.CompletedTask;
-    };
-});
-
-builder.Services.AddAuthorization(options =>
-{
-    // Require authentication for all pages by default
-    options.FallbackPolicy = new Microsoft.AspNetCore.Authorization.AuthorizationPolicyBuilder()
-        .RequireAuthenticatedUser()
-        .Build();
-});
+// No authentication configured
 
 var app = builder.Build();
 
@@ -104,64 +53,27 @@ app.UseStaticFiles();
 
 app.UseRouting();
 
-app.UseAuthentication();
-app.UseAuthorization();
+ // Health check endpoint
+ app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow }))
+    .WithName("HealthCheck")
+    .WithTags("Health");
 
-// Health check endpoint - EXCLUDED FROM AUTHENTICATION
-app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow }))
-   .AllowAnonymous()
-   .WithName("HealthCheck")
-   .WithTags("Health");
+ // Simple login page (no auth)
+ app.MapGet("/login", () => Results.Content("Login functionality disabled. App runs anonymously.", "text/html"))
+    .WithName("Login");
 
-// Login and logout endpoints - EXCLUDED FROM AUTHENTICATION
-app.MapGet("/login", async (HttpContext context) =>
-{
-    var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
-    logger.LogInformation("Login endpoint called - initiating Google challenge");
-    var properties = new AuthenticationProperties { RedirectUri = "/" };
-    await context.ChallengeAsync("Google", properties);
-})
-.AllowAnonymous()
-.WithName("Login");
+ app.MapGet("/logout", () => Results.Redirect("/"))
+    .WithName("Logout");
 
-app.MapGet("/logout", async (HttpContext context) =>
-{
-    var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
+ app.MapGet("/signin-google", () => Results.Redirect("/"))
+    .WithName("GoogleSignIn");
 
-    using (logger.BeginScope(new Dictionary<string, object> { ["Version"] = version }))
-    {
-        logger.LogInformation("Logout endpoint called - Version: {Version}", version);
+ app.MapGet("/signout-google", () => Results.Redirect("/"))
+    .WithName("GoogleSignOut");
 
-        logger.LogInformation("Signing out from Cookies authentication scheme");
-        await context.SignOutAsync("Cookies");
-
-        logger.LogInformation("Google OAuth sign-out initiated");
-
-        logger.LogInformation("Logout completed, redirecting to Google sign-out");
-    }
-
-    // Redirect to Google sign-out to clear Google session, continue to /login
-    var appUrl = Uri.EscapeDataString(context.Request.Scheme + "://" + context.Request.Host + "/login");
-    var googleLogoutUrl = "https://accounts.google.com/logout?continue=" + appUrl;
-    return Results.Redirect(googleLogoutUrl);
-})
-.AllowAnonymous()
-.WithName("Logout");
-
-// Google OAuth callback endpoints - EXCLUDED FROM AUTHENTICATION
-app.MapGet("/signin-google", () => Results.Redirect("/"))
-   .AllowAnonymous()
-   .WithName("GoogleSignIn");
-
-app.MapGet("/signout-google", () => Results.Redirect("/"))
-   .AllowAnonymous()
-   .WithName("GoogleSignOut");
-
-// Error page - EXCLUDED FROM AUTHENTICATION
-app.MapGet("/Error", () => Results.Content("<h1>Application Error</h1><p>An error occurred while processing your request.</p>", "text/html"))
-   .AllowAnonymous()
-   .WithName("Error");
-
+ // Error page
+ app.MapGet("/Error", () => Results.Content("<h1>Application Error</h1><p>An error occurred while processing your request.</p>", "text/html"))
+    .WithName("Error");
 app.MapBlazorHub();
 app.MapFallbackToPage("/_Host");
 
