@@ -12,6 +12,25 @@ Description: 'TaskManager Web Frontend - Blazor Server ECS Container with Applic
 # - Added Kestrel limits for better container performance
 # - Excluded health, login, logout, error, and OAuth endpoints from authentication
 
+Mappings:
+  RegionMap:
+    us-east-1:
+      ALBHostedZoneId: Z35SXDOTRQ7X7K
+    us-east-2:
+      ALBHostedZoneId: Z3AADJGX6KTTL2
+    us-west-1:
+      ALBHostedZoneId: Z368ELLRRE2KJ0
+    us-west-2:
+      ALBHostedZoneId: Z1H1FL5HABSF5
+    eu-west-1:
+      ALBHostedZoneId: Z2IFOLAFXWLO4F
+    eu-central-1:
+      ALBHostedZoneId: Z268VQBMOI5EKX
+    ap-southeast-1:
+      ALBHostedZoneId: Z1LMS91P8CMLE5
+    ap-northeast-1:
+      ALBHostedZoneId: Z31USIVHYNEOWT
+
 Parameters:
   Environment:
     Type: String
@@ -121,7 +140,7 @@ Resources:
       Type: A
       AliasTarget:
         DNSName: !GetAtt WebLoadBalancer.DNSName
-        HostedZoneId: !GetAtt WebLoadBalancer.CanonicalHostedZoneId
+        HostedZoneId: !FindInMap [RegionMap, !Ref AWS::Region, ALBHostedZoneId]
 
   # SSL Certificate for HTTPS (subdomain)
   WebSSLCertificate:
