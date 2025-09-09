@@ -54,7 +54,18 @@ jobs:
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: 8.0.x
-        
+
+    - name: Setup GitVersion
+      uses: gittools/actions/gitversion/setup@v0
+      with:
+        versionSpec: '5.x'
+
+    - name: Determine Version
+      id: gitversion
+      uses: gittools/actions/gitversion/execute@v0
+      with:
+        useConfigFile: true
+
     - name: Cache NuGet packages
       uses: actions/cache@v4
       with:
@@ -62,21 +73,27 @@ jobs:
         key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
         restore-keys: |
           ${{ runner.os }}-nuget-
-          
+
     - name: Restore dependencies
       run: dotnet restore
       
     - name: Build
-      run: dotnet build --no-restore --configuration Release
+      run: |
+        echo "Building with version: ${{ steps.gitversion.outputs.semVer }}"
+        dotnet build --no-restore --configuration Release /p:Version=${{ steps.gitversion.outputs.semVer }} /p:AssemblyVersion=${{ steps.gitversion.outputs.assemblySemVer }} /p:FileVersion=${{ steps.gitversion.outputs.assemblySemVer }}
       
     - name: Test
       run: dotnet test --no-build --verbosity normal --configuration Release
       
     - name: Publish API for Lambda
-      run: dotnet publish src/TaskManager.Api/TaskManager.Api.csproj --configuration Release --output ./publish/api --runtime linux-x64 --self-contained false
+      run: |
+        echo "Publishing API with version: ${{ steps.gitversion.outputs.semVer }}"
+        dotnet publish src/TaskManager.Api/TaskManager.Api.csproj --configuration Release --output ./publish/api --runtime linux-x64 --self-contained false /p:Version=${{ steps.gitversion.outputs.semVer }}
 
     - name: Publish Web for Container
-      run: dotnet publish src/TaskManager.Web/TaskManager.Web.csproj --configuration Release --output ./publish/web --runtime linux-x64 --self-contained false
+      run: |
+        echo "Publishing Web with version: ${{ steps.gitversion.outputs.semVer }}"
+        dotnet publish src/TaskManager.Web/TaskManager.Web.csproj --configuration Release --output ./publish/web --runtime linux-x64 --self-contained false /p:Version=${{ steps.gitversion.outputs.semVer }}
 
     - name: Create API Lambda deployment package
       run: |

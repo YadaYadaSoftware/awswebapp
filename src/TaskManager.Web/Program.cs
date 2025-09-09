@@ -8,8 +8,19 @@ using AWS.Logger.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Get version information
+var version = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "1.0.0.0";
+
 // Configure logging to CloudWatch
 builder.Logging.AddAWSProvider();
+
+// Add version to logging scope
+builder.Logging.AddConfiguration(builder.Configuration.GetSection("Logging"));
+builder.Services.AddLogging(logging =>
+{
+    logging.AddFilter("Microsoft", LogLevel.Warning);
+    logging.AddFilter("System", LogLevel.Warning);
+});
 
 // Add services to the container.
 builder.Services.AddRazorPages();
@@ -108,16 +119,21 @@ app.MapGet("/login", () => Results.Redirect("/"))
 app.MapGet("/logout", async (HttpContext context) =>
 {
     var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
-    logger.LogInformation("Logout endpoint called");
+    var version = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "1.0.0.0";
 
-    logger.LogInformation("Signing out from Cookies authentication scheme");
-    await context.SignOutAsync("Cookies");
+    using (logger.BeginScope(new Dictionary<string, object> { ["Version"] = version }))
+    {
+        logger.LogInformation("Logout endpoint called - Version: {Version}", version);
 
-    logger.LogInformation("Google OAuth sign-out handled via session cleanup");
-    // Note: Google OAuth doesn't support direct sign-out via SignOutAsync
-    // The user's Google session will remain active, but our local session is cleared
+        logger.LogInformation("Signing out from Cookies authentication scheme");
+        await context.SignOutAsync("Cookies");
 
-    logger.LogInformation("Logout completed, redirecting to home page");
+        logger.LogInformation("Google OAuth sign-out handled via session cleanup");
+        // Note: Google OAuth doesn't support direct sign-out via SignOutAsync
+        // The user's Google session will remain active, but our local session is cleared
+
+        logger.LogInformation("Logout completed, redirecting to home page");
+    }
     return Results.Redirect("/");
 })
 .AllowAnonymous()
