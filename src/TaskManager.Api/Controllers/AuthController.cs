@@ -48,7 +48,7 @@ public class AuthController : ControllerBase
         return Ok(new {
             IsAuthenticated = false,
             AuthenticationType = "None",
-            Email = null,
+            Email = string.Empty,
             IsInvited = false,
             message = "Authentication is disabled. API runs anonymously."
         });
