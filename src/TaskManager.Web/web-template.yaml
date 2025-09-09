@@ -32,6 +32,11 @@ Parameters:
     Type: String
     Description: 'Container image URI for the web application'
 
+  DomainName:
+    Type: String
+    Default: 'example.com'
+    Description: 'Domain name for SSL certificate (e.g., yourdomain.com)'
+
 Resources:
   # CloudWatch Log Group for ECS
   WebECSLogGroup:
@@ -73,7 +78,7 @@ Resources:
       UnhealthyThresholdCount: 2
       HealthCheckPort: 80
 
-  # ALB Listener
+  # ALB HTTP Listener (redirects to HTTPS)
   WebListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
     Properties:
@@ -81,8 +86,41 @@ Resources:
       Protocol: HTTP
       Port: 80
       DefaultActions:
-        - Type: forward
-          TargetGroupArn: !Ref WebTargetGroup
+        - Type: redirect
+          RedirectConfig:
+            Protocol: HTTPS
+            Port: 443
+            Host: '#{host}'
+            Path: '/#{path}'
+            Query: '#{query}'
+            StatusCode: HTTP_301
+
+  # ALB HTTPS Listener (uncomment when you have SSL certificate)
+  # WebHttpsListener:
+  #   Type: AWS::ElasticLoadBalancingV2::Listener
+  #   Properties:
+  #     LoadBalancerArn: !Ref WebLoadBalancer
+  #     Protocol: HTTPS
+  #     Port: 443
+  #     Certificates:
+  #       - CertificateArn: !Ref WebSSLCertificate
+  #     DefaultActions:
+  #       - Type: forward
+  #         TargetGroupArn: !Ref WebTargetGroup
+
+  # Note: For HTTPS without custom domain, you have these options:
+  # 1. Use a custom domain with Route 53 + ACM certificate
+  # 2. Import your own SSL certificate
+  # 3. Use HTTP only (not recommended for production)
+
+  # Uncomment and modify for custom domain approach:
+  # WebSSLCertificate:
+  #   Type: AWS::CertificateManager::Certificate
+  #   Properties:
+  #     DomainName: !Ref DomainName
+  #     ValidationMethod: DNS
+  #     SubjectAlternativeNames:
+  #       - !Sub '*.${DomainName}'
 
   # ECS Task Definition
   WebTaskDefinition:

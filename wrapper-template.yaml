@@ -25,6 +25,11 @@ Parameters:
     Type: String
     Description: 'Container image URI for the web application'
     Default: 'nginx:latest'
+
+  DomainName:
+    Type: String
+    Default: 'example.com'
+    Description: 'Domain name for SSL certificate'
     
 
 
@@ -61,6 +66,7 @@ Resources:
         GoogleClientId: !Ref GoogleClientId
         GoogleClientSecret: !Ref GoogleClientSecret
         WebContainerImage: !Ref WebContainerImage
+        DomainName: !Ref DomainName
       Tags:
         - Key: Component
           Value: Web-Infrastructure
