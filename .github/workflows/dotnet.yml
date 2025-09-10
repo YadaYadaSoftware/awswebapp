@@ -106,7 +106,7 @@ jobs:
     - name: Publish Web for Container
       run: |
         echo "Publishing Web with version: ${{ steps.gitversion.outputs.semVer }}"
-        dotnet publish src/TaskManager.Web/TaskManager.Web.csproj --configuration Release --output ./publish/web --runtime linux-x64 --self-contained false /p:Version=${{ steps.gitversion.outputs.semVer }}
+        dotnet publish src/TaskManager.Web2/TaskManager.Web2.csproj --configuration Release --output ./publish/web --runtime linux-x64 --self-contained false /p:Version=${{ steps.gitversion.outputs.semVer }}
 
     - name: Create API Lambda deployment package
       run: |
@@ -230,7 +230,7 @@ jobs:
         echo "🌿 Branch tag: $BRANCH_TAG"
 
         # Build container image from root context
-        docker build -t taskmanager-web:$IMAGE_TAG -f src/TaskManager.Web/Dockerfile .
+        docker build -t taskmanager-web:$IMAGE_TAG -f src/TaskManager.Web2/Dockerfile .
 
         # Login to ECR
         aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin $ECR_REPO
@@ -317,7 +317,7 @@ jobs:
         
         # Upload nested stack templates
         aws s3 cp src/TaskManager.Api/api-template.yaml s3://$BUCKET_NAME/api-template.yaml
-        aws s3 cp src/TaskManager.Web/web-template.yaml s3://$BUCKET_NAME/web-template.yaml
+        aws s3 cp src/TaskManager.Web2/web-template.yaml s3://$BUCKET_NAME/web-template.yaml
 
         # Upload Lambda deployment packages
         aws s3 cp ./artifacts/api-lambda-deployment.zip s3://$BUCKET_NAME/api-lambda-deployment.zip
