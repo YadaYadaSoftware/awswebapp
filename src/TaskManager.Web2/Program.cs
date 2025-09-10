@@ -21,6 +21,7 @@ builder.Services.AddRazorPages();
 builder.Services.AddServerSideBlazor();
 builder.Services.AddScoped<AuthenticationStateProvider, RevalidatingIdentityAuthenticationStateProvider<IdentityUser>>();
 builder.Services.AddSingleton<WeatherForecastService>();
+builder.Services.AddHealthChecks();
 var configuration = builder.Configuration;
 builder.Services.AddAuthentication().AddGoogle(googleOptions =>
 {
@@ -51,6 +52,7 @@ app.UseRouting();
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapHealthChecks("/health");
 app.MapBlazorHub();
 app.MapFallbackToPage("/_Host");
 
