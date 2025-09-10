@@ -6,6 +6,7 @@ using TaskManager.Data;
 using TaskManager.Web.Data;
 using AWS.Logger.AspNetCore;
 
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Get version information
