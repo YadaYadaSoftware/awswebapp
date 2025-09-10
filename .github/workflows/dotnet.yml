@@ -176,7 +176,7 @@ jobs:
     needs: [build, deploy-infrastructure, yaml-lint]
     concurrency:
       group: deploy-application-${{ github.ref }}
-      cancel-in-progress: true
+      cancel-in-progress: false
     outputs:
       api-endpoint: ${{ steps.get-endpoints.outputs.api-endpoint }}
       web-endpoint: ${{ steps.get-endpoints.outputs.web-endpoint }}
