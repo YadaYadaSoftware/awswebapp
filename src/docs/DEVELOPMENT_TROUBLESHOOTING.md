@@ -55,23 +55,6 @@ Could not find the global property 'UserSecretsId' in MSBuild project
 - API Project: `taskmanager-api-secrets`
 - Web Project: `taskmanager-web-secrets`
 
-### Authentication State Issues
-
-**Problem**: Blazor components fail with:
-```
-Authorization requires a cascading parameter of type Task<AuthenticationState>
-```
-
-**Solution**: Ensure `App.razor` wraps the Router with `CascadingAuthenticationState`:
-
-```razor
-<CascadingAuthenticationState>
-    <Router AppAssembly="@typeof(App).Assembly">
-        <!-- Router content -->
-    </Router>
-</CascadingAuthenticationState>
-```
-
 ## Development Workflow Best Practices
 
 ### Before Building
