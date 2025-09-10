@@ -12,8 +12,7 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
 
         builder.HasKey(u => u.Id);
 
-        builder.Property(u => u.Id)
-            .HasDefaultValueSql("gen_random_uuid()");
+        builder.Property(u => u.Id);
 
         builder.Property(u => u.Email)
             .IsRequired()
@@ -31,12 +30,10 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
             .HasMaxLength(255);
 
         builder.Property(u => u.CreatedAt)
-            .IsRequired()
-            .HasDefaultValueSql("CURRENT_TIMESTAMP");
+            .IsRequired();
 
         builder.Property(u => u.UpdatedAt)
-            .IsRequired()
-            .HasDefaultValueSql("CURRENT_TIMESTAMP");
+            .IsRequired();
 
         builder.Property(u => u.IsActive)
             .IsRequired()

@@ -101,8 +101,7 @@ public class TaskManagerDbContext : DbContext
 
         modelBuilder.Entity<User>()
             .HasIndex(u => u.GoogleId)
-            .IsUnique()
-            .HasFilter("\"GoogleId\" IS NOT NULL");
+            .IsUnique();
 
         // Project indexes
         modelBuilder.Entity<Project>()
@@ -158,7 +157,7 @@ public class TaskManagerDbContext : DbContext
     private void UpdateTimestamps()
     {
         var entries = ChangeTracker.Entries()
-            .Where(e => e.Entity is User || e.Entity is Project || e.Entity is Entities.Task)
+            .Where(e => e.Entity is User || e.Entity is Project || e.Entity is Entities.Task || e.Entity is ProjectMember || e.Entity is Invitation)
             .Where(e => e.State == EntityState.Added || e.State == EntityState.Modified);
 
         foreach (var entry in entries)
@@ -167,20 +166,34 @@ public class TaskManagerDbContext : DbContext
 
             if (entry.State == EntityState.Added)
             {
+                // Generate Id if not set
                 if (entry.Entity is User user)
                 {
+                    if (user.Id == Guid.Empty) user.Id = Guid.NewGuid();
                     user.CreatedAt = now;
                     user.UpdatedAt = now;
                 }
                 else if (entry.Entity is Project project)
                 {
+                    if (project.Id == Guid.Empty) project.Id = Guid.NewGuid();
                     project.CreatedAt = now;
                     project.UpdatedAt = now;
                 }
                 else if (entry.Entity is Entities.Task task)
                 {
+                    if (task.Id == Guid.Empty) task.Id = Guid.NewGuid();
                     task.CreatedAt = now;
                     task.UpdatedAt = now;
+                }
+                else if (entry.Entity is ProjectMember projectMember)
+                {
+                    // ProjectMember has composite key, no Id to generate
+                    projectMember.JoinedAt = now;
+                }
+                else if (entry.Entity is Invitation invitation)
+                {
+                    if (invitation.Id == Guid.Empty) invitation.Id = Guid.NewGuid();
+                    invitation.InvitedAt = now;
                 }
             }
             else if (entry.State == EntityState.Modified)

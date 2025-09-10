@@ -37,7 +37,21 @@ public class Program
         services.AddDbContext<TaskManagerDbContext>(options =>
         {
             var connectionString = configuration.GetConnectionString("DefaultConnection");
-            options.UseNpgsql(connectionString);
+            if (string.IsNullOrEmpty(connectionString))
+            {
+                throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+            }
+
+            // Use SQL Server in development, PostgreSQL in production
+            if (Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") == "Development" ||
+                Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT") == "Development")
+            {
+                options.UseSqlServer(connectionString);
+            }
+            else
+            {
+                options.UseNpgsql(connectionString);
+            }
         });
         
         // Add migration service

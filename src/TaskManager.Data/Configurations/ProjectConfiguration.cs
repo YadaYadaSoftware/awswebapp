@@ -12,8 +12,7 @@ public class ProjectConfiguration : IEntityTypeConfiguration<Project>
 
         builder.HasKey(p => p.Id);
 
-        builder.Property(p => p.Id)
-            .HasDefaultValueSql("gen_random_uuid()");
+        builder.Property(p => p.Id);
 
         builder.Property(p => p.Name)
             .IsRequired()
@@ -26,12 +25,10 @@ public class ProjectConfiguration : IEntityTypeConfiguration<Project>
             .IsRequired();
 
         builder.Property(p => p.CreatedAt)
-            .IsRequired()
-            .HasDefaultValueSql("CURRENT_TIMESTAMP");
+            .IsRequired();
 
         builder.Property(p => p.UpdatedAt)
-            .IsRequired()
-            .HasDefaultValueSql("CURRENT_TIMESTAMP");
+            .IsRequired();
 
         builder.Property(p => p.IsActive)
             .IsRequired()

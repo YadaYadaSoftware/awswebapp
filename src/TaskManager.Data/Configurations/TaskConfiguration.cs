@@ -13,8 +13,7 @@ public class TaskConfiguration : IEntityTypeConfiguration<Entities.Task>
 
         builder.HasKey(t => t.Id);
 
-        builder.Property(t => t.Id)
-            .HasDefaultValueSql("gen_random_uuid()");
+        builder.Property(t => t.Id);
 
         builder.Property(t => t.Title)
             .IsRequired()
@@ -37,12 +36,10 @@ public class TaskConfiguration : IEntityTypeConfiguration<Entities.Task>
             .HasDefaultValue(TaskPriority.Medium);
 
         builder.Property(t => t.CreatedAt)
-            .IsRequired()
-            .HasDefaultValueSql("CURRENT_TIMESTAMP");
+            .IsRequired();
 
         builder.Property(t => t.UpdatedAt)
-            .IsRequired()
-            .HasDefaultValueSql("CURRENT_TIMESTAMP");
+            .IsRequired();
 
         // Relationships are configured in DbContext
     }
