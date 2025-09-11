@@ -61,15 +61,15 @@ Resources:
       LogGroupName: !Sub '/aws/lambda/TaskManagerApi-${Environment}'
       RetentionInDays: 7
 
-  # Lambda Layer for PostgreSQL dependencies
-  PostgresLayer:
+  # Lambda Layer for MySQL dependencies
+  MySQLLayer:
     Type: AWS::Lambda::LayerVersion
     Properties:
-      LayerName: !Sub 'taskmanager-postgres-layer-${Environment}'
-      Description: 'PostgreSQL dependencies for Lambda'
+      LayerName: !Sub 'taskmanager-mysql-layer-${Environment}'
+      Description: 'MySQL dependencies for Lambda'
       Content:
         S3Bucket: !Ref ApiCodeBucket
-        S3Key: 'postgres-layer.zip'
+        S3Key: 'mysql-layer.zip'
       CompatibleRuntimes:
         - python3.9
 
@@ -78,18 +78,18 @@ Resources:
     Type: AWS::Serverless::Function
     DependsOn:
       - DatabaseSetupLogGroup
-      - PostgresLayer
+      - MySQLLayer
     Properties:
       FunctionName: !Sub 'TaskManager-DbSetup-${Environment}'
       Timeout: 120
       Layers:
-        - !Ref PostgresLayer
+        - !Ref MySQLLayer
       InlineCode: |
         import json
         import boto3
         import os
         import logging
-        import pg8000
+        import pymysql
 
         logger = logging.getLogger()
         logger.setLevel(logging.INFO)
@@ -125,9 +125,9 @@ Resources:
                 branch_name = os.environ['BRANCH_NAME']
                 db_name = f"taskmanager_{branch_name}"
 
-                # Validate database name (basic validation)
-                if not all(c.isalnum() or c in '_-' for c in db_name):
-                    error_msg = f"Invalid database name: {db_name}"
+                # Validate database name (MySQL naming rules)
+                if not db_name.replace('_', '').replace('-', '').isalnum() or len(db_name) > 64:
+                    error_msg = f"Invalid database name: {db_name} (must be alphanumeric, underscore, or hyphen, max 64 chars)"
                     logger.error(error_msg)
                     return {
                         'statusCode': 400,
@@ -136,28 +136,28 @@ Resources:
 
                 logger.info(f"Attempting to setup database: {db_name}")
 
-                # Connect to PostgreSQL using pg8000
+                # Connect to MySQL using PyMySQL
                 try:
-                    conn = pg8000.connect(
+                    conn = pymysql.connect(
                         host=os.environ['DB_HOST'],
                         user=os.environ['DB_USER'],
                         password=os.environ['DB_PASSWORD'],
-                        database='postgres'
+                        database='taskmanager',
+                        port=3306,
+                        ssl={'ssl': {}}
                     )
-                    logger.info("Successfully connected to PostgreSQL")
+                    logger.info("Successfully connected to MySQL")
 
-                    # Set autocommit mode for DDL operations
-                    conn.autocommit = True
+                    # MySQL autocommit is enabled by default
                     cursor = conn.cursor()
 
-                    # Check if database exists (using parameterized query)
-                    cursor.execute("SELECT 1 FROM pg_database WHERE datname = %s", [db_name])
+                    # Check if database exists
+                    cursor.execute("SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME = %s", [db_name])
                     exists = cursor.fetchone()
 
                     if not exists:
-                        # Create database with proper quoting
-                        # DDL operations must be in autocommit mode
-                        cursor.execute('CREATE DATABASE "%s"' % db_name)
+                        # Create database
+                        cursor.execute(f"CREATE DATABASE `{db_name}`")
                         logger.info(f"Created database: {db_name}")
                         message = f"Database {db_name} created successfully"
                     else:
@@ -230,7 +230,7 @@ Resources:
         Variables:
           ASPNETCORE_ENVIRONMENT: !Ref Environment
           ConnectionStrings__DefaultConnection: !Sub
-            - 'Host=${DatabaseEndpoint};Database=taskmanager_${DatabaseName};Username=taskmanager_admin;Password=${DatabasePassword}'
+            - 'Server=${DatabaseEndpoint};Database=taskmanager_${DatabaseName};User Id=taskmanager_admin;Password=${DatabasePassword};SslMode=Required;'
             - DatabaseEndpoint: !Ref DatabaseEndpoint
               DatabaseName: !Sub '${Environment}'
               DatabasePassword: !Sub '{{resolve:secretsmanager:taskmanager/database/shared:SecretString:password}}'

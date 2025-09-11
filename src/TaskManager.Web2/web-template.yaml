@@ -208,9 +208,8 @@ Resources:
               Value: 'Production'
             - Name: ConnectionStrings__DefaultConnection
               Value: !Sub
-                - 'Host=${DatabaseEndpoint};Database=taskmanager_${DatabaseName};Username=taskmanager_admin;Password=${DatabasePassword}'
-                - DatabaseEndpoint:
-                    Fn::ImportValue: 'TaskManager-DatabaseEndpoint'
+                - 'Server=${DatabaseEndpoint};Database=taskmanager_${DatabaseName};User Id=taskmanager_admin;Password=${DatabasePassword};SslMode=Required;'
+                - DatabaseEndpoint: !Ref DatabaseEndpoint
                   DatabaseName: !Sub '${Environment}'
                   DatabasePassword: !Sub '{{resolve:secretsmanager:taskmanager/database/shared:SecretString:password}}'
             - Name: ASPNETCORE_URLS

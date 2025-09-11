@@ -279,19 +279,106 @@ Resources:
       Roles:
         - !Ref BastionRole
 
+  # Aurora Global Database Cluster (Primary)
+  AuroraGlobalCluster:
+    Type: AWS::RDS::GlobalCluster
+    Properties:
+      GlobalClusterIdentifier: 'taskmanager-global-cluster'
+      Engine: aurora-mysql
+      EngineVersion: '8.0.mysql_aurora.3.05.2'
+      DatabaseName: 'taskmanager'
+      MasterUsername: 'taskmanager_admin'
+      MasterUserPassword: !Ref DatabasePassword
+      DeletionProtection: false
+
+  # Aurora DB Subnet Group for Global Cluster
+  AuroraDBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: 'Subnet group for Aurora Global Database'
+      SubnetIds:
+        - !ImportValue 'TaskManager-PrivateSubnet1'
+        - !ImportValue 'TaskManager-PrivateSubnet2'
+      DBSubnetGroupName: 'taskmanager-aurora-subnet-group'
+      Tags:
+        - Key: Name
+          Value: 'TaskManager-Aurora-SubnetGroup'
+
+  # Aurora DB Cluster Parameter Group
+  AuroraClusterParameterGroup:
+    Type: AWS::RDS::DBClusterParameterGroup
+    Properties:
+      Family: aurora-mysql8.0
+      Description: 'Parameter group for Aurora MySQL cluster'
+      Parameters:
+        character_set_server: utf8mb4
+        collation_server: utf8mb4_unicode_ci
+        innodb_buffer_pool_size: '{DBInstanceClassMemory*3/4}'
+        max_connections: '200'
+        query_cache_type: '0'
+        slow_query_log: '1'
+        long_query_time: '2'
+
+  # Primary Aurora Cluster (us-east-1)
+  AuroraPrimaryCluster:
+    Type: AWS::RDS::DBCluster
+    Properties:
+      GlobalClusterIdentifier: !Ref AuroraGlobalCluster
+      Engine: aurora-mysql
+      EngineVersion: '8.0.mysql_aurora.3.05.2'
+      DatabaseName: 'taskmanager'
+      MasterUsername: 'taskmanager_admin'
+      MasterUserPassword: !Ref DatabasePassword
+      DBSubnetGroupName: !Ref AuroraDBSubnetGroup
+      VpcSecurityGroupIds:
+        - !ImportValue 'TaskManager-RDSSecurityGroup'
+      BackupRetentionPeriod: 7
+      PreferredBackupWindow: '03:00-04:00'
+      PreferredMaintenanceWindow: 'sun:04:00-sun:05:00'
+      StorageEncrypted: true
+      DeletionProtection: false
+      EnableCloudwatchLogsExports:
+        - audit
+        - error
+        - general
+        - slowquery
+      Tags:
+        - Key: Name
+          Value: 'TaskManager-Aurora-Primary'
+        - Key: Purpose
+          Value: 'Global Database Primary'
+
+  # Primary Aurora DB Instance
+  AuroraPrimaryInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBInstanceIdentifier: 'taskmanager-aurora-primary'
+      DBClusterIdentifier: !Ref AuroraPrimaryCluster
+      DBInstanceClass: db.r6g.large
+      Engine: aurora-mysql
+      PubliclyAccessible: false
+      Tags:
+        - Key: Name
+          Value: 'TaskManager-Aurora-Primary-Instance'
+        - Key: Purpose
+          Value: 'Global Database Primary Instance'
+
   # Secrets Manager for database credentials
   DatabaseSecret:
     Type: AWS::SecretsManager::Secret
     Properties:
       Name: 'taskmanager/database/shared'
-      Description: Database credentials for shared TaskManager RDS instance
+      Description: Database credentials for Aurora Global Database
       SecretString: !Sub |
         {
           "username": "taskmanager_admin",
           "password": "${DatabasePassword}",
-          "engine": "postgres",
-          "host": "PLACEHOLDER",  # Will be updated after RDS creation
-          "port": 5432
+          "engine": "aurora-mysql",
+          "host": "${AuroraPrimaryCluster.Endpoint.Address}",
+          "port": 3306,
+          "dbname": "taskmanager",
+          "cluster_arn": "${AuroraPrimaryCluster}",
+          "secret_arn": "${AWS::StackName}"
         }
 
   # SNS Topic for Deployment Notifications
@@ -354,3 +441,21 @@ Outputs:
     Value: !Ref DeploymentNotificationTopic
     Export:
       Name: 'TaskManager-DeploymentNotificationTopic'
+
+  AuroraGlobalClusterId:
+    Description: 'Aurora Global Database cluster identifier'
+    Value: !Ref AuroraGlobalCluster
+    Export:
+      Name: 'TaskManager-AuroraGlobalCluster'
+
+  DatabaseEndpoint:
+    Description: 'Aurora MySQL primary cluster endpoint'
+    Value: !GetAtt AuroraPrimaryCluster.Endpoint.Address
+    Export:
+      Name: 'TaskManager-DatabaseEndpoint'
+
+  DatabaseReaderEndpoint:
+    Description: 'Aurora MySQL reader endpoint'
+    Value: !GetAtt AuroraPrimaryCluster.ReaderEndpoint
+    Export:
+      Name: 'TaskManager-DatabaseReaderEndpoint'

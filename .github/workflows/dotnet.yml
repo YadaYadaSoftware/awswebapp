@@ -120,24 +120,24 @@ jobs:
         name: api-lambda-package
         path: api-lambda-deployment.zip
 
-    - name: Create PostgreSQL Lambda Layer
+    - name: Create MySQL Lambda Layer
       run: |
         # Create layer directory structure
         mkdir -p python/lib/python3.9/site-packages
 
-        # Install pg8000 (pure Python PostgreSQL driver)
-        pip install pg8000 -t python/lib/python3.9/site-packages/
+        # Install PyMySQL (pure Python MySQL driver)
+        pip install PyMySQL -t python/lib/python3.9/site-packages/
 
         # Create layer ZIP file
-        zip -r postgres-layer.zip python/
+        zip -r mysql-layer.zip python/
 
-        echo "PostgreSQL layer created successfully"
+        echo "MySQL layer created successfully"
 
-    - name: Upload PostgreSQL Layer
+    - name: Upload MySQL Layer
       uses: actions/upload-artifact@v4
       with:
-        name: postgres-layer-package
-        path: postgres-layer.zip
+        name: mysql-layer-package
+        path: mysql-layer.zip
 
     - name: Create ECR Cleanup Lambda Layer
       run: |
@@ -501,10 +501,10 @@ jobs:
         name: api-lambda-package
         path: ./artifacts/
 
-    - name: Download PostgreSQL Layer
+    - name: Download MySQL Layer
       uses: actions/download-artifact@v4
       with:
-        name: postgres-layer-package
+        name: mysql-layer-package
         path: ./artifacts/
 
     - name: Download ECR Cleanup Layer
@@ -560,8 +560,8 @@ jobs:
         # Upload Lambda deployment packages
         aws s3 cp ./artifacts/api-lambda-deployment.zip s3://$BUCKET_NAME/api-lambda-deployment.zip --region us-east-1
 
-        # Upload PostgreSQL layer
-        aws s3 cp ./artifacts/postgres-layer.zip s3://$BUCKET_NAME/postgres-layer.zip --region us-east-1
+        # Upload MySQL layer
+        aws s3 cp ./artifacts/mysql-layer.zip s3://$BUCKET_NAME/mysql-layer.zip --region us-east-1
 
         # Upload ECR cleanup layer
         aws s3 cp ./artifacts/ecr-cleanup-layer.zip s3://$BUCKET_NAME/ecr-cleanup-layer.zip --region us-east-1

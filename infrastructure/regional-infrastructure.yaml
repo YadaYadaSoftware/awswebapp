@@ -6,7 +6,10 @@ Parameters:
     Type: String
     NoEcho: true
     MinLength: 8
-    Description: 'Password for the RDS PostgreSQL database'
+    Description: 'Password for the Aurora MySQL database'
+
+Conditions:
+  IsNotUSEast1: !Not [!Equals [!Ref AWS::Region, 'us-east-1']]
 
   BastionPublicKeyMaterial:
     Type: String
@@ -582,62 +585,101 @@ Resources:
         - Key: Purpose
           Value: 'Regional Infrastructure'
 
-  # RDS Database (Shared)
-  DBSubnetGroup:
+  # Aurora DB Subnet Group for Secondary Cluster
+  AuroraDBSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
     Properties:
-      DBSubnetGroupDescription: Subnet group for TaskManager RDS
+      DBSubnetGroupDescription: 'Subnet group for Aurora Secondary Cluster'
       SubnetIds:
         - !Ref PrivateSubnet1
         - !Ref PrivateSubnet2
+      DBSubnetGroupName: !Sub 'taskmanager-aurora-subnet-group-${AWS::Region}'
       Tags:
         - Key: Name
-          Value: 'TaskManager-DB-SubnetGroup'
+          Value: 'TaskManager-Aurora-SubnetGroup'
+        - Key: Region
+          Value: !Ref AWS::Region
 
-  TaskManagerDatabase:
-    Type: AWS::RDS::DBInstance
+  # Aurora DB Cluster Parameter Group
+  AuroraClusterParameterGroup:
+    Type: AWS::RDS::DBClusterParameterGroup
     Properties:
-      DBInstanceIdentifier: 'taskmanager-shared-db'
-      DBInstanceClass: db.t4g.micro
-      Engine: postgres
-      EngineVersion: '17.6'
-      MasterUsername: taskmanager_admin
-      MasterUserPassword: !Ref DatabasePassword
-      AllocatedStorage: 20
-      MaxAllocatedStorage: 100
-      StorageType: gp2
-      VPCSecurityGroups:
+      Family: aurora-mysql8.0
+      Description: 'Parameter group for Aurora MySQL secondary cluster'
+      Parameters:
+        character_set_server: utf8mb4
+        collation_server: utf8mb4_unicode_ci
+        innodb_buffer_pool_size: '{DBInstanceClassMemory*3/4}'
+        max_connections: '200'
+        query_cache_type: '0'
+        slow_query_log: '1'
+        long_query_time: '2'
+
+  # Secondary Aurora Cluster (for regions other than us-east-1)
+  AuroraSecondaryCluster:
+    Type: AWS::RDS::DBCluster
+    Condition: IsNotUSEast1
+    Properties:
+      GlobalClusterIdentifier: !ImportValue 'TaskManager-AuroraGlobalCluster'
+      Engine: aurora-mysql
+      EngineVersion: '8.0.mysql_aurora.3.05.2'
+      DBSubnetGroupName: !Ref AuroraDBSubnetGroup
+      VpcSecurityGroupIds:
         - !Ref RDSSecurityGroup
-      DBSubnetGroupName: !Ref DBSubnetGroup
       BackupRetentionPeriod: 7
+      PreferredBackupWindow: '03:00-04:00'
+      PreferredMaintenanceWindow: 'sun:04:00-sun:05:00'
       StorageEncrypted: true
       DeletionProtection: false
-      PubliclyAccessible: false
-      MultiAZ: false
+      EnableCloudwatchLogsExports:
+        - audit
+        - error
+        - general
+        - slowquery
       Tags:
         - Key: Name
-          Value: 'TaskManager-Shared-Database'
-        - Key: Purpose
-          Value: 'Regional Infrastructure'
+          Value: !Sub 'TaskManager-Aurora-Secondary-${AWS::Region}'
+          Value: 'Global Database Secondary'
 
-  # Update Database Secret with actual host
-  DatabaseSecretUpdate:
-    Type: AWS::SecretsManager::Secret
-    DependsOn: TaskManagerDatabase
+  # Secondary Aurora DB Instance
+  AuroraSecondaryInstance:
+    Type: AWS::RDS::DBInstance
+    Condition: IsNotUSEast1
     Properties:
-      Name: !Sub 'taskmanager/database/shared-${AWS::Region}'
-      Description: Database credentials for shared TaskManager RDS instance
+      DBInstanceIdentifier: !Sub 'taskmanager-aurora-secondary-${AWS::Region}'
+      DBClusterIdentifier: !Ref AuroraSecondaryCluster
+      DBInstanceClass: db.r6g.large
+      Engine: aurora-mysql
+      PubliclyAccessible: false
+      Tags:
+        - Key: Name
+          Value: !Sub 'TaskManager-Aurora-Secondary-Instance-${AWS::Region}'
+        - Key: Purpose
+          Value: 'Global Database Secondary Instance'
+
+  # Regional Database Secret (for secondary regions)
+  RegionalDatabaseSecret:
+    Type: AWS::SecretsManager::Secret
+    Condition: IsNotUSEast1
+    Properties:
+      Name: !Sub 'taskmanager/database/regional-${AWS::Region}'
+      Description: !Sub 'Database credentials for Aurora cluster in ${AWS::Region}'
       SecretString: !Sub |
         {
           "username": "taskmanager_admin",
           "password": "${DatabasePassword}",
-          "engine": "postgres",
-          "host": "${TaskManagerDatabase.Endpoint.Address}",
-          "port": 5432
+          "engine": "aurora-mysql",
+          "host": "${AuroraSecondaryCluster.Endpoint.Address}",
+          "port": 3306,
+          "dbname": "taskmanager",
+          "region": "${AWS::Region}",
+          "is_primary": false
         }
       Tags:
         - Key: Purpose
-          Value: 'Regional Infrastructure'
+          Value: 'Regional Database'
+        - Key: Region
+          Value: !Ref AWS::Region
 
   # SSH Key Pair for Bastion
   BastionKeyPair:
@@ -669,20 +711,22 @@ Resources:
         Fn::Base64: !Sub |
           #!/bin/bash
           yum update -y
-          yum install -y postgresql15
+          yum install -y mysql
 
           # Create connection helper script
           cat > /home/ec2-user/connect-to-db.sh << 'EOF'
           #!/bin/bash
-          echo "TaskManager Shared Database Connection Helper"
-          echo "RDS Endpoint: ${TaskManagerDatabase.Endpoint.Address}"
+          echo "TaskManager Aurora MySQL Database Connection Helper"
+          echo "Aurora Endpoint: ${AuroraSecondaryCluster.Endpoint.Address}"
           echo ""
-          echo "To connect to shared database:"
-          echo "psql -h ${TaskManagerDatabase.Endpoint.Address} -U taskmanager_admin"
+          echo "To connect to Aurora MySQL database:"
+          echo "mysql -h ${AuroraSecondaryCluster.Endpoint.Address} -u taskmanager_admin -p"
           echo ""
           echo "Available databases:"
-          echo "- Connect and run: \\l to list all databases"
+          echo "- Connect and run: SHOW DATABASES; to list all databases"
           echo "- Each branch creates its own database (e.g., taskmanager_main, taskmanager_feature1)"
+          echo ""
+          echo "Note: This is a secondary cluster in the Aurora Global Database"
           EOF
 
           chmod +x /home/ec2-user/connect-to-db.sh
@@ -737,10 +781,16 @@ Outputs:
       Name: 'TaskManager-RDSSecurityGroup'
 
   DatabaseEndpoint:
-    Description: 'Shared RDS PostgreSQL endpoint'
-    Value: !GetAtt TaskManagerDatabase.Endpoint.Address
+    Description: 'Aurora MySQL cluster endpoint'
+    Value: !If [IsNotUSEast1, !GetAtt AuroraSecondaryCluster.Endpoint.Address, !ImportValue 'TaskManager-DatabaseEndpoint']
     Export:
       Name: 'TaskManager-DatabaseEndpoint'
+
+  DatabaseReaderEndpoint:
+    Description: 'Aurora MySQL reader endpoint'
+    Value: !If [IsNotUSEast1, !GetAtt AuroraSecondaryCluster.ReaderEndpoint, !ImportValue 'TaskManager-DatabaseReaderEndpoint']
+    Export:
+      Name: 'TaskManager-DatabaseReaderEndpoint'
 
   DatabaseSecretArn:
     Description: 'Database secret ARN'
