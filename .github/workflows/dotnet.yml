@@ -434,9 +434,10 @@ jobs:
       run: |
         # Upload all templates
         echo "Uploading templates to S3..."
-        aws s3 cp regional.yaml s3://${{ needs.get-bucket-name.outputs.bucket-name }}/ --region us-east-1
+        aws s3 cp infrastructure/regional-infrastructure.yaml s3://${{ needs.get-bucket-name.outputs.bucket-name }}/ --region us-east-1
         aws s3 cp src/TaskManager.Api/api-template.yaml s3://${{ needs.get-bucket-name.outputs.bucket-name }}/ --region us-east-1
         aws s3 cp src/TaskManager.Web2/web-template.yaml s3://${{ needs.get-bucket-name.outputs.bucket-name }}/ --region us-east-1
+        aws s3 cp wrapper-template.yaml s3://${{ needs.get-bucket-name.outputs.bucket-name }}/ --region us-east-1
 
         # Verify uploads
         echo "Verifying S3 uploads..."
@@ -520,14 +521,55 @@ jobs:
 
         echo "✅ All parameter values are present, proceeding with deployment..."
 
-    - name: Get branch name for stack naming
+    - name: Deploy Regional Infrastructure
+      uses: aws-actions/aws-cloudformation-github-deploy@v1
+      with:
+        name: taskmanager-regional-infrastructure-${{ matrix.region }}
+        template: infrastructure/regional-infrastructure.yaml
+        parameter-overrides: "DatabasePassword=${{ secrets.DATABASE_PASSWORD }},SharedLambdaRoleArn=${{ steps.get-global-values.outputs.shared-lambda-role-arn }},BastionRoleArn=${{ steps.get-global-values.outputs.bastion-role-arn }},DatabaseSecretArn=${{ steps.get-global-values.outputs.database-secret-arn }}"
+        capabilities: "CAPABILITY_NAMED_IAM"
+        no-fail-on-empty-changeset: "1"
+      timeout-minutes: 15
+
+    - name: Verify Regional Infrastructure Deployment
       run: |
-        BRANCH_NAME=${GITHUB_REF#refs/heads/}
-        STACK_NAME="taskmanager-${BRANCH_NAME}"
-        echo "Branch: $BRANCH_NAME"
-        echo "Stack name: $STACK_NAME"
-        echo "STACK_NAME=$STACK_NAME" >> $GITHUB_ENV
-        echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
+        echo "🔍 Verifying regional infrastructure deployment in ${{ matrix.region }}..."
+        aws cloudformation wait stack-create-complete \
+          --stack-name taskmanager-regional-infrastructure-${{ matrix.region }} \
+          --region ${{ matrix.region }}
+
+        echo "✅ Regional infrastructure deployed successfully in ${{ matrix.region }}"
+        aws cloudformation describe-stacks \
+          --stack-name taskmanager-regional-infrastructure-${{ matrix.region }} \
+          --region ${{ matrix.region }} \
+          --query 'Stacks[0].StackStatus'
+
+  deploy-application:
+    name: Deploy Branch Application
+    runs-on: ubuntu-latest
+    needs: [build, deploy-infrastructure, yaml-lint, get-bucket-name]
+    concurrency:
+      group: deploy-application-${{ github.ref }}
+      cancel-in-progress: false
+    strategy:
+      matrix:
+        region: [us-east-1, us-east-2]
+    outputs:
+      api-endpoint: ${{ steps.get-endpoints.outputs.api-endpoint }}
+      web-endpoint: ${{ steps.get-endpoints.outputs.web-endpoint }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ matrix.region }}
 
     - name: Build and Push Web Container Image
       env:
@@ -536,12 +578,29 @@ jobs:
         AWS_DEFAULT_REGION: ${{ env.AWS_REGION }}
       run: |
         # Use GitVersion for unique image tagging
+        BRANCH_NAME=${GITHUB_REF#refs/heads/}
         IMAGE_TAG=${{ needs.build.outputs.semVer }}
         BRANCH_TAG=${BRANCH_NAME:-main}
 
-        # Construct ECR repository URI
-        ECR_REPO="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ matrix.region }}.amazonaws.com/taskmanager-web"
-        echo "📝 Using ECR repository URI: $ECR_REPO"
+        # Get ECR repository URI from CloudFormation outputs
+        echo "Querying CloudFormation for ECR repository URI..."
+        ECR_REPO=$(aws cloudformation describe-stacks \
+          --stack-name taskmanager-regional-infrastructure-${{ matrix.region }} \
+          --query 'Stacks[0].Outputs[?OutputKey==`WebECRRepositoryUri`].OutputValue' \
+          --output text \
+          --region ${{ matrix.region }} 2>/dev/null || echo "")
+
+        # Debug: Show what we got from CloudFormation
+        echo "CloudFormation query result: '$ECR_REPO'"
+
+        # Fallback: construct ECR repo URI if CloudFormation query fails
+        if [ -z "$ECR_REPO" ] || [ "$ECR_REPO" = "None" ] || [ "$ECR_REPO" = "null" ]; then
+          echo "❌ CloudFormation ECR query failed or returned empty, using fallback URI"
+          ECR_REPO="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ matrix.region }}.amazonaws.com/taskmanager-web"
+          echo "📝 Constructed fallback ECR URI: $ECR_REPO"
+        else
+          echo "✅ Successfully retrieved ECR URI from CloudFormation: $ECR_REPO"
+        fi
 
         echo "🎯 Final ECR repository: $ECR_REPO"
         echo "🏷️ Version tag: $IMAGE_TAG"
@@ -571,6 +630,41 @@ jobs:
         fi
 
         echo "CONTAINER_IMAGE=$ECR_REPO:$IMAGE_TAG" >> $GITHUB_ENV
+
+    - name: Get branch name for stack naming
+      run: |
+        BRANCH_NAME=${GITHUB_REF#refs/heads/}
+        STACK_NAME="taskmanager-${BRANCH_NAME}"
+        echo "Branch: $BRANCH_NAME"
+        echo "Stack name: $STACK_NAME"
+        echo "STACK_NAME=$STACK_NAME" >> $GITHUB_ENV
+        echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
+
+    - name: Setup SAM CLI
+      uses: aws-actions/setup-sam@v2
+      with:
+        use-installer: true
+
+    - name: Cleanup failed branch stack (if exists)
+      run: |
+        STACK_STATUS=$(aws cloudformation describe-stacks \
+          --stack-name ${{ env.STACK_NAME }}-${{ matrix.region }} \
+          --region ${{ matrix.region }} \
+          --query 'Stacks[0].StackStatus' \
+          --output text 2>/dev/null || echo "STACK_NOT_FOUND")
+
+        if [ "$STACK_STATUS" = "ROLLBACK_COMPLETE" ] || [ "$STACK_STATUS" = "CREATE_FAILED" ] || [ "$STACK_STATUS" = "DELETE_FAILED" ]; then
+          echo "🗑️ Deleting failed branch stack: ${{ env.STACK_NAME }}-${{ matrix.region }}"
+          aws cloudformation delete-stack \
+            --stack-name ${{ env.STACK_NAME }}-${{ matrix.region }} \
+            --region ${{ matrix.region }}
+
+          aws cloudformation wait stack-delete-complete \
+            --stack-name ${{ env.STACK_NAME }}-${{ matrix.region }} \
+            --region ${{ matrix.region }}
+
+          echo "✅ Failed branch stack cleaned up"
+        fi
 
     - name: Download Lambda packages
       uses: actions/download-artifact@v4
@@ -645,98 +739,23 @@ jobs:
         echo "S3 bucket contents:"
         aws s3 ls s3://${{ needs.get-bucket-name.outputs.bucket-name }}/ --region us-east-1
 
-    - name: Deploy Regional Infrastructure and Application
+    - name: Deploy Wrapper Template (Nested Stacks)
       uses: aws-actions/aws-cloudformation-github-deploy@v1
       with:
         name: ${{ env.STACK_NAME }}-${{ matrix.region }}
-        template: regional.yaml
-        parameter-overrides: "Environment=${{ env.BRANCH_NAME }},ApiCodeBucket=${{ needs.get-bucket-name.outputs.bucket-name }},WebContainerImage=${{ env.CONTAINER_IMAGE }},DeploymentToken=${{ github.sha }},DomainName=appcloud.systems,HostedZoneId=Z06422172SASV44F5Y8VA,DatabasePassword=${{ secrets.DATABASE_PASSWORD }},SharedLambdaRoleArn=${{ steps.get-global-values.outputs.shared-lambda-role-arn }},BastionRoleArn=${{ steps.get-global-values.outputs.bastion-role-arn }},DatabaseSecretArn=${{ steps.get-global-values.outputs.database-secret-arn }},BastionPublicKeyMaterial=${{ secrets.BASTION_PUBLIC_KEY }}"
+        template: wrapper-template.yaml
+        parameter-overrides: Environment=${{ env.BRANCH_NAME }},ApiCodeBucket=${{ needs.get-bucket-name.outputs.bucket-name }},WebContainerImage=${{ env.CONTAINER_IMAGE }},DeploymentToken=${{ github.sha }},DomainName=appcloud.systems,HostedZoneId=Z06422172SASV44F5Y8VA,DatabasePassword=${{ secrets.DATABASE_PASSWORD }}
         capabilities: "CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND"
         no-fail-on-empty-changeset: "1"
-      timeout-minutes: 30
-
-    - name: Verify Regional Infrastructure and Application Deployment
-      run: |
-        echo "🔍 Verifying regional infrastructure and application deployment in ${{ matrix.region }}..."
-        aws cloudformation wait stack-create-complete \
-          --stack-name ${{ env.STACK_NAME }}-${{ matrix.region }} \
-          --region ${{ matrix.region }}
-
-        echo "✅ Regional infrastructure and application deployed successfully in ${{ matrix.region }}"
-        aws cloudformation describe-stacks \
-          --stack-name ${{ env.STACK_NAME }}-${{ matrix.region }} \
-          --region ${{ matrix.region }} \
-          --query 'Stacks[0].StackStatus'
-
-  deploy-application:
-    name: Deploy Branch Application
-    runs-on: ubuntu-latest
-    needs: [build, deploy-infrastructure, yaml-lint, get-bucket-name]
-    concurrency:
-      group: deploy-application-${{ github.ref }}
-      cancel-in-progress: false
-    strategy:
-      matrix:
-        region: [us-east-1, us-east-2]
-    outputs:
-      api-endpoint: ${{ steps.get-endpoints.outputs.api-endpoint }}
-      web-endpoint: ${{ steps.get-endpoints.outputs.web-endpoint }}
-
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: ${{ matrix.region }}
-
-
-    - name: Get branch name for stack naming
-      run: |
-        BRANCH_NAME=${GITHUB_REF#refs/heads/}
-        STACK_NAME="taskmanager-${BRANCH_NAME}"
-        echo "Branch: $BRANCH_NAME"
-        echo "Stack name: $STACK_NAME"
-        echo "STACK_NAME=$STACK_NAME" >> $GITHUB_ENV
-        echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
-
-    - name: Setup SAM CLI
-      uses: aws-actions/setup-sam@v2
-      with:
-        use-installer: true
-
-    - name: Cleanup failed branch stack (if exists)
-      run: |
-        STACK_STATUS=$(aws cloudformation describe-stacks \
-          --stack-name ${{ env.STACK_NAME }}-${{ matrix.region }} \
-          --region ${{ matrix.region }} \
-          --query 'Stacks[0].StackStatus' \
-          --output text 2>/dev/null || echo "STACK_NOT_FOUND")
-
-        if [ "$STACK_STATUS" = "ROLLBACK_COMPLETE" ] || [ "$STACK_STATUS" = "CREATE_FAILED" ] || [ "$STACK_STATUS" = "DELETE_FAILED" ]; then
-          echo "🗑️ Deleting failed branch stack: ${{ env.STACK_NAME }}-${{ matrix.region }}"
-          aws cloudformation delete-stack \
-            --stack-name ${{ env.STACK_NAME }}-${{ matrix.region }} \
-            --region ${{ matrix.region }}
-
-          aws cloudformation wait stack-delete-complete \
-            --stack-name ${{ env.STACK_NAME }}-${{ matrix.region }} \
-            --region ${{ matrix.region }}
-
-          echo "✅ Failed branch stack cleaned up"
-        fi
-
+      timeout-minutes: 20
 
     - name: Verify Application Deployment
       run: |
         echo "🔍 Verifying application deployment in ${{ matrix.region }}..."
-        # The deployment is already verified in deploy-infrastructure job
-        # Just check the stack status here
+        aws cloudformation wait stack-create-complete \
+          --stack-name ${{ env.STACK_NAME }}-${{ matrix.region }} \
+          --region ${{ matrix.region }}
+
         echo "✅ Application deployed successfully in ${{ matrix.region }}"
         aws cloudformation describe-stacks \
           --stack-name ${{ env.STACK_NAME }}-${{ matrix.region }} \
@@ -903,22 +922,36 @@ jobs:
           echo "✅ Global infrastructure: $GLOBAL_STATUS"
         fi
 
-        # Check regional infrastructure and application
+        # Check regional infrastructure
+        echo "Checking regional infrastructure..."
+        REGIONAL_STATUS=$(aws cloudformation describe-stacks \
+          --stack-name taskmanager-regional-infrastructure-${{ matrix.region }} \
+          --region ${{ matrix.region }} \
+          --query 'Stacks[0].StackStatus' \
+          --output text 2>/dev/null || echo "NOT_FOUND")
+
+        if [ "$REGIONAL_STATUS" != "CREATE_COMPLETE" ] && [ "$REGIONAL_STATUS" != "UPDATE_COMPLETE" ]; then
+          echo "❌ Regional infrastructure deployment failed: $REGIONAL_STATUS"
+          exit 1
+        fi
+        echo "✅ Regional infrastructure: $REGIONAL_STATUS"
+
+        # Check application deployment
         BRANCH_NAME=${GITHUB_REF#refs/heads/}
         STACK_NAME="taskmanager-${BRANCH_NAME}"
 
-        echo "Checking regional infrastructure and application..."
-        STACK_STATUS=$(aws cloudformation describe-stacks \
+        echo "Checking application deployment..."
+        APP_STATUS=$(aws cloudformation describe-stacks \
           --stack-name ${STACK_NAME}-${{ matrix.region }} \
           --region ${{ matrix.region }} \
           --query 'Stacks[0].StackStatus' \
           --output text 2>/dev/null || echo "NOT_FOUND")
 
-        if [ "$STACK_STATUS" != "CREATE_COMPLETE" ] && [ "$STACK_STATUS" != "UPDATE_COMPLETE" ]; then
-          echo "❌ Regional infrastructure and application deployment failed: $STACK_STATUS"
+        if [ "$APP_STATUS" != "CREATE_COMPLETE" ] && [ "$APP_STATUS" != "UPDATE_COMPLETE" ]; then
+          echo "❌ Application deployment failed: $APP_STATUS"
           exit 1
         fi
-        echo "✅ Regional infrastructure and application: $STACK_STATUS"
+        echo "✅ Application deployment: $APP_STATUS"
 
         echo "🎉 All deployments verified successfully in ${{ matrix.region }}!"
 
