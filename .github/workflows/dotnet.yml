@@ -215,6 +215,25 @@ jobs:
         name: sg-cleanup-layer-package
         path: sg-cleanup-layer.zip
 
+    - name: Create ECS Cleanup Lambda Layer
+      run: |
+        # Create layer directory structure
+        mkdir -p python/lib/python3.9/site-packages
+
+        # Install urllib3 for CloudFormation custom resource responses
+        pip install urllib3 -t python/lib/python3.9/site-packages/
+
+        # Create layer ZIP file
+        zip -r ecs-cleanup-layer.zip python/
+
+        echo "ECS cleanup layer created successfully"
+
+    - name: Upload ECS Cleanup Layer
+      uses: actions/upload-artifact@v4
+      with:
+        name: ecs-cleanup-layer-package
+        path: ecs-cleanup-layer.zip
+
   deploy-global:
     name: Deploy Global Infrastructure
     runs-on: ubuntu-latest
@@ -469,6 +488,12 @@ jobs:
         name: sg-cleanup-layer-package
         path: ./artifacts/
 
+    - name: Download ECS Cleanup Layer
+      uses: actions/download-artifact@v4
+      with:
+        name: ecs-cleanup-layer-package
+        path: ./artifacts/
+
 
     - name: Upload templates and packages to S3
       run: |
@@ -496,6 +521,9 @@ jobs:
 
         # Upload Security Group cleanup layer
         aws s3 cp ./artifacts/sg-cleanup-layer.zip s3://$BUCKET_NAME/sg-cleanup-layer.zip --region us-east-1
+
+        # Upload ECS cleanup layer
+        aws s3 cp ./artifacts/ecs-cleanup-layer.zip s3://$BUCKET_NAME/ecs-cleanup-layer.zip --region us-east-1
 
         # Verify uploads
         echo "S3 bucket contents:"

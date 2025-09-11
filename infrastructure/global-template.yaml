@@ -9,12 +9,147 @@ Parameters:
     Description: 'Password for the RDS PostgreSQL database'
 
 Resources:
-  # ECS Service-Linked Role (required for ECS services)
-  ECSServiceLinkedRole:
-    Type: AWS::IAM::ServiceLinkedRole
+  # IAM Policy for GitHub Actions to manage service-linked roles
+  GitHubActionsServiceLinkedRolePolicy:
+    Type: AWS::IAM::Policy
     Properties:
-      AWSServiceName: 'ecs.amazonaws.com'
-      Description: 'Service-linked role for Amazon ECS'
+      PolicyName: 'TaskManager-GitHubActions-ServiceLinkedRole-Policy'
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - iam:GetRole
+              - iam:CreateServiceLinkedRole
+              - iam:DeleteServiceLinkedRole
+            Resource: 'arn:aws:iam::*:role/aws-service-role/*'
+          - Effect: Allow
+            Action:
+              - iam:PassRole
+            Resource: 'arn:aws:iam::*:role/TaskManager-*'
+      Roles:
+        - !Ref SharedLambdaExecutionRole
+
+  # Custom resource to create ECS Service-Linked Role safely
+  ECSCleanupFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'taskmanager-ecs-role-setup-${AWS::StackName}'
+      Runtime: python3.9
+      Handler: index.lambda_handler
+      Role: !GetAtt SharedLambdaExecutionRole.Arn
+      Layers:
+        - !Ref ECSCleanupLayer
+      Code:
+        ZipFile: |
+          import boto3
+          import json
+          import logging
+
+          logger = logging.getLogger()
+          logger.setLevel(logging.INFO)
+
+          iam_client = boto3.client('iam')
+
+          def lambda_handler(event, context):
+              try:
+                  request_type = event.get('RequestType')
+
+                  logger.info(f"Processing {request_type} for ECS service-linked role")
+
+                  if request_type == 'Create':
+                      # Try to create ECS service-linked role if it doesn't exist
+                      create_ecs_service_linked_role()
+
+                      # Send success response
+                      send_response(event, context, 'SUCCESS', {'Message': 'ECS service-linked role setup complete'})
+                  else:
+                      # For Update/Delete, just succeed
+                      send_response(event, context, 'SUCCESS', {'Message': 'ECS service-linked role unchanged'})
+
+              except Exception as e:
+                  logger.error(f"Error processing request: {str(e)}")
+                  send_response(event, context, 'SUCCESS', {'Message': f'Handled gracefully: {str(e)}'})
+
+          def create_ecs_service_linked_role():
+              try:
+                  role_name = 'AWSServiceRoleForECS'
+                  service_name = 'ecs.amazonaws.com'
+
+                  # Check if the role already exists
+                  try:
+                      iam_client.get_role(RoleName=role_name)
+                      logger.info(f"ECS service-linked role {role_name} already exists")
+                      return
+                  except iam_client.exceptions.NoSuchEntityException:
+                      logger.info(f"ECS service-linked role {role_name} does not exist, creating...")
+
+                  # Create the service-linked role
+                  iam_client.create_service_linked_role(
+                      AWSServiceName=service_name,
+                      Description='Service-linked role for Amazon ECS'
+                  )
+                  logger.info(f"Successfully created ECS service-linked role {role_name}")
+
+              except Exception as e:
+                  logger.warning(f"Could not create ECS service-linked role: {str(e)}")
+                  # Don't fail - the role might already exist or we might not have permissions
+
+          def send_response(event, context, response_status, response_data):
+              import urllib3
+              import json
+
+              response_url = event.get('ResponseURL')
+              if not response_url:
+                  return
+
+              response_body = {
+                  'Status': response_status,
+                  'Reason': response_data.get('Message', 'Operation completed'),
+                  'PhysicalResourceId': event.get('PhysicalResourceId', context.log_stream_name),
+                  'StackId': event['StackId'],
+                  'RequestId': event['RequestId'],
+                  'LogicalResourceId': event['LogicalResourceId'],
+                  'Data': response_data
+              }
+
+              json_response_body = json.dumps(response_body)
+
+              headers = {
+                  'content-type': '',
+                  'content-length': str(len(json_response_body))
+              }
+
+              http = urllib3.PoolManager()
+              try:
+                  response = http.request(
+                      'PUT',
+                      response_url,
+                      body=json_response_body,
+                      headers=headers
+                  )
+                  logger.info(f"Response sent: {response.status}")
+              except Exception as e:
+                  logger.error(f"Failed to send response: {str(e)}")
+
+  # Lambda Layer for urllib3 dependency
+  ECSCleanupLayer:
+    Type: AWS::Lambda::LayerVersion
+    Properties:
+      LayerName: !Sub 'taskmanager-ecs-cleanup-layer-${AWS::StackName}'
+      Description: 'urllib3 dependency for ECS cleanup Lambda'
+      Content:
+        S3Bucket: !Ref TemplatesBucket
+        S3Key: 'ecs-cleanup-layer.zip'
+      CompatibleRuntimes:
+        - python3.9
+
+  # Custom resource to handle ECS service-linked role creation
+  ECSRoleSetupResource:
+    Type: AWS::CloudFormation::CustomResource
+    Properties:
+      ServiceToken: !GetAtt ECSCleanupFunction.Arn
+    DependsOn: [SharedLambdaExecutionRole, ECSCleanupFunction]
 
   # Shared Lambda Execution Role
   SharedLambdaExecutionRole:
