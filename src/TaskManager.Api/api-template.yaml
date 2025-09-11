@@ -7,15 +7,35 @@ Parameters:
     Type: String
     Default: main
     Description: 'Environment name (typically branch name)'
-    
+
   ApiCodeBucket:
     Type: String
     Description: 'S3 bucket name for API Lambda deployment package'
-    
+
   ApiCodeKey:
     Type: String
     Description: 'S3 key for API Lambda deployment package'
     Default: 'api-lambda-deployment.zip'
+
+  SharedLambdaRoleArn:
+    Type: String
+    Description: 'ARN of the shared Lambda execution role'
+
+  DatabaseEndpoint:
+    Type: String
+    Description: 'Database endpoint address'
+
+  LambdaSecurityGroupId:
+    Type: String
+    Description: 'Security group ID for Lambda functions'
+
+  PrivateSubnet1Id:
+    Type: String
+    Description: 'Private subnet 1 ID'
+
+  PrivateSubnet2Id:
+    Type: String
+    Description: 'Private subnet 2 ID'
 
 Globals:
   Function:
@@ -169,22 +189,20 @@ Resources:
                 }
       Handler: index.lambda_handler
       Runtime: python3.9
-      Role: 
-        Fn::ImportValue: 'TaskManager-SharedLambdaRole'
+      Role: !Ref SharedLambdaRoleArn
       Environment:
         Variables:
           BRANCH_NAME: !Ref Environment
-          DB_HOST:
-            Fn::ImportValue: 'TaskManager-DatabaseEndpoint'
+          DB_HOST: !Ref DatabaseEndpoint
           DB_USER: taskmanager_admin
           DB_PASSWORD: !Sub '{{resolve:secretsmanager:taskmanager/database/shared:SecretString:password}}'
           SETUP_AUTH_TOKEN: 'taskmanager-setup-secure-token-2024'
       VpcConfig:
         SecurityGroupIds:
-          - Fn::ImportValue: 'TaskManager-LambdaSecurityGroup'
+          - !Ref LambdaSecurityGroupId
         SubnetIds:
-          - Fn::ImportValue: 'TaskManager-PrivateSubnet1'
-          - Fn::ImportValue: 'TaskManager-PrivateSubnet2'
+          - !Ref PrivateSubnet1Id
+          - !Ref PrivateSubnet2Id
       Events:
         CreateDatabase:
           Type: Api
@@ -207,15 +225,13 @@ Resources:
         TaskManager.Api::TaskManager.Api.LambdaEntryPoint::FunctionHandlerAsync
       Runtime: dotnet8
       PackageType: Zip
-      Role: 
-        Fn::ImportValue: 'TaskManager-SharedLambdaRole'
+      Role: !Ref SharedLambdaRoleArn
       Environment:
         Variables:
           ASPNETCORE_ENVIRONMENT: !Ref Environment
           ConnectionStrings__DefaultConnection: !Sub
             - 'Host=${DatabaseEndpoint};Database=taskmanager_${DatabaseName};Username=taskmanager_admin;Password=${DatabasePassword}'
-            - DatabaseEndpoint:
-                Fn::ImportValue: 'TaskManager-DatabaseEndpoint'
+            - DatabaseEndpoint: !Ref DatabaseEndpoint
               DatabaseName: !Sub '${Environment}'
               DatabasePassword: !Sub '{{resolve:secretsmanager:taskmanager/database/shared:SecretString:password}}'
       VpcConfig:

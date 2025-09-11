@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'TaskManager Shared Infrastructure - VPC, RDS, Bastion Host'
+Description: 'TaskManager Regional Infrastructure - VPC, RDS, ECS, Bastion Host'
 
 Parameters:
   DatabasePassword:
@@ -13,6 +13,18 @@ Parameters:
     Description: 'Public key material for bastion SSH access (generate locally with ssh-keygen and paste the .pub content here)'
     Default: 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCuSPS013ezN5lbrX/yOgu2d5n+97vzyj0P7oD2n5mCyblEG184U6r0LOu+DWURveDTLOtBEUCa5cCfnW3vTd6A25t9fHJFB0V+DuOCQ+tMVLxvs3yu61Cmz4ChNEK/qUX9YtpDwXJP1SmnKUPJOnFAfUwyClBqbQjd6rkyYYKmuRLD3llEXZDO/GwLpWO3KvNWLYJnz+MAJL4LU1JXimYfJqVmd3PUGUyUI55d5lqfZYCGxwzb3Eg31bZ4ljf0vBT6ztgwrVvBvpRlkmTRqcqvypS/3zDd6USmf8rLOB5VwnFw+f4o88K1x3O5iqZrRxApjdlLA8IDIH7uFP89KjKX 17034@DESKTOP-3BGTTVG'
 
+  SharedLambdaRoleArn:
+    Type: String
+    Description: 'ARN of the shared Lambda execution role from global stack'
+
+  BastionRoleArn:
+    Type: String
+    Description: 'ARN of the bastion role from global stack'
+
+  DatabaseSecretArn:
+    Type: String
+    Description: 'ARN of the database secret from global stack'
+
 Resources:
   # VPC and Networking
   TaskManagerVPC:
@@ -25,7 +37,7 @@ Resources:
         - Key: Name
           Value: 'TaskManager-VPC'
         - Key: Purpose
-          Value: 'Shared Infrastructure'
+          Value: 'Regional Infrastructure'
 
   # Internet Gateway
   InternetGateway:
@@ -248,13 +260,6 @@ Resources:
         - Key: Name
           Value: 'TaskManager-ECS-Task-SG'
 
-  # ECS Service-Linked Role (required for ECS services)
-  ECSServiceLinkedRole:
-    Type: AWS::IAM::ServiceLinkedRole
-    Properties:
-      AWSServiceName: 'ecs.amazonaws.com'
-      Description: 'Service-linked role for Amazon ECS'
-
   # ECR Repository for Web Application
   WebECRRepository:
     Type: AWS::ECR::Repository
@@ -269,6 +274,303 @@ Resources:
         - Key: Purpose
           Value: 'Container Registry'
 
+  # Lambda Layer for urllib3 dependency
+  ECRCleanupLayer:
+    Type: AWS::Lambda::LayerVersion
+    Properties:
+      LayerName: !Sub 'taskmanager-ecr-cleanup-layer-${AWS::StackName}'
+      Description: 'urllib3 dependency for ECR cleanup Lambda'
+      Content:
+        S3Bucket: !Sub 'taskmanager-templates-${AWS::AccountId}'
+        S3Key: 'ecr-cleanup-layer.zip'
+      CompatibleRuntimes:
+        - python3.9
+
+  # Lambda function to clean up ECR images on stack deletion
+  ECRCleanupFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'taskmanager-ecr-cleanup-${AWS::StackName}'
+      Runtime: python3.9
+      Handler: index.lambda_handler
+      Role: !Ref SharedLambdaRoleArn
+      Layers:
+        - !Ref ECRCleanupLayer
+      Code:
+        ZipFile: |
+          import boto3
+          import json
+          import logging
+
+          logger = logging.getLogger()
+          logger.setLevel(logging.INFO)
+
+          ecr_client = boto3.client('ecr')
+
+          def lambda_handler(event, context):
+              try:
+                  request_type = event.get('RequestType')
+                  repository_name = event.get('ResourceProperties', {}).get('RepositoryName')
+
+                  if not repository_name:
+                      raise ValueError("RepositoryName is required")
+
+                  logger.info(f"Processing {request_type} for repository: {repository_name}")
+
+                  if request_type == 'Delete':
+                      # Delete all images from the repository
+                      cleanup_ecr_repository(repository_name)
+
+                      # Send success response
+                      send_response(event, context, 'SUCCESS', {'Message': f'Successfully cleaned up repository {repository_name}'})
+                  else:
+                      # For Create/Update, just succeed
+                      send_response(event, context, 'SUCCESS', {'Message': f'Repository {repository_name} ready'})
+
+              except Exception as e:
+                  logger.error(f"Error processing request: {str(e)}")
+                  send_response(event, context, 'FAILED', {'Error': str(e)})
+
+          def cleanup_ecr_repository(repository_name):
+              try:
+                  # List all images in the repository
+                  paginator = ecr_client.get_paginator('list_images')
+                  image_ids = []
+
+                  for page in paginator.paginate(repositoryName=repository_name):
+                      for image_id in page['imageIds']:
+                          image_ids.append(image_id)
+
+                  if not image_ids:
+                      logger.info(f"No images found in repository {repository_name}")
+                      return
+
+                  logger.info(f"Found {len(image_ids)} images to delete from {repository_name}")
+
+                  # Delete images in batches (ECR allows max 100 per request)
+                  batch_size = 100
+                  for i in range(0, len(image_ids), batch_size):
+                      batch = image_ids[i:i + batch_size]
+                      ecr_client.batch_delete_image(
+                          repositoryName=repository_name,
+                          imageIds=batch
+                      )
+                      logger.info(f"Deleted batch of {len(batch)} images")
+
+                  logger.info(f"Successfully cleaned up all images from {repository_name}")
+
+              except ecr_client.exceptions.RepositoryNotFoundException:
+                  logger.info(f"Repository {repository_name} not found, nothing to clean up")
+              except Exception as e:
+                  logger.error(f"Error cleaning up repository {repository_name}: {str(e)}")
+                  raise
+
+          def send_response(event, context, response_status, response_data):
+              import urllib3
+              import json
+
+              response_url = event.get('ResponseURL')
+              if not response_url:
+                  return
+
+              response_body = {
+                  'Status': response_status,
+                  'Reason': response_data.get('Message', 'Operation completed'),
+                  'PhysicalResourceId': event.get('PhysicalResourceId', context.log_stream_name),
+                  'StackId': event['StackId'],
+                  'RequestId': event['RequestId'],
+                  'LogicalResourceId': event['LogicalResourceId'],
+                  'Data': response_data
+              }
+
+              json_response_body = json.dumps(response_body)
+
+              headers = {
+                  'content-type': '',
+                  'content-length': str(len(json_response_body))
+              }
+
+              http = urllib3.PoolManager()
+              try:
+                  response = http.request(
+                      'PUT',
+                      response_url,
+                      body=json_response_body,
+                      headers=headers
+                  )
+                  logger.info(f"Response sent: {response.status}")
+              except Exception as e:
+                  logger.error(f"Failed to send response: {str(e)}")
+
+  # Lambda function to clean up security groups on stack deletion
+  SecurityGroupCleanupFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'taskmanager-sg-cleanup-${AWS::StackName}'
+      Runtime: python3.9
+      Handler: index.lambda_handler
+      Role: !Ref SharedLambdaRoleArn
+      Layers:
+        - !Ref SecurityGroupCleanupLayer
+      Code:
+        ZipFile: |
+          import boto3
+          import json
+          import logging
+          import time
+
+          logger = logging.getLogger()
+          logger.setLevel(logging.INFO)
+
+          ec2_client = boto3.client('ec2')
+
+          def lambda_handler(event, context):
+              try:
+                  request_type = event.get('RequestType')
+                  security_group_ids = event.get('ResourceProperties', {}).get('SecurityGroupIds', [])
+
+                  if not security_group_ids:
+                      raise ValueError("SecurityGroupIds is required")
+
+                  logger.info(f"Processing {request_type} for security groups: {security_group_ids}")
+
+                  if request_type == 'Delete':
+                      # Clean up security groups
+                      cleanup_security_groups(security_group_ids)
+
+                      # Send success response
+                      send_response(event, context, 'SUCCESS', {'Message': f'Successfully cleaned up security groups {security_group_ids}'})
+                  else:
+                      # For Create/Update, just succeed
+                      send_response(event, context, 'SUCCESS', {'Message': f'Security groups {security_group_ids} ready'})
+
+              except Exception as e:
+                  logger.error(f"Error processing request: {str(e)}")
+                  send_response(event, context, 'FAILED', {'Error': str(e)})
+
+          def cleanup_security_groups(security_group_ids):
+              try:
+                  logger.info(f"Cleaning up security groups: {security_group_ids}")
+
+                  for sg_id in security_group_ids:
+                      try:
+                          # Get current security group rules
+                          response = ec2_client.describe_security_groups(GroupIds=[sg_id])
+                          sg = response['SecurityGroups'][0]
+
+                          # Remove all ingress rules
+                          if sg.get('IpPermissions'):
+                              logger.info(f"Removing ingress rules from {sg_id}")
+                              ec2_client.revoke_security_group_ingress(
+                                  GroupId=sg_id,
+                                  IpPermissions=sg['IpPermissions']
+                              )
+
+                          # Remove all egress rules (except the default allow all outbound)
+                          if sg.get('IpPermissionsEgress'):
+                              # Filter out the default egress rule
+                              egress_rules = []
+                              for rule in sg['IpPermissionsEgress']:
+                                  # Skip the default "allow all outbound" rule
+                                  if not (rule.get('IpProtocol') == '-1' and
+                                         rule.get('IpRanges', [{}])[0].get('CidrIp') == '0.0.0.0/0'):
+                                      egress_rules.append(rule)
+
+                              if egress_rules:
+                                  logger.info(f"Removing egress rules from {sg_id}")
+                                  ec2_client.revoke_security_group_egress(
+                                      GroupId=sg_id,
+                                      IpPermissions=egress_rules
+                                  )
+
+                          logger.info(f"Successfully cleaned up security group: {sg_id}")
+
+                      except ec2_client.exceptions.ClientError as e:
+                          if 'InvalidGroupId.NotFound' in str(e):
+                              logger.info(f"Security group {sg_id} not found, already deleted")
+                          else:
+                              logger.error(f"Error cleaning up security group {sg_id}: {str(e)}")
+                              raise
+
+                  logger.info(f"Successfully cleaned up all security groups: {security_group_ids}")
+
+              except Exception as e:
+                  logger.error(f"Error cleaning up security groups {security_group_ids}: {str(e)}")
+                  raise
+
+          def send_response(event, context, response_status, response_data):
+              import urllib3
+              import json
+
+              response_url = event.get('ResponseURL')
+              if not response_url:
+                  return
+
+              response_body = {
+                  'Status': response_status,
+                  'Reason': response_data.get('Message', 'Operation completed'),
+                  'PhysicalResourceId': event.get('PhysicalResourceId', context.log_stream_name),
+                  'StackId': event['StackId'],
+                  'RequestId': event['RequestId'],
+                  'LogicalResourceId': event['LogicalResourceId'],
+                  'Data': response_data
+              }
+
+              json_response_body = json.dumps(response_body)
+
+              headers = {
+                  'content-type': '',
+                  'content-length': str(len(json_response_body))
+              }
+
+              http = urllib3.PoolManager()
+              try:
+                  response = http.request(
+                      'PUT',
+                      response_url,
+                      body=json_response_body,
+                      headers=headers
+                  )
+                  logger.info(f"Response sent: {response.status}")
+              except Exception as e:
+                  logger.error(f"Failed to send response: {str(e)}")
+
+  # Lambda Layer for urllib3 dependency
+  SecurityGroupCleanupLayer:
+    Type: AWS::Lambda::LayerVersion
+    Properties:
+      LayerName: !Sub 'taskmanager-sg-cleanup-layer-${AWS::StackName}'
+      Description: 'urllib3 dependency for Security Group cleanup Lambda'
+      Content:
+        S3Bucket: !Sub 'taskmanager-templates-${AWS::AccountId}'
+        S3Key: 'sg-cleanup-layer.zip'
+      CompatibleRuntimes:
+        - python3.9
+
+  # Custom resource to trigger ECR cleanup on stack deletion
+  ECRCleanupResource:
+    Type: AWS::CloudFormation::CustomResource
+    Properties:
+      ServiceToken: !GetAtt ECRCleanupFunction.Arn
+      RepositoryName: 'taskmanager-web'
+    DependsOn: WebECRRepository
+
+  # Custom resource to trigger Security Group cleanup on stack deletion
+  SecurityGroupCleanupResource:
+    Type: AWS::CloudFormation::CustomResource
+    Properties:
+      ServiceToken: !GetAtt SecurityGroupCleanupFunction.Arn
+      SecurityGroupIds:
+        - !Ref LambdaSecurityGroup
+        - !Ref RDSSecurityGroup
+        - !Ref BastionSecurityGroup
+        - !Ref ALBSecurityGroup
+        - !Ref ECSTaskSecurityGroup
+    DependsOn: [LambdaSecurityGroup, RDSSecurityGroup, BastionSecurityGroup, ALBSecurityGroup, ECSTaskSecurityGroup, SecurityGroupCleanupFunction]
+
+  # Note: Bastion IAM role cleanup is handled by the global stack's IAM cleanup function
+  # The BastionRole is created in the global stack and cleaned up there
+
   # ECS Cluster
   ECSCluster:
     Type: AWS::ECS::Cluster
@@ -278,7 +580,7 @@ Resources:
         - Key: Name
           Value: 'TaskManager-ECS-Cluster'
         - Key: Purpose
-          Value: 'Shared Infrastructure'
+          Value: 'Regional Infrastructure'
 
   # RDS Database (Shared)
   DBSubnetGroup:
@@ -316,14 +618,14 @@ Resources:
         - Key: Name
           Value: 'TaskManager-Shared-Database'
         - Key: Purpose
-          Value: 'Shared Infrastructure'
+          Value: 'Regional Infrastructure'
 
-  # Secrets Manager for database credentials
-  DatabaseSecret:
+  # Update Database Secret with actual host
+  DatabaseSecretUpdate:
     Type: AWS::SecretsManager::Secret
     DependsOn: TaskManagerDatabase
     Properties:
-      Name: 'taskmanager/database/shared'
+      Name: !Sub 'taskmanager/database/shared-${AWS::Region}'
       Description: Database credentials for shared TaskManager RDS instance
       SecretString: !Sub |
         {
@@ -335,7 +637,7 @@ Resources:
         }
       Tags:
         - Key: Purpose
-          Value: 'Shared Infrastructure'
+          Value: 'Regional Infrastructure'
 
   # SSH Key Pair for Bastion
   BastionKeyPair:
@@ -346,35 +648,12 @@ Resources:
       KeyFormat: pem
       PublicKeyMaterial: !Ref BastionPublicKeyMaterial
 
-  # Bastion Host
-  BastionRole:
-    Type: AWS::IAM::Role
-    Properties:
-      RoleName: 'TaskManager-Bastion-Role'
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: ec2.amazonaws.com
-            Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
-      Policies:
-        - PolicyName: SecretsManagerRead
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - secretsmanager:GetSecretValue
-                Resource: !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:taskmanager/database/*'
-
+  # Bastion Instance Profile (using global role)
   BastionInstanceProfile:
     Type: AWS::IAM::InstanceProfile
     Properties:
       Roles:
-        - !Ref BastionRole
+        - !Ref BastionRoleArn
 
   BastionHost:
     Type: AWS::EC2::Instance
@@ -391,7 +670,7 @@ Resources:
           #!/bin/bash
           yum update -y
           yum install -y postgresql15
-          
+
           # Create connection helper script
           cat > /home/ec2-user/connect-to-db.sh << 'EOF'
           #!/bin/bash
@@ -405,136 +684,14 @@ Resources:
           echo "- Connect and run: \\l to list all databases"
           echo "- Each branch creates its own database (e.g., taskmanager_main, taskmanager_feature1)"
           EOF
-          
+
           chmod +x /home/ec2-user/connect-to-db.sh
           chown ec2-user:ec2-user /home/ec2-user/connect-to-db.sh
       Tags:
         - Key: Name
           Value: 'TaskManager-Bastion'
         - Key: Purpose
-          Value: 'Shared Infrastructure'
-
-  # Lambda Execution Role (for branch applications to use)
-  SharedLambdaExecutionRole:
-    Type: AWS::IAM::Role
-    Properties:
-      RoleName: 'TaskManager-Shared-Lambda-Role'
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service:
-                - lambda.amazonaws.com
-                - ecs-tasks.amazonaws.com
-            Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
-      Policies:
-        - PolicyName: SecretsManagerAccess
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - secretsmanager:GetSecretValue
-                  - secretsmanager:DescribeSecret
-                Resource: !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:taskmanager/database/*'
-        - PolicyName: CloudWatchLogs
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - logs:CreateLogGroup
-                  - logs:CreateLogStream
-                  - logs:PutLogEvents
-                Resource: !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:*'
-        - PolicyName: RDSAccess
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - rds:CreateDatabase
-                  - rds:DescribeDBInstances
-                  - rds-data:ExecuteStatement
-                  - rds-data:BatchExecuteStatement
-                Resource: !Sub 'arn:aws:rds:${AWS::Region}:${AWS::AccountId}:db:taskmanager-shared-db'
-
-  # SNS Topic for Deployment Notifications
-  DeploymentNotificationTopic:
-    Type: AWS::SNS::Topic
-    Properties:
-      TopicName: 'TaskManager-Deployment-Notifications'
-      DisplayName: 'TaskManager Deployment Notifications'
-      Subscription:
-        - Protocol: sms
-          Endpoint: '+17034740324'
-
-  # SNS Topic Policy
-  DeploymentNotificationTopicPolicy:
-    Type: AWS::SNS::TopicPolicy
-    Properties:
-      Topics:
-        - !Ref DeploymentNotificationTopic
-      PolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
-            Action:
-              - sns:Publish
-              - sns:Subscribe
-            Resource: !Ref DeploymentNotificationTopic
-
-  # S3 Bucket for CloudFormation Templates
-  TemplatesBucket:
-    Type: AWS::S3::Bucket
-    Properties:
-      BucketName: !Sub 'taskmanager-templates-${AWS::AccountId}-${AWS::Region}'
-      VersioningConfiguration:
-        Status: Enabled
-      PublicAccessBlockConfiguration:
-        BlockPublicAcls: true
-        BlockPublicPolicy: true
-        IgnorePublicAcls: true
-        RestrictPublicBuckets: true
-      BucketEncryption:
-        ServerSideEncryptionConfiguration:
-          - ServerSideEncryptionByDefault:
-              SSEAlgorithm: AES256
-      Tags:
-        - Key: Name
-          Value: 'TaskManager-Templates-Bucket'
-        - Key: Purpose
-          Value: 'CloudFormation Template Storage'
-
-  # S3 Bucket Policy for CloudFormation Access
-  TemplatesBucketPolicy:
-    Type: AWS::S3::BucketPolicy
-    Properties:
-      Bucket: !Ref TemplatesBucket
-      PolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Sid: AllowCloudFormationAccess
-            Effect: Allow
-            Principal:
-              Service: cloudformation.amazonaws.com
-            Action:
-              - s3:GetObject
-            Resource: !Sub '${TemplatesBucket.Arn}/*'
-          - Sid: AllowAccountAccess
-            Effect: Allow
-            Principal:
-              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
-            Action:
-              - s3:GetObject
-              - s3:PutObject
-              - s3:DeleteObject
-            Resource: !Sub '${TemplatesBucket.Arn}/*'
+          Value: 'Regional Infrastructure'
 
 Outputs:
   VPCId:
@@ -585,18 +742,11 @@ Outputs:
     Export:
       Name: 'TaskManager-DatabaseEndpoint'
 
-
   DatabaseSecretArn:
     Description: 'Database secret ARN'
-    Value: !Ref DatabaseSecret
+    Value: !Ref DatabaseSecretUpdate
     Export:
       Name: 'TaskManager-DatabaseSecret'
-
-  SharedLambdaRoleArn:
-    Description: 'Shared Lambda execution role ARN'
-    Value: !GetAtt SharedLambdaExecutionRole.Arn
-    Export:
-      Name: 'TaskManager-SharedLambdaRole'
 
   BastionHostIP:
     Description: 'Bastion host public IP address'
@@ -624,18 +774,6 @@ Outputs:
         BastionIp: !GetAtt BastionHost.PublicIp
     Export:
       Name: 'TaskManager-DatabaseTunnelCommand'
-
-  DeploymentNotificationTopicArn:
-    Description: 'SNS topic ARN for deployment notifications'
-    Value: !Ref DeploymentNotificationTopic
-    Export:
-      Name: 'TaskManager-DeploymentNotificationTopic'
-
-  TemplatesBucketName:
-    Description: 'S3 bucket name for CloudFormation templates'
-    Value: !Ref TemplatesBucket
-    Export:
-      Name: 'TaskManager-TemplatesBucket'
 
   ECSClusterName:
     Description: 'ECS cluster name'

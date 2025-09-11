@@ -1,12 +1,12 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'TaskManager Application - API (Lambda) + Web Infrastructure (ALB, Target Group, Task Definition)'
+Description: 'TaskManager Application - Global + Regional Infrastructure'
 
 Parameters:
   Environment:
     Type: String
     Default: main
     Description: 'Environment name (typically branch name)'
-    
+
   ApiCodeBucket:
     Type: String
     Description: 'S3 bucket name for API Lambda deployment package'
@@ -29,20 +29,66 @@ Parameters:
   HostedZoneId:
     Type: String
     Description: 'Route 53 hosted zone ID for the domain'
+
+  DatabasePassword:
+    Type: String
+    NoEcho: true
+    MinLength: 8
+    Description: 'Password for the RDS PostgreSQL database'
+
+Conditions:
+  IsUSEast1: !Equals [ !Ref AWS::Region, 'us-east-1' ]
     
 
 
 Resources:
+  # Global Stack (only in us-east-1)
+  TaskManagerGlobalStack:
+    Type: AWS::CloudFormation::Stack
+    Condition: IsUSEast1
+    Properties:
+      TemplateURL: !Sub 'https://s3.amazonaws.com/taskmanager-templates-${AWS::AccountId}/global-template.yaml'
+      Parameters:
+        DatabasePassword: !Ref DatabasePassword
+      Tags:
+        - Key: Component
+          Value: Global
+        - Key: Environment
+          Value: !Ref Environment
+      TimeoutInMinutes: 30
+
+  # Regional Stack
+  TaskManagerRegionalStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub 'https://s3.amazonaws.com/taskmanager-templates-${AWS::AccountId}/shared-infrastructure.yaml'
+      Parameters:
+        DatabasePassword: !Ref DatabasePassword
+        BastionPublicKeyMaterial: 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCuSPS013ezN5lbrX/yOgu2d5n+97vzyj0P7oD2n5mCyblEG184U6r0LOu+DWURveDTLOtBEUCa5cCfnW3vTd6A25t9fHJFB0V+DuOCQ+tMVLxvs3yu61Cmz4ChNEK/qUX9YtpDwXJP1SmnKUPJOnFAfUwyClBqbQjd6rkyYYKmuRLD3llEXZDO/GwLpWO3KvNWLYJnz+MAJL4LU1JXimYfJqVmd3PUGUyUI55d5lqfZYCGxwzb3Eg31bZ4ljf0vBT6ztgwrVvBvpRlkmTRqcqvypS/3zDd6USmf8rLOB5VwnFw+f4o88K1x3O5iqZrRxApjdlLA8IDIH7uFP89KjKX 17034@DESKTOP-3BGTTVG'
+        SharedLambdaRoleArn: !If [IsUSEast1, !GetAtt TaskManagerGlobalStack.Outputs.SharedLambdaRoleArn, !Sub 'arn:aws:iam::${AWS::AccountId}:role/TaskManager-Shared-Lambda-Role']
+        BastionRoleArn: !If [IsUSEast1, !GetAtt TaskManagerGlobalStack.Outputs.BastionRoleArn, !Sub 'arn:aws:iam::${AWS::AccountId}:role/TaskManager-Bastion-Role']
+        DatabaseSecretArn: !If [IsUSEast1, !GetAtt TaskManagerGlobalStack.Outputs.DatabaseSecretArn, !Sub 'arn:aws:secretsmanager:us-east-1:${AWS::AccountId}:secret:taskmanager/database/shared']
+      Tags:
+        - Key: Component
+          Value: Regional
+        - Key: Environment
+          Value: !Ref Environment
+      TimeoutInMinutes: 30
+
   # API Stack (Nested)
   TaskManagerApiStack:
     Type: AWS::CloudFormation::Stack
+    DependsOn: TaskManagerRegionalStack
     Properties:
-      TemplateURL: !Sub
-        - 'https://s3.amazonaws.com/${BucketName}/api-template.yaml'
-        - BucketName: !ImportValue 'TaskManager-TemplatesBucket'
+      TemplateURL: !Sub 'https://s3.amazonaws.com/taskmanager-templates-${AWS::AccountId}/api-template.yaml'
       Parameters:
         Environment: !Ref Environment
         ApiCodeBucket: !Ref ApiCodeBucket
+        SharedLambdaRoleArn: !If [IsUSEast1, !GetAtt TaskManagerGlobalStack.Outputs.SharedLambdaRoleArn, !Sub 'arn:aws:iam::${AWS::AccountId}:role/TaskManager-Shared-Lambda-Role']
+        DatabaseEndpoint: !GetAtt TaskManagerRegionalStack.Outputs.DatabaseEndpoint
+        LambdaSecurityGroupId: !GetAtt TaskManagerRegionalStack.Outputs.LambdaSecurityGroupId
+        PrivateSubnet1Id: !GetAtt TaskManagerRegionalStack.Outputs.PrivateSubnet1Id
+        PrivateSubnet2Id: !GetAtt TaskManagerRegionalStack.Outputs.PrivateSubnet2Id
       Tags:
         - Key: Component
           Value: API
@@ -55,15 +101,22 @@ Resources:
     Type: AWS::CloudFormation::Stack
     DependsOn: TaskManagerApiStack
     Properties:
-      TemplateURL: !Sub
-        - 'https://s3.amazonaws.com/${BucketName}/web-template.yaml'
-        - BucketName: !ImportValue 'TaskManager-TemplatesBucket'
+      TemplateURL: !Sub 'https://s3.amazonaws.com/taskmanager-templates-${AWS::AccountId}/web-template.yaml'
       Parameters:
         Environment: !Ref Environment
         WebContainerImage: !Ref WebContainerImage
         DeploymentToken: !Ref DeploymentToken
         DomainName: !Ref DomainName
         HostedZoneId: !Ref HostedZoneId
+        SharedLambdaRoleArn: !If [IsUSEast1, !GetAtt TaskManagerGlobalStack.Outputs.SharedLambdaRoleArn, !Sub 'arn:aws:iam::${AWS::AccountId}:role/TaskManager-Shared-Lambda-Role']
+        VPCId: !GetAtt TaskManagerRegionalStack.Outputs.VPCId
+        ALBSecurityGroupId: !GetAtt TaskManagerRegionalStack.Outputs.ALBSecurityGroupId
+        ECSTaskSecurityGroupId: !GetAtt TaskManagerRegionalStack.Outputs.ECSTaskSecurityGroupId
+        PublicSubnet1Id: !GetAtt TaskManagerRegionalStack.Outputs.PublicSubnet1Id
+        PublicSubnet2Id: !GetAtt TaskManagerRegionalStack.Outputs.PublicSubnet2Id
+        PrivateSubnet1Id: !GetAtt TaskManagerRegionalStack.Outputs.PrivateSubnet1Id
+        PrivateSubnet2Id: !GetAtt TaskManagerRegionalStack.Outputs.PrivateSubnet2Id
+        ECSClusterName: !GetAtt TaskManagerRegionalStack.Outputs.ECSClusterName
       Tags:
         - Key: Component
           Value: Web-Infrastructure

@@ -8,6 +8,7 @@ on:
 
 env:
   AWS_REGION: us-east-1
+  AWS_REGION_2: us-east-2
 
 jobs:
   yaml-lint:
@@ -138,14 +139,93 @@ jobs:
         name: postgres-layer-package
         path: postgres-layer.zip
 
+    - name: Create ECR Cleanup Lambda Layer
+      run: |
+        # Create layer directory structure
+        mkdir -p python/lib/python3.9/site-packages
+
+        # Install urllib3 for CloudFormation custom resource responses
+        pip install urllib3 -t python/lib/python3.9/site-packages/
+
+        # Create layer ZIP file
+        zip -r ecr-cleanup-layer.zip python/
+
+        echo "ECR cleanup layer created successfully"
+
+    - name: Upload ECR Cleanup Layer
+      uses: actions/upload-artifact@v4
+      with:
+        name: ecr-cleanup-layer-package
+        path: ecr-cleanup-layer.zip
+
+    - name: Create S3 Cleanup Lambda Layer
+      run: |
+        # Create layer directory structure
+        mkdir -p python/lib/python3.9/site-packages
+
+        # Install urllib3 for CloudFormation custom resource responses
+        pip install urllib3 -t python/lib/python3.9/site-packages/
+
+        # Create layer ZIP file
+        zip -r s3-cleanup-layer.zip python/
+
+        echo "S3 cleanup layer created successfully"
+
+    - name: Upload S3 Cleanup Layer
+      uses: actions/upload-artifact@v4
+      with:
+        name: s3-cleanup-layer-package
+        path: s3-cleanup-layer.zip
+
+    - name: Create IAM Cleanup Lambda Layer
+      run: |
+        # Create layer directory structure
+        mkdir -p python/lib/python3.9/site-packages
+
+        # Install urllib3 for CloudFormation custom resource responses
+        pip install urllib3 -t python/lib/python3.9/site-packages/
+
+        # Create layer ZIP file
+        zip -r iam-cleanup-layer.zip python/
+
+        echo "IAM cleanup layer created successfully"
+
+    - name: Upload IAM Cleanup Layer
+      uses: actions/upload-artifact@v4
+      with:
+        name: iam-cleanup-layer-package
+        path: iam-cleanup-layer.zip
+
+    - name: Create Security Group Cleanup Lambda Layer
+      run: |
+        # Create layer directory structure
+        mkdir -p python/lib/python3.9/site-packages
+
+        # Install urllib3 for CloudFormation custom resource responses
+        pip install urllib3 -t python/lib/python3.9/site-packages/
+
+        # Create layer ZIP file
+        zip -r sg-cleanup-layer.zip python/
+
+        echo "Security Group cleanup layer created successfully"
+
+    - name: Upload Security Group Cleanup Layer
+      uses: actions/upload-artifact@v4
+      with:
+        name: sg-cleanup-layer-package
+        path: sg-cleanup-layer.zip
+
   deploy-infrastructure:
-    name: Deploy Shared Infrastructure
+    name: Deploy Infrastructure
     runs-on: ubuntu-latest
     needs: build
     concurrency:
       group: deploy-infrastructure
       cancel-in-progress: false
-    
+    strategy:
+      matrix:
+        region: [us-east-1, us-east-2]
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -157,15 +237,44 @@ jobs:
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: ${{ env.AWS_REGION }}
-        
-    - name: Deploy Shared Infrastructure
+        aws-region: ${{ matrix.region }}
+
+    - name: Upload templates to S3
+      run: |
+        # Create S3 bucket for templates (only in us-east-1)
+        if [ "${{ matrix.region }}" = "us-east-1" ]; then
+          aws s3 mb s3://taskmanager-templates-${{ secrets.AWS_ACCOUNT_ID }} --region us-east-1
+          aws s3 cp infrastructure/global-template.yaml s3://taskmanager-templates-${{ secrets.AWS_ACCOUNT_ID }}/ --region us-east-1
+        fi
+
+        # Upload regional template
+        aws s3 cp infrastructure/shared-infrastructure.yaml s3://taskmanager-templates-${{ secrets.AWS_ACCOUNT_ID }}/ --region us-east-1
+        aws s3 cp src/TaskManager.Api/api-template.yaml s3://taskmanager-templates-${{ secrets.AWS_ACCOUNT_ID }}/ --region us-east-1
+        aws s3 cp src/TaskManager.Web2/web-template.yaml s3://taskmanager-templates-${{ secrets.AWS_ACCOUNT_ID }}/ --region us-east-1
+        aws s3 cp wrapper-template.yaml s3://taskmanager-templates-${{ secrets.AWS_ACCOUNT_ID }}/ --region us-east-1
+
+    - name: Deploy Global Infrastructure (us-east-1 only)
+      if: matrix.region == 'us-east-1'
       uses: aws-actions/aws-cloudformation-github-deploy@v1
       with:
-        name: taskmanager-shared-infrastructure
-        template: infrastructure/shared-infrastructure.yaml
+        name: taskmanager-global-infrastructure
+        template: infrastructure/global-template.yaml
         parameter-overrides: |
           DatabasePassword=${{ secrets.DATABASE_PASSWORD }}
+        capabilities: "CAPABILITY_NAMED_IAM"
+        no-fail-on-empty-changeset: "1"
+      timeout-minutes: 15
+
+    - name: Deploy Regional Infrastructure
+      uses: aws-actions/aws-cloudformation-github-deploy@v1
+      with:
+        name: taskmanager-regional-infrastructure-${{ matrix.region }}
+        template: infrastructure/shared-infrastructure.yaml
+        parameter-overrides: |
+          DatabasePassword=${{ secrets.DATABASE_PASSWORD }},
+          SharedLambdaRoleArn=arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/TaskManager-Shared-Lambda-Role,
+          BastionRoleArn=arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/TaskManager-Bastion-Role,
+          DatabaseSecretArn=arn:aws:secretsmanager:us-east-1:${{ secrets.AWS_ACCOUNT_ID }}:secret:taskmanager/database/shared
         capabilities: "CAPABILITY_NAMED_IAM"
         no-fail-on-empty-changeset: "1"
       timeout-minutes: 15
@@ -177,6 +286,9 @@ jobs:
     concurrency:
       group: deploy-application-${{ github.ref }}
       cancel-in-progress: false
+    strategy:
+      matrix:
+        region: [us-east-1, us-east-2]
     outputs:
       api-endpoint: ${{ steps.get-endpoints.outputs.api-endpoint }}
       web-endpoint: ${{ steps.get-endpoints.outputs.web-endpoint }}
@@ -192,7 +304,7 @@ jobs:
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: ${{ env.AWS_REGION }}
+        aws-region: ${{ matrix.region }}
 
     - name: Build and Push Web Container Image
       env:
@@ -208,10 +320,10 @@ jobs:
         # Get ECR repository URI from CloudFormation outputs
         echo "Querying CloudFormation for ECR repository URI..."
         ECR_REPO=$(aws cloudformation describe-stacks \
-          --stack-name taskmanager-shared-infrastructure \
+          --stack-name taskmanager-regional-infrastructure-${{ matrix.region }} \
           --query 'Stacks[0].Outputs[?OutputKey==`WebECRRepositoryUri`].OutputValue' \
           --output text \
-          --region ${{ env.AWS_REGION }} 2>/dev/null || echo "")
+          --region ${{ matrix.region }} 2>/dev/null || echo "")
 
         # Debug: Show what we got from CloudFormation
         echo "CloudFormation query result: '$ECR_REPO'"
@@ -219,7 +331,7 @@ jobs:
         # Fallback: construct ECR repo URI if CloudFormation query fails
         if [ -z "$ECR_REPO" ] || [ "$ECR_REPO" = "None" ] || [ "$ECR_REPO" = "null" ]; then
           echo "❌ CloudFormation ECR query failed or returned empty, using fallback URI"
-          ECR_REPO="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/taskmanager-web"
+          ECR_REPO="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ matrix.region }}.amazonaws.com/taskmanager-web"
           echo "📝 Constructed fallback ECR URI: $ECR_REPO"
         else
           echo "✅ Successfully retrieved ECR URI from CloudFormation: $ECR_REPO"
@@ -233,7 +345,7 @@ jobs:
         docker build -t taskmanager-web:$IMAGE_TAG -f src/TaskManager.Web2/Dockerfile .
 
         # Login to ECR
-        aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin $ECR_REPO
+        aws ecr get-login-password --region ${{ matrix.region }} | docker login --username AWS --password-stdin $ECR_REPO
 
         # Tag and push versioned image
         docker tag taskmanager-web:$IMAGE_TAG $ECR_REPO:$IMAGE_TAG
@@ -271,21 +383,21 @@ jobs:
     - name: Cleanup failed branch stack (if exists)
       run: |
         STACK_STATUS=$(aws cloudformation describe-stacks \
-          --stack-name ${{ env.STACK_NAME }} \
-          --region ${{ env.AWS_REGION }} \
+          --stack-name ${{ env.STACK_NAME }}-${{ matrix.region }} \
+          --region ${{ matrix.region }} \
           --query 'Stacks[0].StackStatus' \
           --output text 2>/dev/null || echo "STACK_NOT_FOUND")
-        
+
         if [ "$STACK_STATUS" = "ROLLBACK_COMPLETE" ] || [ "$STACK_STATUS" = "CREATE_FAILED" ] || [ "$STACK_STATUS" = "DELETE_FAILED" ]; then
-          echo "🗑️ Deleting failed branch stack: ${{ env.STACK_NAME }}"
+          echo "🗑️ Deleting failed branch stack: ${{ env.STACK_NAME }}-${{ matrix.region }}"
           aws cloudformation delete-stack \
-            --stack-name ${{ env.STACK_NAME }} \
-            --region ${{ env.AWS_REGION }}
-          
+            --stack-name ${{ env.STACK_NAME }}-${{ matrix.region }} \
+            --region ${{ matrix.region }}
+
           aws cloudformation wait stack-delete-complete \
-            --stack-name ${{ env.STACK_NAME }} \
-            --region ${{ env.AWS_REGION }}
-          
+            --stack-name ${{ env.STACK_NAME }}-${{ matrix.region }} \
+            --region ${{ matrix.region }}
+
           echo "✅ Failed branch stack cleaned up"
         fi
         
@@ -301,40 +413,68 @@ jobs:
         name: postgres-layer-package
         path: ./artifacts/
 
+    - name: Download ECR Cleanup Layer
+      uses: actions/download-artifact@v4
+      with:
+        name: ecr-cleanup-layer-package
+        path: ./artifacts/
+
+    - name: Download S3 Cleanup Layer
+      uses: actions/download-artifact@v4
+      with:
+        name: s3-cleanup-layer-package
+        path: ./artifacts/
+
+    - name: Download IAM Cleanup Layer
+      uses: actions/download-artifact@v4
+      with:
+        name: iam-cleanup-layer-package
+        path: ./artifacts/
+
+    - name: Download Security Group Cleanup Layer
+      uses: actions/download-artifact@v4
+      with:
+        name: sg-cleanup-layer-package
+        path: ./artifacts/
+
 
     - name: Upload templates and packages to S3
       run: |
-        # Get S3 bucket name from shared infrastructure stack
-        BUCKET_NAME=$(aws cloudformation describe-stacks \
-          --stack-name taskmanager-shared-infrastructure \
-          --query 'Stacks[0].Outputs[?OutputKey==`TemplatesBucketName`].OutputValue' \
-          --output text \
-          --region ${{ env.AWS_REGION }})
-        
+        # Use global S3 bucket name (always from us-east-1)
+        BUCKET_NAME="taskmanager-templates-${{ secrets.AWS_ACCOUNT_ID }}"
+
         # Debug: List downloaded artifacts
         echo "Downloaded artifacts:"
         ls -la ./artifacts/
-        
-        # Upload nested stack templates
-        aws s3 cp src/TaskManager.Api/api-template.yaml s3://$BUCKET_NAME/api-template.yaml
-        aws s3 cp src/TaskManager.Web2/web-template.yaml s3://$BUCKET_NAME/web-template.yaml
 
         # Upload Lambda deployment packages
-        aws s3 cp ./artifacts/api-lambda-deployment.zip s3://$BUCKET_NAME/api-lambda-deployment.zip
+        aws s3 cp ./artifacts/api-lambda-deployment.zip s3://$BUCKET_NAME/api-lambda-deployment.zip --region us-east-1
 
         # Upload PostgreSQL layer
-        aws s3 cp ./artifacts/postgres-layer.zip s3://$BUCKET_NAME/postgres-layer.zip
-        
+        aws s3 cp ./artifacts/postgres-layer.zip s3://$BUCKET_NAME/postgres-layer.zip --region us-east-1
+
+        # Upload ECR cleanup layer
+        aws s3 cp ./artifacts/ecr-cleanup-layer.zip s3://$BUCKET_NAME/ecr-cleanup-layer.zip --region us-east-1
+
+        # Upload S3 cleanup layer
+        aws s3 cp ./artifacts/s3-cleanup-layer.zip s3://$BUCKET_NAME/s3-cleanup-layer.zip --region us-east-1
+
+        # Upload IAM cleanup layer
+        aws s3 cp ./artifacts/iam-cleanup-layer.zip s3://$BUCKET_NAME/iam-cleanup-layer.zip --region us-east-1
+
+        # Upload Security Group cleanup layer
+        aws s3 cp ./artifacts/sg-cleanup-layer.zip s3://$BUCKET_NAME/sg-cleanup-layer.zip --region us-east-1
+
         # Verify uploads
         echo "S3 bucket contents:"
-        aws s3 ls s3://$BUCKET_NAME/
-        
+        aws s3 ls s3://$BUCKET_NAME/ --region us-east-1
+
         echo "TEMPLATE_BUCKET=$BUCKET_NAME" >> $GITHUB_ENV
-        
+
     - name: Deploy Wrapper Template (Nested Stacks)
       uses: aws-actions/aws-cloudformation-github-deploy@v1
       with:
-        name: ${{ env.STACK_NAME }}
+        name: ${{ env.STACK_NAME }}-${{ matrix.region }}
         template: wrapper-template.yaml
         parameter-overrides: |
           Environment=${{ env.BRANCH_NAME }},
@@ -342,11 +482,12 @@ jobs:
           WebContainerImage=${{ env.CONTAINER_IMAGE }},
           DeploymentToken=${{ github.sha }},
           DomainName=appcloud.systems,
-          HostedZoneId=Z06422172SASV44F5Y8VA
+          HostedZoneId=Z06422172SASV44F5Y8VA,
+          DatabasePassword=${{ secrets.DATABASE_PASSWORD }}
         capabilities: "CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND"
         no-fail-on-empty-changeset: "1"
       timeout-minutes: 20
-        
+
     - name: Setup branch database
       run: |
         echo "Setting up database for branch: ${{ env.BRANCH_NAME }}"
@@ -359,7 +500,7 @@ jobs:
         API_URL=$(aws cloudformation list-exports \
           --query "Exports[?Name=='$EXPORT_NAME'].Value" \
           --output text \
-          --region ${{ env.AWS_REGION }} 2>/dev/null || echo "")
+          --region ${{ matrix.region }} 2>/dev/null || echo "")
 
         if [ -z "$API_URL" ] || [ "$API_URL" = "None" ]; then
           echo "❌ API endpoint export not found: $EXPORT_NAME"
@@ -398,34 +539,6 @@ jobs:
           exit 1
         fi
 
-        HTTP_STATUS=$(echo "$DB_SETUP_RESPONSE" | grep "HTTP_STATUS:" | cut -d: -f2)
-        RESPONSE_BODY=$(echo "$DB_SETUP_RESPONSE" | sed '/HTTP_STATUS:/d')
-
-        echo "Database setup response: $RESPONSE_BODY"
-        echo "HTTP Status: $HTTP_STATUS"
-
-        if [ "$HTTP_STATUS" = "200" ] || [ "$HTTP_STATUS" = "201" ]; then
-          echo "✅ Database setup completed successfully"
-
-          # Validate database setup by testing API connectivity
-          echo "Validating database setup..."
-          sleep 10  # Wait for database changes to propagate
-
-          # Test health endpoint
-          HEALTH_CHECK_CMD="curl -f -s --max-time 30 \"$API_URL/health\""
-          echo "Executing: $HEALTH_CHECK_CMD"
-          if eval "$HEALTH_CHECK_CMD" > /dev/null; then
-            echo "✅ API health check passed after database setup"
-          else
-            echo "⚠️ API health check failed, but database setup completed"
-          fi
-
-        else
-          echo "❌ Database setup failed with HTTP status: $HTTP_STATUS"
-          echo "Response: $RESPONSE_BODY"
-          exit 1
-        fi
-        
     - name: Get deployment outputs
       id: get-endpoints
       run: |
@@ -436,12 +549,12 @@ jobs:
         API_URL=$(aws cloudformation list-exports \
           --query "Exports[?Name=='$API_EXPORT_NAME'].Value" \
           --output text \
-          --region ${{ env.AWS_REGION }} 2>/dev/null || echo "")
+          --region ${{ matrix.region }} 2>/dev/null || echo "")
 
         if [ -z "$API_URL" ] || [ "$API_URL" = "None" ]; then
           echo "❌ API endpoint export not found: $API_EXPORT_NAME"
           echo "Available exports:"
-          aws cloudformation list-exports --region ${{ env.AWS_REGION }} 2>/dev/null || echo "No exports found"
+          aws cloudformation list-exports --region ${{ matrix.region }} 2>/dev/null || echo "No exports found"
           exit 1
         fi
         echo "✅ API endpoint: $API_URL"
@@ -451,7 +564,7 @@ jobs:
         WEB_URL=$(aws cloudformation list-exports \
           --query "Exports[?Name=='$WEB_EXPORT_NAME'].Value" \
           --output text \
-          --region ${{ env.AWS_REGION }} 2>/dev/null || echo "")
+          --region ${{ matrix.region }} 2>/dev/null || echo "")
 
         if [ -z "$WEB_URL" ] || [ "$WEB_URL" = "None" ]; then
           echo "⚠️ Web endpoint export not found: $WEB_EXPORT_NAME"
@@ -461,23 +574,23 @@ jobs:
         fi
 
         BASTION_IP=$(aws cloudformation describe-stacks \
-          --stack-name taskmanager-shared-infrastructure \
+          --stack-name taskmanager-regional-infrastructure-${{ matrix.region }} \
           --query 'Stacks[0].Outputs[?OutputKey==`BastionHostIP`].OutputValue' \
           --output text \
-          --region ${{ env.AWS_REGION }})
+          --region ${{ matrix.region }})
 
         TUNNEL_CMD=$(aws cloudformation describe-stacks \
-          --stack-name taskmanager-shared-infrastructure \
+          --stack-name taskmanager-regional-infrastructure-${{ matrix.region }} \
           --query 'Stacks[0].Outputs[?OutputKey==`DatabaseTunnelCommand`].OutputValue' \
           --output text \
-          --region ${{ env.AWS_REGION }})
+          --region ${{ matrix.region }})
 
         # Extract API Gateway ID from URL
         API_GATEWAY_ID=$(echo $API_URL | sed 's|https://||' | sed 's|\.execute-api.*||')
 
-        echo "🚀 TaskManager (${{ env.BRANCH_NAME }}) deployed successfully!"
-        echo "📋 API Stack: ${{ env.STACK_NAME }}-api ✅ Endpoint: $API_URL"
-        echo "📋 Web Stack: ${{ env.STACK_NAME }}-web ✅ Load Balancer: $WEB_URL"
+        echo "🚀 TaskManager (${{ env.BRANCH_NAME }}) deployed successfully in ${{ matrix.region }}!"
+        echo "📋 API Stack: ${{ env.STACK_NAME }}-${{ matrix.region }}-api ✅ Endpoint: $API_URL"
+        echo "📋 Web Stack: ${{ env.STACK_NAME }}-${{ matrix.region }}-web ✅ Load Balancer: $WEB_URL"
         echo "🖥️ Bastion host IP: $BASTION_IP"
         echo "💾 Database: taskmanager_${{ env.BRANCH_NAME }} ✅ Setup verified"
         echo "🔗 SSH Tunnel: $TUNNEL_CMD"
@@ -486,15 +599,15 @@ jobs:
         echo "api-endpoint=$API_URL" >> $GITHUB_OUTPUT
         echo "web-endpoint=$WEB_URL" >> $GITHUB_OUTPUT
         echo "api-gateway-id=$API_GATEWAY_ID" >> $GITHUB_OUTPUT
-        
+
     - name: Send SMS Notification
       run: |
-        # Get SNS topic ARN
+        # Get SNS topic ARN from global stack (always in us-east-1)
         SNS_TOPIC=$(aws cloudformation describe-stacks \
-          --stack-name taskmanager-shared-infrastructure \
+          --stack-name taskmanager-global-infrastructure \
           --query 'Stacks[0].Outputs[?OutputKey==`DeploymentNotificationTopicArn`].OutputValue' \
           --output text \
-          --region ${{ env.AWS_REGION }})
+          --region us-east-1)
 
         # Send SMS notification
         aws sns publish \
@@ -502,15 +615,16 @@ jobs:
           --message "🚀 TaskManager deployment complete!
 
         Branch: ${{ env.BRANCH_NAME }}
+        Region: ${{ matrix.region }}
         API: $API_URL
         Web App: https://$BRANCH_NAME.appcloud.systems
         Database: taskmanager_${{ env.BRANCH_NAME }} ✅ Setup verified
         Bastion IP: $BASTION_IP
 
         Both API and Web are fully deployed and running!" \
-          --subject "TaskManager Deployed - ${{ env.BRANCH_NAME }}" \
-          --region ${{ env.AWS_REGION }}
-        
+          --subject "TaskManager Deployed - ${{ env.BRANCH_NAME }} (${{ matrix.region }})" \
+          --region us-east-1
+
         echo "📱 SMS notification sent to 703-474-0324"
 
   update-google-oauth:

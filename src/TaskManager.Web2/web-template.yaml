@@ -55,6 +55,42 @@ Parameters:
     Type: String
     Description: 'Route 53 hosted zone ID for the domain'
 
+  SharedLambdaRoleArn:
+    Type: String
+    Description: 'ARN of the shared Lambda execution role'
+
+  VPCId:
+    Type: String
+    Description: 'VPC ID'
+
+  ALBSecurityGroupId:
+    Type: String
+    Description: 'Security group ID for ALB'
+
+  ECSTaskSecurityGroupId:
+    Type: String
+    Description: 'Security group ID for ECS tasks'
+
+  PublicSubnet1Id:
+    Type: String
+    Description: 'Public subnet 1 ID'
+
+  PublicSubnet2Id:
+    Type: String
+    Description: 'Public subnet 2 ID'
+
+  PrivateSubnet1Id:
+    Type: String
+    Description: 'Private subnet 1 ID'
+
+  PrivateSubnet2Id:
+    Type: String
+    Description: 'Private subnet 2 ID'
+
+  ECSClusterName:
+    Type: String
+    Description: 'ECS cluster name'
+
 Resources:
   # CloudWatch Log Group for ECS
   WebECSLogGroup:
@@ -71,10 +107,10 @@ Resources:
       Type: application
       Scheme: internet-facing
       SecurityGroups:
-        - Fn::ImportValue: 'TaskManager-ALBSecurityGroup'
+        - !Ref ALBSecurityGroupId
       Subnets:
-        - Fn::ImportValue: 'TaskManager-PublicSubnet1'
-        - Fn::ImportValue: 'TaskManager-PublicSubnet2'
+        - !Ref PublicSubnet1Id
+        - !Ref PublicSubnet2Id
       Tags:
         - Key: Environment
           Value: !Ref Environment
@@ -86,8 +122,7 @@ Resources:
       Name: !Sub 'webtg-${Environment}'
       Protocol: HTTP
       Port: 80
-      VpcId:
-        Fn::ImportValue: 'TaskManager-VPC'
+      VpcId: !Ref VPCId
       TargetType: ip
       HealthCheckPath: /health
       HealthCheckIntervalSeconds: 30
@@ -157,10 +192,8 @@ Resources:
         - FARGATE
       Cpu: '512'
       Memory: '1024'
-      ExecutionRoleArn:
-        Fn::ImportValue: 'TaskManager-SharedLambdaRole'
-      TaskRoleArn:
-        Fn::ImportValue: 'TaskManager-SharedLambdaRole'
+      ExecutionRoleArn: !Ref SharedLambdaRoleArn
+      TaskRoleArn: !Ref SharedLambdaRoleArn
       ContainerDefinitions:
         - Name: web
           Image: !Ref WebContainerImage
@@ -205,18 +238,17 @@ Resources:
       - WebTaskDefinition
     Properties:
       ServiceName: !Sub 'websvc-${Environment}'
-      Cluster:
-        Fn::ImportValue: 'TaskManager-ECSCluster'
+      Cluster: !Ref ECSClusterName
       TaskDefinition: !Ref WebTaskDefinition
       DesiredCount: 1
       LaunchType: FARGATE
       NetworkConfiguration:
         AwsvpcConfiguration:
           SecurityGroups:
-            - Fn::ImportValue: 'TaskManager-ECSTaskSecurityGroup'
+            - !Ref ECSTaskSecurityGroupId
           Subnets:
-            - Fn::ImportValue: 'TaskManager-PrivateSubnet1'
-            - Fn::ImportValue: 'TaskManager-PrivateSubnet2'
+            - !Ref PrivateSubnet1Id
+            - !Ref PrivateSubnet2Id
       LoadBalancers:
         - TargetGroupArn: !Ref WebTargetGroup
           ContainerName: web
