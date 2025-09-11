@@ -539,25 +539,9 @@ jobs:
         IMAGE_TAG=${{ needs.build.outputs.semVer }}
         BRANCH_TAG=${BRANCH_NAME:-main}
 
-        # Get ECR repository URI from the deployed stack
-        echo "Querying CloudFormation for ECR repository URI..."
-        ECR_REPO=$(aws cloudformation describe-stacks \
-          --stack-name ${{ env.STACK_NAME }}-${{ matrix.region }} \
-          --query 'Stacks[0].Outputs[?OutputKey==`WebECRRepositoryUri`].OutputValue' \
-          --output text \
-          --region ${{ matrix.region }} 2>/dev/null || echo "")
-
-        # Debug: Show what we got from CloudFormation
-        echo "CloudFormation query result: '$ECR_REPO'"
-
-        # Fallback: construct ECR repo URI if CloudFormation query fails
-        if [ -z "$ECR_REPO" ] || [ "$ECR_REPO" = "None" ] || [ "$ECR_REPO" = "null" ]; then
-          echo "❌ CloudFormation ECR query failed or returned empty, using fallback URI"
-          ECR_REPO="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ matrix.region }}.amazonaws.com/taskmanager-web"
-          echo "📝 Constructed fallback ECR URI: $ECR_REPO"
-        else
-          echo "✅ Successfully retrieved ECR URI from CloudFormation: $ECR_REPO"
-        fi
+        # Construct ECR repository URI
+        ECR_REPO="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ matrix.region }}.amazonaws.com/taskmanager-web"
+        echo "📝 Using ECR repository URI: $ECR_REPO"
 
         echo "🎯 Final ECR repository: $ECR_REPO"
         echo "🏷️ Version tag: $IMAGE_TAG"
