@@ -96,10 +96,9 @@ jobs:
           name: ecs-cleanup-layer-package
           path: ecs-cleanup-layer.zip
   
-    build:
-      name: Build and Test Applications
-      needs: build-layers
-    name: Build and Test
+  build:
+    name: Build and Test Applications
+    needs: build-layers
     runs-on: ubuntu-latest
     outputs:
       semVer: ${{ steps.gitversion.outputs.semVer }}
