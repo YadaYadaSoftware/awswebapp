@@ -388,8 +388,7 @@ jobs:
       with:
         name: taskmanager-global-infrastructure
         template: infrastructure/global-template.yaml
-        parameter-overrides: |
-          DatabasePassword=${{ secrets.DATABASE_PASSWORD }}
+        parameter-overrides: DatabasePassword=${{ secrets.DATABASE_PASSWORD }}
         capabilities: "CAPABILITY_NAMED_IAM"
         no-fail-on-empty-changeset: "1"
       timeout-minutes: 15
@@ -527,11 +526,7 @@ jobs:
       with:
         name: taskmanager-regional-infrastructure-${{ matrix.region }}
         template: infrastructure/regional-infrastructure.yaml
-        parameter-overrides: |
-          DatabasePassword=${{ secrets.DATABASE_PASSWORD }}:${{ secrets.AWS_ACCOUNT_ID }}:secret:taskmanager/database/shared
-          SharedLambdaRoleArn=${{ steps.get-global-values.outputs.shared-lambda-role-arn }}
-          BastionRoleArn=${{ steps.get-global-values.outputs.bastion-role-arn }}
-          DatabaseSecretArn=${{ steps.get-global-values.outputs.database-secret-arn }}
+        parameter-overrides: DatabasePassword=${{ secrets.DATABASE_PASSWORD }}:${{ secrets.AWS_ACCOUNT_ID }}:secret:taskmanager/database/shared,SharedLambdaRoleArn=${{ steps.get-global-values.outputs.shared-lambda-role-arn }},BastionRoleArn=${{ steps.get-global-values.outputs.bastion-role-arn }},DatabaseSecretArn=${{ steps.get-global-values.outputs.database-secret-arn }}
         capabilities: "CAPABILITY_NAMED_IAM"
         no-fail-on-empty-changeset: "1"
       timeout-minutes: 15
@@ -749,14 +744,7 @@ jobs:
       with:
         name: ${{ env.STACK_NAME }}-${{ matrix.region }}
         template: wrapper-template.yaml
-        parameter-overrides: |
-          Environment=${{ env.BRANCH_NAME }},
-          ApiCodeBucket=${{ needs.get-bucket-name.outputs.bucket-name }},
-          WebContainerImage=${{ env.CONTAINER_IMAGE }},
-          DeploymentToken=${{ github.sha }},
-          DomainName=appcloud.systems,
-          HostedZoneId=Z06422172SASV44F5Y8VA,
-          DatabasePassword=${{ secrets.DATABASE_PASSWORD }}
+        parameter-overrides: Environment=${{ env.BRANCH_NAME }},ApiCodeBucket=${{ needs.get-bucket-name.outputs.bucket-name }},WebContainerImage=${{ env.CONTAINER_IMAGE }},DeploymentToken=${{ github.sha }},DomainName=appcloud.systems,HostedZoneId=Z06422172SASV44F5Y8VA,DatabasePassword=${{ secrets.DATABASE_PASSWORD }}
         capabilities: "CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND"
         no-fail-on-empty-changeset: "1"
       timeout-minutes: 20
