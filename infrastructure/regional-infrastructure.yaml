@@ -378,7 +378,7 @@ Resources:
       FunctionName: !Sub 'taskmanager-ecr-cleanup-${AWS::StackName}'
       Runtime: python3.9
       Handler: index.lambda_handler
-      Role: !Ref SharedLambdaRoleArn
+      Role: !Sub 'arn:aws:iam::${AWS::AccountId}:role/TaskManager-Shared-Lambda-Role'
       Layers:
         - !Ref ECRCleanupLayer
       Code:
@@ -494,7 +494,7 @@ Resources:
       FunctionName: !Sub 'taskmanager-sg-cleanup-${AWS::StackName}'
       Runtime: python3.9
       Handler: index.lambda_handler
-      Role: !Ref SharedLambdaRoleArn
+      Role: !Sub 'arn:aws:iam::${AWS::AccountId}:role/TaskManager-Shared-Lambda-Role'
       Layers:
         - !Ref SecurityGroupCleanupLayer
       Code:
@@ -769,19 +769,19 @@ Outputs:
 
   DatabaseEndpoint:
     Description: 'Aurora MySQL cluster endpoint'
-    Value: !If [IsNotUSEast1, !GetAtt AuroraSecondaryCluster.Endpoint.Address, !ImportValue 'TaskManager-DatabaseEndpoint']
+    Value: !GetAtt AuroraCluster.Endpoint.Address
     Export:
       Name: 'TaskManager-DatabaseEndpoint'
 
   DatabaseReaderEndpoint:
     Description: 'Aurora MySQL reader endpoint'
-    Value: !If [IsNotUSEast1, !GetAtt AuroraSecondaryCluster.ReaderEndpoint, !ImportValue 'TaskManager-DatabaseReaderEndpoint']
+    Value: !GetAtt AuroraCluster.ReaderEndpoint
     Export:
       Name: 'TaskManager-DatabaseReaderEndpoint'
 
   DatabaseSecretArn:
     Description: 'Database secret ARN'
-    Value: !Ref RegionalDatabaseSecret
+    Value: !Ref DatabaseSecretArn
 
   BastionHostIP:
     Description: 'Bastion host public IP address'
@@ -805,7 +805,7 @@ Outputs:
     Description: 'SSH tunnel command for Aurora MySQL database access'
     Value: !Sub
       - 'ssh -i your-key.pem -L 3306:${DbEndpoint}:3306 ec2-user@${BastionIp}'
-      - DbEndpoint: !If [IsNotUSEast1, !GetAtt AuroraSecondaryCluster.Endpoint.Address, !ImportValue 'TaskManager-DatabaseEndpoint']
+      - DbEndpoint: !GetAtt AuroraCluster.Endpoint.Address
         BastionIp: !GetAtt BastionHost.PublicIp
     Export:
       Name: 'TaskManager-DatabaseTunnelCommand'
