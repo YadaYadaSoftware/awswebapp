@@ -459,9 +459,9 @@ jobs:
         template: infrastructure/regional-infrastructure.yaml
         parameter-overrides: |
           DatabasePassword=${{ secrets.DATABASE_PASSWORD }},
-          SharedLambdaRoleArn=arn:aws:iam::$ACCOUNT_ID:role/TaskManager-Shared-Lambda-Role,
-          BastionRoleArn=arn:aws:iam::$ACCOUNT_ID:role/TaskManager-Bastion-Role,
-          DatabaseSecretArn=arn:aws:secretsmanager:us-east-1:$ACCOUNT_ID:secret:taskmanager/database/shared
+          SharedLambdaRoleArn=arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/TaskManager-Shared-Lambda-Role,
+          BastionRoleArn=arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/TaskManager-Bastion-Role,
+          DatabaseSecretArn=arn:aws:secretsmanager:us-east-1:${{ secrets.AWS_ACCOUNT_ID }}:secret:taskmanager/database/shared
         capabilities: "CAPABILITY_NAMED_IAM"
         no-fail-on-empty-changeset: "1"
       timeout-minutes: 15
@@ -531,8 +531,7 @@ jobs:
         # Fallback: construct ECR repo URI if CloudFormation query fails
         if [ -z "$ECR_REPO" ] || [ "$ECR_REPO" = "None" ] || [ "$ECR_REPO" = "null" ]; then
           echo "❌ CloudFormation ECR query failed or returned empty, using fallback URI"
-          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-          ECR_REPO="$ACCOUNT_ID.dkr.ecr.${{ matrix.region }}.amazonaws.com/taskmanager-web"
+          ECR_REPO="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ matrix.region }}.amazonaws.com/taskmanager-web"
           echo "📝 Constructed fallback ECR URI: $ECR_REPO"
         else
           echo "✅ Successfully retrieved ECR URI from CloudFormation: $ECR_REPO"
