@@ -236,10 +236,10 @@ Resources:
               DatabasePassword: !Sub '{{resolve:secretsmanager:taskmanager/database/shared:SecretString:password}}'
       VpcConfig:
         SecurityGroupIds:
-          - Fn::ImportValue: 'TaskManager-LambdaSecurityGroup'
+          - !Ref LambdaSecurityGroupId
         SubnetIds:
-          - Fn::ImportValue: 'TaskManager-PrivateSubnet1'
-          - Fn::ImportValue: 'TaskManager-PrivateSubnet2'
+          - !Ref PrivateSubnet1Id
+          - !Ref PrivateSubnet2Id
       Events:
         # Health check endpoint for deployment verification
         HealthCheck:
