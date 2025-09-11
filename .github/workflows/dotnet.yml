@@ -492,8 +492,8 @@ jobs:
 
         echo "✅ All parameter values are present, proceeding with deployment..."
 
-     - name: Cleanup failed regional stack (if exists)
-       run: |
+    - name: Cleanup failed regional stack (if exists)
+      run: |
          STACK_STATUS=$(aws cloudformation describe-stacks \
            --stack-name taskmanager-regional-infrastructure-${{ matrix.region }} \
            --region ${{ matrix.region }} \
@@ -513,7 +513,7 @@ jobs:
            echo "✅ Failed regional stack cleaned up"
          fi
 
-     - name: Deploy Regional Infrastructure
+    - name: Deploy Regional Infrastructure
       id: deploy-regional
       uses: aws-actions/aws-cloudformation-github-deploy@v1
       with:
