@@ -373,6 +373,8 @@ jobs:
       shared-lambda-role-arn: ${{ steps.deploy-global.outputs.SharedLambdaRoleArn }}
       bastion-role-arn: ${{ steps.deploy-global.outputs.BastionRoleArn }}
       database-secret-arn: ${{ steps.deploy-global.outputs.DatabaseSecretArn }}
+      bastion-instance-profile-arn: ${{ steps.deploy-global.outputs.BastionInstanceProfileArn }}
+      aurora-global-cluster-id: ${{ steps.deploy-global.outputs.AuroraGlobalClusterId }}
 
     steps:
     - name: Checkout code
