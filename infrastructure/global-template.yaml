@@ -247,11 +247,9 @@ Resources:
       MasterUserPassword: !Ref DatabasePassword
       DatabaseName: taskmanager
       DeletionProtection: false
-      ScalingConfiguration:
+      ServerlessV2ScalingConfiguration:
         MinCapacity: 1
         MaxCapacity: 4
-        AutoPause: true
-        SecondsUntilAutoPause: 300
     DependsOn: AuroraGlobalCluster
 
   # Secrets Manager for database credentials
