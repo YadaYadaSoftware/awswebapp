@@ -316,7 +316,7 @@ Resources:
   AuroraCluster:
     Type: AWS::RDS::DBCluster
     Properties:
-      GlobalClusterIdentifier: !ImportValue 'TaskManager-AuroraGlobalCluster'
+      GlobalClusterIdentifier: !Ref AuroraGlobalClusterId
       Engine: aurora-mysql
       EngineVersion: '8.0.mysql_aurora.3.05.2'
       DBSubnetGroupName: !Ref AuroraDBSubnetGroup
@@ -380,7 +380,7 @@ Resources:
       FunctionName: !Sub 'taskmanager-ecr-cleanup-${AWS::StackName}'
       Runtime: python3.9
       Handler: index.lambda_handler
-      Role: !Sub 'arn:aws:iam::${AWS::AccountId}:role/TaskManager-Shared-Lambda-Role'
+      Role: !Ref SharedLambdaRoleArn
       Layers:
         - !Ref ECRCleanupLayer
       Code:
@@ -496,7 +496,7 @@ Resources:
       FunctionName: !Sub 'taskmanager-sg-cleanup-${AWS::StackName}'
       Runtime: python3.9
       Handler: index.lambda_handler
-      Role: !Sub 'arn:aws:iam::${AWS::AccountId}:role/TaskManager-Shared-Lambda-Role'
+      Role: !Ref SharedLambdaRoleArn
       Layers:
         - !Ref SecurityGroupCleanupLayer
       Code:
