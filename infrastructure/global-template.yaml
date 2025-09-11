@@ -39,8 +39,6 @@ Resources:
       Runtime: python3.9
       Handler: index.lambda_handler
       Role: !GetAtt SharedLambdaExecutionRole.Arn
-      Layers:
-        - !Ref ECSCleanupLayer
       Code:
         ZipFile: |
           import boto3
@@ -97,7 +95,7 @@ Resources:
                   # Don't fail - the role might already exist or we might not have permissions
 
           def send_response(event, context, response_status, response_data):
-              import urllib3
+              import urllib.request
               import json
 
               response_url = event.get('ResponseURL')
@@ -117,33 +115,17 @@ Resources:
               json_response_body = json.dumps(response_body)
 
               headers = {
-                  'content-type': '',
-                  'content-length': str(len(json_response_body))
+                  'Content-Type': '',
+                  'Content-Length': str(len(json_response_body))
               }
 
-              http = urllib3.PoolManager()
+              req = urllib.request.Request(response_url, data=json_response_body.encode('utf-8'), headers=headers, method='PUT')
               try:
-                  response = http.request(
-                      'PUT',
-                      response_url,
-                      body=json_response_body,
-                      headers=headers
-                  )
-                  logger.info(f"Response sent: {response.status}")
+                  with urllib.request.urlopen(req) as response:
+                      logger.info(f"Response sent: {response.status}")
               except Exception as e:
                   logger.error(f"Failed to send response: {str(e)}")
 
-  # Lambda Layer for urllib3 dependency
-  ECSCleanupLayer:
-    Type: AWS::Lambda::LayerVersion
-    Properties:
-      LayerName: !Sub 'taskmanager-ecs-cleanup-layer-${AWS::StackName}'
-      Description: 'urllib3 dependency for ECS cleanup Lambda'
-      Content:
-        S3Bucket: !Sub 'taskmanager-templates-${AWS::AccountId}'
-        S3Key: 'ecs-cleanup-layer.zip'
-      CompatibleRuntimes:
-        - python3.9
 
   # Custom resource to handle ECS service-linked role creation
   ECSRoleSetupResource:
@@ -156,7 +138,7 @@ Resources:
   SharedLambdaExecutionRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: 'TaskManager-Shared-Lambda-Role'
+      RoleName: !Sub 'TaskManager-Shared-Lambda-Role-${AWS::Region}'
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -212,7 +194,7 @@ Resources:
   BastionRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: 'TaskManager-Bastion-Role'
+      RoleName: !Sub 'TaskManager-Bastion-Role-${AWS::Region}'
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -247,7 +229,7 @@ Resources:
     Properties:
       GlobalClusterIdentifier: 'taskmanager-global-cluster'
       Engine: aurora-mysql
-      EngineVersion: '8.0.mysql_aurora.3.05.2'
+      EngineVersion: '5.7.mysql_aurora.2.04.0'
       DeletionProtection: false
 
   # Secrets Manager for database credentials
