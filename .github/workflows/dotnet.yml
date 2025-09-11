@@ -234,10 +234,106 @@ jobs:
         name: ecs-cleanup-layer-package
         path: ecs-cleanup-layer.zip
 
-  deploy-global:
-    name: Deploy Global Infrastructure
+  prepare-global:
+    name: Prepare Global Infrastructure Dependencies
     runs-on: ubuntu-latest
     needs: build
+    concurrency:
+      group: prepare-global
+      cancel-in-progress: false
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: us-east-1
+
+    - name: Download Global Infrastructure Dependencies
+      uses: actions/download-artifact@v4
+      with:
+        name: iam-cleanup-layer-package
+        path: ./artifacts/
+
+    - name: Download ECS Layer Dependencies
+      uses: actions/download-artifact@v4
+      with:
+        name: ecs-cleanup-layer-package
+        path: ./artifacts/
+
+    - name: Upload Global Infrastructure Layers to S3
+      run: |
+        # Get bucket name from IAM setup stack export
+        BUCKET_NAME=$(aws cloudformation list-exports \
+          --query "Exports[?Name=='TaskManager-TemplatesBucket'].Value" \
+          --output text \
+          --region us-east-1)
+
+        if [ -z "$BUCKET_NAME" ] || [ "$BUCKET_NAME" = "None" ]; then
+          echo "❌ TaskManager-TemplatesBucket export not found. Please ensure github-actions-iam-setup.yaml is deployed first."
+          exit 1
+        fi
+
+        echo "Using S3 bucket: $BUCKET_NAME"
+
+        # Upload layer files required for global infrastructure
+        echo "Uploading global infrastructure layer files..."
+        aws s3 cp ./artifacts/iam-cleanup-layer.zip s3://$BUCKET_NAME/iam-cleanup-layer.zip --region us-east-1
+        aws s3 cp ./artifacts/ecs-cleanup-layer.zip s3://$BUCKET_NAME/ecs-cleanup-layer.zip --region us-east-1
+
+        # Verify uploads
+        echo "Verifying S3 uploads..."
+        aws s3 ls s3://$BUCKET_NAME/ --region us-east-1 | grep -E "(iam-cleanup-layer|ecs-cleanup-layer)"
+
+        # Export bucket name for global deployment
+        echo "TEMPLATE_BUCKET=$BUCKET_NAME" >> $GITHUB_ENV
+
+    - name: Verify Global Infrastructure Prerequisites
+      run: |
+        echo "🔍 Verifying global infrastructure prerequisites..."
+
+        # Check if IAM setup stack exists and is complete
+        IAM_STACK_STATUS=$(aws cloudformation describe-stacks \
+          --stack-name github-actions-iam-setup \
+          --region us-east-1 \
+          --query 'Stacks[0].StackStatus' \
+          --output text 2>/dev/null || echo "NOT_FOUND")
+
+        if [ "$IAM_STACK_STATUS" != "CREATE_COMPLETE" ] && [ "$IAM_STACK_STATUS" != "UPDATE_COMPLETE" ]; then
+          echo "❌ IAM setup stack not found or not complete. Status: $IAM_STACK_STATUS"
+          echo "Please ensure github-actions-iam-setup.yaml is deployed first."
+          exit 1
+        fi
+
+        echo "✅ IAM setup stack status: $IAM_STACK_STATUS"
+
+        # Verify required exports exist
+        REQUIRED_EXPORTS=("TaskManager-TemplatesBucket")
+        for export in "${REQUIRED_EXPORTS[@]}"; do
+          EXPORT_VALUE=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='$export'].Value" \
+            --output text \
+            --region us-east-1 2>/dev/null || echo "")
+
+          if [ -z "$EXPORT_VALUE" ] || [ "$EXPORT_VALUE" = "None" ]; then
+            echo "❌ Required export '$export' not found"
+            exit 1
+          fi
+          echo "✅ Export '$export' found: $EXPORT_VALUE"
+        done
+
+        echo "🎉 Global infrastructure prerequisites verified!"
+
+  deploy-global:
+    name: Deploy Global Infrastructure (CRITICAL)
+    runs-on: ubuntu-latest
+    needs: prepare-global
     concurrency:
       group: deploy-global
       cancel-in-progress: false
@@ -254,45 +350,6 @@ jobs:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: us-east-1
-
-    - name: Download Lambda layer artifacts
-      uses: actions/download-artifact@v4
-      with:
-        name: iam-cleanup-layer-package
-        path: ./artifacts/
-
-    - name: Download ECS layer artifacts
-      uses: actions/download-artifact@v4
-      with:
-        name: ecs-cleanup-layer-package
-        path: ./artifacts/
-
-    - name: Upload Lambda layers to S3
-      run: |
-        # Get bucket name from IAM setup stack export
-        BUCKET_NAME=$(aws cloudformation list-exports \
-          --query "Exports[?Name=='TaskManager-TemplatesBucket'].Value" \
-          --output text \
-          --region us-east-1)
-
-        if [ -z "$BUCKET_NAME" ] || [ "$BUCKET_NAME" = "None" ]; then
-          echo "❌ TaskManager-TemplatesBucket export not found. Please ensure github-actions-iam-setup.yaml is deployed first."
-          exit 1
-        fi
-
-        echo "Using S3 bucket: $BUCKET_NAME"
-
-        # Upload layer files
-        echo "Uploading Lambda layer files..."
-        aws s3 cp ./artifacts/iam-cleanup-layer.zip s3://$BUCKET_NAME/iam-cleanup-layer.zip --region us-east-1
-        aws s3 cp ./artifacts/ecs-cleanup-layer.zip s3://$BUCKET_NAME/ecs-cleanup-layer.zip --region us-east-1
-
-        # Verify uploads
-        echo "Verifying S3 uploads..."
-        aws s3 ls s3://$BUCKET_NAME/ --region us-east-1
-
-        # Export bucket name for use in subsequent steps
-        echo "TEMPLATE_BUCKET=$BUCKET_NAME" >> $GITHUB_ENV
 
     - name: Deploy Global Infrastructure
       uses: aws-actions/aws-cloudformation-github-deploy@v1
