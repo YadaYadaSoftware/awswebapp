@@ -180,15 +180,20 @@ Resources:
             Statement:
               - Effect: Allow
                 Action:
-                  - rds:CreateDatabase
+                  - rds:CreateDBCluster
+                  - rds:ModifyDBCluster
+                  - rds:DeleteDBCluster
                   - rds:DescribeDBClusters
                   - rds:DescribeDBInstances
+                  - rds:DescribeGlobalClusters
+                  - rds:ModifyGlobalCluster
+                  - rds:DeleteGlobalCluster
                   - rds-data:ExecuteStatement
                   - rds-data:BatchExecuteStatement
                 Resource:
                   - !Sub 'arn:aws:rds:us-east-1:${AWS::AccountId}:cluster:taskmanager-*'
-                  - !Sub 'arn:aws:rds:us-east-1:${AWS::AccountId}:cluster:taskmanager-global-cluster'
                   - !Sub 'arn:aws:rds:us-east-2:${AWS::AccountId}:cluster:taskmanager-*'
+                  - !Sub 'arn:aws:rds::${AWS::AccountId}:global-cluster:taskmanager-global-cluster'
 
   # Bastion Role
   BastionRole:
@@ -231,6 +236,23 @@ Resources:
       Engine: aurora-mysql
       EngineVersion: '5.7.mysql_aurora.2.04.0'
       DeletionProtection: false
+  
+  AuroraPrimaryCluster:
+    Type: AWS::RDS::DBCluster
+    Properties:
+      GlobalClusterIdentifier: !Ref AuroraGlobalCluster
+      Engine: aurora-mysql
+      EngineVersion: '5.7.mysql_aurora.2.04.0'
+      MasterUsername: taskmanager_admin
+      MasterUserPassword: !Ref DatabasePassword
+      DatabaseName: taskmanager
+      DeletionProtection: false
+      ScalingConfiguration:
+        MinCapacity: 1
+        MaxCapacity: 4
+        AutoPause: true
+        SecondsUntilAutoPause: 300
+    DependsOn: AuroraGlobalCluster
 
   # Secrets Manager for database credentials
   DatabaseSecret:
@@ -243,11 +265,11 @@ Resources:
           "username": "taskmanager_admin",
           "password": "${DatabasePassword}",
           "engine": "aurora-mysql",
-          "host": "PLACEHOLDER",
-          "port": 3306,
+          "host": "${AuroraPrimaryCluster.Endpoint.Address}",
+          "port": "${AuroraPrimaryCluster.Endpoint.Port}",
           "dbname": "taskmanager",
-          "cluster_arn": "${AuroraGlobalCluster}",
-          "secret_arn": "${AWS::StackName}"
+          "cluster_arn": "${AuroraPrimaryCluster.DBClusterArn}",
+          "secret_arn": "${DatabaseSecret}"
         }
 
 
