@@ -173,24 +173,24 @@ Resources:
   RDSSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: Security group for RDS PostgreSQL
+      GroupDescription: Security group for Aurora MySQL Serverless
       VpcId: !Ref TaskManagerVPC
       SecurityGroupIngress:
         - IpProtocol: tcp
-          FromPort: 5432
-          ToPort: 5432
+          FromPort: 3306
+          ToPort: 3306
           SourceSecurityGroupId: !Ref LambdaSecurityGroup
         - IpProtocol: tcp
-          FromPort: 5432
-          ToPort: 5432
+          FromPort: 3306
+          ToPort: 3306
           SourceSecurityGroupId: !Ref BastionSecurityGroup
         - IpProtocol: tcp
-          FromPort: 5432
-          ToPort: 5432
+          FromPort: 3306
+          ToPort: 3306
           SourceSecurityGroupId: !Ref ECSTaskSecurityGroup
       Tags:
         - Key: Name
-          Value: 'TaskManager-RDS-SG'
+          Value: 'TaskManager-Aurora-Serverless-SG'
 
   LambdaSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -307,7 +307,7 @@ Resources:
         slow_query_log: '1'
         long_query_time: '2'
 
-  # Aurora Cluster (Primary in us-east-1, Secondary in us-east-2)
+  # Aurora Serverless v2 Cluster
   AuroraCluster:
     Type: AWS::RDS::DBCluster
     Properties:
@@ -326,6 +326,9 @@ Resources:
       PreferredMaintenanceWindow: 'sun:04:00-sun:05:00'
       StorageEncrypted: true
       DeletionProtection: false
+      ServerlessV2ScalingConfiguration:
+        MinCapacity: 0.5    # Minimum 0.5 ACUs (Aurora Capacity Units)
+        MaxCapacity: 4      # Maximum 4 ACUs (scales based on demand)
       EnableCloudwatchLogsExports:
         - audit
         - error
@@ -333,26 +336,26 @@ Resources:
         - slowquery
       Tags:
         - Key: Name
-          Value: !Sub 'TaskManager-Aurora-${AWS::Region}'
+          Value: !Sub 'TaskManager-Aurora-Serverless-${AWS::Region}'
         - Key: Purpose
-          Value: 'Regional Aurora Cluster'
+          Value: 'Regional Aurora Serverless Cluster'
         - Key: Region
           Value: !Ref AWS::Region
 
-  # Aurora DB Instance
+  # Aurora Serverless v2 Instance
   AuroraInstance:
     Type: AWS::RDS::DBInstance
     Properties:
-      DBInstanceIdentifier: !Sub 'taskmanager-aurora-${AWS::Region}'
+      DBInstanceIdentifier: !Sub 'taskmanager-aurora-serverless-${AWS::Region}'
       DBClusterIdentifier: !Ref AuroraCluster
-      DBInstanceClass: db.r6g.large
+      DBInstanceClass: db.serverless  # Aurora Serverless v2 instance class
       Engine: aurora-mysql
       PubliclyAccessible: false
       Tags:
         - Key: Name
-          Value: !Sub 'TaskManager-Aurora-Instance-${AWS::Region}'
+          Value: !Sub 'TaskManager-Aurora-Serverless-Instance-${AWS::Region}'
         - Key: Purpose
-          Value: 'Regional Aurora Instance'
+          Value: 'Regional Aurora Serverless Instance'
         - Key: Region
           Value: !Ref AWS::Region
 

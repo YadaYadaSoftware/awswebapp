@@ -177,7 +177,9 @@ Resources:
                 Action:
                   - secretsmanager:GetSecretValue
                   - secretsmanager:DescribeSecret
-                Resource: !Sub 'arn:aws:secretsmanager:us-east-1:${AWS::AccountId}:secret:taskmanager/database/shared/*'
+                Resource:
+                  - !Sub 'arn:aws:secretsmanager:us-east-1:${AWS::AccountId}:secret:taskmanager/database/shared/*'
+                  - !Sub 'arn:aws:secretsmanager:us-east-2:${AWS::AccountId}:secret:taskmanager/database/shared*'
         - PolicyName: CloudWatchLogs
           PolicyDocument:
             Version: '2012-10-17'
@@ -187,7 +189,9 @@ Resources:
                   - logs:CreateLogGroup
                   - logs:CreateLogStream
                   - logs:PutLogEvents
-                Resource: !Sub 'arn:aws:logs:us-east-1:${AWS::AccountId}:*'
+                Resource:
+                  - !Sub 'arn:aws:logs:us-east-1:${AWS::AccountId}:*'
+                  - !Sub 'arn:aws:logs:us-east-2:${AWS::AccountId}:*'
         - PolicyName: RDSAccess
           PolicyDocument:
             Version: '2012-10-17'
@@ -202,6 +206,7 @@ Resources:
                 Resource:
                   - !Sub 'arn:aws:rds:us-east-1:${AWS::AccountId}:cluster:taskmanager-*'
                   - !Sub 'arn:aws:rds:us-east-1:${AWS::AccountId}:cluster:taskmanager-global-cluster'
+                  - !Sub 'arn:aws:rds:us-east-2:${AWS::AccountId}:cluster:taskmanager-*'
 
   # Bastion Role
   BastionRole:
@@ -225,7 +230,9 @@ Resources:
               - Effect: Allow
                 Action:
                   - secretsmanager:GetSecretValue
-                Resource: !Sub 'arn:aws:secretsmanager:us-east-1:${AWS::AccountId}:secret:taskmanager/database/shared/*'
+                Resource:
+                  - !Sub 'arn:aws:secretsmanager:us-east-1:${AWS::AccountId}:secret:taskmanager/database/shared/*'
+                  - !Sub 'arn:aws:secretsmanager:us-east-2:${AWS::AccountId}:secret:taskmanager/database/shared*'
 
   # Bastion Instance Profile
   BastionInstanceProfile:
@@ -248,7 +255,7 @@ Resources:
     Type: AWS::SecretsManager::Secret
     Properties:
       Name: 'taskmanager/database/shared'
-      Description: Database credentials for Aurora Global Database
+      Description: Database credentials for Aurora Serverless Global Database
       SecretString: !Sub |
         {
           "username": "taskmanager_admin",
