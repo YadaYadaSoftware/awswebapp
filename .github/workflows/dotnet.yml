@@ -839,7 +839,7 @@ jobs:
   verify-deployments:
     name: Verify All Deployments (CRITICAL)
     runs-on: ubuntu-latest
-    needs: deploy-application
+    needs: [deploy-application, deploy-global]
     if: always()
     strategy:
       matrix:
