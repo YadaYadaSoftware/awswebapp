@@ -526,7 +526,7 @@ jobs:
       with:
         name: taskmanager-regional-infrastructure-${{ matrix.region }}
         template: infrastructure/regional-infrastructure.yaml
-        parameter-overrides: DatabasePassword=${{ secrets.DATABASE_PASSWORD }}:${{ secrets.AWS_ACCOUNT_ID }}:secret:taskmanager/database/shared,SharedLambdaRoleArn=${{ steps.get-global-values.outputs.shared-lambda-role-arn }},BastionRoleArn=${{ steps.get-global-values.outputs.bastion-role-arn }},DatabaseSecretArn=${{ steps.get-global-values.outputs.database-secret-arn }}
+        parameter-overrides: "DatabasePassword=${{ secrets.DATABASE_PASSWORD }},SharedLambdaRoleArn=${{ steps.get-global-values.outputs.shared-lambda-role-arn }},BastionRoleArn=${{ steps.get-global-values.outputs.bastion-role-arn }},DatabaseSecretArn=${{ steps.get-global-values.outputs.database-secret-arn }}"
         capabilities: "CAPABILITY_NAMED_IAM"
         no-fail-on-empty-changeset: "1"
       timeout-minutes: 15

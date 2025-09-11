@@ -311,9 +311,6 @@ Resources:
       GlobalClusterIdentifier: !ImportValue 'TaskManager-AuroraGlobalCluster'
       Engine: aurora-mysql
       EngineVersion: '8.0.mysql_aurora.3.05.2'
-      DatabaseName: 'taskmanager'
-      MasterUsername: 'taskmanager_admin'
-      MasterUserPassword: !Ref DatabasePassword
       DBSubnetGroupName: !Ref AuroraDBSubnetGroup
       DBClusterParameterGroupName: !Ref AuroraClusterParameterGroup
       VpcSecurityGroupIds:
