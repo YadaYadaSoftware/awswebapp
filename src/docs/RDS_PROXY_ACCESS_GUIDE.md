@@ -40,7 +40,7 @@
 
 #### **Automated Creation (CloudFormation)**
 ```bash
-# Already included in shared-infrastructure.yaml
+# Already included in regional-infrastructure.yaml
 BastionHost:
   Type: AWS::EC2::Instance
   Properties:

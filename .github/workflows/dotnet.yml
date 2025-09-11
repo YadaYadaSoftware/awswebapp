@@ -346,7 +346,7 @@ jobs:
 
         # Upload all templates
         echo "Uploading templates to S3..."
-        aws s3 cp infrastructure/shared-infrastructure.yaml s3://$BUCKET_NAME/ --region us-east-1
+        aws s3 cp infrastructure/regional-infrastructure.yaml s3://$BUCKET_NAME/ --region us-east-1
         aws s3 cp src/TaskManager.Api/api-template.yaml s3://$BUCKET_NAME/ --region us-east-1
         aws s3 cp src/TaskManager.Web2/web-template.yaml s3://$BUCKET_NAME/ --region us-east-1
         aws s3 cp wrapper-template.yaml s3://$BUCKET_NAME/ --region us-east-1
@@ -362,7 +362,7 @@ jobs:
       uses: aws-actions/aws-cloudformation-github-deploy@v1
       with:
         name: taskmanager-regional-infrastructure-${{ matrix.region }}
-        template: infrastructure/shared-infrastructure.yaml
+        template: infrastructure/regional-infrastructure.yaml
         parameter-overrides: |
           DatabasePassword=${{ secrets.DATABASE_PASSWORD }},
           SharedLambdaRoleArn=arn:aws:iam::$ACCOUNT_ID:role/TaskManager-Shared-Lambda-Role,

@@ -8,7 +8,7 @@
     through the bastion host. It supports both SSH tunnels and AWS Systems Manager port forwarding.
 
 .PARAMETER StackName
-    CloudFormation stack name (default: taskmanager-shared-infrastructure)
+    CloudFormation stack name (default: taskmanager-regional-infrastructure-us-east-1)
 
 .PARAMETER KeyPath
     Path to your SSH private key file (optional if using -UseSSM)
@@ -36,7 +36,7 @@
 #>
 
 param(
-    [string]$StackName = "taskmanager-shared-infrastructure",
+    [string]$StackName = "taskmanager-regional-infrastructure-us-east-1",
     [string]$KeyPath,
     [string]$Database = "postgres",
     [switch]$OpenClient,

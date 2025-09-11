@@ -745,8 +745,6 @@ Outputs:
   DatabaseSecretArn:
     Description: 'Database secret ARN'
     Value: !Ref DatabaseSecretUpdate
-    Export:
-      Name: 'TaskManager-DatabaseSecret'
 
   BastionHostIP:
     Description: 'Bastion host public IP address'

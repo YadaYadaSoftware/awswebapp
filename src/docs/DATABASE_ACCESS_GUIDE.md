@@ -47,7 +47,7 @@ psql -h your-rds-endpoint -U taskmanager_admin -d taskmanager
 
 #### **Create Database Query Lambda**
 ```yaml
-# Add to shared-infrastructure.yaml
+# Add to regional-infrastructure.yaml
 DatabaseQueryFunction:
   Type: AWS::Serverless::Function
   Properties:
@@ -73,7 +73,7 @@ DatabaseQueryFunction:
 
 #### **Add RDS Proxy to Template**
 ```yaml
-# Already included in shared-infrastructure.yaml
+# Already included in regional-infrastructure.yaml
 TaskManagerRDSProxy:
   Type: AWS::RDS::DBProxy
   Properties:
