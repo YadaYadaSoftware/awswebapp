@@ -1,10 +1,10 @@
 <#
 .SYNOPSIS
     TaskManager Database Connection Script for Windows
-    Sets up SSH tunnel or SSM port forwarding and connects to PostgreSQL database
+    Sets up SSH tunnel or SSM port forwarding and connects to Aurora MySQL database
 
 .DESCRIPTION
-    This script automates the process of connecting to your TaskManager PostgreSQL database
+    This script automates the process of connecting to your TaskManager Aurora MySQL Global Database
     through the bastion host. It supports both SSH tunnels and AWS Systems Manager port forwarding.
 
 .PARAMETER StackName
@@ -14,7 +14,7 @@
     Path to your SSH private key file (optional if using -UseSSM)
 
 .PARAMETER Database
-    Database name to connect to (default: postgres)
+    Database name to connect to (default: taskmanager)
 
 .PARAMETER OpenClient
     Open database client after setting up tunnel (default: false)
@@ -38,15 +38,15 @@
 param(
     [string]$StackName = "taskmanager-regional-infrastructure-us-east-1",
     [string]$KeyPath,
-    [string]$Database = "postgres",
+    [string]$Database = "taskmanager",
     [switch]$OpenClient,
     [switch]$UseSSM
 )
 
 # Configuration
 $REGION = "us-east-1"
-$LOCAL_PORT = 5432
-$REMOTE_PORT = 5432
+$LOCAL_PORT = 3306
+$REMOTE_PORT = 3306
 $DB_USER = "taskmanager_admin"
 
 # Colors for output
@@ -182,7 +182,7 @@ function Setup-SSHTunnel {
         Write-ColorOutput "[OK] Found bastion instance: $instanceId" $Green
 
         # Start SSM port forwarding
-        $ssmCommand = "aws ssm start-session --target $instanceId --document-name AWS-StartPortForwardingSession --parameters portNumber='5432',localPortNumber='$LOCAL_PORT' --region $REGION"
+        $ssmCommand = "aws ssm start-session --target $instanceId --document-name AWS-StartPortForwardingSession --parameters portNumber='3306',localPortNumber='$LOCAL_PORT' --region $REGION"
 
         Write-ColorOutput "[CMD] SSM command:" $Yellow
         Write-ColorOutput "   $ssmCommand" $Yellow
@@ -195,7 +195,7 @@ function Setup-SSHTunnel {
 
         # Start SSM session in background
         $tunnelProcess = Start-Process -FilePath "aws" `
-            -ArgumentList "ssm", "start-session", "--target", $instanceId, "--document-name", "AWS-StartPortForwardingSession", "--parameters", "portNumber='5432',localPortNumber='$LOCAL_PORT'", "--region", $REGION `
+            -ArgumentList "ssm", "start-session", "--target", $instanceId, "--document-name", "AWS-StartPortForwardingSession", "--parameters", "portNumber='3306',localPortNumber='$LOCAL_PORT'", "--region", $REGION `
             -NoNewWindow `
             -PassThru
 
@@ -285,20 +285,20 @@ function Show-ConnectionInfo {
 
     Write-ColorOutput "`n[INFO] Connection Commands:" $Cyan
 
-    Write-ColorOutput "psql command:" $Yellow
-    Write-ColorOutput "  psql -h localhost -p $LOCAL_PORT -U $DB_USER -d $Database" $Yellow
+    Write-ColorOutput "mysql command:" $Yellow
+    Write-ColorOutput "  mysql -h localhost -P $LOCAL_PORT -u $DB_USER -p -D $Database" $Yellow
 
-    Write-ColorOutput "`npgAdmin/DBeaver:" $Yellow
+    Write-ColorOutput "`nMySQL Workbench/DBeaver:" $Yellow
     Write-ColorOutput "  Host: localhost" $Yellow
     Write-ColorOutput "  Port: $LOCAL_PORT" $Yellow
     Write-ColorOutput "  Database: $Database" $Yellow
     Write-ColorOutput "  Username: $DB_USER" $Yellow
 
     Write-ColorOutput "`n[INFO] Useful Queries:" $Cyan
-    Write-ColorOutput "  \l                    # List all databases" $Yellow
-    Write-ColorOutput "  \c $Database         # Connect to database" $Yellow
-    Write-ColorOutput "  \dt                   # List tables" $Yellow
-    Write-ColorOutput "  SELECT * FROM `"Users`";  # View users" $Yellow
+    Write-ColorOutput "  SHOW DATABASES;      # List all databases" $Yellow
+    Write-ColorOutput "  USE $Database;       # Connect to database" $Yellow
+    Write-ColorOutput "  SHOW TABLES;         # List tables" $Yellow
+    Write-ColorOutput "  SELECT * FROM Users; # View users" $Yellow
 }
 
 function Open-DatabaseClient {
@@ -308,16 +308,16 @@ function Open-DatabaseClient {
 
     Write-ColorOutput "`n[INFO] Opening database client..." $Cyan
 
-    # Try to open pgAdmin if installed
-    $pgAdminPaths = @(
-        "C:\Program Files\pgAdmin 4\bin\pgAdmin4.exe",
-        "C:\Program Files (x86)\pgAdmin 4\bin\pgAdmin4.exe",
-        "${env:ProgramFiles}\pgAdmin 4\bin\pgAdmin4.exe"
+    # Try to open MySQL Workbench if installed
+    $mysqlWorkbenchPaths = @(
+        "C:\Program Files\MySQL\MySQL Workbench 8.0 CE\MySQLWorkbench.exe",
+        "C:\Program Files (x86)\MySQL\MySQL Workbench 8.0 CE\MySQLWorkbench.exe",
+        "${env:ProgramFiles}\MySQL\MySQL Workbench 8.0 CE\MySQLWorkbench.exe"
     )
 
-    foreach ($path in $pgAdminPaths) {
+    foreach ($path in $mysqlWorkbenchPaths) {
         if (Test-Path $path) {
-            Write-ColorOutput "[OK] Found pgAdmin, opening..." $Green
+            Write-ColorOutput "[OK] Found MySQL Workbench, opening..." $Green
             Start-Process $path
             return
         }

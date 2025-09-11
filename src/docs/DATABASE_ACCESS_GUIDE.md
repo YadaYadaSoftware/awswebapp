@@ -1,7 +1,7 @@
 # Database Access Guide - Private VPC Database
 
 ## Overview
-The TaskManager RDS PostgreSQL database is deployed in private subnets for security. This guide explains how to access it from your development environment.
+The TaskManager Aurora MySQL Global Database is deployed across multiple regions for high availability. This guide explains how to access it from your development environment.
 
 ## Access Methods
 
@@ -23,10 +23,10 @@ aws ec2 run-instances \
 #### **SSH Tunnel for Database Access**
 ```bash
 # Create SSH tunnel to database
-ssh -i your-key.pem -L 5432:your-rds-endpoint:5432 ec2-user@your-bastion-ip
+ssh -i your-key.pem -L 3306:your-aurora-endpoint:3306 ec2-user@your-bastion-ip
 
-# Connect with psql through tunnel
-psql -h localhost -p 5432 -U taskmanager_admin -d taskmanager
+# Connect with mysql through tunnel
+mysql -h localhost -P 3306 -u taskmanager_admin -p -D taskmanager
 ```
 
 ### **Option 2: AWS Systems Manager Session Manager (Secure)**

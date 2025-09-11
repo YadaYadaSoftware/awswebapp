@@ -9,54 +9,6 @@ Parameters:
     Description: 'Password for the RDS PostgreSQL database'
 
 Resources:
-  # S3 Bucket for CloudFormation Templates (Global) - Must be first due to dependencies
-  TemplatesBucket:
-    Type: AWS::S3::Bucket
-    Properties:
-      BucketName: !Sub 'taskmanager-templates-${AWS::AccountId}'
-      VersioningConfiguration:
-        Status: Enabled
-      PublicAccessBlockConfiguration:
-        BlockPublicAcls: true
-        BlockPublicPolicy: true
-        IgnorePublicAcls: true
-        RestrictPublicBuckets: true
-      BucketEncryption:
-        ServerSideEncryptionConfiguration:
-          - ServerSideEncryptionByDefault:
-              SSEAlgorithm: AES256
-      Tags:
-        - Key: Name
-          Value: 'TaskManager-Templates-Bucket'
-        - Key: Purpose
-          Value: 'CloudFormation Template Storage'
-        - Key: ManagedBy
-          Value: 'TaskManager Global Infrastructure'
-
-  # S3 Bucket Policy for CloudFormation Access
-  TemplatesBucketPolicy:
-    Type: AWS::S3::BucketPolicy
-    Properties:
-      Bucket: !Ref TemplatesBucket
-      PolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Sid: AllowCloudFormationAccess
-            Effect: Allow
-            Principal:
-              Service: cloudformation.amazonaws.com
-            Action:
-              - s3:GetObject
-            Resource: !Sub '${TemplatesBucket.Arn}/*'
-          - Sid: AllowAccountAccess
-            Effect: Allow
-            Principal:
-              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
-            Action:
-              - s3:GetObject
-              - s3:PutObject
-              - s3:DeleteObject
-            Resource: !Sub '${TemplatesBucket.Arn}/*'
 
   # IAM Policy for GitHub Actions to manage service-linked roles
   GitHubActionsServiceLinkedRolePolicy:
