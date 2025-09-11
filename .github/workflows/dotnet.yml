@@ -363,12 +363,16 @@ jobs:
         echo "🎉 Global infrastructure prerequisites verified!"
 
   deploy-global:
-    name: Deploy Global Infrastructure 
+    name: Deploy Global Infrastructure
     runs-on: ubuntu-latest
     needs: prepare-global
     concurrency:
       group: deploy-global
       cancel-in-progress: false
+    outputs:
+      shared-lambda-role-arn: ${{ steps.deploy-global.outputs.SharedLambdaRoleArn }}
+      bastion-role-arn: ${{ steps.deploy-global.outputs.BastionRoleArn }}
+      database-secret-arn: ${{ steps.deploy-global.outputs.DatabaseSecretArn }}
 
     steps:
     - name: Checkout code
@@ -384,6 +388,7 @@ jobs:
         aws-region: us-east-2
 
     - name: Deploy Global Infrastructure
+      id: deploy-global
       uses: aws-actions/aws-cloudformation-github-deploy@v1
       with:
         name: taskmanager-global-infrastructure
@@ -416,6 +421,10 @@ jobs:
     strategy:
       matrix:
         region: [us-east-1, us-east-2]
+    outputs:
+      web-ecr-repository-uri: ${{ steps.deploy-regional.outputs.WebECRRepositoryUri }}
+      bastion-host-ip: ${{ steps.deploy-regional.outputs.BastionHostIP }}
+      database-tunnel-command: ${{ steps.deploy-regional.outputs.DatabaseTunnelCommand }}
 
     steps:
     - name: Checkout code
@@ -443,78 +452,26 @@ jobs:
         echo "Verifying S3 uploads..."
         aws s3 ls s3://${{ needs.get-bucket-name.outputs.bucket-name }}/ --region us-east-1
 
-    - name: Get Global Infrastructure Values
-      id: get-global-values
-      run: |
-        echo "Getting global infrastructure values from CloudFormation exports..."
-
-        # Get Shared Lambda Role ARN
-        SHARED_LAMBDA_ROLE_ARN=$(aws cloudformation list-exports \
-          --query "Exports[?Name=='TaskManager-SharedLambdaRole'].Value" \
-          --output text \
-          --region us-east-2 2>/dev/null || echo "")
-
-        echo "Shared Lambda Role ARN: $SHARED_LAMBDA_ROLE_ARN"
-
-        # Get Bastion Role ARN
-        BASTION_ROLE_ARN=$(aws cloudformation list-exports \
-          --query "Exports[?Name=='TaskManager-BastionRole'].Value" \
-          --output text \
-          --region us-east-2 2>/dev/null || echo "")
-
-        echo "Bastion Role ARN: $BASTION_ROLE_ARN"
-
-        # Get Database Secret ARN
-        DATABASE_SECRET_ARN=$(aws cloudformation list-exports \
-          --query "Exports[?Name=='TaskManager-DatabaseSecret'].Value" \
-          --output text \
-          --region us-east-2 2>/dev/null || echo "")
-
-        echo "Database Secret ARN: $DATABASE_SECRET_ARN"
-
-        # Validate that we got all required values
-        if [ -z "$SHARED_LAMBDA_ROLE_ARN" ] || [ "$SHARED_LAMBDA_ROLE_ARN" = "None" ]; then
-          echo "❌ ERROR: Shared Lambda Role ARN not found"
-          exit 1
-        fi
-
-        if [ -z "$BASTION_ROLE_ARN" ] || [ "$BASTION_ROLE_ARN" = "None" ]; then
-          echo "❌ ERROR: Bastion Role ARN not found"
-          exit 1
-        fi
-
-        if [ -z "$DATABASE_SECRET_ARN" ] || [ "$DATABASE_SECRET_ARN" = "None" ]; then
-          echo "❌ ERROR: Database Secret ARN not found"
-          exit 1
-        fi
-
-        echo "✅ All required values retrieved successfully"
-
-        # Set outputs for use in parameter overrides
-        echo "shared-lambda-role-arn=$SHARED_LAMBDA_ROLE_ARN" >> $GITHUB_OUTPUT
-        echo "bastion-role-arn=$BASTION_ROLE_ARN" >> $GITHUB_OUTPUT
-        echo "database-secret-arn=$DATABASE_SECRET_ARN" >> $GITHUB_OUTPUT
-
     - name: Validate Parameter Values
       run: |
         echo "🔍 Debug: Parameter values being passed to CloudFormation:"
         echo "DatabasePassword: [REDACTED]"
-        echo "SharedLambdaRoleArn: ${{ steps.get-global-values.outputs.shared-lambda-role-arn }}"
-        echo "BastionRoleArn: ${{ steps.get-global-values.outputs.bastion-role-arn }}"
-        echo "DatabaseSecretArn: ${{ steps.get-global-values.outputs.database-secret-arn }}"
+        echo "SharedLambdaRoleArn: ${{ needs.deploy-global.outputs.shared-lambda-role-arn }}"
+        echo "BastionRoleArn: ${{ needs.deploy-global.outputs.bastion-role-arn }}"
+        echo "DatabaseSecretArn: ${{ needs.deploy-global.outputs.database-secret-arn }}"
 
-        # Validate that step outputs are not empty
-        if [ -z "${{ steps.get-global-values.outputs.shared-lambda-role-arn }}" ]; then
+        # Validate that job outputs are not empty
+        if [ -z "${{ needs.deploy-global.outputs.shared-lambda-role-arn }}" ]; then
           echo "❌ ERROR: SharedLambdaRoleArn is empty"
           exit 1
         fi
 
-        if [ -z "${{ steps.get-global-values.outputs.bastion-role-arn }}" ]; then
+        if [ -z "${{ needs.deploy-global.outputs.bastion-role-arn }}" ]; then
           echo "❌ ERROR: BastionRoleArn is empty"
           exit 1
         fi
 
-        if [ -z "${{ steps.get-global-values.outputs.database-secret-arn }}" ]; then
+        if [ -z "${{ needs.deploy-global.outputs.database-secret-arn }}" ]; then
           echo "❌ ERROR: DatabaseSecretArn is empty"
           exit 1
         fi
@@ -522,11 +479,12 @@ jobs:
         echo "✅ All parameter values are present, proceeding with deployment..."
 
     - name: Deploy Regional Infrastructure
+      id: deploy-regional
       uses: aws-actions/aws-cloudformation-github-deploy@v1
       with:
         name: taskmanager-regional-infrastructure-${{ matrix.region }}
         template: infrastructure/regional-infrastructure.yaml
-        parameter-overrides: "DatabasePassword=${{ secrets.DATABASE_PASSWORD }},SharedLambdaRoleArn=${{ steps.get-global-values.outputs.shared-lambda-role-arn }},BastionRoleArn=${{ steps.get-global-values.outputs.bastion-role-arn }},DatabaseSecretArn=${{ steps.get-global-values.outputs.database-secret-arn }}"
+        parameter-overrides: "DatabasePassword=${{ secrets.DATABASE_PASSWORD }},SharedLambdaRoleArn=${{ needs.deploy-global.outputs.shared-lambda-role-arn }},BastionRoleArn=${{ needs.deploy-global.outputs.bastion-role-arn }},DatabaseSecretArn=${{ needs.deploy-global.outputs.database-secret-arn }}"
         capabilities: "CAPABILITY_NAMED_IAM"
         no-fail-on-empty-changeset: "1"
       timeout-minutes: 15
@@ -582,26 +540,16 @@ jobs:
         IMAGE_TAG=${{ needs.build.outputs.semVer }}
         BRANCH_TAG=${BRANCH_NAME:-main}
 
-        # Get ECR repository URI from CloudFormation outputs
-        echo "Querying CloudFormation for ECR repository URI..."
-        ECR_REPO=$(aws cloudformation describe-stacks \
-          --stack-name taskmanager-regional-infrastructure-${{ matrix.region }} \
-          --query 'Stacks[0].Outputs[?OutputKey==`WebECRRepositoryUri`].OutputValue' \
-          --output text \
-          --region ${{ matrix.region }} 2>/dev/null || echo "")
+        # Get ECR repository URI from job outputs
+        ECR_REPO="${{ needs.deploy-infrastructure.outputs.web-ecr-repository-uri }}"
 
-        # Debug: Show what we got from CloudFormation
-        echo "CloudFormation query result: '$ECR_REPO'"
-
-        # Fallback: construct ECR repo URI if CloudFormation query fails
-        if [ -z "$ECR_REPO" ] || [ "$ECR_REPO" = "None" ] || [ "$ECR_REPO" = "null" ]; then
-          echo "❌ CloudFormation ECR query failed or returned empty, using fallback URI"
-          ECR_REPO="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ matrix.region }}.amazonaws.com/taskmanager-web"
-          echo "📝 Constructed fallback ECR URI: $ECR_REPO"
-        else
-          echo "✅ Successfully retrieved ECR URI from CloudFormation: $ECR_REPO"
+        # Validate ECR repo URI
+        if [ -z "$ECR_REPO" ]; then
+          echo "❌ ERROR: ECR repository URI not found in job outputs"
+          exit 1
         fi
 
+        echo "✅ Successfully retrieved ECR URI from job outputs: $ECR_REPO"
         echo "🎯 Final ECR repository: $ECR_REPO"
         echo "🏷️ Version tag: $IMAGE_TAG"
         echo "🌿 Branch tag: $BRANCH_TAG"
@@ -740,6 +688,7 @@ jobs:
         aws s3 ls s3://${{ needs.get-bucket-name.outputs.bucket-name }}/ --region us-east-1
 
     - name: Deploy Wrapper Template (Nested Stacks)
+      id: deploy-wrapper
       uses: aws-actions/aws-cloudformation-github-deploy@v1
       with:
         name: ${{ env.STACK_NAME }}-${{ matrix.region }}
@@ -766,23 +715,16 @@ jobs:
       run: |
         echo "Setting up database for branch: ${{ env.BRANCH_NAME }}"
 
-        # Get API endpoint from wrapper stack exports (most reliable method)
-        # The wrapper stack exports the API endpoint with name: TaskManager-{Environment}-ApiEndpoint
-        EXPORT_NAME="TaskManager-${{ env.BRANCH_NAME }}-ApiEndpoint"
+        # Get API endpoint from wrapper stack outputs
+        API_URL="${{ steps.deploy-wrapper.outputs.ApiEndpoint }}"
 
-        echo "Looking for CloudFormation export: $EXPORT_NAME"
-        API_URL=$(aws cloudformation list-exports \
-          --query "Exports[?Name=='$EXPORT_NAME'].Value" \
-          --output text \
-          --region ${{ matrix.region }} 2>/dev/null || echo "")
-
-        if [ -z "$API_URL" ] || [ "$API_URL" = "None" ]; then
-          echo "❌ API endpoint export not found: $EXPORT_NAME"
-          echo "This indicates the CloudFormation deployment failed or the export is not ready"
+        if [ -z "$API_URL" ]; then
+          echo "❌ API endpoint not found in stack outputs"
+          echo "This indicates the CloudFormation deployment failed or the output is not ready"
           exit 1
         fi
 
-        echo "✅ API endpoint from export: $API_URL"
+        echo "✅ API endpoint from stack outputs: $API_URL"
 
         # Test API connectivity first
         echo "Testing API connectivity..."
@@ -816,48 +758,29 @@ jobs:
     - name: Get deployment outputs
       id: get-endpoints
       run: |
-        echo "Getting deployment outputs from CloudFormation exports..."
+        echo "Getting deployment outputs from stack outputs..."
 
-        # Get API endpoint from wrapper stack exports
-        API_EXPORT_NAME="TaskManager-${{ env.BRANCH_NAME }}-ApiEndpoint"
-        API_URL=$(aws cloudformation list-exports \
-          --query "Exports[?Name=='$API_EXPORT_NAME'].Value" \
-          --output text \
-          --region ${{ matrix.region }} 2>/dev/null || echo "")
+        # Get API endpoint from wrapper stack outputs
+        API_URL="${{ steps.deploy-wrapper.outputs.TaskManagerApiEndpoint }}"
 
-        if [ -z "$API_URL" ] || [ "$API_URL" = "None" ]; then
-          echo "❌ API endpoint export not found: $API_EXPORT_NAME"
-          echo "Available exports:"
-          aws cloudformation list-exports --region ${{ matrix.region }} 2>/dev/null || echo "No exports found"
+        if [ -z "$API_URL" ]; then
+          echo "❌ API endpoint not found in stack outputs"
           exit 1
         fi
         echo "✅ API endpoint: $API_URL"
 
-        # Get Web endpoint from wrapper stack exports
-        WEB_EXPORT_NAME="TaskManager-${{ env.BRANCH_NAME }}-WebLoadBalancerDNS"
-        WEB_URL=$(aws cloudformation list-exports \
-          --query "Exports[?Name=='$WEB_EXPORT_NAME'].Value" \
-          --output text \
-          --region ${{ matrix.region }} 2>/dev/null || echo "")
+        # Get Web endpoint from wrapper stack outputs
+        WEB_URL="${{ steps.deploy-wrapper.outputs.WebLoadBalancerDNS }}"
 
-        if [ -z "$WEB_URL" ] || [ "$WEB_URL" = "None" ]; then
-          echo "⚠️ Web endpoint export not found: $WEB_EXPORT_NAME"
+        if [ -z "$WEB_URL" ]; then
+          echo "⚠️ Web endpoint not found in stack outputs"
           WEB_URL=""
         else
           echo "✅ Web endpoint: $WEB_URL"
         fi
 
-        BASTION_IP=$(aws cloudformation describe-stacks \
-          --stack-name taskmanager-regional-infrastructure-${{ matrix.region }} \
-          --query 'Stacks[0].Outputs[?OutputKey==`BastionHostIP`].OutputValue' \
-          --output text \
-          --region ${{ matrix.region }})
-
-        TUNNEL_CMD=$(aws cloudformation describe-stacks \
-          --stack-name taskmanager-regional-infrastructure-${{ matrix.region }} \
-          --query 'Stacks[0].Outputs[?OutputKey==`DatabaseTunnelCommand`].OutputValue' \
-          --output text \
-          --region ${{ matrix.region }})
+        BASTION_IP="${{ needs.deploy-infrastructure.outputs.bastion-host-ip }}"
+        TUNNEL_CMD="${{ needs.deploy-infrastructure.outputs.database-tunnel-command }}"
 
         # Extract API Gateway ID from URL
         API_GATEWAY_ID=$(echo $API_URL | sed 's|https://||' | sed 's|\.execute-api.*||')
@@ -876,21 +799,9 @@ jobs:
 
     - name: Send SMS Notification
       run: |
-        # Get SNS topic ARN from global stack (always in us-east-1)
-        SNS_TOPIC=$(aws cloudformation describe-stacks \
-          --stack-name taskmanager-global-infrastructure \
-          --query 'Stacks[0].Outputs[?OutputKey==`DeploymentNotificationTopicArn`].OutputValue' \
-          --output text \
-          --region us-east-1)
-
-        # Send SMS notification
-        aws sns publish \
-          --topic-arn $SNS_TOPIC \
-          --message "🚀 TaskManager deployment complete! Branch: ${{ env.BRANCH_NAME }} Region: ${{ matrix.region }} API: $API_URL Web App: https://$BRANCH_NAME.appcloud.systems Database: taskmanager_${{ env.BRANCH_NAME }} ✅ Setup verified Bastion IP: $BASTION_IP Both API and Web are fully deployed and running!" \
-          --subject "TaskManager Deployed - ${{ env.BRANCH_NAME }} (${{ matrix.region }})" \
-          --region us-east-1
-
-        echo "📱 SMS notification sent to 703-474-0324"
+        # Note: SMS notification disabled as SNS topic is not defined in global template
+        echo "📱 SMS notification skipped - SNS topic not configured in global infrastructure"
+        echo "🚀 TaskManager deployment complete! Branch: ${{ env.BRANCH_NAME }} Region: ${{ matrix.region }} API: $API_URL Web App: https://$BRANCH_NAME.appcloud.systems Database: taskmanager_${{ env.BRANCH_NAME }} ✅ Setup verified Bastion IP: $BASTION_IP Both API and Web are fully deployed and running!"
 
   verify-deployments:
     name: Verify All Deployments 
