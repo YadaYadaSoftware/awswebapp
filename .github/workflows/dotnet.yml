@@ -441,7 +441,19 @@ jobs:
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: ${{ matrix.region }}
 
-    - name: Upload templates to S3
+    - name: Download ECR and SG Cleanup Layers
+      uses: actions/download-artifact@v4
+      with:
+        name: ecr-cleanup-layer-package
+        path: ./regional-artifacts/
+
+    - name: Download SG Cleanup Layer
+      uses: actions/download-artifact@v4
+      with:
+        name: sg-cleanup-layer-package
+        path: ./regional-artifacts/
+
+    - name: Upload templates and regional layers to S3
       run: |
         # Upload all templates
         echo "Uploading templates to S3..."
@@ -449,6 +461,11 @@ jobs:
         aws s3 cp src/TaskManager.Api/api-template.yaml s3://${{ needs.get-bucket-name.outputs.bucket-name }}/ --region us-east-1
         aws s3 cp src/TaskManager.Web2/web-template.yaml s3://${{ needs.get-bucket-name.outputs.bucket-name }}/ --region us-east-1
         aws s3 cp wrapper-template.yaml s3://${{ needs.get-bucket-name.outputs.bucket-name }}/ --region us-east-1
+
+        # Upload regional layers required for regional infrastructure
+        echo "Uploading regional layers to S3..."
+        aws s3 cp ./regional-artifacts/ecr-cleanup-layer.zip s3://${{ needs.get-bucket-name.outputs.bucket-name }}/ecr-cleanup-layer.zip --region us-east-1
+        aws s3 cp ./regional-artifacts/sg-cleanup-layer.zip s3://${{ needs.get-bucket-name.outputs.bucket-name }}/sg-cleanup-layer.zip --region us-east-1
 
         # Verify uploads
         echo "Verifying S3 uploads..."
@@ -661,12 +678,6 @@ jobs:
         name: mysql-layer-package
         path: ./artifacts/
 
-    - name: Download ECR Cleanup Layer
-      uses: actions/download-artifact@v4
-      with:
-        name: ecr-cleanup-layer-package
-        path: ./artifacts/
-
     - name: Download S3 Cleanup Layer
       uses: actions/download-artifact@v4
       with:
@@ -677,12 +688,6 @@ jobs:
       uses: actions/download-artifact@v4
       with:
         name: iam-cleanup-layer-package
-        path: ./artifacts/
-
-    - name: Download Security Group Cleanup Layer
-      uses: actions/download-artifact@v4
-      with:
-        name: sg-cleanup-layer-package
         path: ./artifacts/
 
     - name: Download ECS Cleanup Layer
@@ -703,24 +708,18 @@ jobs:
         # Upload MySQL layer
         aws s3 cp ./artifacts/mysql-layer.zip s3://${{ needs.get-bucket-name.outputs.bucket-name }}/mysql-layer.zip --region us-east-1
 
-        # Upload ECR cleanup layer
-        aws s3 cp ./artifacts/ecr-cleanup-layer.zip s3://${{ needs.get-bucket-name.outputs.bucket-name }}/ecr-cleanup-layer.zip --region us-east-1
-
         # Upload S3 cleanup layer
         aws s3 cp ./artifacts/s3-cleanup-layer.zip s3://${{ needs.get-bucket-name.outputs.bucket-name }}/s3-cleanup-layer.zip --region us-east-1
 
         # Upload IAM cleanup layer
         aws s3 cp ./artifacts/iam-cleanup-layer.zip s3://${{ needs.get-bucket-name.outputs.bucket-name }}/iam-cleanup-layer.zip --region us-east-1
 
-        # Upload Security Group cleanup layer
-        aws s3 cp ./artifacts/sg-cleanup-layer.zip s3://${{ needs.get-bucket-name.outputs.bucket-name }}/sg-cleanup-layer.zip --region us-east-1
-
         # Upload ECS cleanup layer
         aws s3 cp ./artifacts/ecs-cleanup-layer.zip s3://${{ needs.get-bucket-name.outputs.bucket-name }}/ecs-cleanup-layer.zip --region us-east-1
 
         # Verify uploads
         echo "S3 bucket contents:"
-        aws s3 ls s3://${{ needs.get-bucket-name.outputs.bucket-name }}/ --region us-east-1
+        aws s3 ls s3://${{ needs.get-bucket-name.outputs.bucket-name }}/ --region us-east-1 | grep -E "(api-lambda-deployment|mysql-layer|s3-cleanup-layer|iam-cleanup-layer|ecs-cleanup-layer)"
 
     - name: Deploy Wrapper Template (Nested Stacks)
       id: deploy-wrapper
