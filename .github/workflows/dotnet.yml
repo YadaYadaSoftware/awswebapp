@@ -241,17 +241,36 @@ jobs:
 
     - name: Upload templates to S3
       run: |
-        # Create S3 bucket for templates (only in us-east-1)
+        BUCKET_NAME="taskmanager-templates-${{ secrets.AWS_ACCOUNT_ID }}"
+
+        # Create S3 bucket if it doesn't exist (only in us-east-1 to avoid conflicts)
         if [ "${{ matrix.region }}" = "us-east-1" ]; then
-          aws s3 mb s3://taskmanager-templates-${{ secrets.AWS_ACCOUNT_ID }} --region us-east-1
-          aws s3 cp infrastructure/global-template.yaml s3://taskmanager-templates-${{ secrets.AWS_ACCOUNT_ID }}/ --region us-east-1
+          echo "Creating S3 bucket: $BUCKET_NAME"
+          aws s3 mb s3://$BUCKET_NAME --region us-east-1 2>/dev/null || echo "Bucket already exists"
+          aws s3 cp infrastructure/global-template.yaml s3://$BUCKET_NAME/ --region us-east-1
         fi
 
-        # Upload regional template
-        aws s3 cp infrastructure/shared-infrastructure.yaml s3://taskmanager-templates-${{ secrets.AWS_ACCOUNT_ID }}/ --region us-east-1
-        aws s3 cp src/TaskManager.Api/api-template.yaml s3://taskmanager-templates-${{ secrets.AWS_ACCOUNT_ID }}/ --region us-east-1
-        aws s3 cp src/TaskManager.Web2/web-template.yaml s3://taskmanager-templates-${{ secrets.AWS_ACCOUNT_ID }}/ --region us-east-1
-        aws s3 cp wrapper-template.yaml s3://taskmanager-templates-${{ secrets.AWS_ACCOUNT_ID }}/ --region us-east-1
+        # Wait for bucket to be available (retry logic)
+        echo "Waiting for S3 bucket to be available..."
+        for i in {1..30}; do
+          if aws s3 ls s3://$BUCKET_NAME --region us-east-1 >/dev/null 2>&1; then
+            echo "✅ S3 bucket is ready"
+            break
+          fi
+          echo "Waiting for bucket... (attempt $i/30)"
+          sleep 2
+        done
+
+        # Upload all templates
+        echo "Uploading templates to S3..."
+        aws s3 cp infrastructure/shared-infrastructure.yaml s3://$BUCKET_NAME/ --region us-east-1
+        aws s3 cp src/TaskManager.Api/api-template.yaml s3://$BUCKET_NAME/ --region us-east-1
+        aws s3 cp src/TaskManager.Web2/web-template.yaml s3://$BUCKET_NAME/ --region us-east-1
+        aws s3 cp wrapper-template.yaml s3://$BUCKET_NAME/ --region us-east-1
+
+        # Verify uploads
+        echo "Verifying S3 uploads..."
+        aws s3 ls s3://$BUCKET_NAME/ --region us-east-1
 
     - name: Deploy Global Infrastructure (us-east-1 only)
       if: matrix.region == 'us-east-1'
