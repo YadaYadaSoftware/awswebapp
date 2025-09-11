@@ -255,6 +255,35 @@ jobs:
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: us-east-1
 
+    - name: Download Lambda layer artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: iam-cleanup-layer-package
+        path: ./artifacts/
+
+    - name: Download ECS layer artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: ecs-cleanup-layer-package
+        path: ./artifacts/
+
+    - name: Create S3 bucket and upload layers
+      run: |
+        BUCKET_NAME="taskmanager-templates-${{ secrets.AWS_ACCOUNT_ID }}"
+
+        # Create S3 bucket
+        echo "Creating S3 bucket: $BUCKET_NAME"
+        aws s3 mb s3://$BUCKET_NAME --region us-east-1 2>/dev/null || echo "Bucket already exists"
+
+        # Upload layer files
+        echo "Uploading Lambda layer files..."
+        aws s3 cp ./artifacts/iam-cleanup-layer.zip s3://$BUCKET_NAME/iam-cleanup-layer.zip --region us-east-1
+        aws s3 cp ./artifacts/ecs-cleanup-layer.zip s3://$BUCKET_NAME/ecs-cleanup-layer.zip --region us-east-1
+
+        # Verify uploads
+        echo "Verifying S3 uploads..."
+        aws s3 ls s3://$BUCKET_NAME/ --region us-east-1
+
     - name: Deploy Global Infrastructure
       uses: aws-actions/aws-cloudformation-github-deploy@v1
       with:
