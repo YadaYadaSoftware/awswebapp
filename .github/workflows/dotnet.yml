@@ -58,24 +58,8 @@ jobs:
       with:
         fetch-depth: 0
 
-    - name: Create IAM Cleanup Lambda Layer
-      run: |
-        # Create layer directory structure
-        mkdir -p python/lib/python3.9/site-packages
-
-        # Install urllib3 for CloudFormation custom resource responses
-        pip install urllib3 -t python/lib/python3.9/site-packages/
-
-        # Create layer ZIP file
-        zip -r iam-cleanup-layer.zip python/
-
-        echo "IAM cleanup layer created successfully"
-
-    - name: Upload IAM Cleanup Layer
-      uses: actions/upload-artifact@v4
-      with:
-        name: iam-cleanup-layer-package
-        path: iam-cleanup-layer.zip
+    # IAM cleanup layer already created by build-layers job
+    # Skipping duplicate creation to avoid artifact name conflicts
 
     - name: Create ECS Cleanup Lambda Layer
       run: |
@@ -262,24 +246,8 @@ jobs:
         name: sg-cleanup-layer-package
         path: sg-cleanup-layer.zip
 
-    - name: Create ECS Cleanup Lambda Layer
-      run: |
-        # Create layer directory structure
-        mkdir -p python/lib/python3.9/site-packages
-
-        # Install urllib3 for CloudFormation custom resource responses
-        pip install urllib3 -t python/lib/python3.9/site-packages/
-
-        # Create layer ZIP file
-        zip -r ecs-cleanup-layer.zip python/
-
-        echo "ECS cleanup layer created successfully"
-
-    - name: Upload ECS Cleanup Layer
-      uses: actions/upload-artifact@v4
-      with:
-        name: ecs-cleanup-layer-package
-        path: ecs-cleanup-layer.zip
+    # ECS cleanup layer already created by build-layers job
+    # Skipping duplicate creation to avoid artifact name conflicts
 
   prepare-global:
     name: Prepare Global Infrastructure Dependencies
