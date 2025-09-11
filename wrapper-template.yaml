@@ -117,6 +117,7 @@ Resources:
         PrivateSubnet1Id: !GetAtt TaskManagerRegionalStack.Outputs.PrivateSubnet1Id
         PrivateSubnet2Id: !GetAtt TaskManagerRegionalStack.Outputs.PrivateSubnet2Id
         ECSClusterName: !GetAtt TaskManagerRegionalStack.Outputs.ECSClusterName
+        DatabaseEndpoint: !GetAtt TaskManagerRegionalStack.Outputs.DatabaseEndpoint
       Tags:
         - Key: Component
           Value: Web-Infrastructure

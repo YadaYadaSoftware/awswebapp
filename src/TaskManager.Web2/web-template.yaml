@@ -91,6 +91,10 @@ Parameters:
     Type: String
     Description: 'ECS cluster name'
 
+  DatabaseEndpoint:
+    Type: String
+    Description: 'Database endpoint address'
+
 Resources:
   # CloudWatch Log Group for ECS
   WebECSLogGroup:
