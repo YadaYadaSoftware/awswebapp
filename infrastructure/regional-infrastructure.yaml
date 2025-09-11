@@ -639,7 +639,6 @@ Resources:
       Tags:
         - Key: Name
           Value: !Sub 'TaskManager-Aurora-Secondary-${AWS::Region}'
-          Value: 'Global Database Secondary'
 
   # Secondary Aurora DB Instance
   AuroraSecondaryInstance:
