@@ -33,6 +33,10 @@ Parameters:
     Type: String
     Description: 'ID of the Aurora global cluster from global stack'
 
+  TemplatesBucket:
+    Type: String
+    Description: 'S3 bucket name for CloudFormation templates'
+
 Resources:
   # VPC and Networking
   TaskManagerVPC:
@@ -368,7 +372,7 @@ Resources:
       LayerName: !Sub 'taskmanager-ecr-cleanup-layer-${AWS::StackName}'
       Description: 'urllib3 dependency for ECR cleanup Lambda'
       Content:
-        S3Bucket: !Sub 'taskmanager-templates-${AWS::AccountId}'
+        S3Bucket: !Ref TemplatesBucket
         S3Key: 'ecr-cleanup-layer.zip'
       CompatibleRuntimes:
         - python3.9
@@ -629,7 +633,7 @@ Resources:
       LayerName: !Sub 'taskmanager-sg-cleanup-layer-${AWS::StackName}'
       Description: 'urllib3 dependency for Security Group cleanup Lambda'
       Content:
-        S3Bucket: !Sub 'taskmanager-templates-${AWS::AccountId}'
+        S3Bucket: !Ref TemplatesBucket
         S3Key: 'sg-cleanup-layer.zip'
       CompatibleRuntimes:
         - python3.9

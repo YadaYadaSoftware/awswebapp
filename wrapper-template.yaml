@@ -29,6 +29,10 @@ Parameters:
     Type: String
     Description: 'Route 53 hosted zone ID for the domain'
 
+  TemplatesBucket:
+    Type: String
+    Description: 'S3 bucket name for CloudFormation templates'
+
 Conditions:
   IsUSEast1: !Equals [ !Ref AWS::Region, 'us-east-1' ]
     
@@ -39,7 +43,7 @@ Resources:
   TaskManagerApiStack:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub 'https://s3.amazonaws.com/taskmanager-templates-${AWS::AccountId}/api-template.yaml'
+      TemplateURL: !Sub 'https://s3.amazonaws.com/${TemplatesBucket}/api-template.yaml'
       Parameters:
         Environment: !Ref Environment
         ApiCodeBucket: !Ref ApiCodeBucket
@@ -60,7 +64,7 @@ Resources:
     Type: AWS::CloudFormation::Stack
     DependsOn: TaskManagerApiStack
     Properties:
-      TemplateURL: !Sub 'https://s3.amazonaws.com/taskmanager-templates-${AWS::AccountId}/web-template.yaml'
+      TemplateURL: !Sub 'https://s3.amazonaws.com/${TemplatesBucket}/web-template.yaml'
       Parameters:
         Environment: !Ref Environment
         WebContainerImage: !Ref WebContainerImage
