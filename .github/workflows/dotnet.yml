@@ -534,7 +534,7 @@ jobs:
       id: deploy-regional
       uses: aws-actions/aws-cloudformation-github-deploy@v1
       with:
-        name: taskmanager-regional-infrastructure-${{ matrix.region }}
+        name: taskmanager-regional-${{ matrix.region }}
         template: infrastructure/regional-infrastructure.yaml
         parameter-overrides: "DatabasePassword=${{ secrets.DATABASE_PASSWORD }},SharedLambdaRoleArn=${{ needs.deploy-global.outputs.shared-lambda-role-arn }},BastionRoleArn=${{ needs.deploy-global.outputs.bastion-role-arn }},DatabaseSecretArn=${{ needs.deploy-global.outputs.database-secret-arn }},BastionInstanceProfileArn=${{ needs.deploy-global.outputs.bastion-instance-profile-arn }},AuroraGlobalClusterId=${{ needs.deploy-global.outputs.aurora-global-cluster-id }},TemplatesBucket=${{ needs.get-bucket-name.outputs.bucket-name }}"
         capabilities: "CAPABILITY_NAMED_IAM"
