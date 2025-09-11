@@ -455,7 +455,7 @@ jobs:
           --output text \
           --region us-east-2 2>/dev/null || echo "")
 
-        echo "shared-lambda-role-arn=$SHARED_LAMBDA_ROLE_ARN"
+        echo "Shared Lambda Role ARN: $SHARED_LAMBDA_ROLE_ARN"
 
         # Get Bastion Role ARN
         BASTION_ROLE_ARN=$(aws cloudformation list-exports \
@@ -463,7 +463,7 @@ jobs:
           --output text \
           --region us-east-2 2>/dev/null || echo "")
 
-        echo "bastion-role-arn=$BASTION_ROLE_ARN"
+        echo "Bastion Role ARN: $BASTION_ROLE_ARN"
 
         # Get Database Secret ARN
         DATABASE_SECRET_ARN=$(aws cloudformation list-exports \
@@ -471,12 +471,56 @@ jobs:
           --output text \
           --region us-east-2 2>/dev/null || echo "")
 
-        echo "database-secret-arn=$DATABASE_SECRET_ARN"
+        echo "Database Secret ARN: $DATABASE_SECRET_ARN"
+
+        # Validate that we got all required values
+        if [ -z "$SHARED_LAMBDA_ROLE_ARN" ] || [ "$SHARED_LAMBDA_ROLE_ARN" = "None" ]; then
+          echo "❌ ERROR: Shared Lambda Role ARN not found"
+          exit 1
+        fi
+
+        if [ -z "$BASTION_ROLE_ARN" ] || [ "$BASTION_ROLE_ARN" = "None" ]; then
+          echo "❌ ERROR: Bastion Role ARN not found"
+          exit 1
+        fi
+
+        if [ -z "$DATABASE_SECRET_ARN" ] || [ "$DATABASE_SECRET_ARN" = "None" ]; then
+          echo "❌ ERROR: Database Secret ARN not found"
+          exit 1
+        fi
+
+        echo "✅ All required values retrieved successfully"
 
         # Set outputs for use in parameter overrides
         echo "shared-lambda-role-arn=$SHARED_LAMBDA_ROLE_ARN" >> $GITHUB_OUTPUT
         echo "bastion-role-arn=$BASTION_ROLE_ARN" >> $GITHUB_OUTPUT
         echo "database-secret-arn=$DATABASE_SECRET_ARN" >> $GITHUB_OUTPUT
+
+    - name: Validate Parameter Values
+      run: |
+        echo "🔍 Debug: Parameter values being passed to CloudFormation:"
+        echo "DatabasePassword: [REDACTED]"
+        echo "SharedLambdaRoleArn: ${{ steps.get-global-values.outputs.shared-lambda-role-arn }}"
+        echo "BastionRoleArn: ${{ steps.get-global-values.outputs.bastion-role-arn }}"
+        echo "DatabaseSecretArn: ${{ steps.get-global-values.outputs.database-secret-arn }}"
+
+        # Validate that step outputs are not empty
+        if [ -z "${{ steps.get-global-values.outputs.shared-lambda-role-arn }}" ]; then
+          echo "❌ ERROR: SharedLambdaRoleArn is empty"
+          exit 1
+        fi
+
+        if [ -z "${{ steps.get-global-values.outputs.bastion-role-arn }}" ]; then
+          echo "❌ ERROR: BastionRoleArn is empty"
+          exit 1
+        fi
+
+        if [ -z "${{ steps.get-global-values.outputs.database-secret-arn }}" ]; then
+          echo "❌ ERROR: DatabaseSecretArn is empty"
+          exit 1
+        fi
+
+        echo "✅ All parameter values are present, proceeding with deployment..."
 
     - name: Deploy Regional Infrastructure
       uses: aws-actions/aws-cloudformation-github-deploy@v1
