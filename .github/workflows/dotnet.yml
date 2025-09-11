@@ -215,10 +215,42 @@ jobs:
         name: sg-cleanup-layer-package
         path: sg-cleanup-layer.zip
 
-  deploy-infrastructure:
-    name: Deploy Infrastructure
+  deploy-global:
+    name: Deploy Global Infrastructure
     runs-on: ubuntu-latest
     needs: build
+    concurrency:
+      group: deploy-global
+      cancel-in-progress: false
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: us-east-1
+
+    - name: Deploy Global Infrastructure
+      uses: aws-actions/aws-cloudformation-github-deploy@v1
+      with:
+        name: taskmanager-global-infrastructure
+        template: infrastructure/global-template.yaml
+        parameter-overrides: |
+          DatabasePassword=${{ secrets.DATABASE_PASSWORD }}
+        capabilities: "CAPABILITY_NAMED_IAM"
+        no-fail-on-empty-changeset: "1"
+      timeout-minutes: 15
+
+  deploy-infrastructure:
+    name: Deploy Regional Infrastructure
+    runs-on: ubuntu-latest
+    needs: [build, deploy-global]
     concurrency:
       group: deploy-infrastructure
       cancel-in-progress: false
@@ -243,14 +275,7 @@ jobs:
       run: |
         BUCKET_NAME="taskmanager-templates-${{ secrets.AWS_ACCOUNT_ID }}"
 
-        # Create S3 bucket if it doesn't exist (only in us-east-1 to avoid conflicts)
-        if [ "${{ matrix.region }}" = "us-east-1" ]; then
-          echo "Creating S3 bucket: $BUCKET_NAME"
-          aws s3 mb s3://$BUCKET_NAME --region us-east-1 2>/dev/null || echo "Bucket already exists"
-          aws s3 cp infrastructure/global-template.yaml s3://$BUCKET_NAME/ --region us-east-1
-        fi
-
-        # Wait for bucket to be available (retry logic)
+        # Wait for bucket to be available (created by global stack)
         echo "Waiting for S3 bucket to be available..."
         for i in {1..30}; do
           if aws s3 ls s3://$BUCKET_NAME --region us-east-1 >/dev/null 2>&1; then
@@ -271,18 +296,6 @@ jobs:
         # Verify uploads
         echo "Verifying S3 uploads..."
         aws s3 ls s3://$BUCKET_NAME/ --region us-east-1
-
-    - name: Deploy Global Infrastructure (us-east-1 only)
-      if: matrix.region == 'us-east-1'
-      uses: aws-actions/aws-cloudformation-github-deploy@v1
-      with:
-        name: taskmanager-global-infrastructure
-        template: infrastructure/global-template.yaml
-        parameter-overrides: |
-          DatabasePassword=${{ secrets.DATABASE_PASSWORD }}
-        capabilities: "CAPABILITY_NAMED_IAM"
-        no-fail-on-empty-changeset: "1"
-      timeout-minutes: 15
 
     - name: Deploy Regional Infrastructure
       uses: aws-actions/aws-cloudformation-github-deploy@v1
