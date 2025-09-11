@@ -1,141 +1,141 @@
-AWSTemplateFormatVersion: '2010-09-09'
-Description: 'TaskManager Application - API and Web Components'
+# AWSTemplateFormatVersion: '2010-09-09'
+# Description: 'TaskManager Application - API and Web Components'
 
-Parameters:
-  Environment:
-    Type: String
-    Default: main
-    Description: 'Environment name (typically branch name)'
+# Parameters:
+#   Environment:
+#     Type: String
+#     Default: main
+#     Description: 'Environment name (typically branch name)'
 
-  ApiCodeBucket:
-    Type: String
-    Description: 'S3 bucket name for API Lambda deployment package'
+#   ApiCodeBucket:
+#     Type: String
+#     Description: 'S3 bucket name for API Lambda deployment package'
 
-  WebContainerImage:
-    Type: String
-    Description: 'Container image URI for the web application'
+#   WebContainerImage:
+#     Type: String
+#     Description: 'Container image URI for the web application'
 
-  DeploymentToken:
-    Type: String
-    Description: 'Deployment token to force task definition updates'
-    Default: 'default'
+#   DeploymentToken:
+#     Type: String
+#     Description: 'Deployment token to force task definition updates'
+#     Default: 'default'
 
-  DomainName:
-    Type: String
-    Default: 'appcloud.systems'
-    Description: 'Domain name for SSL certificate'
+#   DomainName:
+#     Type: String
+#     Default: 'appcloud.systems'
+#     Description: 'Domain name for SSL certificate'
 
-  HostedZoneId:
-    Type: String
-    Description: 'Route 53 hosted zone ID for the domain'
+#   HostedZoneId:
+#     Type: String
+#     Description: 'Route 53 hosted zone ID for the domain'
 
-Conditions:
-  IsUSEast1: !Equals [ !Ref AWS::Region, 'us-east-1' ]
+# Conditions:
+#   IsUSEast1: !Equals [ !Ref AWS::Region, 'us-east-1' ]
     
 
 
-Resources:
-  # API Stack (Nested)
-  TaskManagerApiStack:
-    Type: AWS::CloudFormation::Stack
-    Properties:
-      TemplateURL: !Sub 'https://s3.amazonaws.com/taskmanager-templates-${AWS::AccountId}/api-template.yaml'
-      Parameters:
-        Environment: !Ref Environment
-        ApiCodeBucket: !Ref ApiCodeBucket
-        SharedLambdaRoleArn: !If [IsUSEast1, !Sub 'arn:aws:iam::${AWS::AccountId}:role/TaskManager-Shared-Lambda-Role-us-east-1', !Sub 'arn:aws:iam::${AWS::AccountId}:role/TaskManager-Shared-Lambda-Role-${AWS::Region}']
-        DatabaseEndpoint: !Sub 'taskmanager-cluster.cluster-{{resolve:secretsmanager:taskmanager/database/shared:SecretString:cluster_arn}}.${AWS::Region}.rds.amazonaws.com'
-        LambdaSecurityGroupId: !Sub '{{resolve:ssm:/taskmanager/lambda-security-group-id}}'
-        PrivateSubnet1Id: !Sub '{{resolve:ssm:/taskmanager/private-subnet-1-id}}'
-        PrivateSubnet2Id: !Sub '{{resolve:ssm:/taskmanager/private-subnet-2-id}}'
-      Tags:
-        - Key: Component
-          Value: API
-        - Key: Environment
-          Value: !Ref Environment
-      TimeoutInMinutes: 30
+# Resources:
+#   # API Stack (Nested)
+#   TaskManagerApiStack:
+#     Type: AWS::CloudFormation::Stack
+#     Properties:
+#       TemplateURL: !Sub 'https://s3.amazonaws.com/taskmanager-templates-${AWS::AccountId}/api-template.yaml'
+#       Parameters:
+#         Environment: !Ref Environment
+#         ApiCodeBucket: !Ref ApiCodeBucket
+#         SharedLambdaRoleArn: !If [IsUSEast1, !Sub 'arn:aws:iam::${AWS::AccountId}:role/TaskManager-Shared-Lambda-Role-us-east-1', !Sub 'arn:aws:iam::${AWS::AccountId}:role/TaskManager-Shared-Lambda-Role-${AWS::Region}']
+#         DatabaseEndpoint: !Sub 'taskmanager-cluster.cluster-{{resolve:secretsmanager:taskmanager/database/shared:SecretString:cluster_arn}}.${AWS::Region}.rds.amazonaws.com'
+#         LambdaSecurityGroupId: !Sub '{{resolve:ssm:/taskmanager/lambda-security-group-id}}'
+#         PrivateSubnet1Id: !Sub '{{resolve:ssm:/taskmanager/private-subnet-1-id}}'
+#         PrivateSubnet2Id: !Sub '{{resolve:ssm:/taskmanager/private-subnet-2-id}}'
+#       Tags:
+#         - Key: Component
+#           Value: API
+#         - Key: Environment
+#           Value: !Ref Environment
+#       TimeoutInMinutes: 30
 
-  # Web Stack (Nested) - Infrastructure Only
-  TaskManagerWebStack:
-    Type: AWS::CloudFormation::Stack
-    DependsOn: TaskManagerApiStack
-    Properties:
-      TemplateURL: !Sub 'https://s3.amazonaws.com/taskmanager-templates-${AWS::AccountId}/web-template.yaml'
-      Parameters:
-        Environment: !Ref Environment
-        WebContainerImage: !Ref WebContainerImage
-        DeploymentToken: !Ref DeploymentToken
-        DomainName: !Ref DomainName
-        HostedZoneId: !Ref HostedZoneId
-        SharedLambdaRoleArn: !If [IsUSEast1, !Sub 'arn:aws:iam::${AWS::AccountId}:role/TaskManager-Shared-Lambda-Role-us-east-1', !Sub 'arn:aws:iam::${AWS::AccountId}:role/TaskManager-Shared-Lambda-Role-${AWS::Region}']
-        VPCId: !Sub '{{resolve:ssm:/taskmanager/vpc-id}}'
-        ALBSecurityGroupId: !Sub '{{resolve:ssm:/taskmanager/alb-security-group-id}}'
-        ECSTaskSecurityGroupId: !Sub '{{resolve:ssm:/taskmanager/ecs-task-security-group-id}}'
-        PublicSubnet1Id: !Sub '{{resolve:ssm:/taskmanager/public-subnet-1-id}}'
-        PublicSubnet2Id: !Sub '{{resolve:ssm:/taskmanager/public-subnet-2-id}}'
-        PrivateSubnet1Id: !Sub '{{resolve:ssm:/taskmanager/private-subnet-1-id}}'
-        PrivateSubnet2Id: !Sub '{{resolve:ssm:/taskmanager/private-subnet-2-id}}'
-        ECSClusterName: !Sub '{{resolve:ssm:/taskmanager/ecs-cluster-name}}'
-        DatabaseEndpoint: !Sub 'taskmanager-cluster.cluster-{{resolve:secretsmanager:taskmanager/database/shared:SecretString:cluster_arn}}.${AWS::Region}.rds.amazonaws.com'
-      Tags:
-        - Key: Component
-          Value: Web-Infrastructure
-        - Key: Environment
-          Value: !Ref Environment
-      TimeoutInMinutes: 30
-
-
-Outputs:
-  ApiEndpoint:
-    Description: 'API Gateway endpoint URL'
-    Value: !GetAtt TaskManagerApiStack.Outputs.ApiEndpoint
-    Export:
-      Name: !Sub 'TaskManager-${Environment}-ApiEndpoint'
+#   # Web Stack (Nested) - Infrastructure Only
+#   TaskManagerWebStack:
+#     Type: AWS::CloudFormation::Stack
+#     DependsOn: TaskManagerApiStack
+#     Properties:
+#       TemplateURL: !Sub 'https://s3.amazonaws.com/taskmanager-templates-${AWS::AccountId}/web-template.yaml'
+#       Parameters:
+#         Environment: !Ref Environment
+#         WebContainerImage: !Ref WebContainerImage
+#         DeploymentToken: !Ref DeploymentToken
+#         DomainName: !Ref DomainName
+#         HostedZoneId: !Ref HostedZoneId
+#         SharedLambdaRoleArn: !If [IsUSEast1, !Sub 'arn:aws:iam::${AWS::AccountId}:role/TaskManager-Shared-Lambda-Role-us-east-1', !Sub 'arn:aws:iam::${AWS::AccountId}:role/TaskManager-Shared-Lambda-Role-${AWS::Region}']
+#         VPCId: !Sub '{{resolve:ssm:/taskmanager/vpc-id}}'
+#         ALBSecurityGroupId: !Sub '{{resolve:ssm:/taskmanager/alb-security-group-id}}'
+#         ECSTaskSecurityGroupId: !Sub '{{resolve:ssm:/taskmanager/ecs-task-security-group-id}}'
+#         PublicSubnet1Id: !Sub '{{resolve:ssm:/taskmanager/public-subnet-1-id}}'
+#         PublicSubnet2Id: !Sub '{{resolve:ssm:/taskmanager/public-subnet-2-id}}'
+#         PrivateSubnet1Id: !Sub '{{resolve:ssm:/taskmanager/private-subnet-1-id}}'
+#         PrivateSubnet2Id: !Sub '{{resolve:ssm:/taskmanager/private-subnet-2-id}}'
+#         ECSClusterName: !Sub '{{resolve:ssm:/taskmanager/ecs-cluster-name}}'
+#         DatabaseEndpoint: !Sub 'taskmanager-cluster.cluster-{{resolve:secretsmanager:taskmanager/database/shared:SecretString:cluster_arn}}.${AWS::Region}.rds.amazonaws.com'
+#       Tags:
+#         - Key: Component
+#           Value: Web-Infrastructure
+#         - Key: Environment
+#           Value: !Ref Environment
+#       TimeoutInMinutes: 30
 
 
-  ApiLambdaFunctionName:
-    Description: 'API Lambda function name'
-    Value: !GetAtt TaskManagerApiStack.Outputs.ApiLambdaFunctionName
-    Export:
-      Name: !Sub 'TaskManager-${Environment}-ApiLambdaFunction'
+# Outputs:
+#   ApiEndpoint:
+#     Description: 'API Gateway endpoint URL'
+#     Value: !GetAtt TaskManagerApiStack.Outputs.ApiEndpoint
+#     Export:
+#       Name: !Sub 'TaskManager-${Environment}-ApiEndpoint'
 
-  WebEndpoint:
-    Description: 'Web application endpoint URL'
-    Value: !GetAtt TaskManagerWebStack.Outputs.WebEndpoint
-    Export:
-      Name: !Sub 'TaskManager-${Environment}-WebEndpoint'
 
-  WebLoadBalancerDNS:
-    Description: 'Web Load Balancer DNS name'
-    Value: !GetAtt TaskManagerWebStack.Outputs.WebLoadBalancerDNS
-    Export:
-      Name: !Sub 'TaskManager-${Environment}-WebLoadBalancerDNS'
+#   ApiLambdaFunctionName:
+#     Description: 'API Lambda function name'
+#     Value: !GetAtt TaskManagerApiStack.Outputs.ApiLambdaFunctionName
+#     Export:
+#       Name: !Sub 'TaskManager-${Environment}-ApiLambdaFunction'
 
-  WebTaskDefinition:
-    Description: 'Web ECS task definition'
-    Value: !GetAtt TaskManagerWebStack.Outputs.WebTaskDefinition
-    Export:
-      Name: !Sub 'TaskManager-${Environment}-WebTaskDefinition'
+#   WebEndpoint:
+#     Description: 'Web application endpoint URL'
+#     Value: !GetAtt TaskManagerWebStack.Outputs.WebEndpoint
+#     Export:
+#       Name: !Sub 'TaskManager-${Environment}-WebEndpoint'
 
-  WebServiceName:
-    Description: 'Web ECS service name'
-    Value: !GetAtt TaskManagerWebStack.Outputs.WebServiceName
-    Export:
-      Name: !Sub 'TaskManager-${Environment}-WebService'
+#   WebLoadBalancerDNS:
+#     Description: 'Web Load Balancer DNS name'
+#     Value: !GetAtt TaskManagerWebStack.Outputs.WebLoadBalancerDNS
+#     Export:
+#       Name: !Sub 'TaskManager-${Environment}-WebLoadBalancerDNS'
 
-  BranchEnvironment:
-    Description: 'Branch environment name'
-    Value: !Ref Environment
-    Export:
-      Name: !Sub 'TaskManager-${Environment}-Environment'
+#   WebTaskDefinition:
+#     Description: 'Web ECS task definition'
+#     Value: !GetAtt TaskManagerWebStack.Outputs.WebTaskDefinition
+#     Export:
+#       Name: !Sub 'TaskManager-${Environment}-WebTaskDefinition'
 
-  DeploymentSummary:
-    Description: 'Deployment summary'
-    Value: !Sub |
-      TaskManager ${Environment} API and Web deployed successfully!
+#   WebServiceName:
+#     Description: 'Web ECS service name'
+#     Value: !GetAtt TaskManagerWebStack.Outputs.WebServiceName
+#     Export:
+#       Name: !Sub 'TaskManager-${Environment}-WebService'
 
-      API Endpoint: ${TaskManagerApiStack.Outputs.ApiEndpoint}
-      Web Application: https://${Environment}.${DomainName}
+#   BranchEnvironment:
+#     Description: 'Branch environment name'
+#     Value: !Ref Environment
+#     Export:
+#       Name: !Sub 'TaskManager-${Environment}-Environment'
 
-      API is running on AWS Lambda with API Gateway.
-      Web is running on AWS ECS containers with Application Load Balancer.
+#   DeploymentSummary:
+#     Description: 'Deployment summary'
+#     Value: !Sub |
+#       TaskManager ${Environment} API and Web deployed successfully!
+
+#       API Endpoint: ${TaskManagerApiStack.Outputs.ApiEndpoint}
+#       Web Application: https://${Environment}.${DomainName}
+
+#       API is running on AWS Lambda with API Gateway.
+#       Web is running on AWS ECS containers with Application Load Balancer.

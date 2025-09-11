@@ -1,0 +1,965 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'TaskManager Regional Infrastructure and Application - VPC, RDS, ECS, Bastion Host, API and Web Components'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: main
+    Description: 'Environment name (typically branch name)'
+
+  ApiCodeBucket:
+    Type: String
+    Description: 'S3 bucket name for API Lambda deployment package'
+
+  WebContainerImage:
+    Type: String
+    Description: 'Container image URI for the web application'
+
+  DeploymentToken:
+    Type: String
+    Description: 'Deployment token to force task definition updates'
+    Default: 'default'
+
+  DomainName:
+    Type: String
+    Default: 'appcloud.systems'
+    Description: 'Domain name for SSL certificate'
+
+  HostedZoneId:
+    Type: String
+    Description: 'Route 53 hosted zone ID for the domain'
+
+  DatabasePassword:
+    Type: String
+    NoEcho: true
+    MinLength: 8
+    Description: 'Password for the Aurora MySQL database'
+
+  BastionPublicKeyMaterial:
+    Type: String
+    Description: 'Public key material for bastion SSH access (generate locally with ssh-keygen and paste the .pub content here)'
+    Default: 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCuSPS013ezN5lbrX/yOgu2d5n+97vzyj0P7oD2n5mCyblEG184U6r0LOu+DWURveDTLOtBEUCa5cCfnW3vTd6A25t9fHJFB0V+DuOCQ+tMVLxvs3yu61Cmz4ChNEK/qUX9YtpDwXJP1SmnKUPJOnFAfUwyClBqbQjd6rkyYYKmuRLD3llEXZDO/GwLpWO3KvNWLYJnz+MAJL4LU1JXimYfJqVmd3PUGUyUI55d5lqfZYCGxwzb3Eg31bZ4ljf0vBT6ztgwrVvBvpRlkmTRqcqvypS/3zDd6USmf8rLOB5VwnFw+f4o88K1x3O5iqZrRxApjdlLA8IDIH7uFP89KjKX 17034@DESKTOP-3BGTTVG'
+
+  SharedLambdaRoleArn:
+    Type: String
+    Description: 'ARN of the shared Lambda execution role from global stack'
+
+  BastionRoleArn:
+    Type: String
+    Description: 'ARN of the bastion role from global stack'
+
+  DatabaseSecretArn:
+    Type: String
+    Description: 'ARN of the database secret from global stack'
+
+Conditions:
+  IsUSEast1: !Equals [ !Ref AWS::Region, 'us-east-1' ]
+
+
+Resources:
+  # VPC and Networking
+  TaskManagerVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      Tags:
+        - Key: Name
+          Value: 'TaskManager-VPC'
+        - Key: Purpose
+          Value: 'Regional Infrastructure'
+
+  # Internet Gateway
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: 'TaskManager-IGW'
+
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref TaskManagerVPC
+      InternetGatewayId: !Ref InternetGateway
+
+  # Public Subnets for NAT Gateway and Bastion
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref TaskManagerVPC
+      CidrBlock: 10.0.1.0/24
+      AvailabilityZone: !Select [0, !GetAZs '']
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: 'TaskManager-Public-Subnet-1'
+
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref TaskManagerVPC
+      CidrBlock: 10.0.2.0/24
+      AvailabilityZone: !Select [1, !GetAZs '']
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: 'TaskManager-Public-Subnet-2'
+
+  # Private Subnets for Lambda and RDS
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref TaskManagerVPC
+      CidrBlock: 10.0.3.0/24
+      AvailabilityZone: !Select [0, !GetAZs '']
+      Tags:
+        - Key: Name
+          Value: 'TaskManager-Private-Subnet-1'
+
+  PrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref TaskManagerVPC
+      CidrBlock: 10.0.4.0/24
+      AvailabilityZone: !Select [1, !GetAZs '']
+      Tags:
+        - Key: Name
+          Value: 'TaskManager-Private-Subnet-2'
+
+  # NAT Gateway for private subnet internet access
+  NATGateway1EIP:
+    Type: AWS::EC2::EIP
+    DependsOn: AttachGateway
+    Properties:
+      Domain: vpc
+
+  NATGateway1:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NATGateway1EIP.AllocationId
+      SubnetId: !Ref PublicSubnet1
+
+  # Route Tables
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref TaskManagerVPC
+      Tags:
+        - Key: Name
+          Value: 'TaskManager-Public-RT'
+
+  DefaultPublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: AttachGateway
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnet1
+
+  PublicSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnet2
+
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref TaskManagerVPC
+      Tags:
+        - Key: Name
+          Value: 'TaskManager-Private-RT'
+
+  DefaultPrivateRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NATGateway1
+
+  PrivateSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      SubnetId: !Ref PrivateSubnet1
+
+  PrivateSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      SubnetId: !Ref PrivateSubnet2
+
+  # Security Groups
+  RDSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for Aurora MySQL Serverless
+      VpcId: !Ref TaskManagerVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+          SourceSecurityGroupId: !Ref LambdaSecurityGroup
+        - IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+          SourceSecurityGroupId: !Ref BastionSecurityGroup
+        - IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+          SourceSecurityGroupId: !Ref ECSTaskSecurityGroup
+      Tags:
+        - Key: Name
+          Value: 'TaskManager-Aurora-Serverless-SG'
+
+  LambdaSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for Lambda functions
+      VpcId: !Ref TaskManagerVPC
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: 'TaskManager-Lambda-SG'
+
+  BastionSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for bastion host
+      VpcId: !Ref TaskManagerVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+          Description: SSH access from anywhere
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: 'TaskManager-Bastion-SG'
+
+  ALBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for Application Load Balancer
+      VpcId: !Ref TaskManagerVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+          Description: HTTP access from anywhere
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+          Description: HTTPS access from anywhere
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: 'TaskManager-ALB-SG'
+
+  ECSTaskSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for ECS tasks
+      VpcId: !Ref TaskManagerVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          SourceSecurityGroupId: !Ref ALBSecurityGroup
+          Description: HTTP access from ALB
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: 'TaskManager-ECS-Task-SG'
+
+  # ECR Repository for Web Application
+  WebECRRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: 'taskmanager-web'
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      ImageTagMutability: 'MUTABLE'
+      Tags:
+        - Key: Name
+          Value: 'TaskManager-Web-ECR'
+        - Key: Purpose
+          Value: 'Container Registry'
+
+  # Aurora DB Subnet Group for this region
+  AuroraDBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: 'Subnet group for Aurora cluster in this region'
+      SubnetIds:
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+      DBSubnetGroupName: !Sub 'taskmanager-aurora-subnet-group-${AWS::Region}'
+      Tags:
+        - Key: Name
+          Value: 'TaskManager-Aurora-SubnetGroup'
+        - Key: Region
+          Value: !Ref AWS::Region
+
+  # Aurora DB Cluster Parameter Group
+  AuroraClusterParameterGroup:
+    Type: AWS::RDS::DBClusterParameterGroup
+    Properties:
+      Family: aurora-mysql8.0
+      Description: 'Parameter group for Aurora MySQL cluster'
+      Parameters:
+        character_set_server: utf8mb4
+        collation_server: utf8mb4_unicode_ci
+        innodb_buffer_pool_size: '{DBInstanceClassMemory*3/4}'
+        max_connections: '200'
+        query_cache_type: '0'
+        slow_query_log: '1'
+        long_query_time: '2'
+
+  # Aurora Serverless v2 Cluster
+  AuroraCluster:
+    Type: AWS::RDS::DBCluster
+    Properties:
+      GlobalClusterIdentifier: !ImportValue 'TaskManager-AuroraGlobalCluster'
+      Engine: aurora-mysql
+      EngineVersion: '8.0.mysql_aurora.3.05.2'
+      DBSubnetGroupName: !Ref AuroraDBSubnetGroup
+      DBClusterParameterGroupName: !Ref AuroraClusterParameterGroup
+      VpcSecurityGroupIds:
+        - !Ref RDSSecurityGroup
+      BackupRetentionPeriod: 7
+      PreferredBackupWindow: '03:00-04:00'
+      PreferredMaintenanceWindow: 'sun:04:00-sun:05:00'
+      StorageEncrypted: true
+      DeletionProtection: false
+      ServerlessV2ScalingConfiguration:
+        MinCapacity: 0.5    # Minimum 0.5 ACUs (Aurora Capacity Units)
+        MaxCapacity: 4      # Maximum 4 ACUs (scales based on demand)
+      EnableCloudwatchLogsExports:
+        - audit
+        - error
+        - general
+        - slowquery
+      Tags:
+        - Key: Name
+          Value: !Sub 'TaskManager-Aurora-Serverless-${AWS::Region}'
+        - Key: Purpose
+          Value: 'Regional Aurora Serverless Cluster'
+        - Key: Region
+          Value: !Ref AWS::Region
+
+  # Aurora Serverless v2 Instance
+  AuroraInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBInstanceIdentifier: !Sub 'taskmanager-aurora-serverless-${AWS::Region}'
+      DBClusterIdentifier: !Ref AuroraCluster
+      DBInstanceClass: db.serverless  # Aurora Serverless v2 instance class
+      Engine: aurora-mysql
+      PubliclyAccessible: false
+      Tags:
+        - Key: Name
+          Value: !Sub 'TaskManager-Aurora-Serverless-Instance-${AWS::Region}'
+        - Key: Purpose
+          Value: 'Regional Aurora Serverless Instance'
+        - Key: Region
+          Value: !Ref AWS::Region
+
+  # Lambda Layer for urllib3 dependency
+  ECRCleanupLayer:
+    Type: AWS::Lambda::LayerVersion
+    Properties:
+      LayerName: !Sub 'taskmanager-ecr-cleanup-layer-${AWS::StackName}'
+      Description: 'urllib3 dependency for ECR cleanup Lambda'
+      Content:
+        S3Bucket: !Sub 'taskmanager-templates-${AWS::AccountId}'
+        S3Key: 'ecr-cleanup-layer.zip'
+      CompatibleRuntimes:
+        - python3.9
+
+  # Lambda function to clean up ECR images on stack deletion
+  ECRCleanupFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'taskmanager-ecr-cleanup-${AWS::StackName}'
+      Runtime: python3.9
+      Handler: index.lambda_handler
+      Role: !Sub 'arn:aws:iam::${AWS::AccountId}:role/TaskManager-Shared-Lambda-Role'
+      Layers:
+        - !Ref ECRCleanupLayer
+      Code:
+        ZipFile: |
+          import boto3
+          import json
+          import logging
+
+          logger = logging.getLogger()
+          logger.setLevel(logging.INFO)
+
+          ecr_client = boto3.client('ecr')
+
+          def lambda_handler(event, context):
+              try:
+                  request_type = event.get('RequestType')
+                  repository_name = event.get('ResourceProperties', {}).get('RepositoryName')
+
+                  if not repository_name:
+                      raise ValueError("RepositoryName is required")
+
+                  logger.info(f"Processing {request_type} for repository: {repository_name}")
+
+                  if request_type == 'Delete':
+                      # Delete all images from the repository
+                      cleanup_ecr_repository(repository_name)
+
+                      # Send success response
+                      send_response(event, context, 'SUCCESS', {'Message': f'Successfully cleaned up repository {repository_name}'})
+                  else:
+                      # For Create/Update, just succeed
+                      send_response(event, context, 'SUCCESS', {'Message': f'Repository {repository_name} ready'})
+
+              except Exception as e:
+                  logger.error(f"Error processing request: {str(e)}")
+                  send_response(event, context, 'FAILED', {'Error': str(e)})
+
+          def cleanup_ecr_repository(repository_name):
+              try:
+                  # List all images in the repository
+                  paginator = ecr_client.get_paginator('list_images')
+                  image_ids = []
+
+                  for page in paginator.paginate(repositoryName=repository_name):
+                      for image_id in page['imageIds']:
+                          image_ids.append(image_id)
+
+                  if not image_ids:
+                      logger.info(f"No images found in repository {repository_name}")
+                      return
+
+                  logger.info(f"Found {len(image_ids)} images to delete from {repository_name}")
+
+                  # Delete images in batches (ECR allows max 100 per request)
+                  batch_size = 100
+                  for i in range(0, len(image_ids), batch_size):
+                      batch = image_ids[i:i + batch_size]
+                      ecr_client.batch_delete_image(
+                          repositoryName=repository_name,
+                          imageIds=batch
+                      )
+                      logger.info(f"Deleted batch of {len(batch)} images")
+
+                  logger.info(f"Successfully cleaned up all images from {repository_name}")
+
+              except ecr_client.exceptions.RepositoryNotFoundException:
+                  logger.info(f"Repository {repository_name} not found, nothing to clean up")
+              except Exception as e:
+                  logger.error(f"Error cleaning up repository {repository_name}: {str(e)}")
+                  raise
+
+          def send_response(event, context, response_status, response_data):
+              import urllib3
+              import json
+
+              response_url = event.get('ResponseURL')
+              if not response_url:
+                  return
+
+              response_body = {
+                  'Status': response_status,
+                  'Reason': response_data.get('Message', 'Operation completed'),
+                  'PhysicalResourceId': event.get('PhysicalResourceId', context.log_stream_name),
+                  'StackId': event['StackId'],
+                  'RequestId': event['RequestId'],
+                  'LogicalResourceId': event['LogicalResourceId'],
+                  'Data': response_data
+              }
+
+              json_response_body = json.dumps(response_body)
+
+              headers = {
+                  'content-type': '',
+                  'content-length': str(len(json_response_body))
+              }
+
+              http = urllib3.PoolManager()
+              try:
+                  response = http.request(
+                      'PUT',
+                      response_url,
+                      body=json_response_body,
+                      headers=headers
+                  )
+                  logger.info(f"Response sent: {response.status}")
+              except Exception as e:
+                  logger.error(f"Failed to send response: {str(e)}")
+
+  # Lambda function to clean up security groups on stack deletion
+  SecurityGroupCleanupFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'taskmanager-sg-cleanup-${AWS::StackName}'
+      Runtime: python3.9
+      Handler: index.lambda_handler
+      Role: !Sub 'arn:aws:iam::${AWS::AccountId}:role/TaskManager-Shared-Lambda-Role'
+      Layers:
+        - !Ref SecurityGroupCleanupLayer
+      Code:
+        ZipFile: |
+          import boto3
+          import json
+          import logging
+          import time
+
+          logger = logging.getLogger()
+          logger.setLevel(logging.INFO)
+
+          ec2_client = boto3.client('ec2')
+
+          def lambda_handler(event, context):
+              try:
+                  request_type = event.get('RequestType')
+                  security_group_ids = event.get('ResourceProperties', {}).get('SecurityGroupIds', [])
+
+                  if not security_group_ids:
+                      raise ValueError("SecurityGroupIds is required")
+
+                  logger.info(f"Processing {request_type} for security groups: {security_group_ids}")
+
+                  if request_type == 'Delete':
+                      # Clean up security groups
+                      cleanup_security_groups(security_group_ids)
+
+                      # Send success response
+                      send_response(event, context, 'SUCCESS', {'Message': f'Successfully cleaned up security groups {security_group_ids}'})
+                  else:
+                      # For Create/Update, just succeed
+                      send_response(event, context, 'SUCCESS', {'Message': f'Security groups {security_group_ids} ready'})
+
+              except Exception as e:
+                  logger.error(f"Error processing request: {str(e)}")
+                  send_response(event, context, 'FAILED', {'Error': str(e)})
+
+          def cleanup_security_groups(security_group_ids):
+              try:
+                  logger.info(f"Cleaning up security groups: {security_group_ids}")
+
+                  for sg_id in security_group_ids:
+                      try:
+                          # Get current security group rules
+                          response = ec2_client.describe_security_groups(GroupIds=[sg_id])
+                          sg = response['SecurityGroups'][0]
+
+                          # Remove all ingress rules
+                          if sg.get('IpPermissions'):
+                              logger.info(f"Removing ingress rules from {sg_id}")
+                              ec2_client.revoke_security_group_ingress(
+                                  GroupId=sg_id,
+                                  IpPermissions=sg['IpPermissions']
+                              )
+
+                          # Remove all egress rules (except the default allow all outbound)
+                          if sg.get('IpPermissionsEgress'):
+                              # Filter out the default egress rule
+                              egress_rules = []
+                              for rule in sg['IpPermissionsEgress']:
+                                  # Skip the default "allow all outbound" rule
+                                  if not (rule.get('IpProtocol') == '-1' and
+                                          rule.get('IpRanges', [{}])[0].get('CidrIp') == '0.0.0.0/0'):
+                                      egress_rules.append(rule)
+
+                              if egress_rules:
+                                  logger.info(f"Removing egress rules from {sg_id}")
+                                  ec2_client.revoke_security_group_egress(
+                                      GroupId=sg_id,
+                                      IpPermissions=egress_rules
+                                  )
+
+                          logger.info(f"Successfully cleaned up security group: {sg_id}")
+
+                      except ec2_client.exceptions.ClientError as e:
+                          if 'InvalidGroupId.NotFound' in str(e):
+                              logger.info(f"Security group {sg_id} not found, already deleted")
+                          else:
+                              logger.error(f"Error cleaning up security group {sg_id}: {str(e)}")
+                              raise
+
+                  logger.info(f"Successfully cleaned up all security groups: {security_group_ids}")
+
+              except Exception as e:
+                  logger.error(f"Error cleaning up security groups {security_group_ids}: {str(e)}")
+                  raise
+
+          def send_response(event, context, response_status, response_data):
+              import urllib3
+              import json
+
+              response_url = event.get('ResponseURL')
+              if not response_url:
+                  return
+
+              response_body = {
+                  'Status': response_status,
+                  'Reason': response_data.get('Message', 'Operation completed'),
+                  'PhysicalResourceId': event.get('PhysicalResourceId', context.log_stream_name),
+                  'StackId': event['StackId'],
+                  'RequestId': event['RequestId'],
+                  'LogicalResourceId': event['LogicalResourceId'],
+                  'Data': response_data
+              }
+
+              json_response_body = json.dumps(response_body)
+
+              headers = {
+                  'content-type': '',
+                  'content-length': str(len(json_response_body))
+              }
+
+              http = urllib3.PoolManager()
+              try:
+                  response = http.request(
+                      'PUT',
+                      response_url,
+                      body=json_response_body,
+                      headers=headers
+                  )
+                  logger.info(f"Response sent: {response.status}")
+              except Exception as e:
+                  logger.error(f"Failed to send response: {str(e)}")
+
+  # Lambda Layer for urllib3 dependency
+  SecurityGroupCleanupLayer:
+    Type: AWS::Lambda::LayerVersion
+    Properties:
+      LayerName: !Sub 'taskmanager-sg-cleanup-layer-${AWS::StackName}'
+      Description: 'urllib3 dependency for Security Group cleanup Lambda'
+      Content:
+        S3Bucket: !Sub 'taskmanager-templates-${AWS::AccountId}'
+        S3Key: 'sg-cleanup-layer.zip'
+      CompatibleRuntimes:
+        - python3.9
+
+  # Custom resource to trigger ECR cleanup on stack deletion
+  ECRCleanupResource:
+    Type: AWS::CloudFormation::CustomResource
+    Properties:
+      ServiceToken: !GetAtt ECRCleanupFunction.Arn
+      RepositoryName: 'taskmanager-web'
+    DependsOn: WebECRRepository
+
+  # Custom resource to trigger Security Group cleanup on stack deletion
+  SecurityGroupCleanupResource:
+    Type: AWS::CloudFormation::CustomResource
+    Properties:
+      ServiceToken: !GetAtt SecurityGroupCleanupFunction.Arn
+      SecurityGroupIds:
+        - !Ref LambdaSecurityGroup
+        - !Ref RDSSecurityGroup
+        - !Ref BastionSecurityGroup
+        - !Ref ALBSecurityGroup
+        - !Ref ECSTaskSecurityGroup
+    DependsOn: [LambdaSecurityGroup, RDSSecurityGroup, BastionSecurityGroup, ALBSecurityGroup, ECSTaskSecurityGroup, SecurityGroupCleanupFunction]
+
+  # Note: Bastion IAM role cleanup is handled by the global stack's IAM cleanup function
+  # The BastionRole is created in the global stack and cleaned up there
+
+  # ECS Cluster
+  ECSCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: 'TaskManager-Cluster'
+      Tags:
+        - Key: Name
+          Value: 'TaskManager-ECS-Cluster'
+        - Key: Purpose
+          Value: 'Regional Infrastructure'
+
+
+  # SSH Key Pair for Bastion
+  BastionKeyPair:
+    Type: AWS::EC2::KeyPair
+    Properties:
+      KeyName: !Sub 'taskmanager-bastion-key-${AWS::StackName}-updated'
+      KeyType: rsa
+      KeyFormat: pem
+      PublicKeyMaterial: !Ref BastionPublicKeyMaterial
+
+  # Bastion Instance Profile (using global role)
+  BastionInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref BastionRoleArn
+
+  BastionHost:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-0c02fb55956c7d316  # Amazon Linux 2023
+      InstanceType: t3.micro
+      SubnetId: !Ref PublicSubnet1
+      SecurityGroupIds:
+        - !Ref BastionSecurityGroup
+      IamInstanceProfile: !Ref BastionInstanceProfile
+      KeyName: !Ref BastionKeyPair
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          yum update -y
+          yum install -y mysql
+
+          # Create connection helper script
+          cat > /home/ec2-user/connect-to-db.sh << 'EOF'
+          #!/bin/bash
+          echo "TaskManager Aurora MySQL Database Connection Helper"
+          echo "Aurora Endpoint: ${AuroraCluster.Endpoint.Address}"
+          echo ""
+          echo "To connect to Aurora MySQL database:"
+          echo "mysql -h ${AuroraCluster.Endpoint.Address} -u taskmanager_admin -p"
+          echo ""
+          echo "Available databases:"
+          echo "- Connect and run: SHOW DATABASES; to list all databases"
+          echo "- Each branch creates its own database (e.g., taskmanager_main, taskmanager_feature1)"
+          echo ""
+          echo "Note: This is a cluster in the Aurora Global Database"
+          EOF
+
+          chmod +x /home/ec2-user/connect-to-db.sh
+          chown ec2-user:ec2-user /home/ec2-user/connect-to-db.sh
+      Tags:
+        - Key: Name
+          Value: 'TaskManager-Bastion'
+        - Key: Purpose
+          Value: 'Regional Infrastructure'
+
+  # API Stack (Nested)
+  TaskManagerApiStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: [LambdaSecurityGroup, PrivateSubnet1, PrivateSubnet2, AuroraCluster]
+    Properties:
+      TemplateURL: !Sub 'https://s3.amazonaws.com/taskmanager-templates-${AWS::AccountId}/api-template.yaml'
+      Parameters:
+        Environment: !Ref Environment
+        ApiCodeBucket: !Ref ApiCodeBucket
+        SharedLambdaRoleArn: !Ref SharedLambdaRoleArn
+        DatabaseEndpoint: !Sub 'taskmanager-cluster.cluster-{{resolve:secretsmanager:taskmanager/database/shared:SecretString:cluster_arn}}.${AWS::Region}.rds.amazonaws.com'
+        LambdaSecurityGroupId: !Ref LambdaSecurityGroup
+        PrivateSubnet1Id: !Ref PrivateSubnet1
+        PrivateSubnet2Id: !Ref PrivateSubnet2
+      Tags:
+        - Key: Component
+          Value: API
+        - Key: Environment
+          Value: !Ref Environment
+      TimeoutInMinutes: 30
+
+  # Web Stack (Nested) - Infrastructure Only
+  TaskManagerWebStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: [TaskManagerApiStack, TaskManagerVPC, ALBSecurityGroup, ECSTaskSecurityGroup, PublicSubnet1, PublicSubnet2, PrivateSubnet1, PrivateSubnet2, ECSCluster, AuroraCluster]
+    Properties:
+      TemplateURL: !Sub 'https://s3.amazonaws.com/taskmanager-templates-${AWS::AccountId}/web-template.yaml'
+      Parameters:
+        Environment: !Ref Environment
+        WebContainerImage: !Ref WebContainerImage
+        DeploymentToken: !Ref DeploymentToken
+        DomainName: !Ref DomainName
+        HostedZoneId: !Ref HostedZoneId
+        SharedLambdaRoleArn: !Ref SharedLambdaRoleArn
+        VPCId: !Ref TaskManagerVPC
+        ALBSecurityGroupId: !Ref ALBSecurityGroup
+        ECSTaskSecurityGroupId: !Ref ECSTaskSecurityGroup
+        PublicSubnet1Id: !Ref PublicSubnet1
+        PublicSubnet2Id: !Ref PublicSubnet2
+        PrivateSubnet1Id: !Ref PrivateSubnet1
+        PrivateSubnet2Id: !Ref PrivateSubnet2
+        ECSClusterName: !Ref ECSCluster
+        DatabaseEndpoint: !Sub 'taskmanager-cluster.cluster-{{resolve:secretsmanager:taskmanager/database/shared:SecretString:cluster_arn}}.${AWS::Region}.rds.amazonaws.com'
+      Tags:
+        - Key: Component
+          Value: Web-Infrastructure
+        - Key: Environment
+          Value: !Ref Environment
+      TimeoutInMinutes: 30
+
+
+Outputs:
+  VPCId:
+    Description: 'VPC ID for branch applications'
+    Value: !Ref TaskManagerVPC
+    Export:
+      Name: 'TaskManager-VPC'
+
+  PrivateSubnet1Id:
+    Description: 'Private subnet 1 ID'
+    Value: !Ref PrivateSubnet1
+    Export:
+      Name: 'TaskManager-PrivateSubnet1'
+
+  PrivateSubnet2Id:
+    Description: 'Private subnet 2 ID'
+    Value: !Ref PrivateSubnet2
+    Export:
+      Name: 'TaskManager-PrivateSubnet2'
+
+  PublicSubnet1Id:
+    Description: 'Public subnet 1 ID'
+    Value: !Ref PublicSubnet1
+    Export:
+      Name: 'TaskManager-PublicSubnet1'
+
+  PublicSubnet2Id:
+    Description: 'Public subnet 2 ID'
+    Value: !Ref PublicSubnet2
+    Export:
+      Name: 'TaskManager-PublicSubnet2'
+
+  LambdaSecurityGroupId:
+    Description: 'Security group for Lambda functions'
+    Value: !Ref LambdaSecurityGroup
+    Export:
+      Name: 'TaskManager-LambdaSecurityGroup'
+
+  RDSSecurityGroupId:
+    Description: 'Security group for RDS access'
+    Value: !Ref RDSSecurityGroup
+    Export:
+      Name: 'TaskManager-RDSSecurityGroup'
+
+  DatabaseEndpoint:
+    Description: 'Aurora MySQL cluster endpoint'
+    Value: !GetAtt AuroraCluster.Endpoint.Address
+    Export:
+      Name: 'TaskManager-DatabaseEndpoint'
+
+  DatabaseReaderEndpoint:
+    Description: 'Aurora MySQL reader endpoint'
+    Value: !GetAtt AuroraCluster.ReaderEndpoint
+    Export:
+      Name: 'TaskManager-DatabaseReaderEndpoint'
+
+  DatabaseSecretArn:
+    Description: 'Database secret ARN'
+    Value: !Ref DatabaseSecretArn
+
+  BastionHostIP:
+    Description: 'Bastion host public IP address'
+    Value: !GetAtt BastionHost.PublicIp
+    Export:
+      Name: 'TaskManager-BastionIP'
+
+  BastionHostId:
+    Description: 'Bastion host instance ID'
+    Value: !Ref BastionHost
+    Export:
+      Name: 'TaskManager-BastionHostId'
+
+  BastionKeyPairName:
+    Description: 'Name of the SSH key pair for bastion access'
+    Value: !Ref BastionKeyPair
+    Export:
+      Name: 'TaskManager-BastionKeyPairName'
+
+  DatabaseTunnelCommand:
+    Description: 'SSH tunnel command for Aurora MySQL database access'
+    Value: !Sub
+      - 'ssh -i your-key.pem -L 3306:${DbEndpoint}:3306 ec2-user@${BastionIp}'
+      - DbEndpoint: !GetAtt AuroraCluster.Endpoint.Address
+        BastionIp: !GetAtt BastionHost.PublicIp
+    Export:
+      Name: 'TaskManager-DatabaseTunnelCommand'
+
+  ECSClusterName:
+    Description: 'ECS cluster name'
+    Value: !Ref ECSCluster
+    Export:
+      Name: 'TaskManager-ECSCluster'
+
+  ALBSecurityGroupId:
+    Description: 'Security group for Application Load Balancer'
+    Value: !Ref ALBSecurityGroup
+    Export:
+      Name: 'TaskManager-ALBSecurityGroup'
+
+  ECSTaskSecurityGroupId:
+    Description: 'Security group for ECS tasks'
+    Value: !Ref ECSTaskSecurityGroup
+    Export:
+      Name: 'TaskManager-ECSTaskSecurityGroup'
+
+  WebECRRepositoryUri:
+    Description: 'ECR repository URI for web application'
+    Value: !Sub '${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/taskmanager-web'
+    Export:
+      Name: 'TaskManager-WebECRRepositoryUri'
+
+  ApiEndpoint:
+    Description: 'API Gateway endpoint URL'
+    Value: !GetAtt TaskManagerApiStack.Outputs.ApiEndpoint
+    Export:
+      Name: !Sub 'TaskManager-${Environment}-ApiEndpoint'
+
+
+  ApiLambdaFunctionName:
+    Description: 'API Lambda function name'
+    Value: !GetAtt TaskManagerApiStack.Outputs.ApiLambdaFunctionName
+    Export:
+      Name: !Sub 'TaskManager-${Environment}-ApiLambdaFunction'
+
+  WebEndpoint:
+    Description: 'Web application endpoint URL'
+    Value: !GetAtt TaskManagerWebStack.Outputs.WebEndpoint
+    Export:
+      Name: !Sub 'TaskManager-${Environment}-WebEndpoint'
+
+  WebLoadBalancerDNS:
+    Description: 'Web Load Balancer DNS name'
+    Value: !GetAtt TaskManagerWebStack.Outputs.WebLoadBalancerDNS
+    Export:
+      Name: !Sub 'TaskManager-${Environment}-WebLoadBalancerDNS'
+
+  WebTaskDefinition:
+    Description: 'Web ECS task definition'
+    Value: !GetAtt TaskManagerWebStack.Outputs.WebTaskDefinition
+    Export:
+      Name: !Sub 'TaskManager-${Environment}-WebTaskDefinition'
+
+  WebServiceName:
+    Description: 'Web ECS service name'
+    Value: !GetAtt TaskManagerWebStack.Outputs.WebServiceName
+    Export:
+      Name: !Sub 'TaskManager-${Environment}-WebService'
+
+  BranchEnvironment:
+    Description: 'Branch environment name'
+    Value: !Ref Environment
+    Export:
+      Name: !Sub 'TaskManager-${Environment}-Environment'
+
+  DeploymentSummary:
+    Description: 'Deployment summary'
+    Value: !Sub |
+      TaskManager ${Environment} API and Web deployed successfully!
+
+      API Endpoint: ${TaskManagerApiStack.Outputs.ApiEndpoint}
+      Web Application: https://${Environment}.${DomainName}
+
+      API is running on AWS Lambda with API Gateway.
+      Web is running on AWS ECS containers with Application Load Balancer.
