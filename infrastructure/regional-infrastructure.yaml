@@ -25,6 +25,14 @@ Parameters:
     Type: String
     Description: 'ARN of the database secret from global stack'
 
+  BastionInstanceProfileArn:
+    Type: String
+    Description: 'ARN of the bastion instance profile from global stack'
+
+  AuroraGlobalClusterId:
+    Type: String
+    Description: 'ID of the Aurora global cluster from global stack'
+
 Resources:
   # VPC and Networking
   TaskManagerVPC:
@@ -671,12 +679,7 @@ Resources:
       KeyFormat: pem
       PublicKeyMaterial: !Ref BastionPublicKeyMaterial
 
-  # Bastion Instance Profile (using global role)
-  BastionInstanceProfile:
-    Type: AWS::IAM::InstanceProfile
-    Properties:
-      Roles:
-        - !Ref BastionRoleArn
+  # Bastion Instance Profile (using global)
 
   BastionHost:
     Type: AWS::EC2::Instance
@@ -686,7 +689,7 @@ Resources:
       SubnetId: !Ref PublicSubnet1
       SecurityGroupIds:
         - !Ref BastionSecurityGroup
-      IamInstanceProfile: !Ref BastionInstanceProfile
+      IamInstanceProfile: !Ref BastionInstanceProfileArn
       KeyName: !Ref BastionKeyPair
       UserData:
         Fn::Base64: !Sub |

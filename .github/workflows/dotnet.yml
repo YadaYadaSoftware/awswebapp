@@ -461,6 +461,8 @@ jobs:
         echo "SharedLambdaRoleArn: ${{ needs.deploy-global.outputs.shared-lambda-role-arn }}"
         echo "BastionRoleArn: ${{ needs.deploy-global.outputs.bastion-role-arn }}"
         echo "DatabaseSecretArn: ${{ needs.deploy-global.outputs.database-secret-arn }}"
+        echo "BastionInstanceProfileArn: ${{ needs.deploy-global.outputs.bastion-instance-profile-arn }}"
+        echo "AuroraGlobalClusterId: ${{ needs.deploy-global.outputs.aurora-global-cluster-id }}"
 
         # Validate that job outputs are not empty
         if [ -z "${{ needs.deploy-global.outputs.shared-lambda-role-arn }}" ]; then
@@ -478,6 +480,16 @@ jobs:
           exit 1
         fi
 
+        if [ -z "${{ needs.deploy-global.outputs.bastion-instance-profile-arn }}" ]; then
+          echo "❌ ERROR: BastionInstanceProfileArn is empty"
+          exit 1
+        fi
+
+        if [ -z "${{ needs.deploy-global.outputs.aurora-global-cluster-id }}" ]; then
+          echo "❌ ERROR: AuroraGlobalClusterId is empty"
+          exit 1
+        fi
+
         echo "✅ All parameter values are present, proceeding with deployment..."
 
     - name: Deploy Regional Infrastructure
@@ -486,7 +498,7 @@ jobs:
       with:
         name: taskmanager-regional-infrastructure-${{ matrix.region }}
         template: infrastructure/regional-infrastructure.yaml
-        parameter-overrides: "DatabasePassword=${{ secrets.DATABASE_PASSWORD }},SharedLambdaRoleArn=${{ needs.deploy-global.outputs.shared-lambda-role-arn }},BastionRoleArn=${{ needs.deploy-global.outputs.bastion-role-arn }},DatabaseSecretArn=${{ needs.deploy-global.outputs.database-secret-arn }}"
+        parameter-overrides: "DatabasePassword=${{ secrets.DATABASE_PASSWORD }},SharedLambdaRoleArn=${{ needs.deploy-global.outputs.shared-lambda-role-arn }},BastionRoleArn=${{ needs.deploy-global.outputs.bastion-role-arn }},DatabaseSecretArn=${{ needs.deploy-global.outputs.database-secret-arn }},BastionInstanceProfileArn=${{ needs.deploy-global.outputs.bastion-instance-profile-arn }},AuroraGlobalClusterId=${{ needs.deploy-global.outputs.aurora-global-cluster-id }}"
         capabilities: "CAPABILITY_NAMED_IAM"
         no-fail-on-empty-changeset: "1"
       timeout-minutes: 15
@@ -507,7 +519,7 @@ jobs:
   deploy-application:
     name: Deploy Branch Application
     runs-on: ubuntu-latest
-    needs: [build, deploy-infrastructure, yaml-lint, get-bucket-name]
+    needs: [build, deploy-infrastructure, deploy-global, yaml-lint, get-bucket-name]
     concurrency:
       group: deploy-application-${{ github.ref }}
       cancel-in-progress: false
