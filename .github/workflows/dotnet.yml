@@ -355,7 +355,7 @@ jobs:
         echo "🎉 Global infrastructure prerequisites verified!"
 
   deploy-global:
-    name: Deploy Global Infrastructure (CRITICAL)
+    name: Deploy Global Infrastructure 
     runs-on: ubuntu-latest
     needs: prepare-global
     concurrency:
@@ -400,7 +400,7 @@ jobs:
           --query 'Stacks[0].StackStatus'
 
   deploy-infrastructure:
-    name: Deploy Regional Infrastructure (CRITICAL)
+    name: Deploy Regional Infrastructure 
     runs-on: ubuntu-latest
     needs: [build, deploy-global]
     concurrency:
@@ -480,7 +480,7 @@ jobs:
           --query 'Stacks[0].StackStatus'
 
   deploy-application:
-    name: Deploy Branch Application (CRITICAL)
+    name: Deploy Branch Application 
     runs-on: ubuntu-latest
     needs: [build, deploy-infrastructure, yaml-lint]
     concurrency:
@@ -851,7 +851,7 @@ jobs:
         echo "📱 SMS notification sent to 703-474-0324"
 
   verify-deployments:
-    name: Verify All Deployments (CRITICAL)
+    name: Verify All Deployments 
     runs-on: ubuntu-latest
     needs: [deploy-application, deploy-global]
     if: always()
