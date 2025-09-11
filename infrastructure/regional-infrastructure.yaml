@@ -277,6 +277,85 @@ Resources:
         - Key: Purpose
           Value: 'Container Registry'
 
+  # Aurora DB Subnet Group for this region
+  AuroraDBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: 'Subnet group for Aurora cluster in this region'
+      SubnetIds:
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+      DBSubnetGroupName: !Sub 'taskmanager-aurora-subnet-group-${AWS::Region}'
+      Tags:
+        - Key: Name
+          Value: 'TaskManager-Aurora-SubnetGroup'
+        - Key: Region
+          Value: !Ref AWS::Region
+
+  # Aurora DB Cluster Parameter Group
+  AuroraClusterParameterGroup:
+    Type: AWS::RDS::DBClusterParameterGroup
+    Properties:
+      Family: aurora-mysql8.0
+      Description: 'Parameter group for Aurora MySQL cluster'
+      Parameters:
+        character_set_server: utf8mb4
+        collation_server: utf8mb4_unicode_ci
+        innodb_buffer_pool_size: '{DBInstanceClassMemory*3/4}'
+        max_connections: '200'
+        query_cache_type: '0'
+        slow_query_log: '1'
+        long_query_time: '2'
+
+  # Aurora Cluster (Primary in us-east-1, Secondary in us-east-2)
+  AuroraCluster:
+    Type: AWS::RDS::DBCluster
+    Properties:
+      GlobalClusterIdentifier: !ImportValue 'TaskManager-AuroraGlobalCluster'
+      Engine: aurora-mysql
+      EngineVersion: '8.0.mysql_aurora.3.05.2'
+      DatabaseName: 'taskmanager'
+      MasterUsername: 'taskmanager_admin'
+      MasterUserPassword: !Ref DatabasePassword
+      DBSubnetGroupName: !Ref AuroraDBSubnetGroup
+      DBClusterParameterGroupName: !Ref AuroraClusterParameterGroup
+      VpcSecurityGroupIds:
+        - !Ref RDSSecurityGroup
+      BackupRetentionPeriod: 7
+      PreferredBackupWindow: '03:00-04:00'
+      PreferredMaintenanceWindow: 'sun:04:00-sun:05:00'
+      StorageEncrypted: true
+      DeletionProtection: false
+      EnableCloudwatchLogsExports:
+        - audit
+        - error
+        - general
+        - slowquery
+      Tags:
+        - Key: Name
+          Value: !Sub 'TaskManager-Aurora-${AWS::Region}'
+        - Key: Purpose
+          Value: 'Regional Aurora Cluster'
+        - Key: Region
+          Value: !Ref AWS::Region
+
+  # Aurora DB Instance
+  AuroraInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBInstanceIdentifier: !Sub 'taskmanager-aurora-${AWS::Region}'
+      DBClusterIdentifier: !Ref AuroraCluster
+      DBInstanceClass: db.r6g.large
+      Engine: aurora-mysql
+      PubliclyAccessible: false
+      Tags:
+        - Key: Name
+          Value: !Sub 'TaskManager-Aurora-Instance-${AWS::Region}'
+        - Key: Purpose
+          Value: 'Regional Aurora Instance'
+        - Key: Region
+          Value: !Ref AWS::Region
+
   # Lambda Layer for urllib3 dependency
   ECRCleanupLayer:
     Type: AWS::Lambda::LayerVersion
@@ -585,100 +664,6 @@ Resources:
         - Key: Purpose
           Value: 'Regional Infrastructure'
 
-  # Aurora DB Subnet Group for Secondary Cluster
-  AuroraDBSubnetGroup:
-    Type: AWS::RDS::DBSubnetGroup
-    Properties:
-      DBSubnetGroupDescription: 'Subnet group for Aurora Secondary Cluster'
-      SubnetIds:
-        - !Ref PrivateSubnet1
-        - !Ref PrivateSubnet2
-      DBSubnetGroupName: !Sub 'taskmanager-aurora-subnet-group-${AWS::Region}'
-      Tags:
-        - Key: Name
-          Value: 'TaskManager-Aurora-SubnetGroup'
-        - Key: Region
-          Value: !Ref AWS::Region
-
-  # Aurora DB Cluster Parameter Group
-  AuroraClusterParameterGroup:
-    Type: AWS::RDS::DBClusterParameterGroup
-    Properties:
-      Family: aurora-mysql8.0
-      Description: 'Parameter group for Aurora MySQL secondary cluster'
-      Parameters:
-        character_set_server: utf8mb4
-        collation_server: utf8mb4_unicode_ci
-        innodb_buffer_pool_size: '{DBInstanceClassMemory*3/4}'
-        max_connections: '200'
-        query_cache_type: '0'
-        slow_query_log: '1'
-        long_query_time: '2'
-
-  # Secondary Aurora Cluster (for regions other than us-east-1)
-  AuroraSecondaryCluster:
-    Type: AWS::RDS::DBCluster
-    Condition: IsNotUSEast1
-    Properties:
-      GlobalClusterIdentifier: !ImportValue 'TaskManager-AuroraGlobalCluster'
-      Engine: aurora-mysql
-      EngineVersion: '8.0.mysql_aurora.3.05.2'
-      DBSubnetGroupName: !Ref AuroraDBSubnetGroup
-      VpcSecurityGroupIds:
-        - !Ref RDSSecurityGroup
-      BackupRetentionPeriod: 7
-      PreferredBackupWindow: '03:00-04:00'
-      PreferredMaintenanceWindow: 'sun:04:00-sun:05:00'
-      StorageEncrypted: true
-      DeletionProtection: false
-      EnableCloudwatchLogsExports:
-        - audit
-        - error
-        - general
-        - slowquery
-      Tags:
-        - Key: Name
-          Value: !Sub 'TaskManager-Aurora-Secondary-${AWS::Region}'
-
-  # Secondary Aurora DB Instance
-  AuroraSecondaryInstance:
-    Type: AWS::RDS::DBInstance
-    Condition: IsNotUSEast1
-    Properties:
-      DBInstanceIdentifier: !Sub 'taskmanager-aurora-secondary-${AWS::Region}'
-      DBClusterIdentifier: !Ref AuroraSecondaryCluster
-      DBInstanceClass: db.r6g.large
-      Engine: aurora-mysql
-      PubliclyAccessible: false
-      Tags:
-        - Key: Name
-          Value: !Sub 'TaskManager-Aurora-Secondary-Instance-${AWS::Region}'
-        - Key: Purpose
-          Value: 'Global Database Secondary Instance'
-
-  # Regional Database Secret (for secondary regions)
-  RegionalDatabaseSecret:
-    Type: AWS::SecretsManager::Secret
-    Condition: IsNotUSEast1
-    Properties:
-      Name: !Sub 'taskmanager/database/regional-${AWS::Region}'
-      Description: !Sub 'Database credentials for Aurora cluster in ${AWS::Region}'
-      SecretString: !Sub |
-        {
-          "username": "taskmanager_admin",
-          "password": "${DatabasePassword}",
-          "engine": "aurora-mysql",
-          "host": "${AuroraSecondaryCluster.Endpoint.Address}",
-          "port": 3306,
-          "dbname": "taskmanager",
-          "region": "${AWS::Region}",
-          "is_primary": false
-        }
-      Tags:
-        - Key: Purpose
-          Value: 'Regional Database'
-        - Key: Region
-          Value: !Ref AWS::Region
 
   # SSH Key Pair for Bastion
   BastionKeyPair:
@@ -716,16 +701,16 @@ Resources:
           cat > /home/ec2-user/connect-to-db.sh << 'EOF'
           #!/bin/bash
           echo "TaskManager Aurora MySQL Database Connection Helper"
-          echo "Aurora Endpoint: ${AuroraSecondaryCluster.Endpoint.Address}"
+          echo "Aurora Endpoint: ${AuroraCluster.Endpoint.Address}"
           echo ""
           echo "To connect to Aurora MySQL database:"
-          echo "mysql -h ${AuroraSecondaryCluster.Endpoint.Address} -u taskmanager_admin -p"
+          echo "mysql -h ${AuroraCluster.Endpoint.Address} -u taskmanager_admin -p"
           echo ""
           echo "Available databases:"
           echo "- Connect and run: SHOW DATABASES; to list all databases"
           echo "- Each branch creates its own database (e.g., taskmanager_main, taskmanager_feature1)"
           echo ""
-          echo "Note: This is a secondary cluster in the Aurora Global Database"
+          echo "Note: This is a cluster in the Aurora Global Database"
           EOF
 
           chmod +x /home/ec2-user/connect-to-db.sh
@@ -793,7 +778,7 @@ Outputs:
 
   DatabaseSecretArn:
     Description: 'Database secret ARN'
-    Value: !Ref DatabaseSecretUpdate
+    Value: !Ref RegionalDatabaseSecret
 
   BastionHostIP:
     Description: 'Bastion host public IP address'
@@ -814,10 +799,10 @@ Outputs:
       Name: 'TaskManager-BastionKeyPairName'
 
   DatabaseTunnelCommand:
-    Description: 'SSH tunnel command for database access'
+    Description: 'SSH tunnel command for Aurora MySQL database access'
     Value: !Sub
-      - 'ssh -i your-key.pem -L 5432:${DbEndpoint}:5432 ec2-user@${BastionIp}'
-      - DbEndpoint: !GetAtt TaskManagerDatabase.Endpoint.Address
+      - 'ssh -i your-key.pem -L 3306:${DbEndpoint}:3306 ec2-user@${BastionIp}'
+      - DbEndpoint: !If [IsNotUSEast1, !GetAtt AuroraSecondaryCluster.Endpoint.Address, !ImportValue 'TaskManager-DatabaseEndpoint']
         BastionIp: !GetAtt BastionHost.PublicIp
     Export:
       Name: 'TaskManager-DatabaseTunnelCommand'
