@@ -6,7 +6,7 @@ Parameters:
     Type: String
     NoEcho: true
     MinLength: 8
-    Description: 'Password for the RDS PostgreSQL database'
+    Description: 'Password for the Aurora MySQL database'
 
 Resources:
 
@@ -195,10 +195,13 @@ Resources:
               - Effect: Allow
                 Action:
                   - rds:CreateDatabase
+                  - rds:DescribeDBClusters
                   - rds:DescribeDBInstances
                   - rds-data:ExecuteStatement
                   - rds-data:BatchExecuteStatement
-                Resource: !Sub 'arn:aws:rds:us-east-1:${AWS::AccountId}:db:taskmanager-shared-db'
+                Resource:
+                  - !Sub 'arn:aws:rds:us-east-1:${AWS::AccountId}:cluster:taskmanager-aurora-primary'
+                  - !Sub 'arn:aws:rds:us-east-1:${AWS::AccountId}:cluster:taskmanager-global-cluster'
 
   # Bastion Role
   BastionRole:
@@ -411,3 +414,9 @@ Outputs:
     Value: !GetAtt AuroraPrimaryCluster.ReaderEndpoint
     Export:
       Name: 'TaskManager-DatabaseReaderEndpoint'
+
+  TemplatesBucketName:
+    Description: 'S3 bucket name for CloudFormation templates (imported from IAM setup)'
+    Value: !ImportValue 'TaskManager-TemplatesBucket'
+    Export:
+      Name: 'TaskManager-TemplatesBucket'
