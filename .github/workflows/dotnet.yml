@@ -492,7 +492,28 @@ jobs:
 
         echo "✅ All parameter values are present, proceeding with deployment..."
 
-    - name: Deploy Regional Infrastructure
+     - name: Cleanup failed regional stack (if exists)
+       run: |
+         STACK_STATUS=$(aws cloudformation describe-stacks \
+           --stack-name taskmanager-regional-infrastructure-${{ matrix.region }} \
+           --region ${{ matrix.region }} \
+           --query 'Stacks[0].StackStatus' \
+           --output text 2>/dev/null || echo "STACK_NOT_FOUND")
+
+         if [ "$STACK_STATUS" = "ROLLBACK_COMPLETE" ] || [ "$STACK_STATUS" = "CREATE_FAILED" ] || [ "$STACK_STATUS" = "DELETE_FAILED" ]; then
+           echo "🗑️ Deleting failed regional stack: taskmanager-regional-infrastructure-${{ matrix.region }}"
+           aws cloudformation delete-stack \
+             --stack-name taskmanager-regional-infrastructure-${{ matrix.region }} \
+             --region ${{ matrix.region }}
+
+           aws cloudformation wait stack-delete-complete \
+             --stack-name taskmanager-regional-infrastructure-${{ matrix.region }} \
+             --region ${{ matrix.region }}
+
+           echo "✅ Failed regional stack cleaned up"
+         fi
+
+     - name: Deploy Regional Infrastructure
       id: deploy-regional
       uses: aws-actions/aws-cloudformation-github-deploy@v1
       with:
