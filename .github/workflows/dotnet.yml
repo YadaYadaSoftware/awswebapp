@@ -339,9 +339,6 @@ jobs:
         echo "Verifying S3 uploads..."
         aws s3 ls s3://${{ needs.get-bucket-name.outputs.bucket-name }}/ --region us-east-1 | grep -E "(iam-cleanup-layer|ecs-cleanup-layer)"
 
-        # Export bucket name for global deployment
-        echo "TEMPLATE_BUCKET=${{ needs.get-bucket-name.outputs.bucket-name }}" >> $GITHUB_ENV
-
     - name: Verify Global Infrastructure Prerequisites
       run: |
         echo "🔍 Verifying global infrastructure prerequisites..."
@@ -444,9 +441,6 @@ jobs:
         # Verify uploads
         echo "Verifying S3 uploads..."
         aws s3 ls s3://${{ needs.get-bucket-name.outputs.bucket-name }}/ --region us-east-1
-
-        # Export bucket name for use in subsequent steps
-        echo "TEMPLATE_BUCKET=${{ needs.get-bucket-name.outputs.bucket-name }}" >> $GITHUB_ENV
 
     - name: Deploy Regional Infrastructure
       uses: aws-actions/aws-cloudformation-github-deploy@v1
@@ -667,8 +661,6 @@ jobs:
         echo "S3 bucket contents:"
         aws s3 ls s3://${{ needs.get-bucket-name.outputs.bucket-name }}/ --region us-east-1
 
-        echo "TEMPLATE_BUCKET=${{ needs.get-bucket-name.outputs.bucket-name }}" >> $GITHUB_ENV
-
     - name: Deploy Wrapper Template (Nested Stacks)
       uses: aws-actions/aws-cloudformation-github-deploy@v1
       with:
@@ -676,7 +668,7 @@ jobs:
         template: wrapper-template.yaml
         parameter-overrides: |
           Environment=${{ env.BRANCH_NAME }},
-          ApiCodeBucket=${{ env.TEMPLATE_BUCKET }},
+          ApiCodeBucket=${{ needs.get-bucket-name.outputs.bucket-name }},
           WebContainerImage=${{ env.CONTAINER_IMAGE }},
           DeploymentToken=${{ github.sha }},
           DomainName=appcloud.systems,
