@@ -330,22 +330,17 @@ jobs:
 
     - name: Upload Global Infrastructure Layers to S3
       run: |
-        # Use bucket name from get-bucket-name job
-        BUCKET_NAME="${{ needs.get-bucket-name.outputs.bucket-name }}"
-
-        echo "Using S3 bucket: $BUCKET_NAME"
-
         # Upload layer files required for global infrastructure
         echo "Uploading global infrastructure layer files..."
-        aws s3 cp ./artifacts/iam-cleanup-layer.zip s3://$BUCKET_NAME/iam-cleanup-layer.zip --region us-east-1
-        aws s3 cp ./artifacts/ecs-cleanup-layer.zip s3://$BUCKET_NAME/ecs-cleanup-layer.zip --region us-east-1
+        aws s3 cp ./artifacts/iam-cleanup-layer.zip s3://${{ needs.get-bucket-name.outputs.bucket-name }}/iam-cleanup-layer.zip --region us-east-1
+        aws s3 cp ./artifacts/ecs-cleanup-layer.zip s3://${{ needs.get-bucket-name.outputs.bucket-name }}/ecs-cleanup-layer.zip --region us-east-1
 
         # Verify uploads
         echo "Verifying S3 uploads..."
-        aws s3 ls s3://$BUCKET_NAME/ --region us-east-1 | grep -E "(iam-cleanup-layer|ecs-cleanup-layer)"
+        aws s3 ls s3://${{ needs.get-bucket-name.outputs.bucket-name }}/ --region us-east-1 | grep -E "(iam-cleanup-layer|ecs-cleanup-layer)"
 
         # Export bucket name for global deployment
-        echo "TEMPLATE_BUCKET=$BUCKET_NAME" >> $GITHUB_ENV
+        echo "TEMPLATE_BUCKET=${{ needs.get-bucket-name.outputs.bucket-name }}" >> $GITHUB_ENV
 
     - name: Verify Global Infrastructure Prerequisites
       run: |
@@ -365,9 +360,6 @@ jobs:
         fi
 
         echo "✅ IAM setup stack status: $IAM_STACK_STATUS"
-
-        # Bucket name already verified by get-bucket-name job
-        echo "✅ Bucket name verified: $BUCKET_NAME"
 
         echo "🎉 Global infrastructure prerequisites verified!"
 
@@ -442,24 +434,19 @@ jobs:
 
     - name: Upload templates to S3
       run: |
-        # Use bucket name from get-bucket-name job
-        BUCKET_NAME="${{ needs.get-bucket-name.outputs.bucket-name }}"
-
-        echo "Using S3 bucket: $BUCKET_NAME"
-
         # Upload all templates
         echo "Uploading templates to S3..."
-        aws s3 cp infrastructure/regional-infrastructure.yaml s3://$BUCKET_NAME/ --region us-east-1
-        aws s3 cp src/TaskManager.Api/api-template.yaml s3://$BUCKET_NAME/ --region us-east-1
-        aws s3 cp src/TaskManager.Web2/web-template.yaml s3://$BUCKET_NAME/ --region us-east-1
-        aws s3 cp wrapper-template.yaml s3://$BUCKET_NAME/ --region us-east-1
+        aws s3 cp infrastructure/regional-infrastructure.yaml s3://${{ needs.get-bucket-name.outputs.bucket-name }}/ --region us-east-1
+        aws s3 cp src/TaskManager.Api/api-template.yaml s3://${{ needs.get-bucket-name.outputs.bucket-name }}/ --region us-east-1
+        aws s3 cp src/TaskManager.Web2/web-template.yaml s3://${{ needs.get-bucket-name.outputs.bucket-name }}/ --region us-east-1
+        aws s3 cp wrapper-template.yaml s3://${{ needs.get-bucket-name.outputs.bucket-name }}/ --region us-east-1
 
         # Verify uploads
         echo "Verifying S3 uploads..."
-        aws s3 ls s3://$BUCKET_NAME/ --region us-east-1
+        aws s3 ls s3://${{ needs.get-bucket-name.outputs.bucket-name }}/ --region us-east-1
 
         # Export bucket name for use in subsequent steps
-        echo "TEMPLATE_BUCKET=$BUCKET_NAME" >> $GITHUB_ENV
+        echo "TEMPLATE_BUCKET=${{ needs.get-bucket-name.outputs.bucket-name }}" >> $GITHUB_ENV
 
     - name: Deploy Regional Infrastructure
       uses: aws-actions/aws-cloudformation-github-deploy@v1
@@ -651,41 +638,36 @@ jobs:
 
     - name: Upload templates and packages to S3
       run: |
-        # Use bucket name from get-bucket-name job
-        BUCKET_NAME="${{ needs.get-bucket-name.outputs.bucket-name }}"
-
-        echo "Using S3 bucket: $BUCKET_NAME"
-
         # Debug: List downloaded artifacts
         echo "Downloaded artifacts:"
         ls -la ./artifacts/
 
         # Upload Lambda deployment packages
-        aws s3 cp ./artifacts/api-lambda-deployment.zip s3://$BUCKET_NAME/api-lambda-deployment.zip --region us-east-1
+        aws s3 cp ./artifacts/api-lambda-deployment.zip s3://${{ needs.get-bucket-name.outputs.bucket-name }}/api-lambda-deployment.zip --region us-east-1
 
         # Upload MySQL layer
-        aws s3 cp ./artifacts/mysql-layer.zip s3://$BUCKET_NAME/mysql-layer.zip --region us-east-1
+        aws s3 cp ./artifacts/mysql-layer.zip s3://${{ needs.get-bucket-name.outputs.bucket-name }}/mysql-layer.zip --region us-east-1
 
         # Upload ECR cleanup layer
-        aws s3 cp ./artifacts/ecr-cleanup-layer.zip s3://$BUCKET_NAME/ecr-cleanup-layer.zip --region us-east-1
+        aws s3 cp ./artifacts/ecr-cleanup-layer.zip s3://${{ needs.get-bucket-name.outputs.bucket-name }}/ecr-cleanup-layer.zip --region us-east-1
 
         # Upload S3 cleanup layer
-        aws s3 cp ./artifacts/s3-cleanup-layer.zip s3://$BUCKET_NAME/s3-cleanup-layer.zip --region us-east-1
+        aws s3 cp ./artifacts/s3-cleanup-layer.zip s3://${{ needs.get-bucket-name.outputs.bucket-name }}/s3-cleanup-layer.zip --region us-east-1
 
         # Upload IAM cleanup layer
-        aws s3 cp ./artifacts/iam-cleanup-layer.zip s3://$BUCKET_NAME/iam-cleanup-layer.zip --region us-east-1
+        aws s3 cp ./artifacts/iam-cleanup-layer.zip s3://${{ needs.get-bucket-name.outputs.bucket-name }}/iam-cleanup-layer.zip --region us-east-1
 
         # Upload Security Group cleanup layer
-        aws s3 cp ./artifacts/sg-cleanup-layer.zip s3://$BUCKET_NAME/sg-cleanup-layer.zip --region us-east-1
+        aws s3 cp ./artifacts/sg-cleanup-layer.zip s3://${{ needs.get-bucket-name.outputs.bucket-name }}/sg-cleanup-layer.zip --region us-east-1
 
         # Upload ECS cleanup layer
-        aws s3 cp ./artifacts/ecs-cleanup-layer.zip s3://$BUCKET_NAME/ecs-cleanup-layer.zip --region us-east-1
+        aws s3 cp ./artifacts/ecs-cleanup-layer.zip s3://${{ needs.get-bucket-name.outputs.bucket-name }}/ecs-cleanup-layer.zip --region us-east-1
 
         # Verify uploads
         echo "S3 bucket contents:"
-        aws s3 ls s3://$BUCKET_NAME/ --region us-east-1
+        aws s3 ls s3://${{ needs.get-bucket-name.outputs.bucket-name }}/ --region us-east-1
 
-        echo "TEMPLATE_BUCKET=$BUCKET_NAME" >> $GITHUB_ENV
+        echo "TEMPLATE_BUCKET=${{ needs.get-bucket-name.outputs.bucket-name }}" >> $GITHUB_ENV
 
     - name: Deploy Wrapper Template (Nested Stacks)
       uses: aws-actions/aws-cloudformation-github-deploy@v1
