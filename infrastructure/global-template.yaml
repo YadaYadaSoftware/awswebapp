@@ -354,9 +354,3 @@ Outputs:
     Value: !Ref DeploymentNotificationTopic
     Export:
       Name: 'TaskManager-DeploymentNotificationTopic'
-
-  TemplatesBucketName:
-    Description: 'S3 bucket name for CloudFormation templates'
-    Value: !Ref TemplatesBucket
-    Export:
-      Name: 'TaskManager-TemplatesBucket'
