@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'TaskManager Global Infrastructure - IAM, S3, Secrets Manager, SNS'
+Description: 'TaskManager Global Infrastructure - IAM, Aurora Global Database, Secrets Manager'
 
 Parameters:
   DatabasePassword:
@@ -268,32 +268,6 @@ Resources:
           "secret_arn": "${AWS::StackName}"
         }
 
-  # SNS Topic for Deployment Notifications
-  DeploymentNotificationTopic:
-    Type: AWS::SNS::Topic
-    Properties:
-      TopicName: 'TaskManager-Deployment-Notifications'
-      DisplayName: 'TaskManager Deployment Notifications'
-      Subscription:
-        - Protocol: sms
-          Endpoint: '+17034740324'
-
-  # SNS Topic Policy
-  DeploymentNotificationTopicPolicy:
-    Type: AWS::SNS::TopicPolicy
-    Properties:
-      Topics:
-        - !Ref DeploymentNotificationTopic
-      PolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
-            Action:
-              - sns:Publish
-              - sns:Subscribe
-            Resource: !Ref DeploymentNotificationTopic
 
   # Note: Cleanup functions removed to avoid layer dependencies
   # The bucket and IAM resources will be cleaned up manually if needed
@@ -323,11 +297,6 @@ Outputs:
     Export:
       Name: 'TaskManager-DatabaseSecret'
 
-  DeploymentNotificationTopicArn:
-    Description: 'SNS topic ARN for deployment notifications'
-    Value: !Ref DeploymentNotificationTopic
-    Export:
-      Name: 'TaskManager-DeploymentNotificationTopic'
 
   AuroraGlobalClusterId:
     Description: 'Aurora Global Database cluster identifier'
