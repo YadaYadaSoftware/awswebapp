@@ -333,9 +333,3 @@ Outputs:
 
   # Note: Database endpoints will be provided by regional Aurora clusters
   # Each region will have its own Aurora cluster in the global cluster
-
-  TemplatesBucketName:
-    Description: 'S3 bucket name for CloudFormation templates (imported from IAM setup)'
-    Value: !ImportValue 'TaskManager-TemplatesBucket'
-    Export:
-      Name: 'TaskManager-TemplatesBucket'
