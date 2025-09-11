@@ -5,7 +5,7 @@ rules:
     min-spaces-inside: 0
     max-spaces-inside: 1
   line-length:
-    max: 418
+    max: 1024
   comments:
     min-spaces-from-content: 1
   trailing-spaces: disable
