@@ -140,7 +140,7 @@ Resources:
       LayerName: !Sub 'taskmanager-ecs-cleanup-layer-${AWS::StackName}'
       Description: 'urllib3 dependency for ECS cleanup Lambda'
       Content:
-        S3Bucket: !ImportValue 'TaskManager-TemplatesBucket'
+        S3Bucket: !Sub 'taskmanager-templates-${AWS::AccountId}'
         S3Key: 'ecs-cleanup-layer.zip'
       CompatibleRuntimes:
         - python3.9
