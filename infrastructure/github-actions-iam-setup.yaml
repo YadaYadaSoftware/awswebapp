@@ -140,8 +140,6 @@ Outputs:
   TemplatesBucketName:
     Description: 'S3 bucket name for CloudFormation templates'
     Value: !Ref TemplatesBucketName
-    Export:
-      Name: 'TaskManager-TemplatesBucket'
 
   SetupInstructions:
     Description: 'Instructions for GitHub Secrets setup'
