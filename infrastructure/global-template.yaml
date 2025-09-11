@@ -200,7 +200,7 @@ Resources:
                   - rds-data:ExecuteStatement
                   - rds-data:BatchExecuteStatement
                 Resource:
-                  - !Sub 'arn:aws:rds:us-east-1:${AWS::AccountId}:cluster:taskmanager-aurora-primary'
+                  - !Sub 'arn:aws:rds:us-east-1:${AWS::AccountId}:cluster:taskmanager-*'
                   - !Sub 'arn:aws:rds:us-east-1:${AWS::AccountId}:cluster:taskmanager-global-cluster'
 
   # Bastion Role
@@ -257,10 +257,10 @@ Resources:
           "username": "taskmanager_admin",
           "password": "${DatabasePassword}",
           "engine": "aurora-mysql",
-          "host": "${AuroraPrimaryCluster.Endpoint.Address}",
+          "host": "PLACEHOLDER",
           "port": 3306,
           "dbname": "taskmanager",
-          "cluster_arn": "${AuroraPrimaryCluster}",
+          "cluster_arn": "${AuroraGlobalCluster}",
           "secret_arn": "${AWS::StackName}"
         }
 
