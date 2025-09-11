@@ -455,17 +455,23 @@ jobs:
           --output text \
           --region us-east-2 2>/dev/null || echo "")
 
+        echo "shared-lambda-role-arn=$SHARED_LAMBDA_ROLE_ARN"
+
         # Get Bastion Role ARN
         BASTION_ROLE_ARN=$(aws cloudformation list-exports \
           --query "Exports[?Name=='TaskManager-BastionRole'].Value" \
           --output text \
           --region us-east-2 2>/dev/null || echo "")
 
+        echo "bastion-role-arn=$BASTION_ROLE_ARN"
+
         # Get Database Secret ARN
         DATABASE_SECRET_ARN=$(aws cloudformation list-exports \
           --query "Exports[?Name=='TaskManager-DatabaseSecret'].Value" \
           --output text \
           --region us-east-2 2>/dev/null || echo "")
+
+        echo "database-secret-arn=$DATABASE_SECRET_ARN"
 
         # Set outputs for use in parameter overrides
         echo "shared-lambda-role-arn=$SHARED_LAMBDA_ROLE_ARN" >> $GITHUB_OUTPUT
