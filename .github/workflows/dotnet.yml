@@ -267,13 +267,20 @@ jobs:
         name: ecs-cleanup-layer-package
         path: ./artifacts/
 
-    - name: Create S3 bucket and upload layers
+    - name: Upload Lambda layers to S3
       run: |
-        BUCKET_NAME="taskmanager-templates-${{ secrets.AWS_ACCOUNT_ID }}"
+        # Get bucket name from IAM setup stack export
+        BUCKET_NAME=$(aws cloudformation list-exports \
+          --query "Exports[?Name=='TaskManager-TemplatesBucket'].Value" \
+          --output text \
+          --region us-east-1)
 
-        # Create S3 bucket
-        echo "Creating S3 bucket: $BUCKET_NAME"
-        aws s3 mb s3://$BUCKET_NAME --region us-east-1 2>/dev/null || echo "Bucket already exists"
+        if [ -z "$BUCKET_NAME" ] || [ "$BUCKET_NAME" = "None" ]; then
+          echo "❌ TaskManager-TemplatesBucket export not found. Please ensure github-actions-iam-setup.yaml is deployed first."
+          exit 1
+        fi
+
+        echo "Using S3 bucket: $BUCKET_NAME"
 
         # Upload layer files
         echo "Uploading Lambda layer files..."
@@ -283,6 +290,9 @@ jobs:
         # Verify uploads
         echo "Verifying S3 uploads..."
         aws s3 ls s3://$BUCKET_NAME/ --region us-east-1
+
+        # Export bucket name for use in subsequent steps
+        echo "TEMPLATE_BUCKET=$BUCKET_NAME" >> $GITHUB_ENV
 
     - name: Deploy Global Infrastructure
       uses: aws-actions/aws-cloudformation-github-deploy@v1
@@ -321,18 +331,18 @@ jobs:
 
     - name: Upload templates to S3
       run: |
-        BUCKET_NAME="taskmanager-templates-${{ secrets.AWS_ACCOUNT_ID }}"
+        # Get bucket name from IAM setup stack export
+        BUCKET_NAME=$(aws cloudformation list-exports \
+          --query "Exports[?Name=='TaskManager-TemplatesBucket'].Value" \
+          --output text \
+          --region us-east-1)
 
-        # Wait for bucket to be available (created by global stack)
-        echo "Waiting for S3 bucket to be available..."
-        for i in {1..30}; do
-          if aws s3 ls s3://$BUCKET_NAME --region us-east-1 >/dev/null 2>&1; then
-            echo "✅ S3 bucket is ready"
-            break
-          fi
-          echo "Waiting for bucket... (attempt $i/30)"
-          sleep 2
-        done
+        if [ -z "$BUCKET_NAME" ] || [ "$BUCKET_NAME" = "None" ]; then
+          echo "❌ TaskManager-TemplatesBucket export not found. Please ensure github-actions-iam-setup.yaml is deployed first."
+          exit 1
+        fi
+
+        echo "Using S3 bucket: $BUCKET_NAME"
 
         # Upload all templates
         echo "Uploading templates to S3..."
@@ -345,6 +355,9 @@ jobs:
         echo "Verifying S3 uploads..."
         aws s3 ls s3://$BUCKET_NAME/ --region us-east-1
 
+        # Export bucket name for use in subsequent steps
+        echo "TEMPLATE_BUCKET=$BUCKET_NAME" >> $GITHUB_ENV
+
     - name: Deploy Regional Infrastructure
       uses: aws-actions/aws-cloudformation-github-deploy@v1
       with:
@@ -352,9 +365,9 @@ jobs:
         template: infrastructure/shared-infrastructure.yaml
         parameter-overrides: |
           DatabasePassword=${{ secrets.DATABASE_PASSWORD }},
-          SharedLambdaRoleArn=arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/TaskManager-Shared-Lambda-Role,
-          BastionRoleArn=arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/TaskManager-Bastion-Role,
-          DatabaseSecretArn=arn:aws:secretsmanager:us-east-1:${{ secrets.AWS_ACCOUNT_ID }}:secret:taskmanager/database/shared
+          SharedLambdaRoleArn=arn:aws:iam::$ACCOUNT_ID:role/TaskManager-Shared-Lambda-Role,
+          BastionRoleArn=arn:aws:iam::$ACCOUNT_ID:role/TaskManager-Bastion-Role,
+          DatabaseSecretArn=arn:aws:secretsmanager:us-east-1:$ACCOUNT_ID:secret:taskmanager/database/shared
         capabilities: "CAPABILITY_NAMED_IAM"
         no-fail-on-empty-changeset: "1"
       timeout-minutes: 15
@@ -411,7 +424,8 @@ jobs:
         # Fallback: construct ECR repo URI if CloudFormation query fails
         if [ -z "$ECR_REPO" ] || [ "$ECR_REPO" = "None" ] || [ "$ECR_REPO" = "null" ]; then
           echo "❌ CloudFormation ECR query failed or returned empty, using fallback URI"
-          ECR_REPO="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ matrix.region }}.amazonaws.com/taskmanager-web"
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          ECR_REPO="$ACCOUNT_ID.dkr.ecr.${{ matrix.region }}.amazonaws.com/taskmanager-web"
           echo "📝 Constructed fallback ECR URI: $ECR_REPO"
         else
           echo "✅ Successfully retrieved ECR URI from CloudFormation: $ECR_REPO"
@@ -526,8 +540,18 @@ jobs:
 
     - name: Upload templates and packages to S3
       run: |
-        # Use global S3 bucket name (always from us-east-1)
-        BUCKET_NAME="taskmanager-templates-${{ secrets.AWS_ACCOUNT_ID }}"
+        # Get bucket name from IAM setup stack export
+        BUCKET_NAME=$(aws cloudformation list-exports \
+          --query "Exports[?Name=='TaskManager-TemplatesBucket'].Value" \
+          --output text \
+          --region us-east-1)
+
+        if [ -z "$BUCKET_NAME" ] || [ "$BUCKET_NAME" = "None" ]; then
+          echo "❌ TaskManager-TemplatesBucket export not found. Please ensure github-actions-iam-setup.yaml is deployed first."
+          exit 1
+        fi
+
+        echo "Using S3 bucket: $BUCKET_NAME"
 
         # Debug: List downloaded artifacts
         echo "Downloaded artifacts:"

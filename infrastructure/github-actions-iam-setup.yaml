@@ -85,6 +85,55 @@ Resources:
     Properties:
       UserName: !Ref GitHubActionsUser
 
+  # S3 Bucket for CloudFormation Templates (Global)
+  TaskManagerTemplatesBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub 'taskmanager-templates-${AWS::AccountId}'
+      VersioningConfiguration:
+        Status: Enabled
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      Tags:
+        - Key: Name
+          Value: 'TaskManager-Templates-Bucket'
+        - Key: Purpose
+          Value: 'CloudFormation Template Storage'
+        - Key: ManagedBy
+          Value: 'GitHub Actions IAM Setup'
+
+  # S3 Bucket Policy for CloudFormation Access
+  TemplatesBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref TaskManagerTemplatesBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowCloudFormationAccess
+            Effect: Allow
+            Principal:
+              Service: cloudformation.amazonaws.com
+            Action:
+              - s3:GetObject
+            Resource: !Sub '${TaskManagerTemplatesBucket.Arn}/*'
+          - Sid: AllowGitHubActionsFullAccess
+            Effect: Allow
+            Principal:
+              AWS: !GetAtt GitHubActionsUser.Arn
+            Action:
+              - s3:*
+            Resource:
+              - !Sub '${TaskManagerTemplatesBucket.Arn}'
+              - !Sub '${TaskManagerTemplatesBucket.Arn}/*'
+
 Outputs:
   UserName:
     Description: 'IAM User name for GitHub Actions'
@@ -108,14 +157,22 @@ Outputs:
     Description: 'Custom policy ARN'
     Value: !Ref TaskManagerDeploymentPolicy
 
+  TemplatesBucketName:
+    Description: 'S3 bucket name for CloudFormation templates'
+    Value: !Ref TaskManagerTemplatesBucket
+    Export:
+      Name: 'TaskManager-TemplatesBucket'
+
   SetupInstructions:
     Description: 'Instructions for GitHub Secrets setup'
     Value: !Sub |
       Add these to your GitHub repository secrets:
       AWS_ACCESS_KEY_ID=${GitHubActionsAccessKey}
       AWS_SECRET_ACCESS_KEY=${GitHubActionsAccessKey.SecretAccessKey}
-      
+
       Also add:
       DATABASE_PASSWORD=your-secure-password
       GOOGLE_CLIENT_ID=your-google-client-id
       GOOGLE_CLIENT_SECRET=your-google-client-secret
+
+      The S3 bucket 'taskmanager-templates-${AWS::AccountId}' has been created for template storage.
