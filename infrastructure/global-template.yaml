@@ -269,7 +269,7 @@ Resources:
           "port": "${AuroraPrimaryCluster.Endpoint.Port}",
           "dbname": "taskmanager",
           "cluster_arn": "${AuroraPrimaryCluster.DBClusterArn}",
-          "secret_arn": "${DatabaseSecret}"
+          "secret_arn": "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:taskmanager/database/shared"
         }
 
 
