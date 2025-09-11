@@ -331,14 +331,14 @@ jobs:
 
     - name: Upload templates to S3
       run: |
-        # Get bucket name from IAM setup stack export
+        # Get bucket name from global stack export
         BUCKET_NAME=$(aws cloudformation list-exports \
-          --query "Exports[?Name=='TaskManager-TemplatesBucket'].Value" \
+          --query "Exports[?Name=='TaskManager-GlobalTemplatesBucket'].Value" \
           --output text \
           --region us-east-1)
 
         if [ -z "$BUCKET_NAME" ] || [ "$BUCKET_NAME" = "None" ]; then
-          echo "❌ TaskManager-TemplatesBucket export not found. Please ensure github-actions-iam-setup.yaml is deployed first."
+          echo "❌ TaskManager-GlobalTemplatesBucket export not found. Please ensure taskmanager-global-infrastructure stack is deployed."
           exit 1
         fi
 

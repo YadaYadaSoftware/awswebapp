@@ -139,7 +139,7 @@ Resources:
       LayerName: !Sub 'taskmanager-ecs-cleanup-layer-${AWS::StackName}'
       Description: 'urllib3 dependency for ECS cleanup Lambda'
       Content:
-        S3Bucket: !Ref TemplatesBucket
+        S3Bucket: !ImportValue 'TaskManager-TemplatesBucket'
         S3Key: 'ecs-cleanup-layer.zip'
       CompatibleRuntimes:
         - python3.9
@@ -272,47 +272,7 @@ Resources:
               - sns:Subscribe
             Resource: !Ref DeploymentNotificationTopic
 
-  # S3 Bucket for CloudFormation Templates
-  TemplatesBucket:
-    Type: AWS::S3::Bucket
-    Properties:
-      BucketName: !Sub 'taskmanager-templates-${AWS::AccountId}'
-      VersioningConfiguration:
-        Status: Enabled
-      PublicAccessBlockConfiguration:
-        BlockPublicAcls: true
-        BlockPublicPolicy: true
-        IgnorePublicAcls: true
-        RestrictPublicBuckets: true
-      BucketEncryption:
-        ServerSideEncryptionConfiguration:
-          - ServerSideEncryptionByDefault:
-              SSEAlgorithm: AES256
-
-  # S3 Bucket Policy for CloudFormation Access
-  TemplatesBucketPolicy:
-    Type: AWS::S3::BucketPolicy
-    Properties:
-      Bucket: !Ref TemplatesBucket
-      PolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Sid: AllowCloudFormationAccess
-            Effect: Allow
-            Principal:
-              Service: cloudformation.amazonaws.com
-            Action:
-              - s3:GetObject
-            Resource: !Sub '${TemplatesBucket.Arn}/*'
-          - Sid: AllowAccountAccess
-            Effect: Allow
-            Principal:
-              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
-            Action:
-              - s3:GetObject
-              - s3:PutObject
-              - s3:DeleteObject
-            Resource: !Sub '${TemplatesBucket.Arn}/*'
+  # Reference to S3 bucket created by IAM setup (no creation needed)
 
   # Lambda function to clean up S3 bucket on stack deletion
   S3CleanupFunction:
@@ -647,7 +607,7 @@ Outputs:
       Name: 'TaskManager-DeploymentNotificationTopic'
 
   TemplatesBucketName:
-    Description: 'S3 bucket name for CloudFormation templates'
-    Value: !Ref TemplatesBucket
+    Description: 'S3 bucket name for CloudFormation templates (imported from IAM setup)'
+    Value: !ImportValue 'TaskManager-TemplatesBucket'
     Export:
-      Name: 'TaskManager-TemplatesBucket'
+      Name: 'TaskManager-GlobalTemplatesBucket'
