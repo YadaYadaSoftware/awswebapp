@@ -9,6 +9,55 @@ Parameters:
     Description: 'Password for the RDS PostgreSQL database'
 
 Resources:
+  # S3 Bucket for CloudFormation Templates (Global) - Must be first due to dependencies
+  TemplatesBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub 'taskmanager-templates-${AWS::AccountId}'
+      VersioningConfiguration:
+        Status: Enabled
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      Tags:
+        - Key: Name
+          Value: 'TaskManager-Templates-Bucket'
+        - Key: Purpose
+          Value: 'CloudFormation Template Storage'
+        - Key: ManagedBy
+          Value: 'TaskManager Global Infrastructure'
+
+  # S3 Bucket Policy for CloudFormation Access
+  TemplatesBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref TemplatesBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowCloudFormationAccess
+            Effect: Allow
+            Principal:
+              Service: cloudformation.amazonaws.com
+            Action:
+              - s3:GetObject
+            Resource: !Sub '${TemplatesBucket.Arn}/*'
+          - Sid: AllowAccountAccess
+            Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+            Action:
+              - s3:GetObject
+              - s3:PutObject
+              - s3:DeleteObject
+            Resource: !Sub '${TemplatesBucket.Arn}/*'
+
   # IAM Policy for GitHub Actions to manage service-linked roles
   GitHubActionsServiceLinkedRolePolicy:
     Type: AWS::IAM::Policy
@@ -272,308 +321,8 @@ Resources:
               - sns:Subscribe
             Resource: !Ref DeploymentNotificationTopic
 
-  # Reference to S3 bucket created by IAM setup (no creation needed)
-
-  # Lambda function to clean up S3 bucket on stack deletion
-  S3CleanupFunction:
-    Type: AWS::Lambda::Function
-    Properties:
-      FunctionName: !Sub 'taskmanager-s3-cleanup-${AWS::StackName}'
-      Runtime: python3.9
-      Handler: index.lambda_handler
-      Role: !GetAtt SharedLambdaExecutionRole.Arn
-      Layers:
-        - !Ref S3CleanupLayer
-      Code:
-        ZipFile: |
-          import boto3
-          import json
-          import logging
-
-          logger = logging.getLogger()
-          logger.setLevel(logging.INFO)
-
-          s3_client = boto3.client('s3')
-
-          def lambda_handler(event, context):
-              try:
-                  request_type = event.get('RequestType')
-                  bucket_name = event.get('ResourceProperties', {}).get('BucketName')
-
-                  if not bucket_name:
-                      raise ValueError("BucketName is required")
-
-                  logger.info(f"Processing {request_type} for bucket: {bucket_name}")
-
-                  if request_type == 'Delete':
-                      # Delete all objects from the bucket
-                      cleanup_s3_bucket(bucket_name)
-
-                      # Send success response
-                      send_response(event, context, 'SUCCESS', {'Message': f'Successfully cleaned up bucket {bucket_name}'})
-                  else:
-                      # For Create/Update, just succeed
-                      send_response(event, context, 'SUCCESS', {'Message': f'Bucket {bucket_name} ready'})
-
-              except Exception as e:
-                  logger.error(f"Error processing request: {str(e)}")
-                  send_response(event, context, 'FAILED', {'Error': str(e)})
-
-          def cleanup_s3_bucket(bucket_name):
-              try:
-                  # List all object versions in the bucket
-                  paginator = s3_client.get_paginator('list_object_versions')
-                  objects_to_delete = []
-
-                  # Collect all object versions
-                  for page in paginator.paginate(Bucket=bucket_name):
-                      # Regular object versions
-                      if 'Versions' in page:
-                          for version in page['Versions']:
-                              objects_to_delete.append({
-                                  'Key': version['Key'],
-                                  'VersionId': version['VersionId']
-                              })
-
-                      # Delete markers
-                      if 'DeleteMarkers' in page:
-                          for marker in page['DeleteMarkers']:
-                              objects_to_delete.append({
-                                  'Key': marker['Key'],
-                                  'VersionId': marker['VersionId']
-                              })
-
-                  if not objects_to_delete:
-                      logger.info(f"No objects found in bucket {bucket_name}")
-                      return
-
-                  logger.info(f"Found {len(objects_to_delete)} objects to delete from {bucket_name}")
-
-                  # Delete objects in batches (S3 allows max 1000 per request)
-                  batch_size = 1000
-                  for i in range(0, len(objects_to_delete), batch_size):
-                      batch = objects_to_delete[i:i + batch_size]
-
-                      delete_request = {
-                          'Objects': batch,
-                          'Quiet': True
-                      }
-
-                      s3_client.delete_objects(
-                          Bucket=bucket_name,
-                          Delete=delete_request
-                      )
-                      logger.info(f"Deleted batch of {len(batch)} objects")
-
-                  logger.info(f"Successfully cleaned up all objects from {bucket_name}")
-
-              except s3_client.exceptions.NoSuchBucket:
-                  logger.info(f"Bucket {bucket_name} does not exist, nothing to clean up")
-              except Exception as e:
-                  logger.error(f"Error cleaning up bucket {bucket_name}: {str(e)}")
-                  raise
-
-          def send_response(event, context, response_status, response_data):
-              import urllib3
-              import json
-
-              response_url = event.get('ResponseURL')
-              if not response_url:
-                  return
-
-              response_body = {
-                  'Status': response_status,
-                  'Reason': response_data.get('Message', 'Operation completed'),
-                  'PhysicalResourceId': event.get('PhysicalResourceId', context.log_stream_name),
-                  'StackId': event['StackId'],
-                  'RequestId': event['RequestId'],
-                  'LogicalResourceId': event['LogicalResourceId'],
-                  'Data': response_data
-              }
-
-              json_response_body = json.dumps(response_body)
-
-              headers = {
-                  'content-type': '',
-                  'content-length': str(len(json_response_body))
-              }
-
-              http = urllib3.PoolManager()
-              try:
-                  response = http.request(
-                      'PUT',
-                      response_url,
-                      body=json_response_body,
-                      headers=headers
-                  )
-                  logger.info(f"Response sent: {response.status}")
-              except Exception as e:
-                  logger.error(f"Failed to send response: {str(e)}")
-
-  # Lambda Layer for urllib3 dependency
-  S3CleanupLayer:
-    Type: AWS::Lambda::LayerVersion
-    Properties:
-      LayerName: !Sub 'taskmanager-s3-cleanup-layer-${AWS::StackName}'
-      Description: 'urllib3 dependency for S3 cleanup Lambda'
-      Content:
-        S3Bucket: !Ref TemplatesBucket
-        S3Key: 's3-cleanup-layer.zip'
-      CompatibleRuntimes:
-        - python3.9
-
-  # Lambda function to clean up IAM role on stack deletion
-  IAMCleanupFunction:
-    Type: AWS::Lambda::Function
-    Properties:
-      FunctionName: !Sub 'taskmanager-iam-cleanup-${AWS::StackName}'
-      Runtime: python3.9
-      Handler: index.lambda_handler
-      Role: !GetAtt SharedLambdaExecutionRole.Arn
-      Layers:
-        - !Ref IAMCleanupLayer
-      Code:
-        ZipFile: |
-          import boto3
-          import json
-          import logging
-
-          logger = logging.getLogger()
-          logger.setLevel(logging.INFO)
-
-          iam_client = boto3.client('iam')
-
-          def lambda_handler(event, context):
-              try:
-                  request_type = event.get('RequestType')
-                  role_name = event.get('ResourceProperties', {}).get('RoleName')
-
-                  if not role_name:
-                      raise ValueError("RoleName is required")
-
-                  logger.info(f"Processing {request_type} for IAM role: {role_name}")
-
-                  if request_type == 'Delete':
-                      # Clean up IAM role policies
-                      cleanup_iam_role(role_name)
-
-                      # Send success response
-                      send_response(event, context, 'SUCCESS', {'Message': f'Successfully cleaned up IAM role {role_name}'})
-                  else:
-                      # For Create/Update, just succeed
-                      send_response(event, context, 'SUCCESS', {'Message': f'IAM role {role_name} ready'})
-
-              except Exception as e:
-                  logger.error(f"Error processing request: {str(e)}")
-                  send_response(event, context, 'FAILED', {'Error': str(e)})
-
-          def cleanup_iam_role(role_name):
-              try:
-                  logger.info(f"Cleaning up IAM role: {role_name}")
-
-                  # Detach all managed policies
-                  try:
-                      attached_policies = iam_client.list_attached_role_policies(RoleName=role_name)
-                      for policy in attached_policies.get('AttachedPolicies', []):
-                          policy_arn = policy['PolicyArn']
-                          logger.info(f"Detaching managed policy: {policy_arn}")
-                          iam_client.detach_role_policy(
-                              RoleName=role_name,
-                              PolicyArn=policy_arn
-                          )
-                  except iam_client.exceptions.NoSuchEntityException:
-                      logger.info(f"Role {role_name} not found when detaching policies")
-
-                  # Delete all inline policies
-                  try:
-                      inline_policies = iam_client.list_role_policies(RoleName=role_name)
-                      for policy_name in inline_policies.get('PolicyNames', []):
-                          logger.info(f"Deleting inline policy: {policy_name}")
-                          iam_client.delete_role_policy(
-                              RoleName=role_name,
-                              PolicyName=policy_name
-                          )
-                  except iam_client.exceptions.NoSuchEntityException:
-                      logger.info(f"Role {role_name} not found when deleting inline policies")
-
-                  logger.info(f"Successfully cleaned up all policies from IAM role: {role_name}")
-
-              except Exception as e:
-                  logger.error(f"Error cleaning up IAM role {role_name}: {str(e)}")
-                  raise
-
-          def send_response(event, context, response_status, response_data):
-              import urllib3
-              import json
-
-              response_url = event.get('ResponseURL')
-              if not response_url:
-                  return
-
-              response_body = {
-                  'Status': response_status,
-                  'Reason': response_data.get('Message', 'Operation completed'),
-                  'PhysicalResourceId': event.get('PhysicalResourceId', context.log_stream_name),
-                  'StackId': event['StackId'],
-                  'RequestId': event['RequestId'],
-                  'LogicalResourceId': event['LogicalResourceId'],
-                  'Data': response_data
-              }
-
-              json_response_body = json.dumps(response_body)
-
-              headers = {
-                  'content-type': '',
-                  'content-length': str(len(json_response_body))
-              }
-
-              http = urllib3.PoolManager()
-              try:
-                  response = http.request(
-                      'PUT',
-                      response_url,
-                      body=json_response_body,
-                      headers=headers
-                  )
-                  logger.info(f"Response sent: {response.status}")
-              except Exception as e:
-                  logger.error(f"Failed to send response: {str(e)}")
-
-  # Lambda Layer for urllib3 dependency
-  IAMCleanupLayer:
-    Type: AWS::Lambda::LayerVersion
-    Properties:
-      LayerName: !Sub 'taskmanager-iam-cleanup-layer-${AWS::StackName}'
-      Description: 'urllib3 dependency for IAM cleanup Lambda'
-      Content:
-        S3Bucket: !Ref TemplatesBucket
-        S3Key: 'iam-cleanup-layer.zip'
-      CompatibleRuntimes:
-        - python3.9
-
-  # Custom resource to trigger S3 cleanup on stack deletion
-  S3CleanupResource:
-    Type: AWS::CloudFormation::CustomResource
-    Properties:
-      ServiceToken: !GetAtt S3CleanupFunction.Arn
-      BucketName: !Ref TemplatesBucket
-    DependsOn: [TemplatesBucket, S3CleanupFunction]
-
-  # Custom resource to trigger IAM cleanup on stack deletion
-  IAMCleanupResource:
-    Type: AWS::CloudFormation::CustomResource
-    Properties:
-      ServiceToken: !GetAtt IAMCleanupFunction.Arn
-      RoleName: !Ref SharedLambdaExecutionRole
-    DependsOn: [SharedLambdaExecutionRole, IAMCleanupFunction]
-
-  # Custom resource to trigger Bastion IAM role cleanup on stack deletion
-  BastionIAMCleanupResource:
-    Type: AWS::CloudFormation::CustomResource
-    Properties:
-      ServiceToken: !GetAtt IAMCleanupFunction.Arn
-      RoleName: !Ref BastionRole
-    DependsOn: [BastionRole, IAMCleanupFunction]
+  # Note: Cleanup functions removed to avoid layer dependencies
+  # The bucket and IAM resources will be cleaned up manually if needed
 
 Outputs:
   SharedLambdaRoleArn:
@@ -607,7 +356,7 @@ Outputs:
       Name: 'TaskManager-DeploymentNotificationTopic'
 
   TemplatesBucketName:
-    Description: 'S3 bucket name for CloudFormation templates (imported from IAM setup)'
-    Value: !ImportValue 'TaskManager-TemplatesBucket'
+    Description: 'S3 bucket name for CloudFormation templates'
+    Value: !Ref TemplatesBucket
     Export:
-      Name: 'TaskManager-GlobalTemplatesBucket'
+      Name: 'TaskManager-TemplatesBucket'

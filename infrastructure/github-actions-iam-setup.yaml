@@ -7,6 +7,10 @@ Parameters:
     Default: 'taskmanager-github-actions'
     Description: 'Name for the GitHub Actions IAM user'
 
+  TemplatesBucketName:
+    Type: String
+    Description: 'Name of the S3 bucket for CloudFormation templates (must already exist or be created separately)'
+
 Resources:
   # IAM User for GitHub Actions
   GitHubActionsUser:
@@ -85,35 +89,11 @@ Resources:
     Properties:
       UserName: !Ref GitHubActionsUser
 
-  # S3 Bucket for CloudFormation Templates (Global)
-  TaskManagerTemplatesBucket:
-    Type: AWS::S3::Bucket
-    Properties:
-      BucketName: !Sub 'taskmanager-templates-${AWS::AccountId}'
-      VersioningConfiguration:
-        Status: Enabled
-      PublicAccessBlockConfiguration:
-        BlockPublicAcls: true
-        BlockPublicPolicy: true
-        IgnorePublicAcls: true
-        RestrictPublicBuckets: true
-      BucketEncryption:
-        ServerSideEncryptionConfiguration:
-          - ServerSideEncryptionByDefault:
-              SSEAlgorithm: AES256
-      Tags:
-        - Key: Name
-          Value: 'TaskManager-Templates-Bucket'
-        - Key: Purpose
-          Value: 'CloudFormation Template Storage'
-        - Key: ManagedBy
-          Value: 'GitHub Actions IAM Setup'
-
-  # S3 Bucket Policy for CloudFormation Access
+  # S3 Bucket Policy for CloudFormation Access (bucket must exist)
   TemplatesBucketPolicy:
     Type: AWS::S3::BucketPolicy
     Properties:
-      Bucket: !Ref TaskManagerTemplatesBucket
+      Bucket: !Ref TemplatesBucketName
       PolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -123,7 +103,7 @@ Resources:
               Service: cloudformation.amazonaws.com
             Action:
               - s3:GetObject
-            Resource: !Sub '${TaskManagerTemplatesBucket.Arn}/*'
+            Resource: !Sub 'arn:aws:s3:::${TemplatesBucketName}/*'
           - Sid: AllowGitHubActionsFullAccess
             Effect: Allow
             Principal:
@@ -131,8 +111,8 @@ Resources:
             Action:
               - s3:*
             Resource:
-              - !Sub '${TaskManagerTemplatesBucket.Arn}'
-              - !Sub '${TaskManagerTemplatesBucket.Arn}/*'
+              - !Sub 'arn:aws:s3:::${TemplatesBucketName}'
+              - !Sub 'arn:aws:s3:::${TemplatesBucketName}/*'
 
 Outputs:
   UserName:
@@ -159,7 +139,7 @@ Outputs:
 
   TemplatesBucketName:
     Description: 'S3 bucket name for CloudFormation templates'
-    Value: !Ref TaskManagerTemplatesBucket
+    Value: !Ref TemplatesBucketName
     Export:
       Name: 'TaskManager-TemplatesBucket'
 
@@ -175,4 +155,8 @@ Outputs:
       GOOGLE_CLIENT_ID=your-google-client-id
       GOOGLE_CLIENT_SECRET=your-google-client-secret
 
-      The S3 bucket 'taskmanager-templates-${AWS::AccountId}' has been created for template storage.
+      IMPORTANT: Ensure the S3 bucket '${TemplatesBucketName}' exists and is configured with:
+      - Versioning enabled
+      - Server-side encryption (SSE-S3 or SSE-KMS)
+      - Public access blocked
+      - Appropriate bucket policies for CloudFormation and GitHub Actions access

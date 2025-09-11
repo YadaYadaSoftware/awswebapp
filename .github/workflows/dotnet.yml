@@ -333,12 +333,12 @@ jobs:
       run: |
         # Get bucket name from global stack export
         BUCKET_NAME=$(aws cloudformation list-exports \
-          --query "Exports[?Name=='TaskManager-GlobalTemplatesBucket'].Value" \
+          --query "Exports[?Name=='TaskManager-TemplatesBucket'].Value" \
           --output text \
           --region us-east-1)
 
         if [ -z "$BUCKET_NAME" ] || [ "$BUCKET_NAME" = "None" ]; then
-          echo "❌ TaskManager-GlobalTemplatesBucket export not found. Please ensure taskmanager-global-infrastructure stack is deployed."
+          echo "❌ TaskManager-TemplatesBucket export not found. Please ensure taskmanager-global-infrastructure stack is deployed."
           exit 1
         fi
 
