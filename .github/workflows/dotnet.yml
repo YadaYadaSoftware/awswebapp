@@ -45,9 +45,46 @@ jobs:
           echo "✅ All YAML files passed linting!"
         fi
 
+  get-bucket-name:
+    name: Get S3 Bucket Name
+    runs-on: ubuntu-latest
+    outputs:
+      bucket-name: ${{ steps.get-bucket.outputs.bucket-name }}
+    steps:
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: us-east-1
+
+    - name: Get bucket name from CloudFormation export
+      id: get-bucket
+      run: |
+        # List of US regions to check
+        REGIONS=("us-east-1" "us-east-2" "us-west-1" "us-west-2" "us-central-1")
+        
+        for region in "${REGIONS[@]}"; do
+          echo "Checking region: $region"
+          BUCKET_NAME=$(aws cloudformation list-exports \
+            --query "Exports[?Name=='TaskManager-TemplatesBucket'].Value" \
+            --output text \
+            --region $region 2>/dev/null || echo "")
+          
+          if [ -n "$BUCKET_NAME" ] && [ "$BUCKET_NAME" != "None" ]; then
+            echo "Found bucket in region $region: $BUCKET_NAME"
+            echo "bucket-name=$BUCKET_NAME" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+        done
+        
+        echo "❌ TaskManager-TemplatesBucket export not found in any US region"
+        exit 1
+
   build-layers:
     name: Build Global Infrastructure Layers
     runs-on: ubuntu-latest
+    needs: get-bucket-name
     concurrency:
       group: build-layers
       cancel-in-progress: false
@@ -293,16 +330,8 @@ jobs:
 
     - name: Upload Global Infrastructure Layers to S3
       run: |
-        # Get bucket name from IAM setup stack export
-        BUCKET_NAME=$(aws cloudformation list-exports \
-          --query "Exports[?Name=='TaskManager-TemplatesBucket'].Value" \
-          --output text \
-          --region us-east-1)
-
-        if [ -z "$BUCKET_NAME" ] || [ "$BUCKET_NAME" = "None" ]; then
-          echo "❌ TaskManager-TemplatesBucket export not found. Please ensure github-actions-iam-setup.yaml is deployed first."
-          exit 1
-        fi
+        # Use bucket name from get-bucket-name job
+        BUCKET_NAME="${{ needs.get-bucket-name.outputs.bucket-name }}"
 
         echo "Using S3 bucket: $BUCKET_NAME"
 
@@ -337,20 +366,8 @@ jobs:
 
         echo "✅ IAM setup stack status: $IAM_STACK_STATUS"
 
-        # Verify required exports exist
-        REQUIRED_EXPORTS=("TaskManager-TemplatesBucket")
-        for export in "${REQUIRED_EXPORTS[@]}"; do
-          EXPORT_VALUE=$(aws cloudformation list-exports \
-            --query "Exports[?Name=='$export'].Value" \
-            --output text \
-            --region us-east-1 2>/dev/null || echo "")
-
-          if [ -z "$EXPORT_VALUE" ] || [ "$EXPORT_VALUE" = "None" ]; then
-            echo "❌ Required export '$export' not found"
-            exit 1
-          fi
-          echo "✅ Export '$export' found: $EXPORT_VALUE"
-        done
+        # Bucket name already verified by get-bucket-name job
+        echo "✅ Bucket name verified: $BUCKET_NAME"
 
         echo "🎉 Global infrastructure prerequisites verified!"
 
@@ -425,16 +442,8 @@ jobs:
 
     - name: Upload templates to S3
       run: |
-        # Get bucket name from global stack export
-        BUCKET_NAME=$(aws cloudformation list-exports \
-          --query "Exports[?Name=='TaskManager-TemplatesBucket'].Value" \
-          --output text \
-          --region us-east-2)
-
-        if [ -z "$BUCKET_NAME" ] || [ "$BUCKET_NAME" = "None" ]; then
-          echo "❌ TaskManager-TemplatesBucket export not found. Please ensure taskmanager-global-infrastructure stack is deployed."
-          exit 1
-        fi
+        # Use bucket name from get-bucket-name job
+        BUCKET_NAME="${{ needs.get-bucket-name.outputs.bucket-name }}"
 
         echo "Using S3 bucket: $BUCKET_NAME"
 
@@ -642,16 +651,8 @@ jobs:
 
     - name: Upload templates and packages to S3
       run: |
-        # Get bucket name from IAM setup stack export
-        BUCKET_NAME=$(aws cloudformation list-exports \
-          --query "Exports[?Name=='TaskManager-TemplatesBucket'].Value" \
-          --output text \
-          --region us-east-1)
-
-        if [ -z "$BUCKET_NAME" ] || [ "$BUCKET_NAME" = "None" ]; then
-          echo "❌ TaskManager-TemplatesBucket export not found. Please ensure github-actions-iam-setup.yaml is deployed first."
-          exit 1
-        fi
+        # Use bucket name from get-bucket-name job
+        BUCKET_NAME="${{ needs.get-bucket-name.outputs.bucket-name }}"
 
         echo "Using S3 bucket: $BUCKET_NAME"
 
