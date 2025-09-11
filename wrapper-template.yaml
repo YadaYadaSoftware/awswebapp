@@ -123,8 +123,6 @@ Outputs:
     Export:
       Name: !Sub 'TaskManager-${Environment}-WebService'
 
-
-
   BranchEnvironment:
     Description: 'Branch environment name'
     Value: !Ref Environment
