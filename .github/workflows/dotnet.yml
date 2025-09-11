@@ -779,11 +779,74 @@ jobs:
 
         echo "📱 SMS notification sent to 703-474-0324"
 
+  verify-deployments:
+    name: Verify All Deployments (CRITICAL)
+    runs-on: ubuntu-latest
+    needs: deploy-application
+    if: always()
+    strategy:
+      matrix:
+        region: [us-east-1, us-east-2]
+
+    steps:
+    - name: Verify Deployment Status
+      run: |
+        echo "🔍 Final verification of all deployments in ${{ matrix.region }}..."
+
+        # Check global infrastructure (only for us-east-1)
+        if [ "${{ matrix.region }}" = "us-east-1" ]; then
+          echo "Checking global infrastructure..."
+          GLOBAL_STATUS=$(aws cloudformation describe-stacks \
+            --stack-name taskmanager-global-infrastructure \
+            --region us-east-1 \
+            --query 'Stacks[0].StackStatus' \
+            --output text 2>/dev/null || echo "NOT_FOUND")
+
+          if [ "$GLOBAL_STATUS" != "CREATE_COMPLETE" ] && [ "$GLOBAL_STATUS" != "UPDATE_COMPLETE" ]; then
+            echo "❌ Global infrastructure deployment failed: $GLOBAL_STATUS"
+            exit 1
+          fi
+          echo "✅ Global infrastructure: $GLOBAL_STATUS"
+        fi
+
+        # Check regional infrastructure
+        echo "Checking regional infrastructure..."
+        REGIONAL_STATUS=$(aws cloudformation describe-stacks \
+          --stack-name taskmanager-regional-infrastructure-${{ matrix.region }} \
+          --region ${{ matrix.region }} \
+          --query 'Stacks[0].StackStatus' \
+          --output text 2>/dev/null || echo "NOT_FOUND")
+
+        if [ "$REGIONAL_STATUS" != "CREATE_COMPLETE" ] && [ "$REGIONAL_STATUS" != "UPDATE_COMPLETE" ]; then
+          echo "❌ Regional infrastructure deployment failed: $REGIONAL_STATUS"
+          exit 1
+        fi
+        echo "✅ Regional infrastructure: $REGIONAL_STATUS"
+
+        # Check application deployment
+        BRANCH_NAME=${GITHUB_REF#refs/heads/}
+        STACK_NAME="taskmanager-${BRANCH_NAME}"
+
+        echo "Checking application deployment..."
+        APP_STATUS=$(aws cloudformation describe-stacks \
+          --stack-name ${STACK_NAME}-${{ matrix.region }} \
+          --region ${{ matrix.region }} \
+          --query 'Stacks[0].StackStatus' \
+          --output text 2>/dev/null || echo "NOT_FOUND")
+
+        if [ "$APP_STATUS" != "CREATE_COMPLETE" ] && [ "$APP_STATUS" != "UPDATE_COMPLETE" ]; then
+          echo "❌ Application deployment failed: $APP_STATUS"
+          exit 1
+        fi
+        echo "✅ Application deployment: $APP_STATUS"
+
+        echo "🎉 All deployments verified successfully in ${{ matrix.region }}!"
+
   update-google-oauth:
     name: Generate Google OAuth Update Instructions
     runs-on: ubuntu-latest
-    needs: deploy-application
-    if: needs.deploy-application.result == 'success'
+    needs: [deploy-application, verify-deployments]
+    if: needs.deploy-application.result == 'success' && needs.verify-deployments.result == 'success'
 
     steps:
     - name: Checkout code
