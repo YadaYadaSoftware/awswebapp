@@ -312,7 +312,6 @@ Resources:
         collation_server: utf8mb4_unicode_ci
         innodb_buffer_pool_size: '{DBInstanceClassMemory*3/4}'
         max_connections: '200'
-        query_cache_type: '0'
         slow_query_log: '1'
         long_query_time: '2'
 
