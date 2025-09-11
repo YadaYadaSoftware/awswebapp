@@ -444,6 +444,34 @@ jobs:
         echo "Verifying S3 uploads..."
         aws s3 ls s3://${{ needs.get-bucket-name.outputs.bucket-name }}/ --region us-east-1
 
+    - name: Get Global Infrastructure Values
+      id: get-global-values
+      run: |
+        echo "Getting global infrastructure values from CloudFormation exports..."
+
+        # Get Shared Lambda Role ARN
+        SHARED_LAMBDA_ROLE_ARN=$(aws cloudformation list-exports \
+          --query "Exports[?Name=='TaskManager-SharedLambdaRole'].Value" \
+          --output text \
+          --region us-east-2 2>/dev/null || echo "")
+
+        # Get Bastion Role ARN
+        BASTION_ROLE_ARN=$(aws cloudformation list-exports \
+          --query "Exports[?Name=='TaskManager-BastionRole'].Value" \
+          --output text \
+          --region us-east-2 2>/dev/null || echo "")
+
+        # Get Database Secret ARN
+        DATABASE_SECRET_ARN=$(aws cloudformation list-exports \
+          --query "Exports[?Name=='TaskManager-DatabaseSecret'].Value" \
+          --output text \
+          --region us-east-2 2>/dev/null || echo "")
+
+        # Set outputs for use in parameter overrides
+        echo "shared-lambda-role-arn=$SHARED_LAMBDA_ROLE_ARN" >> $GITHUB_OUTPUT
+        echo "bastion-role-arn=$BASTION_ROLE_ARN" >> $GITHUB_OUTPUT
+        echo "database-secret-arn=$DATABASE_SECRET_ARN" >> $GITHUB_OUTPUT
+
     - name: Deploy Regional Infrastructure
       uses: aws-actions/aws-cloudformation-github-deploy@v1
       with:
@@ -451,6 +479,9 @@ jobs:
         template: infrastructure/regional-infrastructure.yaml
         parameter-overrides: |
           DatabasePassword=${{ secrets.DATABASE_PASSWORD }}:${{ secrets.AWS_ACCOUNT_ID }}:secret:taskmanager/database/shared
+          SharedLambdaRoleArn=${{ steps.get-global-values.outputs.shared-lambda-role-arn }}
+          BastionRoleArn=${{ steps.get-global-values.outputs.bastion-role-arn }}
+          DatabaseSecretArn=${{ steps.get-global-values.outputs.database-secret-arn }}
         capabilities: "CAPABILITY_NAMED_IAM"
         no-fail-on-empty-changeset: "1"
       timeout-minutes: 15

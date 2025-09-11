@@ -8,9 +8,6 @@ Parameters:
     MinLength: 8
     Description: 'Password for the Aurora MySQL database'
 
-Conditions:
-  IsNotUSEast1: !Not [!Equals [!Ref AWS::Region, 'us-east-1']]
-
   BastionPublicKeyMaterial:
     Type: String
     Description: 'Public key material for bastion SSH access (generate locally with ssh-keygen and paste the .pub content here)'
