@@ -230,7 +230,6 @@ Resources:
     Properties:
       GlobalClusterIdentifier: taskmanager-global-cluster
       Engine: aurora-mysql
-      EngineVersion: EngineVersion
       DeletionProtection: false
   AuroraPrimaryCluster:
     Type: AWS::RDS::DBCluster
