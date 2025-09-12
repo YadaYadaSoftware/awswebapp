@@ -55,13 +55,7 @@ Resources:
           - Effect: Allow
             Action:
               - iam:*
-            Resource:
-              - !Sub 'arn:aws:iam::${AWS::AccountId}:role/TaskManager-*'
-              - !Sub 'arn:aws:iam::${AWS::AccountId}:role/taskmanager-*'
-              - !Sub 'arn:aws:iam::${AWS::AccountId}:instance-profile/TaskManager-*'
-              - !Sub 'arn:aws:iam::${AWS::AccountId}:instance-profile/taskmanager-*'
-              - 'arn:aws:iam::*:role/aws-service-role/elasticloadbalancing.amazonaws.com/AWSServiceRoleForElasticLoadBalancing'
-              - 'arn:aws:iam::*:role/aws-service-role/ecs.amazonaws.com/AWSServiceRoleForECS'
+            Resource: '*'
 
           # Service-linked role creation
           - Effect: Allow
