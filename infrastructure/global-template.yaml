@@ -224,19 +224,20 @@ Resources:
     Type: AWS::IAM::InstanceProfile
     Properties:
       Roles:
-        - BastionRole
+        - !Ref BastionRole
   AuroraGlobalCluster:
     Type: AWS::RDS::GlobalCluster
     Properties:
       GlobalClusterIdentifier: taskmanager-global-cluster
       Engine: aurora-mysql
+      EngineVersion: !Ref EngineVersion
       DeletionProtection: false
   AuroraPrimaryCluster:
     Type: AWS::RDS::DBCluster
     Properties:
-      GlobalClusterIdentifier: AuroraGlobalCluster
+      GlobalClusterIdentifier: !Ref AuroraGlobalCluster
       Engine: aurora-mysql
-      EngineVersion: EngineVersion
+      EngineVersion: !Ref EngineVersion
       MasterUsername: taskmanager_admin
       MasterUserPassword: DatabasePassword
       DatabaseName: taskmanager
