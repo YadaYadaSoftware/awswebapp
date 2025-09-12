@@ -35,7 +35,7 @@ Resources:
   ECSCleanupFunction:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: taskmanager-ecs-role-setup-${AWS::StackName}
+      FunctionName: !Sub taskmanager-ecs-role-setup-${AWS::StackName}
       Runtime: python3.9
       Handler: index.lambda_handler
       Role: !GetAtt SharedLambdaExecutionRole.Arn
@@ -141,7 +141,7 @@ Resources:
   SharedLambdaExecutionRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: TaskManager-Shared-Lambda-Role-${AWS::Region}
+      RoleName: !Sub TaskManager-Shared-Lambda-Role-${AWS::Region}
       AssumeRolePolicyDocument:
         Version: 2012-10-17
         Statement:
@@ -163,8 +163,8 @@ Resources:
                   - secretsmanager:GetSecretValue
                   - secretsmanager:DescribeSecret
                 Resource:
-                  - arn:aws:secretsmanager:us-east-1:${AWS::AccountId}:secret:taskmanager/database/shared/*
-                  - arn:aws:secretsmanager:us-east-2:${AWS::AccountId}:secret:taskmanager/database/shared*
+                  - !Sub arn:aws:secretsmanager:us-east-1:${AWS::AccountId}:secret:taskmanager/database/shared/*
+                  - !Sub arn:aws:secretsmanager:us-east-2:${AWS::AccountId}:secret:taskmanager/database/shared*
         - PolicyName: CloudWatchLogs
           PolicyDocument:
             Version: 2012-10-17
@@ -175,8 +175,8 @@ Resources:
                   - logs:CreateLogStream
                   - logs:PutLogEvents
                 Resource:
-                  - arn:aws:logs:us-east-1:${AWS::AccountId}:*
-                  - arn:aws:logs:us-east-2:${AWS::AccountId}:*
+                  - !Sub arn:aws:logs:us-east-1:${AWS::AccountId}:*
+                  - !Sub arn:aws:logs:us-east-2:${AWS::AccountId}:*
         - PolicyName: RDSAccess
           PolicyDocument:
             Version: 2012-10-17
@@ -194,13 +194,13 @@ Resources:
                   - rds-data:ExecuteStatement
                   - rds-data:BatchExecuteStatement
                 Resource:
-                  - arn:aws:rds:us-east-1:${AWS::AccountId}:cluster:taskmanager-*
-                  - arn:aws:rds:us-east-2:${AWS::AccountId}:cluster:taskmanager-*
-                  - arn:aws:rds::${AWS::AccountId}:global-cluster:taskmanager-global-cluster
+                  - !Sub arn:aws:rds:us-east-1:${AWS::AccountId}:cluster:taskmanager-*
+                  - !Sub arn:aws:rds:us-east-2:${AWS::AccountId}:cluster:taskmanager-*
+                  - !Sub arn:aws:rds::${AWS::AccountId}:global-cluster:taskmanager-global-cluster
   BastionRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: TaskManager-Bastion-Role-${AWS::Region}
+      RoleName: !Sub TaskManager-Bastion-Role-${AWS::Region}
       AssumeRolePolicyDocument:
         Version: 2012-10-17
         Statement:
@@ -219,8 +219,8 @@ Resources:
                 Action:
                   - secretsmanager:GetSecretValue
                 Resource:
-                  - arn:aws:secretsmanager:us-east-1:${AWS::AccountId}:secret:taskmanager/database/shared/*
-                  - arn:aws:secretsmanager:us-east-2:${AWS::AccountId}:secret:taskmanager/database/shared*
+                  - !Sub arn:aws:secretsmanager:us-east-1:${AWS::AccountId}:secret:taskmanager/database/shared/*
+                  - !Sub arn:aws:secretsmanager:us-east-2:${AWS::AccountId}:secret:taskmanager/database/shared*
   BastionInstanceProfile:
     Type: AWS::IAM::InstanceProfile
     Properties:
@@ -261,7 +261,7 @@ Resources:
     Properties:
       Name: taskmanager/database/shared
       Description: Database credentials for Aurora Serverless Global Database
-      SecretString: >
+      SecretString: !Sub |
         {
           "username": "taskmanager_admin",
           "password": "${DatabasePassword}",
