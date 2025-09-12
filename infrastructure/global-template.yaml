@@ -1,59 +1,60 @@
-AWSTemplateFormatVersion: '2010-09-09'
-Description: 'TaskManager Global Infrastructure - IAM, Aurora Global Database, Secrets Manager'
-
+---
+AWSTemplateFormatVersion: 2010-09-09
+Description: TaskManager Global Infrastructure - IAM, Aurora Global Database,
+  Secrets Manager
 Parameters:
-   DatabasePassword:
-     Type: String
-     NoEcho: true
-     MinLength: 8
-     Description: 'Password for the Aurora MySQL database'
-
-   EngineVersion:
-     Type: String
-     Default: '8.0.mysql_aurora.3.04.3'
-     Description: 'Aurora MySQL engine version for the global cluster'
-
+  DatabasePassword:
+    Type: String
+    NoEcho: true
+    MinLength: 8
+    Description: Password for the Aurora MySQL database
+  EngineVersion:
+    Type: String
+    Default: 8.0.mysql_aurora.3.04.3
+    Description: Aurora MySQL engine version for the global cluster
 Resources:
-
-  # IAM Policy for GitHub Actions to manage service-linked roles
   GitHubActionsServiceLinkedRolePolicy:
     Type: AWS::IAM::Policy
     Properties:
-      PolicyName: 'TaskManager-GitHubActions-ServiceLinkedRole-Policy'
+      PolicyName: TaskManager-GitHubActions-ServiceLinkedRole-Policy
       PolicyDocument:
-        Version: '2012-10-17'
+        Version: 2012-10-17
         Statement:
           - Effect: Allow
             Action:
               - iam:GetRole
               - iam:CreateServiceLinkedRole
               - iam:DeleteServiceLinkedRole
-            Resource: 'arn:aws:iam::*:role/aws-service-role/*'
+            Resource: arn:aws:iam::*:role/aws-service-role/*
           - Effect: Allow
             Action:
               - iam:PassRole
-            Resource: 'arn:aws:iam::*:role/TaskManager-*'
+            Resource: arn:aws:iam::*:role/TaskManager-*
       Roles:
-        - !Ref SharedLambdaExecutionRole
-
-  # Custom resource to create ECS Service-Linked Role safely
+        - SharedLambdaExecutionRole
   ECSCleanupFunction:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: !Sub 'taskmanager-ecs-role-setup-${AWS::StackName}'
+      FunctionName: taskmanager-ecs-role-setup-${AWS::StackName}
       Runtime: python3.9
       Handler: index.lambda_handler
-      Role: !GetAtt SharedLambdaExecutionRole.Arn
+      Role: SharedLambdaExecutionRole.Arn
       Code:
-        ZipFile: |
+        ZipFile: >
           import boto3
+
           import json
+
           import logging
 
+
           logger = logging.getLogger()
+
           logger.setLevel(logging.INFO)
 
+
           iam_client = boto3.client('iam')
+
 
           def lambda_handler(event, context):
               try:
@@ -130,22 +131,19 @@ Resources:
                       logger.info(f"Response sent: {response.status}")
               except Exception as e:
                   logger.error(f"Failed to send response: {str(e)}")
-
-
-  # Custom resource to handle ECS service-linked role creation
   ECSRoleSetupResource:
     Type: AWS::CloudFormation::CustomResource
     Properties:
-      ServiceToken: !GetAtt ECSCleanupFunction.Arn
-    DependsOn: [SharedLambdaExecutionRole, ECSCleanupFunction]
-
-  # Shared Lambda Execution Role
+      ServiceToken: ECSCleanupFunction.Arn
+    DependsOn:
+      - SharedLambdaExecutionRole
+      - ECSCleanupFunction
   SharedLambdaExecutionRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub 'TaskManager-Shared-Lambda-Role-${AWS::Region}'
+      RoleName: TaskManager-Shared-Lambda-Role-${AWS::Region}
       AssumeRolePolicyDocument:
-        Version: '2012-10-17'
+        Version: 2012-10-17
         Statement:
           - Effect: Allow
             Principal:
@@ -158,18 +156,18 @@ Resources:
       Policies:
         - PolicyName: SecretsManagerAccess
           PolicyDocument:
-            Version: '2012-10-17'
+            Version: 2012-10-17
             Statement:
               - Effect: Allow
                 Action:
                   - secretsmanager:GetSecretValue
                   - secretsmanager:DescribeSecret
                 Resource:
-                  - !Sub 'arn:aws:secretsmanager:us-east-1:${AWS::AccountId}:secret:taskmanager/database/shared/*'
-                  - !Sub 'arn:aws:secretsmanager:us-east-2:${AWS::AccountId}:secret:taskmanager/database/shared*'
+                  - arn:aws:secretsmanager:us-east-1:${AWS::AccountId}:secret:taskmanager/database/shared/*
+                  - arn:aws:secretsmanager:us-east-2:${AWS::AccountId}:secret:taskmanager/database/shared*
         - PolicyName: CloudWatchLogs
           PolicyDocument:
-            Version: '2012-10-17'
+            Version: 2012-10-17
             Statement:
               - Effect: Allow
                 Action:
@@ -177,11 +175,11 @@ Resources:
                   - logs:CreateLogStream
                   - logs:PutLogEvents
                 Resource:
-                  - !Sub 'arn:aws:logs:us-east-1:${AWS::AccountId}:*'
-                  - !Sub 'arn:aws:logs:us-east-2:${AWS::AccountId}:*'
+                  - arn:aws:logs:us-east-1:${AWS::AccountId}:*
+                  - arn:aws:logs:us-east-2:${AWS::AccountId}:*
         - PolicyName: RDSAccess
           PolicyDocument:
-            Version: '2012-10-17'
+            Version: 2012-10-17
             Statement:
               - Effect: Allow
                 Action:
@@ -196,17 +194,15 @@ Resources:
                   - rds-data:ExecuteStatement
                   - rds-data:BatchExecuteStatement
                 Resource:
-                  - !Sub 'arn:aws:rds:us-east-1:${AWS::AccountId}:cluster:taskmanager-*'
-                  - !Sub 'arn:aws:rds:us-east-2:${AWS::AccountId}:cluster:taskmanager-*'
-                  - !Sub 'arn:aws:rds::${AWS::AccountId}:global-cluster:taskmanager-global-cluster'
-
-  # Bastion Role
+                  - arn:aws:rds:us-east-1:${AWS::AccountId}:cluster:taskmanager-*
+                  - arn:aws:rds:us-east-2:${AWS::AccountId}:cluster:taskmanager-*
+                  - arn:aws:rds::${AWS::AccountId}:global-cluster:taskmanager-global-cluster
   BastionRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub 'TaskManager-Bastion-Role-${AWS::Region}'
+      RoleName: TaskManager-Bastion-Role-${AWS::Region}
       AssumeRolePolicyDocument:
-        Version: '2012-10-17'
+        Version: 2012-10-17
         Statement:
           - Effect: Allow
             Principal:
@@ -217,53 +213,46 @@ Resources:
       Policies:
         - PolicyName: SecretsManagerRead
           PolicyDocument:
-            Version: '2012-10-17'
+            Version: 2012-10-17
             Statement:
               - Effect: Allow
                 Action:
                   - secretsmanager:GetSecretValue
                 Resource:
-                  - !Sub 'arn:aws:secretsmanager:us-east-1:${AWS::AccountId}:secret:taskmanager/database/shared/*'
-                  - !Sub 'arn:aws:secretsmanager:us-east-2:${AWS::AccountId}:secret:taskmanager/database/shared*'
-
-  # Bastion Instance Profile
+                  - arn:aws:secretsmanager:us-east-1:${AWS::AccountId}:secret:taskmanager/database/shared/*
+                  - arn:aws:secretsmanager:us-east-2:${AWS::AccountId}:secret:taskmanager/database/shared*
   BastionInstanceProfile:
     Type: AWS::IAM::InstanceProfile
     Properties:
       Roles:
-        - !Ref BastionRole
-
-  # Aurora Global Database Cluster (Primary in us-east-1)
+        - BastionRole
   AuroraGlobalCluster:
     Type: AWS::RDS::GlobalCluster
     Properties:
-      GlobalClusterIdentifier: 'taskmanager-global-cluster'
+      GlobalClusterIdentifier: taskmanager-global-cluster
       Engine: aurora-mysql
-      EngineVersion: !Ref EngineVersion
+      EngineVersion: EngineVersion
       DeletionProtection: false
-  
   AuroraPrimaryCluster:
     Type: AWS::RDS::DBCluster
     Properties:
-      GlobalClusterIdentifier: !Ref AuroraGlobalCluster
+      GlobalClusterIdentifier: AuroraGlobalCluster
       Engine: aurora-mysql
-      EngineVersion: !Ref EngineVersion
+      EngineVersion: EngineVersion
       MasterUsername: taskmanager_admin
-      MasterUserPassword: !Ref DatabasePassword
+      MasterUserPassword: DatabasePassword
       DatabaseName: taskmanager
       DeletionProtection: false
       ServerlessV2ScalingConfiguration:
         MinCapacity: 1
         MaxCapacity: 4
     DependsOn: AuroraGlobalCluster
-
-  # Secrets Manager for database credentials
   DatabaseSecret:
     Type: AWS::SecretsManager::Secret
     Properties:
-      Name: 'taskmanager/database/shared'
+      Name: taskmanager/database/shared
       Description: Database credentials for Aurora Serverless Global Database
-      SecretString: !Sub |
+      SecretString: >
         {
           "username": "taskmanager_admin",
           "password": "${DatabasePassword}",
@@ -274,42 +263,29 @@ Resources:
           "cluster_arn": "${AuroraPrimaryCluster.DBClusterArn}",
           "secret_arn": "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:taskmanager/database/shared"
         }
-
-
-  # Note: Cleanup functions removed to avoid layer dependencies
-  # The bucket and IAM resources will be cleaned up manually if needed
-
 Outputs:
   SharedLambdaRoleArn:
-    Description: 'Shared Lambda execution role ARN'
-    Value: !GetAtt SharedLambdaExecutionRole.Arn
+    Description: Shared Lambda execution role ARN
+    Value: SharedLambdaExecutionRole.Arn
     Export:
-      Name: 'TaskManager-SharedLambdaRole'
-
+      Name: TaskManager-SharedLambdaRole
   BastionRoleArn:
-    Description: 'Bastion role ARN'
-    Value: !GetAtt BastionRole.Arn
+    Description: Bastion role ARN
+    Value: BastionRole.Arn
     Export:
-      Name: 'TaskManager-BastionRole'
-
+      Name: TaskManager-BastionRole
   BastionInstanceProfileArn:
-    Description: 'Bastion instance profile ARN'
-    Value: !Ref BastionInstanceProfile
+    Description: Bastion instance profile ARN
+    Value: BastionInstanceProfile
     Export:
-      Name: 'TaskManager-BastionInstanceProfile'
-
+      Name: TaskManager-BastionInstanceProfile
   DatabaseSecretArn:
-    Description: 'Database secret ARN'
-    Value: !Ref DatabaseSecret
+    Description: Database secret ARN
+    Value: DatabaseSecret
     Export:
-      Name: 'TaskManager-DatabaseSecret'
-
-
+      Name: TaskManager-DatabaseSecret
   AuroraGlobalClusterId:
-    Description: 'Aurora Global Database cluster identifier'
-    Value: !Ref AuroraGlobalCluster
+    Description: Aurora Global Database cluster identifier
+    Value: AuroraGlobalCluster
     Export:
-      Name: 'TaskManager-AuroraGlobalCluster'
-
-  # Note: Database endpoints will be provided by regional Aurora clusters
-  # Each region will have its own Aurora cluster in the global cluster
+      Name: TaskManager-AuroraGlobalCluster
