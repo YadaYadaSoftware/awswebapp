@@ -243,9 +243,18 @@ Resources:
       MasterUserPassword: DatabasePassword
       DatabaseName: taskmanager
       DeletionProtection: false
+      StorageEncrypted: true
+      BackupRetentionPeriod: 7
+      PreferredBackupWindow: '03:00-04:00'
+      PreferredMaintenanceWindow: 'sun:04:00-sun:05:00'
       ServerlessV2ScalingConfiguration:
-        MinCapacity: 1
+        MinCapacity: 0.5
         MaxCapacity: 4
+      EnableCloudwatchLogsExports:
+        - audit
+        - error
+        - general
+        - slowquery
     DependsOn: AuroraGlobalCluster
   DatabaseSecret:
     Type: AWS::SecretsManager::Secret
