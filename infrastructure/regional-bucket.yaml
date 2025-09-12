@@ -5,7 +5,7 @@ Resources:
   RegionalArtifactsBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: 'taskmanager-templates-bucket'
+      BucketName: !Sub 'taskmanager-templates-bucket-${AWS::Region}'
       VersioningConfiguration:
         Status: Enabled
       PublicAccessBlockConfiguration:

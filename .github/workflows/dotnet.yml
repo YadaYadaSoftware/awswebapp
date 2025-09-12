@@ -50,7 +50,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        region: [us-east-1]
+        region: [us-east-2, us-east-1]
     outputs:
       bucket-name: ${{ steps.deploy.outputs.TemplatesBucket }}
     steps:
