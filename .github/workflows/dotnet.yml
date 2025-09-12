@@ -48,6 +48,9 @@ jobs:
   deploy-bucket:
     name: Deploy Regional Bucket
     runs-on: ubuntu-latest
+    concurrency:
+      group: deploy-bucket
+      cancel-in-progress: false
     strategy:
       matrix:
         region: [us-east-2, us-east-1]
