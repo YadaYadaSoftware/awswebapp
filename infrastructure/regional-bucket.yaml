@@ -24,4 +24,4 @@ Outputs:
     Description: 'Name of the templates bucket'
     Value: !Ref RegionalArtifactsBucket
     Export:
-        Name: !Sub 'TaskManager-RegionalTemplatesBucket-${AWS::Region}'
+      Name: !Sub 'TaskManager-RegionalTemplatesBucket-${AWS::Region}'
