@@ -38,7 +38,7 @@ Resources:
       FunctionName: taskmanager-ecs-role-setup-${AWS::StackName}
       Runtime: python3.9
       Handler: index.lambda_handler
-      Role: SharedLambdaExecutionRole.Arn
+      Role: !GetAtt SharedLambdaExecutionRole.Arn
       Code:
         ZipFile: >
           import boto3
@@ -134,7 +134,7 @@ Resources:
   ECSRoleSetupResource:
     Type: AWS::CloudFormation::CustomResource
     Properties:
-      ServiceToken: ECSCleanupFunction.Arn
+      ServiceToken: !GetAtt ECSCleanupFunction.Arn
     DependsOn:
       - SharedLambdaExecutionRole
       - ECSCleanupFunction
@@ -275,12 +275,12 @@ Resources:
 Outputs:
   SharedLambdaRoleArn:
     Description: Shared Lambda execution role ARN
-    Value: SharedLambdaExecutionRole.Arn
+    Value: !GetAtt SharedLambdaExecutionRole.Arn
     Export:
       Name: TaskManager-SharedLambdaRole
   BastionRoleArn:
     Description: Bastion role ARN
-    Value: BastionRole.Arn
+    Value: !GetAtt BastionRole.Arn
     Export:
       Name: TaskManager-BastionRole
   BastionInstanceProfileArn:
