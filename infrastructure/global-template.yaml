@@ -2,11 +2,16 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: 'TaskManager Global Infrastructure - IAM, Aurora Global Database, Secrets Manager'
 
 Parameters:
-  DatabasePassword:
-    Type: String
-    NoEcho: true
-    MinLength: 8
-    Description: 'Password for the Aurora MySQL database'
+   DatabasePassword:
+     Type: String
+     NoEcho: true
+     MinLength: 8
+     Description: 'Password for the Aurora MySQL database'
+
+   EngineVersion:
+     Type: String
+     Default: '8.0.mysql_aurora.3.04.3'
+     Description: 'Aurora MySQL engine version for the global cluster'
 
 Resources:
 
@@ -234,7 +239,7 @@ Resources:
     Properties:
       GlobalClusterIdentifier: 'taskmanager-global-cluster'
       Engine: aurora-mysql
-      EngineVersion: '8.0.mysql_aurora.3.04.3'
+      EngineVersion: !Ref EngineVersion
       DeletionProtection: false
   
   AuroraPrimaryCluster:
@@ -242,7 +247,7 @@ Resources:
     Properties:
       GlobalClusterIdentifier: !Ref AuroraGlobalCluster
       Engine: aurora-mysql
-      EngineVersion: '8.0.mysql_aurora.3.04.3'
+      EngineVersion: !Ref EngineVersion
       MasterUsername: taskmanager_admin
       MasterUserPassword: !Ref DatabasePassword
       DatabaseName: taskmanager

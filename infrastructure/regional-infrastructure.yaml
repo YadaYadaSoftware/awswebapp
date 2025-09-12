@@ -2,11 +2,16 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: 'TaskManager Regional Infrastructure - VPC, RDS, ECS, Bastion Host'
 
 Parameters:
-  DatabasePassword:
-    Type: String
-    NoEcho: true
-    MinLength: 8
-    Description: 'Password for the Aurora MySQL database'
+   DatabasePassword:
+     Type: String
+     NoEcho: true
+     MinLength: 8
+     Description: 'Password for the Aurora MySQL database'
+
+   EngineVersion:
+     Type: String
+     Default: '8.0.mysql_aurora.3.04.3'
+     Description: 'Aurora MySQL engine version for the regional cluster'
 
   BastionPublicKeyMaterial:
     Type: String
@@ -318,7 +323,7 @@ Resources:
     Properties:
       GlobalClusterIdentifier: !Ref AuroraGlobalClusterId
       Engine: aurora-mysql
-      EngineVersion: '8.0.mysql_aurora.3.04.3'
+      EngineVersion: !Ref EngineVersion
       DBSubnetGroupName: !Ref AuroraDBSubnetGroup
       DBClusterParameterGroupName: !Ref AuroraClusterParameterGroup
       VpcSecurityGroupIds:
