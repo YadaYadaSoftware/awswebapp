@@ -472,19 +472,19 @@ jobs:
       run: |
         # Upload all templates
         echo "Uploading templates to S3..."
-        aws s3 cp infrastructure/regional-infrastructure.yaml s3://${{ needs.deploy-bucket.outputs.bucket-name }}/ --region us-east-1
-        aws s3 cp src/TaskManager.Api/api-template.yaml s3://${{ needs.deploy-bucket.outputs.bucket-name }}/ --region us-east-1
-        aws s3 cp src/TaskManager.Web2/web-template.yaml s3://${{ needs.deploy-bucket.outputs.bucket-name }}/ --region us-east-1
-        aws s3 cp wrapper-template.yaml s3://${{ needs.deploy-bucket.outputs.bucket-name }}/ --region us-east-1
+        aws s3 cp infrastructure/regional-infrastructure.yaml s3://taskmanager-templates-bucket-${{ matrix.region }}/ --region ${{ matrix.region }}
+        aws s3 cp src/TaskManager.Api/api-template.yaml s3://taskmanager-templates-bucket-${{ matrix.region }}/ --region ${{ matrix.region }}
+        aws s3 cp src/TaskManager.Web2/web-template.yaml s3://taskmanager-templates-bucket-${{ matrix.region }}/ --region ${{ matrix.region }}
+        aws s3 cp wrapper-template.yaml s3://taskmanager-templates-bucket-${{ matrix.region }}/ --region ${{ matrix.region }}
 
         # Upload regional layers required for regional infrastructure
         echo "Uploading regional layers to S3..."
-        aws s3 cp ./regional-artifacts/ecr-cleanup-layer.zip s3://${{ needs.deploy-bucket.outputs.bucket-name }}/ecr-cleanup-layer.zip --region us-east-1
-        aws s3 cp ./regional-artifacts/sg-cleanup-layer.zip s3://${{ needs.deploy-bucket.outputs.bucket-name }}/sg-cleanup-layer.zip --region us-east-1
+        aws s3 cp ./regional-artifacts/ecr-cleanup-layer.zip s3://taskmanager-templates-bucket-${{ matrix.region }}/ecr-cleanup-layer.zip --region ${{ matrix.region }}
+        aws s3 cp ./regional-artifacts/sg-cleanup-layer.zip s3://taskmanager-templates-bucket-${{ matrix.region }}/sg-cleanup-layer.zip --region ${{ matrix.region }}
 
         # Verify uploads
         echo "Verifying S3 uploads..."
-        aws s3 ls s3://${{ needs.deploy-bucket.outputs.bucket-name }}/ --region us-east-1
+        aws s3 ls s3://taskmanager-templates-bucket-${{ matrix.region }}/ --region ${{ matrix.region }}
 
     - name: Validate Parameter Values
       run: |
@@ -551,7 +551,7 @@ jobs:
       with:
         name: taskmanager-regional-${{ matrix.region }}
         template: infrastructure/regional-infrastructure.yaml
-        parameter-overrides: "DatabasePassword=${{ secrets.DATABASE_PASSWORD }},SharedLambdaRoleArn=${{ needs.deploy-global.outputs.shared-lambda-role-arn }},BastionRoleArn=${{ needs.deploy-global.outputs.bastion-role-arn }},DatabaseSecretArn=${{ needs.deploy-global.outputs.database-secret-arn }},BastionInstanceProfileArn=${{ needs.deploy-global.outputs.bastion-instance-profile-arn }},AuroraGlobalClusterId=${{ needs.deploy-global.outputs.aurora-global-cluster-id }},TemplatesBucket=${{ needs.deploy-bucket.outputs.bucket-name }}"
+        parameter-overrides: "DatabasePassword=${{ secrets.DATABASE_PASSWORD }},SharedLambdaRoleArn=${{ needs.deploy-global.outputs.shared-lambda-role-arn }},BastionRoleArn=${{ needs.deploy-global.outputs.bastion-role-arn }},DatabaseSecretArn=${{ needs.deploy-global.outputs.database-secret-arn }},BastionInstanceProfileArn=${{ needs.deploy-global.outputs.bastion-instance-profile-arn }},AuroraGlobalClusterId=${{ needs.deploy-global.outputs.aurora-global-cluster-id }}"
         capabilities: "CAPABILITY_NAMED_IAM"
         no-fail-on-empty-changeset: "1"
       timeout-minutes: 15
@@ -718,23 +718,23 @@ jobs:
         ls -la ./artifacts/
 
         # Upload Lambda deployment packages
-        aws s3 cp ./artifacts/api-lambda-deployment.zip s3://${{ needs.deploy-bucket.outputs.bucket-name }}/api-lambda-deployment.zip --region us-east-1
+        aws s3 cp ./artifacts/api-lambda-deployment.zip s3://taskmanager-templates-bucket-${{ matrix.region }}/api-lambda-deployment.zip --region ${{ matrix.region }}
 
         # Upload MySQL layer
-        aws s3 cp ./artifacts/mysql-layer.zip s3://${{ needs.deploy-bucket.outputs.bucket-name }}/mysql-layer.zip --region us-east-1
+        aws s3 cp ./artifacts/mysql-layer.zip s3://taskmanager-templates-bucket-${{ matrix.region }}/mysql-layer.zip --region ${{ matrix.region }}
 
         # Upload S3 cleanup layer
-        aws s3 cp ./artifacts/s3-cleanup-layer.zip s3://${{ needs.deploy-bucket.outputs.bucket-name }}/s3-cleanup-layer.zip --region us-east-1
+        aws s3 cp ./artifacts/s3-cleanup-layer.zip s3://taskmanager-templates-bucket-${{ matrix.region }}/s3-cleanup-layer.zip --region ${{ matrix.region }}
 
         # Upload IAM cleanup layer
-        aws s3 cp ./artifacts/iam-cleanup-layer.zip s3://${{ needs.deploy-bucket.outputs.bucket-name }}/iam-cleanup-layer.zip --region us-east-1
+        aws s3 cp ./artifacts/iam-cleanup-layer.zip s3://taskmanager-templates-bucket-${{ matrix.region }}/iam-cleanup-layer.zip --region ${{ matrix.region }}
 
         # Upload ECS cleanup layer
-        aws s3 cp ./artifacts/ecs-cleanup-layer.zip s3://${{ needs.deploy-bucket.outputs.bucket-name }}/ecs-cleanup-layer.zip --region us-east-1
+        aws s3 cp ./artifacts/ecs-cleanup-layer.zip s3://taskmanager-templates-bucket-${{ matrix.region }}/ecs-cleanup-layer.zip --region ${{ matrix.region }}
 
         # Verify uploads
         echo "S3 bucket contents:"
-        aws s3 ls s3://${{ needs.deploy-bucket.outputs.bucket-name }}/ --region us-east-1 | grep -E "(api-lambda-deployment|mysql-layer|s3-cleanup-layer|iam-cleanup-layer|ecs-cleanup-layer)"
+        aws s3 ls s3://taskmanager-templates-bucket-${{ matrix.region }}/ --region ${{ matrix.region }} | grep -E "(api-lambda-deployment|mysql-layer|s3-cleanup-layer|iam-cleanup-layer|ecs-cleanup-layer)"
 
     - name: Deploy Wrapper Template (Nested Stacks)
       id: deploy-wrapper
@@ -742,7 +742,7 @@ jobs:
       with:
         name: ${{ env.STACK_NAME }}-${{ matrix.region }}
         template: wrapper-template.yaml
-        parameter-overrides: Environment=${{ env.BRANCH_NAME }},ApiCodeBucket=${{ needs.deploy-bucket.outputs.bucket-name }},WebContainerImage=${{ env.CONTAINER_IMAGE }},DeploymentToken=${{ github.sha }},DomainName=appcloud.systems,HostedZoneId=Z06422172SASV44F5Y8VA,DatabasePassword=${{ secrets.DATABASE_PASSWORD }},TemplatesBucket=${{ needs.deploy-bucket.outputs.bucket-name }}
+        parameter-overrides: Environment=${{ env.BRANCH_NAME }},ApiCodeBucket=taskmanager-templates-bucket-${{ matrix.region }},WebContainerImage=${{ env.CONTAINER_IMAGE }},DeploymentToken=${{ github.sha }},DomainName=appcloud.systems,HostedZoneId=Z06422172SASV44F5Y8VA,DatabasePassword=${{ secrets.DATABASE_PASSWORD }},TemplatesBucket=taskmanager-templates-bucket-${{ matrix.region }}
         capabilities: "CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND"
         no-fail-on-empty-changeset: "1"
       timeout-minutes: 20
