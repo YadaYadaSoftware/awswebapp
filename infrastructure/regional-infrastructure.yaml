@@ -1,42 +1,41 @@
-AWSTemplateFormatVersion: '2010-09-09'
-Description: 'TaskManager Regional Infrastructure - VPC, RDS, ECS, Bastion Host'
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "TaskManager Regional Infrastructure - VPC, RDS, ECS, Bastion Host"
 
 Parameters:
-   DatabasePassword:
-     Type: String
-     NoEcho: true
-     MinLength: 8
-     Description: 'Password for the Aurora MySQL database'
+  DatabasePassword:
+    Type: String
+    NoEcho: true
+    MinLength: 8
+    Description: "Password for the Aurora MySQL database"
 
-   EngineVersion:
-     Type: String
-     Description: 'Aurora MySQL engine version for the regional cluster'
+  EngineVersion:
+    Type: String
+    Description: "Aurora MySQL engine version for the regional cluster"
 
-   BastionPublicKeyMaterial:
-     Type: String
-     Description: 'Public key material for bastion SSH access (generate locally with ssh-keygen and paste the .pub content here)'
-     Default: 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCuSPS013ezN5lbrX/yOgu2d5n+97vzyj0P7oD2n5mCyblEG184U6r0LOu+DWURveDTLOtBEUCa5cCfnW3vTd6A25t9fHJFB0V+DuOCQ+tMVLxvs3yu61Cmz4ChNEK/qUX9YtpDwXJP1SmnKUPJOnFAfUwyClBqbQjd6rkyYYKmuRLD3llEXZDO/GwLpWO3KvNWLYJnz+MAJL4LU1JXimYfJqVmd3PUGUyUI55d5lqfZYCGxwzb3Eg31bZ4ljf0vBT6ztgwrVvBvpRlkmTRqcqvypS/3zDd6USmf8rLOB5VwnFw+f4o88K1x3O5iqZrRxApjdlLA8IDIH7uFP89KjKX 17034@DESKTOP-3BGTTVG'
+  BastionPublicKeyMaterial:
+    Type: String
+    Description: "Public key material for bastion SSH access (generate locally with ssh-keygen and paste the .pub content here)"
+    Default: "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCuSPS013ezN5lbrX/yOgu2d5n+97vzyj0P7oD2n5mCyblEG184U6r0LOu+DWURveDTLOtBEUCa5cCfnW3vTd6A25t9fHJFB0V+DuOCQ+tMVLxvs3yu61Cmz4ChNEK/qUX9YtpDwXJP1SmnKUPJOnFAfUwyClBqbQjd6rkyYYKmuRLD3llEXZDO/GwLpWO3KvNWLYJnz+MAJL4LU1JXimYfJqVmd3PUGUyUI55d5lqfZYCGxwzb3Eg31bZ4ljf0vBT6ztgwrVvBvpRlkmTRqcqvypS/3zDd6USmf8rLOB5VwnFw+f4o88K1x3O5iqZrRxApjdlLA8IDIH7uFP89KjKX 17034@DESKTOP-3BGTTVG"
 
-   SharedLambdaRoleArn:
-     Type: String
-     Description: 'ARN of the shared Lambda execution role from global stack'
+  SharedLambdaRoleArn:
+    Type: String
+    Description: "ARN of the shared Lambda execution role from global stack"
 
-   BastionRoleArn:
-     Type: String
-     Description: 'ARN of the bastion role from global stack'
+  BastionRoleArn:
+    Type: String
+    Description: "ARN of the bastion role from global stack"
 
-   DatabaseSecretArn:
-     Type: String
-     Description: 'ARN of the database secret from global stack'
+  DatabaseSecretArn:
+    Type: String
+    Description: "ARN of the database secret from global stack"
 
-   BastionInstanceProfileArn:
-     Type: String
-     Description: 'ARN of the bastion instance profile from global stack'
+  BastionInstanceProfileArn:
+    Type: String
+    Description: "ARN of the bastion instance profile from global stack"
 
-   AuroraGlobalClusterId:
-     Type: String
-     Description: 'ID of the Aurora global cluster from global stack'
-
+  AuroraGlobalClusterId:
+    Type: String
+    Description: "ID of the Aurora global cluster from global stack"
 
 Resources:
   # VPC and Networking
@@ -48,9 +47,9 @@ Resources:
       EnableDnsSupport: true
       Tags:
         - Key: Name
-          Value: 'TaskManager-VPC'
+          Value: "TaskManager-VPC"
         - Key: Purpose
-          Value: 'Regional Infrastructure'
+          Value: "Regional Infrastructure"
 
   # Internet Gateway
   InternetGateway:
@@ -58,7 +57,7 @@ Resources:
     Properties:
       Tags:
         - Key: Name
-          Value: 'TaskManager-IGW'
+          Value: "TaskManager-IGW"
 
   AttachGateway:
     Type: AWS::EC2::VPCGatewayAttachment
@@ -72,22 +71,22 @@ Resources:
     Properties:
       VpcId: !Ref TaskManagerVPC
       CidrBlock: 10.0.1.0/24
-      AvailabilityZone: !Select [0, !GetAZs '']
+      AvailabilityZone: !Select [0, !GetAZs ""]
       MapPublicIpOnLaunch: true
       Tags:
         - Key: Name
-          Value: 'TaskManager-Public-Subnet-1'
+          Value: "TaskManager-Public-Subnet-1"
 
   PublicSubnet2:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref TaskManagerVPC
       CidrBlock: 10.0.2.0/24
-      AvailabilityZone: !Select [1, !GetAZs '']
+      AvailabilityZone: !Select [1, !GetAZs ""]
       MapPublicIpOnLaunch: true
       Tags:
         - Key: Name
-          Value: 'TaskManager-Public-Subnet-2'
+          Value: "TaskManager-Public-Subnet-2"
 
   # Private Subnets for Lambda and RDS
   PrivateSubnet1:
@@ -95,20 +94,20 @@ Resources:
     Properties:
       VpcId: !Ref TaskManagerVPC
       CidrBlock: 10.0.3.0/24
-      AvailabilityZone: !Select [0, !GetAZs '']
+      AvailabilityZone: !Select [0, !GetAZs ""]
       Tags:
         - Key: Name
-          Value: 'TaskManager-Private-Subnet-1'
+          Value: "TaskManager-Private-Subnet-1"
 
   PrivateSubnet2:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref TaskManagerVPC
       CidrBlock: 10.0.4.0/24
-      AvailabilityZone: !Select [1, !GetAZs '']
+      AvailabilityZone: !Select [1, !GetAZs ""]
       Tags:
         - Key: Name
-          Value: 'TaskManager-Private-Subnet-2'
+          Value: "TaskManager-Private-Subnet-2"
 
   # NAT Gateway for private subnet internet access
   NATGateway1EIP:
@@ -130,7 +129,7 @@ Resources:
       VpcId: !Ref TaskManagerVPC
       Tags:
         - Key: Name
-          Value: 'TaskManager-Public-RT'
+          Value: "TaskManager-Public-RT"
 
   DefaultPublicRoute:
     Type: AWS::EC2::Route
@@ -158,7 +157,7 @@ Resources:
       VpcId: !Ref TaskManagerVPC
       Tags:
         - Key: Name
-          Value: 'TaskManager-Private-RT'
+          Value: "TaskManager-Private-RT"
 
   DefaultPrivateRoute:
     Type: AWS::EC2::Route
@@ -200,7 +199,7 @@ Resources:
           SourceSecurityGroupId: !Ref ECSTaskSecurityGroup
       Tags:
         - Key: Name
-          Value: 'TaskManager-Aurora-Serverless-SG'
+          Value: "TaskManager-Aurora-Serverless-SG"
 
   LambdaSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -212,7 +211,7 @@ Resources:
           CidrIp: 0.0.0.0/0
       Tags:
         - Key: Name
-          Value: 'TaskManager-Lambda-SG'
+          Value: "TaskManager-Lambda-SG"
 
   BastionSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -230,7 +229,7 @@ Resources:
           CidrIp: 0.0.0.0/0
       Tags:
         - Key: Name
-          Value: 'TaskManager-Bastion-SG'
+          Value: "TaskManager-Bastion-SG"
 
   ALBSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -253,7 +252,7 @@ Resources:
           CidrIp: 0.0.0.0/0
       Tags:
         - Key: Name
-          Value: 'TaskManager-ALB-SG'
+          Value: "TaskManager-ALB-SG"
 
   ECSTaskSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -271,34 +270,34 @@ Resources:
           CidrIp: 0.0.0.0/0
       Tags:
         - Key: Name
-          Value: 'TaskManager-ECS-Task-SG'
+          Value: "TaskManager-ECS-Task-SG"
 
   # ECR Repository for Web Application
   WebECRRepository:
     Type: AWS::ECR::Repository
     Properties:
-      RepositoryName: 'taskmanager-web'
+      RepositoryName: "taskmanager-web"
       ImageScanningConfiguration:
         ScanOnPush: true
-      ImageTagMutability: 'MUTABLE'
+      ImageTagMutability: "MUTABLE"
       Tags:
         - Key: Name
-          Value: 'TaskManager-Web-ECR'
+          Value: "TaskManager-Web-ECR"
         - Key: Purpose
-          Value: 'Container Registry'
+          Value: "Container Registry"
 
   # Aurora DB Subnet Group for this region
   AuroraDBSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
     Properties:
-      DBSubnetGroupDescription: 'Subnet group for Aurora cluster in this region'
+      DBSubnetGroupDescription: "Subnet group for Aurora cluster in this region"
       SubnetIds:
         - !Ref PrivateSubnet1
         - !Ref PrivateSubnet2
-      DBSubnetGroupName: !Sub 'taskmanager-aurora-subnet-group-${AWS::Region}'
+      DBSubnetGroupName: !Sub "taskmanager-aurora-subnet-group-${AWS::Region}"
       Tags:
         - Key: Name
-          Value: 'TaskManager-Aurora-SubnetGroup'
+          Value: "TaskManager-Aurora-SubnetGroup"
         - Key: Region
           Value: !Ref AWS::Region
 
@@ -307,14 +306,14 @@ Resources:
     Type: AWS::RDS::DBClusterParameterGroup
     Properties:
       Family: aurora-mysql8.0
-      Description: 'Parameter group for Aurora MySQL cluster'
+      Description: "Parameter group for Aurora MySQL cluster"
       Parameters:
         character_set_server: utf8mb4
         collation_server: utf8mb4_unicode_ci
-        innodb_buffer_pool_size: '{DBInstanceClassMemory*3/4}'
-        max_connections: '200'
-        slow_query_log: '1'
-        long_query_time: '2'
+        innodb_buffer_pool_size: "{DBInstanceClassMemory*3/4}"
+        max_connections: "200"
+        slow_query_log: "1"
+        long_query_time: "2"
 
   # Aurora Serverless v2 Cluster
   AuroraCluster:
@@ -328,13 +327,13 @@ Resources:
       VpcSecurityGroupIds:
         - !Ref RDSSecurityGroup
       BackupRetentionPeriod: 7
-      PreferredBackupWindow: '03:00-04:00'
-      PreferredMaintenanceWindow: 'sun:04:00-sun:05:00'
+      PreferredBackupWindow: "03:00-04:00"
+      PreferredMaintenanceWindow: "sun:04:00-sun:05:00"
       StorageEncrypted: true
       DeletionProtection: false
       ServerlessV2ScalingConfiguration:
-        MinCapacity: 0.5    # Minimum 0.5 ACUs (Aurora Capacity Units)
-        MaxCapacity: 4      # Maximum 4 ACUs (scales based on demand)
+        MinCapacity: 0.5 # Minimum 0.5 ACUs (Aurora Capacity Units)
+        MaxCapacity: 4 # Maximum 4 ACUs (scales based on demand)
       EnableCloudwatchLogsExports:
         - audit
         - error
@@ -342,9 +341,9 @@ Resources:
         - slowquery
       Tags:
         - Key: Name
-          Value: !Sub 'TaskManager-Aurora-Serverless-${AWS::Region}'
+          Value: !Sub "TaskManager-Aurora-Serverless-${AWS::Region}"
         - Key: Purpose
-          Value: 'Regional Aurora Serverless Cluster'
+          Value: "Regional Aurora Serverless Cluster"
         - Key: Region
           Value: !Ref AWS::Region
 
@@ -352,16 +351,16 @@ Resources:
   AuroraInstance:
     Type: AWS::RDS::DBInstance
     Properties:
-      DBInstanceIdentifier: !Sub 'taskmanager-aurora-serverless-${AWS::Region}'
+      DBInstanceIdentifier: !Sub "taskmanager-aurora-serverless-${AWS::Region}"
       DBClusterIdentifier: !Ref AuroraCluster
-      DBInstanceClass: db.serverless  # Aurora Serverless v2 instance class
+      DBInstanceClass: db.serverless # Aurora Serverless v2 instance class
       Engine: aurora-mysql
       PubliclyAccessible: false
       Tags:
         - Key: Name
-          Value: !Sub 'TaskManager-Aurora-Serverless-Instance-${AWS::Region}'
+          Value: !Sub "TaskManager-Aurora-Serverless-Instance-${AWS::Region}"
         - Key: Purpose
-          Value: 'Regional Aurora Serverless Instance'
+          Value: "Regional Aurora Serverless Instance"
         - Key: Region
           Value: !Ref AWS::Region
 
@@ -369,11 +368,11 @@ Resources:
   ECRCleanupLayer:
     Type: AWS::Lambda::LayerVersion
     Properties:
-      LayerName: !Sub 'taskmanager-ecr-cleanup-layer-${AWS::StackName}'
-      Description: 'urllib3 dependency for ECR cleanup Lambda'
+      LayerName: !Sub "taskmanager-ecr-cleanup-layer-${AWS::StackName}"
+      Description: "urllib3 dependency for ECR cleanup Lambda"
       Content:
-        S3Bucket: !Sub 'taskmanager-templates-bucket-${AWS::Region}'
-        S3Key: 'ecr-cleanup-layer.zip'
+        S3Bucket: !Sub "taskmanager-templates-bucket-${AWS::Region}"
+        S3Key: "ecr-cleanup-layer.zip"
       CompatibleRuntimes:
         - python3.9
 
@@ -381,7 +380,7 @@ Resources:
   ECRCleanupFunction:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: !Sub 'taskmanager-ecr-cleanup-${AWS::StackName}'
+      FunctionName: !Sub "taskmanager-ecr-cleanup-${AWS::StackName}"
       Runtime: python3.9
       Handler: index.lambda_handler
       Role: !Ref SharedLambdaRoleArn
@@ -497,7 +496,7 @@ Resources:
   SecurityGroupCleanupFunction:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: !Sub 'taskmanager-sg-cleanup-${AWS::StackName}'
+      FunctionName: !Sub "taskmanager-sg-cleanup-${AWS::StackName}"
       Runtime: python3.9
       Handler: index.lambda_handler
       Role: !Ref SharedLambdaRoleArn
@@ -630,11 +629,11 @@ Resources:
   SecurityGroupCleanupLayer:
     Type: AWS::Lambda::LayerVersion
     Properties:
-      LayerName: !Sub 'taskmanager-sg-cleanup-layer-${AWS::StackName}'
-      Description: 'urllib3 dependency for Security Group cleanup Lambda'
+      LayerName: !Sub "taskmanager-sg-cleanup-layer-${AWS::StackName}"
+      Description: "urllib3 dependency for Security Group cleanup Lambda"
       Content:
-        S3Bucket: !Sub 'taskmanager-templates-bucket-${AWS::Region}'
-        S3Key: 'sg-cleanup-layer.zip'
+        S3Bucket: !Sub "taskmanager-templates-bucket-${AWS::Region}"
+        S3Key: "sg-cleanup-layer.zip"
       CompatibleRuntimes:
         - python3.9
 
@@ -643,7 +642,7 @@ Resources:
     Type: AWS::CloudFormation::CustomResource
     Properties:
       ServiceToken: !GetAtt ECRCleanupFunction.Arn
-      RepositoryName: 'taskmanager-web'
+      RepositoryName: "taskmanager-web"
     DependsOn: WebECRRepository
 
   # Custom resource to trigger Security Group cleanup on stack deletion
@@ -657,7 +656,15 @@ Resources:
         - !Ref BastionSecurityGroup
         - !Ref ALBSecurityGroup
         - !Ref ECSTaskSecurityGroup
-    DependsOn: [LambdaSecurityGroup, RDSSecurityGroup, BastionSecurityGroup, ALBSecurityGroup, ECSTaskSecurityGroup, SecurityGroupCleanupFunction]
+    DependsOn:
+      [
+        LambdaSecurityGroup,
+        RDSSecurityGroup,
+        BastionSecurityGroup,
+        ALBSecurityGroup,
+        ECSTaskSecurityGroup,
+        SecurityGroupCleanupFunction,
+      ]
 
   # Note: Bastion IAM role cleanup is handled by the global stack's IAM cleanup function
   # The BastionRole is created in the global stack and cleaned up there
@@ -666,19 +673,18 @@ Resources:
   ECSCluster:
     Type: AWS::ECS::Cluster
     Properties:
-      ClusterName: 'TaskManager-Cluster'
+      ClusterName: "TaskManager-Cluster"
       Tags:
         - Key: Name
-          Value: 'TaskManager-ECS-Cluster'
+          Value: "TaskManager-ECS-Cluster"
         - Key: Purpose
-          Value: 'Regional Infrastructure'
-
+          Value: "Regional Infrastructure"
 
   # SSH Key Pair for Bastion
   BastionKeyPair:
     Type: AWS::EC2::KeyPair
     Properties:
-      KeyName: !Sub 'taskmanager-bastion-key-${AWS::StackName}-updated'
+      KeyName: !Sub "taskmanager-bastion-key-${AWS::StackName}-updated"
       KeyType: rsa
       KeyFormat: pem
       PublicKeyMaterial: !Ref BastionPublicKeyMaterial
@@ -688,7 +694,7 @@ Resources:
   BastionHost:
     Type: AWS::EC2::Instance
     Properties:
-      ImageId: ami-0c02fb55956c7d316  # Amazon Linux 2023
+      ImageId: ami-0c02fb55956c7d316 # Amazon Linux 2023
       InstanceType: t3.micro
       SubnetId: !Ref PublicSubnet1
       SecurityGroupIds:
@@ -721,116 +727,116 @@ Resources:
           chown ec2-user:ec2-user /home/ec2-user/connect-to-db.sh
       Tags:
         - Key: Name
-          Value: 'TaskManager-Bastion'
+          Value: "TaskManager-Bastion"
         - Key: Purpose
-          Value: 'Regional Infrastructure'
+          Value: "Regional Infrastructure"
 
 Outputs:
   VPCId:
-    Description: 'VPC ID for branch applications'
+    Description: "VPC ID for branch applications"
     Value: !Ref TaskManagerVPC
     Export:
-      Name: 'TaskManager-VPC'
+      Name: "TaskManager-VPC"
 
   PrivateSubnet1Id:
-    Description: 'Private subnet 1 ID'
+    Description: "Private subnet 1 ID"
     Value: !Ref PrivateSubnet1
     Export:
-      Name: 'TaskManager-PrivateSubnet1'
+      Name: "TaskManager-PrivateSubnet1"
 
   PrivateSubnet2Id:
-    Description: 'Private subnet 2 ID'
+    Description: "Private subnet 2 ID"
     Value: !Ref PrivateSubnet2
     Export:
-      Name: 'TaskManager-PrivateSubnet2'
+      Name: "TaskManager-PrivateSubnet2"
 
   PublicSubnet1Id:
-    Description: 'Public subnet 1 ID'
+    Description: "Public subnet 1 ID"
     Value: !Ref PublicSubnet1
     Export:
-      Name: 'TaskManager-PublicSubnet1'
+      Name: "TaskManager-PublicSubnet1"
 
   PublicSubnet2Id:
-    Description: 'Public subnet 2 ID'
+    Description: "Public subnet 2 ID"
     Value: !Ref PublicSubnet2
     Export:
-      Name: 'TaskManager-PublicSubnet2'
+      Name: "TaskManager-PublicSubnet2"
 
   LambdaSecurityGroupId:
-    Description: 'Security group for Lambda functions'
+    Description: "Security group for Lambda functions"
     Value: !Ref LambdaSecurityGroup
     Export:
-      Name: 'TaskManager-LambdaSecurityGroup'
+      Name: "TaskManager-LambdaSecurityGroup"
 
   RDSSecurityGroupId:
-    Description: 'Security group for RDS access'
+    Description: "Security group for RDS access"
     Value: !Ref RDSSecurityGroup
     Export:
-      Name: 'TaskManager-RDSSecurityGroup'
+      Name: "TaskManager-RDSSecurityGroup"
 
   DatabaseEndpoint:
-    Description: 'Aurora MySQL cluster endpoint'
+    Description: "Aurora MySQL cluster endpoint"
     Value: !GetAtt AuroraCluster.Endpoint.Address
     Export:
-      Name: 'TaskManager-DatabaseEndpoint'
+      Name: "TaskManager-DatabaseEndpoint"
 
   DatabaseReaderEndpoint:
-    Description: 'Aurora MySQL reader endpoint'
+    Description: "Aurora MySQL reader endpoint"
     Value: !GetAtt AuroraCluster.ReaderEndpoint
     Export:
-      Name: 'TaskManager-DatabaseReaderEndpoint'
+      Name: "TaskManager-DatabaseReaderEndpoint"
 
   DatabaseSecretArn:
-    Description: 'Database secret ARN'
+    Description: "Database secret ARN"
     Value: !Ref DatabaseSecretArn
 
   BastionHostIP:
-    Description: 'Bastion host public IP address'
+    Description: "Bastion host public IP address"
     Value: !GetAtt BastionHost.PublicIp
     Export:
-      Name: 'TaskManager-BastionIP'
+      Name: "TaskManager-BastionIP"
 
   BastionHostId:
-    Description: 'Bastion host instance ID'
+    Description: "Bastion host instance ID"
     Value: !Ref BastionHost
     Export:
-      Name: 'TaskManager-BastionHostId'
+      Name: "TaskManager-BastionHostId"
 
   BastionKeyPairName:
-    Description: 'Name of the SSH key pair for bastion access'
+    Description: "Name of the SSH key pair for bastion access"
     Value: !Ref BastionKeyPair
     Export:
-      Name: 'TaskManager-BastionKeyPairName'
+      Name: "TaskManager-BastionKeyPairName"
 
   DatabaseTunnelCommand:
-    Description: 'SSH tunnel command for Aurora MySQL database access'
+    Description: "SSH tunnel command for Aurora MySQL database access"
     Value: !Sub
-      - 'ssh -i your-key.pem -L 3306:${DbEndpoint}:3306 ec2-user@${BastionIp}'
+      - "ssh -i your-key.pem -L 3306:${DbEndpoint}:3306 ec2-user@${BastionIp}"
       - DbEndpoint: !GetAtt AuroraCluster.Endpoint.Address
         BastionIp: !GetAtt BastionHost.PublicIp
     Export:
-      Name: 'TaskManager-DatabaseTunnelCommand'
+      Name: "TaskManager-DatabaseTunnelCommand"
 
   ECSClusterName:
-    Description: 'ECS cluster name'
+    Description: "ECS cluster name"
     Value: !Ref ECSCluster
     Export:
-      Name: 'TaskManager-ECSCluster'
+      Name: "TaskManager-ECSCluster"
 
   ALBSecurityGroupId:
-    Description: 'Security group for Application Load Balancer'
+    Description: "Security group for Application Load Balancer"
     Value: !Ref ALBSecurityGroup
     Export:
-      Name: 'TaskManager-ALBSecurityGroup'
+      Name: "TaskManager-ALBSecurityGroup"
 
   ECSTaskSecurityGroupId:
-    Description: 'Security group for ECS tasks'
+    Description: "Security group for ECS tasks"
     Value: !Ref ECSTaskSecurityGroup
     Export:
-      Name: 'TaskManager-ECSTaskSecurityGroup'
+      Name: "TaskManager-ECSTaskSecurityGroup"
 
   WebECRRepositoryUri:
-    Description: 'ECR repository URI for web application'
-    Value: !Sub '${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/taskmanager-web'
+    Description: "ECR repository URI for web application"
+    Value: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/taskmanager-web"
     Export:
-      Name: 'TaskManager-WebECRRepositoryUri'
+      Name: "TaskManager-WebECRRepositoryUri"
