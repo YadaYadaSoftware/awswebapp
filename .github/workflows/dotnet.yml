@@ -51,46 +51,10 @@ jobs:
     outputs:
       bucket-name: ${{ steps.get-bucket.outputs.bucket-name }}
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: us-east-1
-
-    - name: Deploy Regional Bucket
-      run: |
-        echo "Deploying regional bucket..."
-        aws cloudformation deploy \
-          --template-file infrastructure/regional-bucket.yaml \
-          --stack-name taskmanager-regional-bucket \
-          --region us-east-1 \
-          --capabilities CAPABILITY_NAMED_IAM \
-          --no-fail-on-empty-changeset
-
-    - name: Get bucket name from CloudFormation export
+    - name: Set bucket name output
       id: get-bucket
       run: |
-        # Wait a bit for the export to be available
-        sleep 5
-
-        BUCKET_NAME=$(aws cloudformation list-exports \
-          --query "Exports[?Name=='TaskManager-TemplatesBucket'].Value" \
-          --output text \
-          --region us-east-1)
-
-        if [ -n "$BUCKET_NAME" ] && [ "$BUCKET_NAME" != "None" ]; then
-          echo "Found bucket: $BUCKET_NAME"
-          echo "bucket-name=$BUCKET_NAME" >> $GITHUB_OUTPUT
-        else
-          echo "❌ Failed to get bucket name"
-          exit 1
-        fi
+        echo "bucket-name=taskmanager-templates-bucket" >> $GITHUB_OUTPUT
 
   build-layers:
     name: Build Global Infrastructure Layers
@@ -449,6 +413,17 @@ jobs:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: ${{ matrix.region }}
+
+    - name: Deploy Regional Bucket
+      if: matrix.region == 'us-east-1'
+      run: |
+        echo "Deploying regional bucket..."
+        aws cloudformation deploy \
+          --template-file infrastructure/regional-bucket.yaml \
+          --stack-name taskmanager-regional-bucket \
+          --region us-east-1 \
+          --capabilities CAPABILITY_NAMED_IAM \
+          --no-fail-on-empty-changeset
 
     - name: Download ECR and SG Cleanup Layers
       uses: actions/download-artifact@v4
