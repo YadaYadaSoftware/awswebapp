@@ -13,30 +13,30 @@ Parameters:
      Default: '8.0.mysql_aurora.3.04.3'
      Description: 'Aurora MySQL engine version for the regional cluster'
 
-  BastionPublicKeyMaterial:
-    Type: String
-    Description: 'Public key material for bastion SSH access (generate locally with ssh-keygen and paste the .pub content here)'
-    Default: 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCuSPS013ezN5lbrX/yOgu2d5n+97vzyj0P7oD2n5mCyblEG184U6r0LOu+DWURveDTLOtBEUCa5cCfnW3vTd6A25t9fHJFB0V+DuOCQ+tMVLxvs3yu61Cmz4ChNEK/qUX9YtpDwXJP1SmnKUPJOnFAfUwyClBqbQjd6rkyYYKmuRLD3llEXZDO/GwLpWO3KvNWLYJnz+MAJL4LU1JXimYfJqVmd3PUGUyUI55d5lqfZYCGxwzb3Eg31bZ4ljf0vBT6ztgwrVvBvpRlkmTRqcqvypS/3zDd6USmf8rLOB5VwnFw+f4o88K1x3O5iqZrRxApjdlLA8IDIH7uFP89KjKX 17034@DESKTOP-3BGTTVG'
+   BastionPublicKeyMaterial:
+     Type: String
+     Description: 'Public key material for bastion SSH access (generate locally with ssh-keygen and paste the .pub content here)'
+     Default: 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCuSPS013ezN5lbrX/yOgu2d5n+97vzyj0P7oD2n5mCyblEG184U6r0LOu+DWURveDTLOtBEUCa5cCfnW3vTd6A25t9fHJFB0V+DuOCQ+tMVLxvs3yu61Cmz4ChNEK/qUX9YtpDwXJP1SmnKUPJOnFAfUwyClBqbQjd6rkyYYKmuRLD3llEXZDO/GwLpWO3KvNWLYJnz+MAJL4LU1JXimYfJqVmd3PUGUyUI55d5lqfZYCGxwzb3Eg31bZ4ljf0vBT6ztgwrVvBvpRlkmTRqcqvypS/3zDd6USmf8rLOB5VwnFw+f4o88K1x3O5iqZrRxApjdlLA8IDIH7uFP89KjKX 17034@DESKTOP-3BGTTVG'
 
-  SharedLambdaRoleArn:
-    Type: String
-    Description: 'ARN of the shared Lambda execution role from global stack'
+   SharedLambdaRoleArn:
+     Type: String
+     Description: 'ARN of the shared Lambda execution role from global stack'
 
-  BastionRoleArn:
-    Type: String
-    Description: 'ARN of the bastion role from global stack'
+   BastionRoleArn:
+     Type: String
+     Description: 'ARN of the bastion role from global stack'
 
-  DatabaseSecretArn:
-    Type: String
-    Description: 'ARN of the database secret from global stack'
+   DatabaseSecretArn:
+     Type: String
+     Description: 'ARN of the database secret from global stack'
 
-  BastionInstanceProfileArn:
-    Type: String
-    Description: 'ARN of the bastion instance profile from global stack'
+   BastionInstanceProfileArn:
+     Type: String
+     Description: 'ARN of the bastion instance profile from global stack'
 
-  AuroraGlobalClusterId:
-    Type: String
-    Description: 'ID of the Aurora global cluster from global stack'
+   AuroraGlobalClusterId:
+     Type: String
+     Description: 'ID of the Aurora global cluster from global stack'
 
 
 Resources:
