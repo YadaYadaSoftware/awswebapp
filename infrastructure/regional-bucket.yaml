@@ -1,0 +1,27 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Regional S3 bucket for CloudFormation templates and artifacts'
+
+Resources:
+  RegionalArtifactsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: 'taskmanager-templates-bucket'
+      VersioningConfiguration:
+        Status: Enabled
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags:
+        - Key: Name
+          Value: 'TaskManager-Templates-Bucket'
+        - Key: Purpose
+          Value: 'CloudFormation Templates and Lambda Layers'
+
+Outputs:
+  TemplatesBucket:
+    Description: 'Name of the templates bucket'
+    Value: !Ref RegionalArtifactsBucket
+    Export:
+      Name: 'TaskManager-TemplatesBucket'

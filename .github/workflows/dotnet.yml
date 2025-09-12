@@ -58,30 +58,34 @@ jobs:
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: us-east-1
 
+    - name: Deploy Regional Bucket
+      run: |
+        echo "Deploying regional bucket..."
+        aws cloudformation deploy \
+          --template-file infrastructure/regional-bucket.yaml \
+          --stack-name taskmanager-regional-bucket \
+          --region us-east-1 \
+          --capabilities CAPABILITY_NAMED_IAM \
+          --no-fail-on-empty-changeset
+
     - name: Get bucket name from CloudFormation export
       id: get-bucket
       run: |
-        # List of US regions to check
-        REGIONS=("us-east-1" "us-east-2" "us-west-1" "us-west-2" "us-central-1")
-        
-        for region in "${REGIONS[@]}"; do
-          echo "Checking region: $region"
-          BUCKET_NAME=$(aws cloudformation list-exports \
-            --query "Exports[?Name=='TaskManager-TemplatesBucket'].Value" \
-            --output text \
-            --region $region 2>/dev/null || echo "")
-          
-          if [ -n "$BUCKET_NAME" ] && [ "$BUCKET_NAME" != "None" ] && [ "$BUCKET_NAME" != "" ]; then
-            echo "Found bucket in region $region: $BUCKET_NAME"
-            echo "bucket-name=$BUCKET_NAME" >> $GITHUB_OUTPUT
-            exit 0
-          else
-            echo "Bucket name in region $region is empty or invalid: '$BUCKET_NAME'"
-          fi
-        done
-        
-        echo "❌ TaskManager-TemplatesBucket export not found or empty in any US region"
-        exit 1
+        # Wait a bit for the export to be available
+        sleep 5
+
+        BUCKET_NAME=$(aws cloudformation list-exports \
+          --query "Exports[?Name=='TaskManager-TemplatesBucket'].Value" \
+          --output text \
+          --region us-east-1)
+
+        if [ -n "$BUCKET_NAME" ] && [ "$BUCKET_NAME" != "None" ]; then
+          echo "Found bucket: $BUCKET_NAME"
+          echo "bucket-name=$BUCKET_NAME" >> $GITHUB_OUTPUT
+        else
+          echo "❌ Failed to get bucket name"
+          exit 1
+        fi
 
   build-layers:
     name: Build Global Infrastructure Layers
