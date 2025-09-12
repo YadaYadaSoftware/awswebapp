@@ -318,7 +318,7 @@ Resources:
     Properties:
       GlobalClusterIdentifier: !Ref AuroraGlobalClusterId
       Engine: aurora-mysql
-      EngineVersion: '8.0.mysql_aurora.3.05.2'
+      EngineVersion: '8.0.mysql_aurora.3.04.3'
       DBSubnetGroupName: !Ref AuroraDBSubnetGroup
       DBClusterParameterGroupName: !Ref AuroraClusterParameterGroup
       VpcSecurityGroupIds:
