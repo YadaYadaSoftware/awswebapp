@@ -10,7 +10,6 @@ Parameters:
     Description: Password for the Aurora MySQL database
   EngineVersion:
     Type: String
-    Default: 8.0.mysql_aurora.3.04.3
     Description: Aurora MySQL engine version for the global cluster
 Resources:
   GitHubActionsServiceLinkedRolePolicy:

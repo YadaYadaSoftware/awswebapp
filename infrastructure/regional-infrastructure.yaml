@@ -10,7 +10,6 @@ Parameters:
 
    EngineVersion:
      Type: String
-     Default: '8.0.mysql_aurora.3.04.3'
      Description: 'Aurora MySQL engine version for the regional cluster'
 
    BastionPublicKeyMaterial:
