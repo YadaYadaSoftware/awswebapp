@@ -49,11 +49,6 @@ Resources:
               - elasticloadbalancing:*
               - acm:*
               - route53:*
-            Resource: '*'
-
-          # IAM permissions (consolidated)
-          - Effect: Allow
-            Action:
               - iam:*
             Resource: '*'
 

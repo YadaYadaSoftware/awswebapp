@@ -9,7 +9,7 @@ on:
 env:
   AWS_REGION: us-east-1
   AWS_REGION_2: us-east-2
-  ENGINE_VERSION: 8.0.mysql_aurora.3.02.0
+  ENGINE_VERSION: 8.0.mysql_aurora.3.08.2
 
 jobs:
   yaml-lint:
