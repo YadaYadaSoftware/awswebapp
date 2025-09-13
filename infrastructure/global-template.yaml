@@ -30,7 +30,7 @@ Resources:
               - iam:PassRole
             Resource: arn:aws:iam::*:role/TaskManager-*
       Roles:
-        - SharedLambdaExecutionRole
+        - !Ref SharedLambdaExecutionRole
   ECSCleanupFunction:
     Type: AWS::Lambda::Function
     Properties:
