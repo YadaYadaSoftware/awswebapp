@@ -232,6 +232,7 @@ Resources:
       Engine: aurora-mysql
       EngineVersion: !Ref EngineVersion
       DeletionProtection: false
+      StorageEncrypted: true
   AuroraPrimaryCluster:
     Type: AWS::RDS::DBCluster
     Properties:
