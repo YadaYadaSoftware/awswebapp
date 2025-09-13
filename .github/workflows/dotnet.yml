@@ -391,6 +391,7 @@ jobs:
       database-secret-arn: ${{ steps.deploy-global.outputs.DatabaseSecretArn }}
       bastion-instance-profile-arn: ${{ steps.deploy-global.outputs.BastionInstanceProfileArn }}
       aurora-global-cluster-id: ${{ steps.deploy-global.outputs.AuroraGlobalClusterId }}
+      aurora-kms-key-arn: ${{ steps.deploy-global.outputs.AuroraKmsKeyArn }}
 
     steps:
     - name: Checkout code
@@ -552,7 +553,7 @@ jobs:
       with:
         name: taskmanager-regional-${{ matrix.region }}
         template: infrastructure/regional-infrastructure.yaml
-        parameter-overrides: "DatabasePassword=${{ secrets.DATABASE_PASSWORD }},SharedLambdaRoleArn=${{ needs.deploy-global.outputs.shared-lambda-role-arn }},BastionRoleArn=${{ needs.deploy-global.outputs.bastion-role-arn }},DatabaseSecretArn=${{ needs.deploy-global.outputs.database-secret-arn }},BastionInstanceProfileArn=${{ needs.deploy-global.outputs.bastion-instance-profile-arn }},AuroraGlobalClusterId=${{ needs.deploy-global.outputs.aurora-global-cluster-id }},EngineVersion=${{ env.ENGINE_VERSION }}"
+        parameter-overrides: "DatabasePassword=${{ secrets.DATABASE_PASSWORD }},SharedLambdaRoleArn=${{ needs.deploy-global.outputs.shared-lambda-role-arn }},BastionRoleArn=${{ needs.deploy-global.outputs.bastion-role-arn }},DatabaseSecretArn=${{ needs.deploy-global.outputs.database-secret-arn }},BastionInstanceProfileArn=${{ needs.deploy-global.outputs.bastion-instance-profile-arn }},AuroraGlobalClusterId=${{ needs.deploy-global.outputs.aurora-global-cluster-id }},AuroraKmsKeyArn=${{ needs.deploy-global.outputs.aurora-kms-key-arn }},EngineVersion=${{ env.ENGINE_VERSION }}"
         capabilities: "CAPABILITY_NAMED_IAM"
         no-fail-on-empty-changeset: "1"
       timeout-minutes: 15

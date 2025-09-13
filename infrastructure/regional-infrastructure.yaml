@@ -37,6 +37,10 @@ Parameters:
     Type: String
     Description: "ID of the Aurora global cluster from global stack"
 
+  AuroraKmsKeyArn:
+    Type: String
+    Description: "ARN of the KMS key used by the Aurora global cluster"
+
 Resources:
   # VPC and Networking
   TaskManagerVPC:
@@ -330,6 +334,7 @@ Resources:
       PreferredBackupWindow: "03:00-04:00"
       PreferredMaintenanceWindow: "sun:04:00-sun:05:00"
       StorageEncrypted: true
+      KmsKeyId: !Ref AuroraKmsKeyArn
       DeletionProtection: false
       ServerlessV2ScalingConfiguration:
         MinCapacity: 0.5 # Minimum 0.5 ACUs (Aurora Capacity Units)
