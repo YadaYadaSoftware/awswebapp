@@ -285,16 +285,16 @@ Outputs:
       Name: TaskManager-BastionRole
   BastionInstanceProfileArn:
     Description: Bastion instance profile ARN
-    Value: BastionInstanceProfile
+    Value: !Ref BastionInstanceProfile
     Export:
       Name: TaskManager-BastionInstanceProfile
   DatabaseSecretArn:
     Description: Database secret ARN
-    Value: DatabaseSecret
+    Value: !Ref DatabaseSecret
     Export:
       Name: TaskManager-DatabaseSecret
   AuroraGlobalClusterId:
     Description: Aurora Global Database cluster identifier
-    Value: AuroraGlobalCluster
+    Value: !Ref AuroraGlobalCluster
     Export:
       Name: TaskManager-AuroraGlobalCluster
