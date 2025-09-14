@@ -196,6 +196,28 @@ Resources:
                   - !Sub arn:aws:rds:us-east-1:${AWS::AccountId}:cluster:taskmanager-*
                   - !Sub arn:aws:rds:us-east-2:${AWS::AccountId}:cluster:taskmanager-*
                   - !Sub arn:aws:rds::${AWS::AccountId}:global-cluster:taskmanager-global-cluster
+        - PolicyName: KMSAccess
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - kms:CreateKey
+                  - kms:DescribeKey
+                  - kms:CreateGrant
+                  - kms:Decrypt
+                  - kms:Encrypt
+                  - kms:GenerateDataKey
+                  - kms:ReEncryptFrom
+                  - kms:ReEncryptTo
+                  - kms:RetireGrant
+                  - kms:CreateAlias
+                  - kms:DeleteAlias
+                  - kms:UpdateAlias
+                  - kms:ListAliases
+                  - kms:ListGrants
+                  - kms:RevokeGrant
+                Resource: "*"
   BastionRole:
     Type: AWS::IAM::Role
     Properties:

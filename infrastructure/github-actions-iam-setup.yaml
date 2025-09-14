@@ -63,6 +63,26 @@ Resources:
                   - 'elasticloadbalancing.amazonaws.com'
                   - 'ecs.amazonaws.com'
 
+          # KMS permissions for Aurora encryption
+          - Effect: Allow
+            Action:
+              - kms:CreateKey
+              - kms:DescribeKey
+              - kms:CreateGrant
+              - kms:Decrypt
+              - kms:Encrypt
+              - kms:GenerateDataKey
+              - kms:ReEncryptFrom
+              - kms:ReEncryptTo
+              - kms:RetireGrant
+              - kms:CreateAlias
+              - kms:DeleteAlias
+              - kms:UpdateAlias
+              - kms:ListAliases
+              - kms:ListGrants
+              - kms:RevokeGrant
+            Resource: '*'
+
           # STS permissions
           - Effect: Allow
             Action:
