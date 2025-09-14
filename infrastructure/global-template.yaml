@@ -11,7 +11,7 @@ Parameters:
   EngineVersion:
     Type: String
     Description: Aurora MySQL engine version for the global cluster
-  Resources:
+Resources:
   GitHubActionsServiceLinkedRolePolicy:
     Type: AWS::IAM::Policy
     Properties:
