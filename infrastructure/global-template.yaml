@@ -11,7 +11,7 @@ Parameters:
   EngineVersion:
     Type: String
     Description: Aurora MySQL engine version for the global cluster
-Resources:
+  Resources:
   GitHubActionsServiceLinkedRolePolicy:
     Type: AWS::IAM::Policy
     Properties:
@@ -225,6 +225,37 @@ Resources:
     Properties:
       Roles:
         - !Ref BastionRole
+  AuroraKmsKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: Multi-region KMS key for Aurora Global Database encryption
+      KeyUsage: ENCRYPT_DECRYPT
+      KeySpec: SYMMETRIC_DEFAULT
+      MultiRegion: true
+      Enabled: true
+      KeyPolicy:
+        Version: 2012-10-17
+        Statement:
+          - Sid: Enable IAM User Permissions
+            Effect: Allow
+            Principal:
+              AWS: !Sub arn:aws:iam::${AWS::AccountId}:root
+            Action: kms:*
+            Resource: "*"
+          - Sid: Allow RDS Service
+            Effect: Allow
+            Principal:
+              Service: rds.amazonaws.com
+            Action:
+              - kms:CreateGrant
+              - kms:DescribeKey
+              - kms:Decrypt
+              - kms:Encrypt
+              - kms:GenerateDataKey
+              - kms:ReEncryptFrom
+              - kms:ReEncryptTo
+              - kms:RetireGrant
+            Resource: "*"
   AuroraGlobalCluster:
     Type: AWS::RDS::GlobalCluster
     Properties:
@@ -244,6 +275,7 @@ Resources:
       DatabaseName: taskmanager
       DeletionProtection: false
       StorageEncrypted: true
+      KmsKeyId: !Ref AuroraKmsKey
       BackupRetentionPeriod: 7
       PreferredBackupWindow: '03:00-04:00'
       PreferredMaintenanceWindow: 'sun:04:00-sun:05:00'
@@ -300,6 +332,6 @@ Outputs:
       Name: TaskManager-AuroraGlobalCluster
   AuroraKmsKeyArn:
     Description: KMS key ARN used for Aurora encryption
-    Value: !GetAtt AuroraPrimaryCluster.KmsKeyId
+    Value: !Ref AuroraKmsKey
     Export:
       Name: TaskManager-AuroraKmsKey
