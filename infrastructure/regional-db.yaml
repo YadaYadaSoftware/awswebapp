@@ -27,6 +27,9 @@ Parameters:
     Default: "false"
     Description: Whether this region hosts the primary cluster
 
+Conditions:
+  IsPrimary: !Equals [!Ref IsPrimaryRegion, "true"]
+
 Resources:
   # Aurora DB Subnet Group for this region
   AuroraDBSubnetGroup:
@@ -64,6 +67,9 @@ Resources:
       GlobalClusterIdentifier: !Ref AuroraGlobalClusterId
       Engine: aurora-mysql
       EngineVersion: !Ref EngineVersion
+      MasterUsername: !If [IsPrimary, "taskmanager_admin", !Ref "AWS::NoValue"]
+      MasterUserPassword: !If [IsPrimary, !Ref DatabasePassword, !Ref "AWS::NoValue"]
+      DatabaseName: !If [IsPrimary, "taskmanager", !Ref "AWS::NoValue"]
       DBSubnetGroupName: !Ref AuroraDBSubnetGroup
       DBClusterParameterGroupName: !Ref AuroraClusterParameterGroup
       VpcSecurityGroupIds:
