@@ -855,10 +855,10 @@ jobs:
         echo "🚀 TaskManager deployment complete! Branch: ${{ env.BRANCH_NAME }} Region: ${{ matrix.region }} API: $API_URL Web App: https://$BRANCH_NAME.appcloud.systems Database: taskmanager_${{ env.BRANCH_NAME }} ✅ Setup verified Bastion IP: $BASTION_IP Both API and Web are fully deployed and running!"
 
   verify-deployments:
-    name: Verify All Deployments 
+    name: Verify All Deployments
     runs-on: ubuntu-latest
     needs: [deploy-application, deploy-global]
-    if: always()
+    if: success()
     strategy:
       matrix:
         region: [us-east-1, us-east-2]
