@@ -11,6 +11,9 @@ Parameters:
   EngineVersion:
     Type: String
     Description: Aurora MySQL engine version for the global cluster
+  GitHubActionsUserArn:
+    Type: String
+    Description: ARN of the GitHub Actions IAM user from IAM setup stack
 Resources:
   GitHubActionsServiceLinkedRolePolicy:
     Type: AWS::IAM::Policy
@@ -281,7 +284,7 @@ Resources:
           - Sid: AllowGitHubActionsUser
             Effect: Allow
             Principal:
-              AWS: !ImportValue TaskManager-GitHubActionsUser
+              AWS: !Ref GitHubActionsUserArn
             Action:
               - kms:CreateKey
               - kms:DescribeKey

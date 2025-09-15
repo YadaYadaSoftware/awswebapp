@@ -406,13 +406,32 @@ jobs:
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: us-east-2
 
+    - name: Get GitHub Actions User ARN from IAM Setup Stack
+      run: |
+        echo "🔍 Retrieving GitHub Actions User ARN from IAM setup stack in us-east-1..."
+
+        # Get the user ARN from the IAM setup stack export
+        GITHUB_USER_ARN=$(aws cloudformation list-exports \
+          --region us-east-1 \
+          --query "Exports[?Name=='TaskManager-GitHubActionsUser'].Value" \
+          --output text)
+
+        if [ -z "$GITHUB_USER_ARN" ] || [ "$GITHUB_USER_ARN" = "None" ]; then
+          echo "❌ ERROR: Could not retrieve GitHub Actions User ARN from IAM setup stack"
+          echo "Please ensure the github-actions-iam-setup stack is deployed in us-east-1"
+          exit 1
+        fi
+
+        echo "✅ Retrieved GitHub Actions User ARN: $GITHUB_USER_ARN"
+        echo "GITHUB_ACTIONS_USER_ARN=$GITHUB_USER_ARN" >> $GITHUB_ENV
+
     - name: Deploy Global Infrastructure
       id: deploy-global
       uses: aws-actions/aws-cloudformation-github-deploy@v1
       with:
         name: taskmanager-global-infrastructure
         template: infrastructure/global-template.yaml
-        parameter-overrides: DatabasePassword=${{ secrets.DATABASE_PASSWORD }},EngineVersion=${{ env.ENGINE_VERSION }}
+        parameter-overrides: DatabasePassword=${{ secrets.DATABASE_PASSWORD }},EngineVersion=${{ env.ENGINE_VERSION }},GitHubActionsUserArn=${{ env.GITHUB_ACTIONS_USER_ARN }}
         capabilities: "CAPABILITY_NAMED_IAM"
         no-fail-on-empty-changeset: "1"
       timeout-minutes: 15
