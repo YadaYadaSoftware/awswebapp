@@ -278,6 +278,12 @@ Resources:
               - kms:ReEncryptTo
               - kms:RetireGrant
             Resource: "*"
+          - Sid: Allow Key Policy Updates
+            Effect: Allow
+            Principal:
+              AWS: !Sub arn:aws:iam::${AWS::AccountId}:root
+            Action: kms:PutKeyPolicy
+            Resource: "*"
   AuroraGlobalCluster:
     Type: AWS::RDS::GlobalCluster
     Properties:
