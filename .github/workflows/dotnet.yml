@@ -50,7 +50,7 @@ jobs:
     name: Deploy Regional Bucket
     runs-on: ubuntu-latest
     concurrency:
-      group: deploy-bucket
+      group: deploy-bucket-${{ matrix.region }}
       cancel-in-progress: false
     strategy:
       matrix:
@@ -454,7 +454,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [build, deploy-global, deploy-bucket]
     concurrency:
-      group: deploy-infrastructure
+      group: deploy-infrastructure-${{ matrix.region }}
       cancel-in-progress: false
     strategy:
       matrix:
@@ -595,7 +595,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [build, deploy-infrastructure, deploy-global, yaml-lint, deploy-bucket]
     concurrency:
-      group: deploy-application-${{ github.ref }}
+      group: deploy-application-${{ github.ref }}-${{ matrix.region }}
       cancel-in-progress: false
     strategy:
       matrix:
@@ -878,6 +878,9 @@ jobs:
     runs-on: ubuntu-latest
     needs: [deploy-application, deploy-global]
     if: success()
+    concurrency:
+      group: verify-deployments-${{ matrix.region }}
+      cancel-in-progress: false
     strategy:
       matrix:
         region: [us-east-1, us-east-2]
