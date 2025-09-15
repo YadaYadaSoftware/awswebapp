@@ -333,6 +333,6 @@ Outputs:
       Name: TaskManager-AuroraGlobalCluster
   AuroraKmsKeyArn:
     Description: KMS key ARN used for Aurora encryption
-    Value: !Ref AuroraKmsKey
+    Value: !GetAtt AuroraKmsKey.Arn
     Export:
       Name: TaskManager-AuroraKmsKey
