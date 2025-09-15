@@ -165,8 +165,8 @@ Resources:
                   - secretsmanager:GetSecretValue
                   - secretsmanager:DescribeSecret
                 Resource:
-                  - !Sub arn:aws:secretsmanager:us-east-1:${AWS::AccountId}:secret:taskmanager/database/shared/*
-                  - !Sub arn:aws:secretsmanager:us-east-2:${AWS::AccountId}:secret:taskmanager/database/shared*
+                  - !Sub arn:aws:secretsmanager:us-east-1:${AWS::AccountId}:secret:taskmanager/database/regional/us-east-1*
+                  - !Sub arn:aws:secretsmanager:us-east-2:${AWS::AccountId}:secret:taskmanager/database/regional/us-east-2*
         - PolicyName: CloudWatchLogs
           PolicyDocument:
             Version: 2012-10-17
@@ -243,8 +243,8 @@ Resources:
                 Action:
                   - secretsmanager:GetSecretValue
                 Resource:
-                  - !Sub arn:aws:secretsmanager:us-east-1:${AWS::AccountId}:secret:taskmanager/database/shared/*
-                  - !Sub arn:aws:secretsmanager:us-east-2:${AWS::AccountId}:secret:taskmanager/database/shared*
+                  - !Sub arn:aws:secretsmanager:us-east-1:${AWS::AccountId}:secret:taskmanager/database/regional/us-east-1*
+                  - !Sub arn:aws:secretsmanager:us-east-2:${AWS::AccountId}:secret:taskmanager/database/regional/us-east-2*
   BastionInstanceProfile:
     Type: AWS::IAM::InstanceProfile
     Properties:
@@ -310,46 +310,6 @@ Resources:
       EngineVersion: !Ref EngineVersion
       DeletionProtection: false
       StorageEncrypted: true
-  AuroraPrimaryCluster:
-    Type: AWS::RDS::DBCluster
-    Properties:
-      GlobalClusterIdentifier: !Ref AuroraGlobalCluster
-      Engine: aurora-mysql
-      EngineVersion: !Ref EngineVersion
-      MasterUsername: taskmanager_admin
-      MasterUserPassword: DatabasePassword
-      DatabaseName: taskmanager
-      DeletionProtection: false
-      StorageEncrypted: true
-      KmsKeyId: !Ref AuroraKmsKey
-      BackupRetentionPeriod: 7
-      PreferredBackupWindow: '03:00-04:00'
-      PreferredMaintenanceWindow: 'sun:04:00-sun:05:00'
-      ServerlessV2ScalingConfiguration:
-        MinCapacity: 0.5
-        MaxCapacity: 4
-      EnableCloudwatchLogsExports:
-        - audit
-        - error
-        - general
-        - slowquery
-    DependsOn: AuroraGlobalCluster
-  DatabaseSecret:
-    Type: AWS::SecretsManager::Secret
-    Properties:
-      Name: taskmanager/database/shared
-      Description: Database credentials for Aurora Serverless Global Database
-      SecretString: !Sub |
-        {
-          "username": "taskmanager_admin",
-          "password": "${DatabasePassword}",
-          "engine": "aurora-mysql",
-          "host": "${AuroraPrimaryCluster.Endpoint.Address}",
-          "port": "${AuroraPrimaryCluster.Endpoint.Port}",
-          "dbname": "taskmanager",
-          "cluster_arn": "${AuroraPrimaryCluster.DBClusterArn}",
-          "secret_arn": "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:taskmanager/database/shared"
-        }
 Outputs:
   SharedLambdaRoleArn:
     Description: Shared Lambda execution role ARN
@@ -366,11 +326,6 @@ Outputs:
     Value: !Ref BastionInstanceProfile
     Export:
       Name: TaskManager-BastionInstanceProfile
-  DatabaseSecretArn:
-    Description: Database secret ARN
-    Value: !Ref DatabaseSecret
-    Export:
-      Name: TaskManager-DatabaseSecret
   AuroraGlobalClusterId:
     Description: Aurora Global Database cluster identifier
     Value: !Ref AuroraGlobalCluster
