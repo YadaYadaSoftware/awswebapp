@@ -413,7 +413,7 @@ jobs:
         # Get the user ARN from the IAM setup stack export
         GITHUB_USER_ARN=$(aws cloudformation list-exports \
           --region us-east-1 \
-          --query "Exports[?Name=='TaskManager-GitHubActionsUser'].Value" \
+          --query "Exports[?Name=='TaskManager-GitHubActionsUserArn'].Value" \
           --output text)
 
         if [ -z "$GITHUB_USER_ARN" ] || [ "$GITHUB_USER_ARN" = "None" ]; then

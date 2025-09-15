@@ -142,6 +142,8 @@ Outputs:
   UserArn:
     Description: 'IAM User ARN'
     Value: !GetAtt GitHubActionsUser.Arn
+    Export:
+      Name: 'TaskManager-GitHubActionsUserArn'
 
   PolicyArn:
     Description: 'Custom policy ARN'
