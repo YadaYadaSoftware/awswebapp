@@ -258,13 +258,13 @@ Resources:
       KeyPolicy:
         Version: 2012-10-17
         Statement:
-          - Sid: Enable IAM User Permissions
+          - Sid: EnableIAMUserPermissions
             Effect: Allow
             Principal:
-              AWS: !Sub arn:aws:iam::${AWS::AccountId}:root
+              AWS: '!Sub arn:aws:iam::${AWS::AccountId}:root'
             Action: kms:*
             Resource: "*"
-          - Sid: Allow RDS Service
+          - Sid: AllowRDSService
             Effect: Allow
             Principal:
               Service: rds.amazonaws.com
