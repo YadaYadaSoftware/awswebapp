@@ -261,7 +261,7 @@ Resources:
           - Sid: EnableIAMUserPermissions
             Effect: Allow
             Principal:
-              AWS: '!Sub arn:aws:iam::${AWS::AccountId}:root'
+              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
             Action: kms:*
             Resource: "*"
           - Sid: AllowRDSService
