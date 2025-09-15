@@ -11,6 +11,10 @@ Parameters:
   EngineVersion:
     Type: String
     Description: Aurora MySQL engine version for the global cluster
+  GitHubActionsUserArn:
+    Type: String
+    Description: ARN of the GitHub Actions IAM user
+    Default: !ImportValue TaskManager-GitHubActionsUser
 Resources:
   GitHubActionsServiceLinkedRolePolicy:
     Type: AWS::IAM::Policy
@@ -269,7 +273,35 @@ Resources:
             Principal:
               Service: rds.amazonaws.com
             Action:
-              - kms:*
+              - kms:CreateGrant
+              - kms:DescribeKey
+              - kms:Decrypt
+              - kms:Encrypt
+              - kms:GenerateDataKey
+              - kms:ReEncryptFrom
+              - kms:ReEncryptTo
+              - kms:RetireGrant
+            Resource: "*"
+          - Sid: AllowGitHubActionsUser
+            Effect: Allow
+            Principal:
+              AWS: !Ref GitHubActionsUserArn
+            Action:
+              - kms:CreateKey
+              - kms:DescribeKey
+              - kms:CreateGrant
+              - kms:Decrypt
+              - kms:Encrypt
+              - kms:GenerateDataKey
+              - kms:ReEncryptFrom
+              - kms:ReEncryptTo
+              - kms:RetireGrant
+              - kms:CreateAlias
+              - kms:DeleteAlias
+              - kms:UpdateAlias
+              - kms:ListAliases
+              - kms:ListGrants
+              - kms:RevokeGrant
             Resource: "*"
   AuroraGlobalCluster:
     Type: AWS::RDS::GlobalCluster
