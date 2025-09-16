@@ -77,7 +77,8 @@ Resources:
       Engine: aurora-mysql
       EngineVersion: !Ref EngineVersion
       MasterUsername: !If [IsPrimary, "taskmanager_admin", !Ref "AWS::NoValue"]
-      MasterUserPassword: !If [IsPrimary, !Ref DatabasePassword, !Ref "AWS::NoValue"]
+      MasterUserPassword:
+        !If [IsPrimary, !Ref DatabasePassword, !Ref "AWS::NoValue"]
       DatabaseName: !If [IsPrimary, "taskmanager", !Ref "AWS::NoValue"]
       DBSubnetGroupName: !Ref AuroraDBSubnetGroup
       DBClusterParameterGroupName: !Ref AuroraClusterParameterGroup
@@ -87,7 +88,8 @@ Resources:
       PreferredBackupWindow: "03:00-04:00"
       PreferredMaintenanceWindow: "sun:04:00-sun:05:00"
       StorageEncrypted: true
-      KmsKeyId: !If [IsPrimary, !Ref AuroraKmsKeyArn, !GetAtt AuroraKmsKeyReplica.Arn]
+      KmsKeyId:
+        !If [IsPrimary, !Ref AuroraKmsKeyArn, !GetAtt AuroraKmsKeyReplica.Arn]
       DeletionProtection: false
       ServerlessV2ScalingConfiguration:
         MinCapacity: 0.5
@@ -155,8 +157,6 @@ Resources:
         - Key: Stack
           Value: !Ref "AWS::StackName"
 
-
-
   # KMS Key Replica (for multi-region support)
   AuroraKmsKeyReplica:
     Type: AWS::KMS::ReplicaKey
@@ -170,7 +170,7 @@ Resources:
           - Sid: EnableIAMUserPermissions
             Effect: Allow
             Principal:
-              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:root"
             Action: kms:*
             Resource: "*"
           - Sid: AllowRDSService
