@@ -437,7 +437,7 @@ Outputs:
 
   DatabaseReaderEndpoint:
     Description: Aurora MySQL reader endpoint
-    Value: !GetAtt AuroraCluster.ReaderEndpoint
+    Value: !GetAtt AuroraCluster.ReadEndpoint.Address
     Export:
       Name: !Sub "TaskManager-DatabaseReaderEndpoint-${AWS::Region}"
 
