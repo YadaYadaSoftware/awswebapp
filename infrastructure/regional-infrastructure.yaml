@@ -1,3 +1,4 @@
+---
 AWSTemplateFormatVersion: "2010-09-09"
 Description: "TaskManager Regional Infrastructure - VPC, RDS, ECS, Bastion Host"
 
@@ -474,110 +475,110 @@ Resources:
           Value: "Regional Infrastructure"
 
 Outputs:
-   VPCId:
-     Description: "VPC ID for branch applications"
-     Value: !Ref VPCId
-     Export:
-       Name: "TaskManager-VPC"
+  VPCId:
+    Description: "VPC ID for branch applications"
+    Value: !Ref VPCId
+    Export:
+      Name: "TaskManager-VPC"
 
-   PrivateSubnet1Id:
-     Description: "Private subnet 1 ID"
-     Value: !Ref PrivateSubnet1Id
-     Export:
-       Name: "TaskManager-PrivateSubnet1"
+  PrivateSubnet1Id:
+    Description: "Private subnet 1 ID"
+    Value: !Ref PrivateSubnet1Id
+    Export:
+      Name: "TaskManager-PrivateSubnet1"
 
-   PrivateSubnet2Id:
-     Description: "Private subnet 2 ID"
-     Value: !Ref PrivateSubnet2Id
-     Export:
-       Name: "TaskManager-PrivateSubnet2"
+  PrivateSubnet2Id:
+    Description: "Private subnet 2 ID"
+    Value: !Ref PrivateSubnet2Id
+    Export:
+      Name: "TaskManager-PrivateSubnet2"
 
-   PublicSubnet1Id:
-     Description: "Public subnet 1 ID"
-     Value: !Ref PublicSubnet1Id
-     Export:
-       Name: "TaskManager-PublicSubnet1"
+  PublicSubnet1Id:
+    Description: "Public subnet 1 ID"
+    Value: !Ref PublicSubnet1Id
+    Export:
+      Name: "TaskManager-PublicSubnet1"
 
-   PublicSubnet2Id:
-     Description: "Public subnet 2 ID"
-     Value: !Ref PublicSubnet2Id
-     Export:
-       Name: "TaskManager-PublicSubnet2"
+  PublicSubnet2Id:
+    Description: "Public subnet 2 ID"
+    Value: !Ref PublicSubnet2Id
+    Export:
+      Name: "TaskManager-PublicSubnet2"
 
-   LambdaSecurityGroupId:
-     Description: "Security group for Lambda functions"
-     Value: !Ref LambdaSecurityGroupId
-     Export:
-       Name: "TaskManager-LambdaSecurityGroup"
+  LambdaSecurityGroupId:
+    Description: "Security group for Lambda functions"
+    Value: !Ref LambdaSecurityGroupId
+    Export:
+      Name: "TaskManager-LambdaSecurityGroup"
 
-   RDSSecurityGroupId:
-     Description: "Security group for RDS access"
-     Value: !Ref RDSSecurityGroupId
-     Export:
-       Name: "TaskManager-RDSSecurityGroup"
+  RDSSecurityGroupId:
+    Description: "Security group for RDS access"
+    Value: !Ref RDSSecurityGroupId
+    Export:
+      Name: "TaskManager-RDSSecurityGroup"
 
-   DatabaseEndpoint:
-     Description: "Aurora MySQL cluster endpoint"
-     Value: !Ref DatabaseEndpoint
-     Export:
-       Name: "TaskManager-DatabaseEndpoint"
+  DatabaseEndpoint:
+    Description: "Aurora MySQL cluster endpoint"
+    Value: !Ref DatabaseEndpoint
+    Export:
+      Name: "TaskManager-DatabaseEndpoint"
 
-   DatabaseReaderEndpoint:
-     Description: "Aurora MySQL reader endpoint"
-     Value: !Ref DatabaseReaderEndpoint
-     Export:
-       Name: "TaskManager-DatabaseReaderEndpoint"
+  DatabaseReaderEndpoint:
+    Description: "Aurora MySQL reader endpoint"
+    Value: !Ref DatabaseReaderEndpoint
+    Export:
+      Name: "TaskManager-DatabaseReaderEndpoint"
 
-   DatabaseSecretArn:
-     Description: "Database secret ARN"
-     Value: !Ref RegionalDatabaseSecretArn
-     Export:
-       Name: "TaskManager-DatabaseSecret"
+  DatabaseSecretArn:
+    Description: "Database secret ARN"
+    Value: !Ref RegionalDatabaseSecretArn
+    Export:
+      Name: "TaskManager-DatabaseSecret"
 
-   BastionHostIP:
-     Description: "Bastion host public IP address"
-     Value: !GetAtt BastionHost.PublicIp
-     Export:
-       Name: "TaskManager-BastionIP"
+  BastionHostIP:
+    Description: "Bastion host public IP address"
+    Value: !GetAtt BastionHost.PublicIp
+    Export:
+      Name: "TaskManager-BastionIP"
 
-   BastionHostId:
-     Description: "Bastion host instance ID"
-     Value: !Ref BastionHost
-     Export:
-       Name: "TaskManager-BastionHostId"
+  BastionHostId:
+    Description: "Bastion host instance ID"
+    Value: !Ref BastionHost
+    Export:
+      Name: "TaskManager-BastionHostId"
 
-   BastionKeyPairName:
-     Description: "Name of the SSH key pair for bastion access"
-     Value: !Ref BastionKeyPair
-     Export:
-       Name: "TaskManager-BastionKeyPairName"
+  BastionKeyPairName:
+    Description: "Name of the SSH key pair for bastion access"
+    Value: !Ref BastionKeyPair
+    Export:
+      Name: "TaskManager-BastionKeyPairName"
 
-   DatabaseTunnelCommand:
-     Description: "SSH tunnel command for Aurora MySQL database access"
-     Value: !Sub
-       - "ssh -i your-key.pem -L 3306:${DbEndpoint}:3306 ec2-user@${BastionIp}"
-       - DbEndpoint: !Ref DatabaseEndpoint
-         BastionIp: !GetAtt BastionHost.PublicIp
-     Export:
-       Name: "TaskManager-DatabaseTunnelCommand"
+  DatabaseTunnelCommand:
+    Description: "SSH tunnel command for Aurora MySQL database access"
+    Value: !Sub
+      - "ssh -i your-key.pem -L 3306:${DbEndpoint}:3306 ec2-user@${BastionIp}"
+      - DbEndpoint: !Ref DatabaseEndpoint
+        BastionIp: !GetAtt BastionHost.PublicIp
+    Export:
+      Name: "TaskManager-DatabaseTunnelCommand"
 
-   ECSClusterName:
-     Description: "ECS cluster name"
-     Value: !Ref ECSCluster
-     Export:
-       Name: "TaskManager-ECSCluster"
+  ECSClusterName:
+    Description: "ECS cluster name"
+    Value: !Ref ECSCluster
+    Export:
+      Name: "TaskManager-ECSCluster"
 
-   ALBSecurityGroupId:
-     Description: "Security group for Application Load Balancer"
-     Value: !Ref ALBSecurityGroupId
-     Export:
-       Name: "TaskManager-ALBSecurityGroup"
+  ALBSecurityGroupId:
+    Description: "Security group for Application Load Balancer"
+    Value: !Ref ALBSecurityGroupId
+    Export:
+      Name: "TaskManager-ALBSecurityGroup"
 
-   ECSTaskSecurityGroupId:
-     Description: "Security group for ECS tasks"
-     Value: !Ref ECSTaskSecurityGroupId
-     Export:
-       Name: "TaskManager-ECSTaskSecurityGroup"
+  ECSTaskSecurityGroupId:
+    Description: "Security group for ECS tasks"
+    Value: !Ref ECSTaskSecurityGroupId
+    Export:
+      Name: "TaskManager-ECSTaskSecurityGroup"
 
   WebECRRepositoryUri:
     Description: "ECR repository URI for web application"
