@@ -259,6 +259,7 @@ Resources:
       KeySpec: SYMMETRIC_DEFAULT
       MultiRegion: true
       Enabled: true
+      PendingWindowInDays: 7
       KeyPolicy:
         Version: 2012-10-17
         Statement:
