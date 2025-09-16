@@ -27,6 +27,10 @@ Parameters:
     Default: "false"
     Description: Whether this region hosts the primary cluster
 
+  GitHubActionsUserArn:
+    Type: String
+    Description: ARN of the GitHub Actions IAM user from IAM setup stack
+
 Conditions:
   IsPrimary: !Equals [!Ref IsPrimaryRegion, "true"]
   IsNotPrimary: !Equals [!Ref IsPrimaryRegion, "false"]

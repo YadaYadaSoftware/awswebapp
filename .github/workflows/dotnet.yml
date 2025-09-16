@@ -525,7 +525,7 @@ jobs:
       with:
         name: taskmanager-regional-db-${{ matrix.region }}
         template: infrastructure/regional-db.yaml
-        parameter-overrides: "DatabasePassword=${{ secrets.DATABASE_PASSWORD }},EngineVersion=${{ env.ENGINE_VERSION }},AuroraGlobalClusterId=${{ needs.deploy-global.outputs.aurora-global-cluster-id }},AuroraKmsKeyArn=${{ needs.deploy-global.outputs.aurora-kms-key-arn }},IsPrimaryRegion=${{ matrix.is_primary }}"
+        parameter-overrides: "DatabasePassword=${{ secrets.DATABASE_PASSWORD }},EngineVersion=${{ env.ENGINE_VERSION }},AuroraGlobalClusterId=${{ needs.deploy-global.outputs.aurora-global-cluster-id }},AuroraKmsKeyArn=${{ needs.deploy-global.outputs.aurora-kms-key-arn }},IsPrimaryRegion=${{ matrix.is_primary }},GitHubActionsUserArn=${{ env.GITHUB_ACTIONS_USER_ARN }}"
         capabilities: "CAPABILITY_NAMED_IAM"
         no-fail-on-empty-changeset: "1"
       timeout-minutes: 15
