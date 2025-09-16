@@ -48,6 +48,7 @@ jobs:
 
   deploy-bucket:
     name: Deploy Regional Bucket
+    needs: yaml-lint
     runs-on: ubuntu-latest
     concurrency:
       group: deploy-bucket-${{ matrix.region }}
