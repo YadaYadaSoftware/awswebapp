@@ -18,6 +18,20 @@
     "!And sequence",
     "!Or sequence"
   ],
+  "yaml.schemas": {
+    "https://raw.githubusercontent.com/awslabs/goformation/master/schema/cloudformation.schema.json": [
+      "*template*.yaml",
+      "*template*.yml",
+      "infrastructure/*.yaml",
+      "infrastructure/*.yml",
+      "src/*/api-template.yaml",
+      "src/*/web-template.yaml"
+    ]
+  },
   "yaml.validate": true,
-  "yaml.format.enable": true
+  "yaml.format.enable": true,
+  "[yaml]": {
+    "editor.defaultFormatter": "redhat.vscode-yaml",
+    "editor.formatOnSave": true
+  }
 }
