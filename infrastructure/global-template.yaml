@@ -220,6 +220,7 @@ Resources:
                   - kms:ListAliases
                   - kms:ListGrants
                   - kms:RevokeGrant
+                  - kms:ReplicateKey
                 Resource: "*"
   BastionRole:
     Type: AWS::IAM::Role
