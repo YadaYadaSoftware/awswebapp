@@ -97,7 +97,7 @@ jobs:
       uses: aws-actions/aws-cloudformation-github-deploy@v1
       with:
         name: taskmanager-regional-bucket-${{ matrix.region }}
-        template: infrastructure/regional-bucket.yaml
+        template: infrastructure/regional-setup.yaml
         no-fail-on-empty-changeset: "1"
 
   build-layers:
