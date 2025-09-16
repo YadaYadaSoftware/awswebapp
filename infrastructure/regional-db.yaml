@@ -42,8 +42,10 @@ Resources:
     Properties:
       DBSubnetGroupDescription: "Subnet group for Aurora cluster in this region"
       SubnetIds:
-        - !Ref PrivateSubnet1
-        - !Ref PrivateSubnet2
+        - !ImportValue
+          Fn::Sub: TaskManager-PrivateSubnet1-${AWS::Region}
+        - !ImportValue
+          Fn::Sub: TaskManager-PrivateSubnet2-${AWS::Region}
       DBSubnetGroupName: !Sub "taskmanager-aurora-subnet-group-${AWS::Region}"
       Tags:
         - Key: Name
@@ -123,234 +125,29 @@ Resources:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Security group for Aurora MySQL Serverless
-      VpcId: !Ref TaskManagerVPC
+      VpcId: !ImportValue
+        Fn::Sub: TaskManager-VPC-${AWS::Region}
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 3306
           ToPort: 3306
-          SourceSecurityGroupId: !Ref LambdaSecurityGroup
+          SourceSecurityGroupId: !ImportValue
+            Fn::Sub: TaskManager-LambdaSecurityGroup-${AWS::Region}
         - IpProtocol: tcp
           FromPort: 3306
           ToPort: 3306
-          SourceSecurityGroupId: !Ref BastionSecurityGroup
+          SourceSecurityGroupId: !ImportValue
+            Fn::Sub: TaskManager-BastionSecurityGroup-${AWS::Region}
         - IpProtocol: tcp
           FromPort: 3306
           ToPort: 3306
-          SourceSecurityGroupId: !Ref ECSTaskSecurityGroup
+          SourceSecurityGroupId: !ImportValue
+            Fn::Sub: TaskManager-ECSTaskSecurityGroup-${AWS::Region}
       Tags:
         - Key: Name
           Value: "TaskManager-Aurora-SG"
 
-  LambdaSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupDescription: Security group for Lambda functions
-      VpcId: !Ref TaskManagerVPC
-      SecurityGroupEgress:
-        - IpProtocol: -1
-          CidrIp: 0.0.0.0/0
-      Tags:
-        - Key: Name
-          Value: "TaskManager-Lambda-SG"
 
-  BastionSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupDescription: Security group for bastion host
-      VpcId: !Ref TaskManagerVPC
-      SecurityGroupIngress:
-        - IpProtocol: tcp
-          FromPort: 22
-          ToPort: 22
-          CidrIp: 0.0.0.0/0
-          Description: SSH access from anywhere
-      SecurityGroupEgress:
-        - IpProtocol: -1
-          CidrIp: 0.0.0.0/0
-      Tags:
-        - Key: Name
-          Value: "TaskManager-Bastion-SG"
-
-  ECSTaskSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupDescription: Security group for ECS tasks
-      VpcId: !Ref TaskManagerVPC
-      SecurityGroupIngress:
-        - IpProtocol: tcp
-          FromPort: 80
-          ToPort: 80
-          SourceSecurityGroupId: !Ref ALBSecurityGroup
-          Description: HTTP access from ALB
-      SecurityGroupEgress:
-        - IpProtocol: -1
-          CidrIp: 0.0.0.0/0
-      Tags:
-        - Key: Name
-          Value: "TaskManager-ECS-Task-SG"
-
-  ALBSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupDescription: Security group for Application Load Balancer
-      VpcId: !Ref TaskManagerVPC
-      SecurityGroupIngress:
-        - IpProtocol: tcp
-          FromPort: 80
-          ToPort: 80
-          CidrIp: 0.0.0.0/0
-          Description: HTTP access from anywhere
-        - IpProtocol: tcp
-          FromPort: 443
-          ToPort: 443
-          CidrIp: 0.0.0.0/0
-          Description: HTTPS access from anywhere
-      SecurityGroupEgress:
-        - IpProtocol: -1
-          CidrIp: 0.0.0.0/0
-      Tags:
-        - Key: Name
-          Value: "TaskManager-ALB-SG"
-
-  # VPC and Networking (simplified for regional-db)
-  TaskManagerVPC:
-    Type: AWS::EC2::VPC
-    Properties:
-      CidrBlock: 10.0.0.0/16
-      EnableDnsHostnames: true
-      EnableDnsSupport: true
-      Tags:
-        - Key: Name
-          Value: "TaskManager-VPC"
-        - Key: Purpose
-          Value: "Regional Database Infrastructure"
-
-  # Internet Gateway
-  InternetGateway:
-    Type: AWS::EC2::InternetGateway
-    Properties:
-      Tags:
-        - Key: Name
-          Value: "TaskManager-IGW"
-
-  AttachGateway:
-    Type: AWS::EC2::VPCGatewayAttachment
-    Properties:
-      VpcId: !Ref TaskManagerVPC
-      InternetGatewayId: !Ref InternetGateway
-
-  # Public Subnets for NAT Gateway and Bastion
-  PublicSubnet1:
-    Type: AWS::EC2::Subnet
-    Properties:
-      VpcId: !Ref TaskManagerVPC
-      CidrBlock: 10.0.1.0/24
-      AvailabilityZone: !Select [0, !GetAZs ""]
-      MapPublicIpOnLaunch: true
-      Tags:
-        - Key: Name
-          Value: "TaskManager-Public-Subnet-1"
-
-  PublicSubnet2:
-    Type: AWS::EC2::Subnet
-    Properties:
-      VpcId: !Ref TaskManagerVPC
-      CidrBlock: 10.0.2.0/24
-      AvailabilityZone: !Select [1, !GetAZs ""]
-      MapPublicIpOnLaunch: true
-      Tags:
-        - Key: Name
-          Value: "TaskManager-Public-Subnet-2"
-
-  # Private Subnets for Lambda and RDS
-  PrivateSubnet1:
-    Type: AWS::EC2::Subnet
-    Properties:
-      VpcId: !Ref TaskManagerVPC
-      CidrBlock: 10.0.3.0/24
-      AvailabilityZone: !Select [0, !GetAZs ""]
-      Tags:
-        - Key: Name
-          Value: "TaskManager-Private-Subnet-1"
-
-  PrivateSubnet2:
-    Type: AWS::EC2::Subnet
-    Properties:
-      VpcId: !Ref TaskManagerVPC
-      CidrBlock: 10.0.4.0/24
-      AvailabilityZone: !Select [1, !GetAZs ""]
-      Tags:
-        - Key: Name
-          Value: "TaskManager-Private-Subnet-2"
-
-  # NAT Gateway for private subnet internet access
-  NATGateway1EIP:
-    Type: AWS::EC2::EIP
-    DependsOn: AttachGateway
-    Properties:
-      Domain: vpc
-
-  NATGateway1:
-    Type: AWS::EC2::NatGateway
-    Properties:
-      AllocationId: !GetAtt NATGateway1EIP.AllocationId
-      SubnetId: !Ref PublicSubnet1
-
-  # Route Tables
-  PublicRouteTable:
-    Type: AWS::EC2::RouteTable
-    Properties:
-      VpcId: !Ref TaskManagerVPC
-      Tags:
-        - Key: Name
-          Value: "TaskManager-Public-RT"
-
-  DefaultPublicRoute:
-    Type: AWS::EC2::Route
-    DependsOn: AttachGateway
-    Properties:
-      RouteTableId: !Ref PublicRouteTable
-      DestinationCidrBlock: 0.0.0.0/0
-      GatewayId: !Ref InternetGateway
-
-  PublicSubnet1RouteTableAssociation:
-    Type: AWS::EC2::SubnetRouteTableAssociation
-    Properties:
-      RouteTableId: !Ref PublicRouteTable
-      SubnetId: !Ref PublicSubnet1
-
-  PublicSubnet2RouteTableAssociation:
-    Type: AWS::EC2::SubnetRouteTableAssociation
-    Properties:
-      RouteTableId: !Ref PublicRouteTable
-      SubnetId: !Ref PublicSubnet2
-
-  PrivateRouteTable:
-    Type: AWS::EC2::RouteTable
-    Properties:
-      VpcId: !Ref TaskManagerVPC
-      Tags:
-        - Key: Name
-          Value: "TaskManager-Private-RT"
-
-  DefaultPrivateRoute:
-    Type: AWS::EC2::Route
-    Properties:
-      RouteTableId: !Ref PrivateRouteTable
-      DestinationCidrBlock: 0.0.0.0/0
-      NatGatewayId: !Ref NATGateway1
-
-  PrivateSubnet1RouteTableAssociation:
-    Type: AWS::EC2::SubnetRouteTableAssociation
-    Properties:
-      RouteTableId: !Ref PrivateRouteTable
-      SubnetId: !Ref PrivateSubnet1
-
-  PrivateSubnet2RouteTableAssociation:
-    Type: AWS::EC2::SubnetRouteTableAssociation
-    Properties:
-      RouteTableId: !Ref PrivateRouteTable
-      SubnetId: !Ref PrivateSubnet2
 
   # KMS Key Replica (for multi-region support)
   AuroraKmsKeyReplica:
@@ -452,57 +249,3 @@ Outputs:
     Value: !Ref RDSSecurityGroup
     Export:
       Name: !Sub "TaskManager-RDSSecurityGroup-${AWS::Region}"
-
-  LambdaSecurityGroupId:
-    Description: Security group for Lambda functions
-    Value: !Ref LambdaSecurityGroup
-    Export:
-      Name: !Sub "TaskManager-LambdaSecurityGroup-${AWS::Region}"
-
-  BastionSecurityGroupId:
-    Description: Security group for bastion host
-    Value: !Ref BastionSecurityGroup
-    Export:
-      Name: !Sub "TaskManager-BastionSecurityGroup-${AWS::Region}"
-
-  ALBSecurityGroupId:
-    Description: Security group for Application Load Balancer
-    Value: !Ref ALBSecurityGroup
-    Export:
-      Name: !Sub "TaskManager-ALBSecurityGroup-${AWS::Region}"
-
-  ECSTaskSecurityGroupId:
-    Description: Security group for ECS tasks
-    Value: !Ref ECSTaskSecurityGroup
-    Export:
-      Name: !Sub "TaskManager-ECSTaskSecurityGroup-${AWS::Region}"
-
-  VPCId:
-    Description: VPC ID for regional database
-    Value: !Ref TaskManagerVPC
-    Export:
-      Name: !Sub "TaskManager-VPC-${AWS::Region}"
-
-  PrivateSubnet1Id:
-    Description: Private subnet 1 ID
-    Value: !Ref PrivateSubnet1
-    Export:
-      Name: !Sub "TaskManager-PrivateSubnet1-${AWS::Region}"
-
-  PrivateSubnet2Id:
-    Description: Private subnet 2 ID
-    Value: !Ref PrivateSubnet2
-    Export:
-      Name: !Sub "TaskManager-PrivateSubnet2-${AWS::Region}"
-
-  PublicSubnet1Id:
-    Description: Public subnet 1 ID
-    Value: !Ref PublicSubnet1
-    Export:
-      Name: !Sub "TaskManager-PublicSubnet1-${AWS::Region}"
-
-  PublicSubnet2Id:
-    Description: Public subnet 2 ID
-    Value: !Ref PublicSubnet2
-    Export:
-      Name: !Sub "TaskManager-PublicSubnet2-${AWS::Region}"

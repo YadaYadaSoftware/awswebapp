@@ -55,9 +55,23 @@ jobs:
       cancel-in-progress: false
     strategy:
       matrix:
-        region: [us-east-2, us-west-1]
+        region: [us-east-2, us-west-1]  # Primary region first
+        include:
+          - region: us-east-2
+            is_primary: "true"
+          - region: us-west-1
+            is_primary: "false"
     outputs:
       bucket-name: ${{ steps.deploy.outputs.TemplatesBucket }}
+      vpc-id: ${{ steps.deploy.outputs.VPCId }}
+      private-subnet-1: ${{ steps.deploy.outputs.PrivateSubnet1Id }}
+      private-subnet-2: ${{ steps.deploy.outputs.PrivateSubnet2Id }}
+      public-subnet-1: ${{ steps.deploy.outputs.PublicSubnet1Id }}
+      public-subnet-2: ${{ steps.deploy.outputs.PublicSubnet2Id }}
+      lambda-sg: ${{ steps.deploy.outputs.LambdaSecurityGroupId }}
+      bastion-sg: ${{ steps.deploy.outputs.BastionSecurityGroupId }}
+      alb-sg: ${{ steps.deploy.outputs.ALBSecurityGroupId }}
+      ecs-sg: ${{ steps.deploy.outputs.ECSTaskSecurityGroupId }}
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -98,6 +112,7 @@ jobs:
       with:
         name: taskmanager-regional-bucket-${{ matrix.region }}
         template: infrastructure/regional-setup.yaml
+        parameter-overrides: "DatabasePassword=${{ secrets.DATABASE_PASSWORD }},EngineVersion=${{ env.ENGINE_VERSION }},IsPrimaryRegion=${{ matrix.is_primary }}"
         no-fail-on-empty-changeset: "1"
 
   build-layers:
@@ -673,7 +688,7 @@ jobs:
       with:
         name: taskmanager-regional-${{ matrix.region }}
         template: infrastructure/regional-infrastructure.yaml
-        parameter-overrides: "DatabasePassword=${{ secrets.DATABASE_PASSWORD }},SharedLambdaRoleArn=${{ needs.deploy-global.outputs.shared-lambda-role-arn }},BastionRoleArn=${{ needs.deploy-global.outputs.bastion-role-arn }},BastionInstanceProfileArn=${{ needs.deploy-global.outputs.bastion-instance-profile-arn }},AuroraGlobalClusterId=${{ needs.deploy-global.outputs.aurora-global-cluster-id }},AuroraKmsKeyArn=${{ needs.deploy-global.outputs.aurora-kms-key-arn }},EngineVersion=${{ env.ENGINE_VERSION }},VPCId=${{ needs.deploy-regional-db.outputs.vpc-id }},PrivateSubnet1Id=${{ needs.deploy-regional-db.outputs.private-subnet-1 }},PrivateSubnet2Id=${{ needs.deploy-regional-db.outputs.private-subnet-2 }},PublicSubnet1Id=${{ needs.deploy-regional-db.outputs.public-subnet-1 }},PublicSubnet2Id=${{ needs.deploy-regional-db.outputs.public-subnet-2 }},LambdaSecurityGroupId=${{ needs.deploy-regional-db.outputs.lambda-sg }},RDSSecurityGroupId=${{ needs.deploy-regional-db.outputs.rds-sg }},BastionSecurityGroupId=${{ needs.deploy-regional-db.outputs.bastion-sg }},ALBSecurityGroupId=${{ needs.deploy-regional-db.outputs.alb-sg }},ECSTaskSecurityGroupId=${{ needs.deploy-regional-db.outputs.ecs-sg }},DatabaseEndpoint=${{ needs.deploy-regional-db.outputs.db-endpoint }},DatabaseReaderEndpoint=${{ needs.deploy-regional-db.outputs.db-reader-endpoint }},RegionalDatabaseSecretArn=${{ needs.deploy-regional-db.outputs.db-secret-arn }}"
+        parameter-overrides: "DatabasePassword=${{ secrets.DATABASE_PASSWORD }},SharedLambdaRoleArn=${{ needs.deploy-global.outputs.shared-lambda-role-arn }},BastionRoleArn=${{ needs.deploy-global.outputs.bastion-role-arn }},BastionInstanceProfileArn=${{ needs.deploy-global.outputs.bastion-instance-profile-arn }},AuroraGlobalClusterId=${{ needs.deploy-global.outputs.aurora-global-cluster-id }},AuroraKmsKeyArn=${{ needs.deploy-global.outputs.aurora-kms-key-arn }},EngineVersion=${{ env.ENGINE_VERSION }},VPCId=${{ needs.deploy-bucket.outputs.vpc-id }},PrivateSubnet1Id=${{ needs.deploy-bucket.outputs.private-subnet-1 }},PrivateSubnet2Id=${{ needs.deploy-bucket.outputs.private-subnet-2 }},PublicSubnet1Id=${{ needs.deploy-bucket.outputs.public-subnet-1 }},PublicSubnet2Id=${{ needs.deploy-bucket.outputs.public-subnet-2 }},LambdaSecurityGroupId=${{ needs.deploy-bucket.outputs.lambda-sg }},RDSSecurityGroupId=${{ needs.deploy-regional-db.outputs.rds-sg }},BastionSecurityGroupId=${{ needs.deploy-bucket.outputs.bastion-sg }},ALBSecurityGroupId=${{ needs.deploy-bucket.outputs.alb-sg }},ECSTaskSecurityGroupId=${{ needs.deploy-bucket.outputs.ecs-sg }},DatabaseEndpoint=${{ needs.deploy-regional-db.outputs.db-endpoint }},DatabaseReaderEndpoint=${{ needs.deploy-regional-db.outputs.db-reader-endpoint }},RegionalDatabaseSecretArn=${{ needs.deploy-regional-db.outputs.db-secret-arn }}"
         capabilities: "CAPABILITY_NAMED_IAM"
         no-fail-on-empty-changeset: "1"
       timeout-minutes: 15
