@@ -84,6 +84,7 @@ Resources:
               - kms:PutKeyPolicy
               - kms:ReplicateKey
               - kms:ScheduleKeyDeletion
+              - kms:GetKeyPolicy
             Resource: '*'
 
           # STS permissions
