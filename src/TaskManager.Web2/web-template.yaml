@@ -102,6 +102,9 @@ Resources:
     Properties:
       LogGroupName: !Sub '/ecs/TaskManagerWeb-${Environment}'
       RetentionInDays: 7
+      Tags:
+        - Key: Stack
+          Value: !Ref "AWS::StackName"
 
   # Application Load Balancer
   WebLoadBalancer:
@@ -118,6 +121,8 @@ Resources:
       Tags:
         - Key: Environment
           Value: !Ref Environment
+        - Key: Stack
+          Value: !Ref "AWS::StackName"
 
   # Target Group
   WebTargetGroup:
@@ -134,6 +139,9 @@ Resources:
       HealthyThresholdCount: 2
       UnhealthyThresholdCount: 2
       HealthCheckPort: 80
+      Tags:
+        - Key: Stack
+          Value: !Ref "AWS::StackName"
 
   # ALB HTTP Listener (redirects to HTTPS)
   WebListener:
@@ -260,6 +268,8 @@ Resources:
       Tags:
         - Key: Environment
           Value: !Ref Environment
+        - Key: Stack
+          Value: !Ref "AWS::StackName"
 
   # CloudWatch Alarms for Web
   WebECSServiceAlarm:

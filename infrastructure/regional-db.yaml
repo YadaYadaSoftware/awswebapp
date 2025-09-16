@@ -52,6 +52,8 @@ Resources:
           Value: "TaskManager-Aurora-SubnetGroup"
         - Key: Region
           Value: !Ref AWS::Region
+        - Key: Stack
+          Value: !Ref "AWS::StackName"
 
   # Aurora DB Cluster Parameter Group
   AuroraClusterParameterGroup:
@@ -102,6 +104,8 @@ Resources:
           Value: !Sub "${IsPrimaryRegion} Aurora Cluster"
         - Key: Region
           Value: !Ref AWS::Region
+        - Key: Stack
+          Value: !Ref "AWS::StackName"
 
   # Aurora Serverless v2 Instance
   AuroraInstance:
@@ -119,6 +123,8 @@ Resources:
           Value: "Regional Aurora Instance"
         - Key: Region
           Value: !Ref AWS::Region
+        - Key: Stack
+          Value: !Ref "AWS::StackName"
 
   # Security Groups
   RDSSecurityGroup:
@@ -146,6 +152,8 @@ Resources:
       Tags:
         - Key: Name
           Value: "TaskManager-Aurora-SG"
+        - Key: Stack
+          Value: !Ref "AWS::StackName"
 
 
 
@@ -200,6 +208,9 @@ Resources:
               - kms:ListGrants
               - kms:RevokeGrant
             Resource: "*"
+      Tags:
+        - Key: Stack
+          Value: !Ref "AWS::StackName"
 
   # Database Secret
   DatabaseSecret:
@@ -218,6 +229,9 @@ Resources:
           "cluster_arn": "${AuroraCluster.DBClusterArn}",
           "secret_arn": "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:taskmanager/database/regional/${AWS::Region}"
         }
+      Tags:
+        - Key: Stack
+          Value: !Ref "AWS::StackName"
 
 Outputs:
   AuroraClusterId:

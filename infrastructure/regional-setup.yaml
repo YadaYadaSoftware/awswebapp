@@ -39,6 +39,8 @@ Resources:
           Value: 'TaskManager-Templates-Bucket'
         - Key: Purpose
           Value: 'CloudFormation Templates and Lambda Layers'
+        - Key: Stack
+          Value: !Ref "AWS::StackName"
 
   # VPC and Networking
   TaskManagerVPC:
@@ -52,6 +54,8 @@ Resources:
           Value: "TaskManager-VPC"
         - Key: Purpose
           Value: "Regional Database Infrastructure"
+        - Key: Stack
+          Value: !Ref "AWS::StackName"
 
   InternetGateway:
     Type: AWS::EC2::InternetGateway
@@ -59,6 +63,8 @@ Resources:
       Tags:
         - Key: Name
           Value: "TaskManager-IGW"
+        - Key: Stack
+          Value: !Ref "AWS::StackName"
 
   AttachGateway:
     Type: AWS::EC2::VPCGatewayAttachment
@@ -77,6 +83,8 @@ Resources:
       Tags:
         - Key: Name
           Value: "TaskManager-Public-Subnet-1"
+        - Key: Stack
+          Value: !Ref "AWS::StackName"
 
   PublicSubnet2:
     Type: AWS::EC2::Subnet
@@ -88,6 +96,8 @@ Resources:
       Tags:
         - Key: Name
           Value: "TaskManager-Public-Subnet-2"
+        - Key: Stack
+          Value: !Ref "AWS::StackName"
 
   # Private Subnets for Lambda and RDS
   PrivateSubnet1:
@@ -99,6 +109,8 @@ Resources:
       Tags:
         - Key: Name
           Value: "TaskManager-Private-Subnet-1"
+        - Key: Stack
+          Value: !Ref "AWS::StackName"
 
   PrivateSubnet2:
     Type: AWS::EC2::Subnet
@@ -109,6 +121,8 @@ Resources:
       Tags:
         - Key: Name
           Value: "TaskManager-Private-Subnet-2"
+        - Key: Stack
+          Value: !Ref "AWS::StackName"
 
   # NAT Gateway for private subnet internet access
   NATGateway1EIP:
@@ -116,12 +130,18 @@ Resources:
     DependsOn: AttachGateway
     Properties:
       Domain: vpc
+      Tags:
+        - Key: Stack
+          Value: !Ref "AWS::StackName"
 
   NATGateway1:
     Type: AWS::EC2::NatGateway
     Properties:
       AllocationId: !GetAtt NATGateway1EIP.AllocationId
       SubnetId: !Ref PublicSubnet1
+      Tags:
+        - Key: Stack
+          Value: !Ref "AWS::StackName"
 
   # Route Tables
   PublicRouteTable:
@@ -131,6 +151,8 @@ Resources:
       Tags:
         - Key: Name
           Value: "TaskManager-Public-RT"
+        - Key: Stack
+          Value: !Ref "AWS::StackName"
 
   DefaultPublicRoute:
     Type: AWS::EC2::Route
@@ -159,6 +181,8 @@ Resources:
       Tags:
         - Key: Name
           Value: "TaskManager-Private-RT"
+        - Key: Stack
+          Value: !Ref "AWS::StackName"
 
   DefaultPrivateRoute:
     Type: AWS::EC2::Route
@@ -191,6 +215,8 @@ Resources:
       Tags:
         - Key: Name
           Value: "TaskManager-Lambda-SG"
+        - Key: Stack
+          Value: !Ref "AWS::StackName"
 
   BastionSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -209,6 +235,8 @@ Resources:
       Tags:
         - Key: Name
           Value: "TaskManager-Bastion-SG"
+        - Key: Stack
+          Value: !Ref "AWS::StackName"
 
   ECSTaskSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -227,6 +255,8 @@ Resources:
       Tags:
         - Key: Name
           Value: "TaskManager-ECS-Task-SG"
+        - Key: Stack
+          Value: !Ref "AWS::StackName"
 
   ALBSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -250,6 +280,8 @@ Resources:
       Tags:
         - Key: Name
           Value: "TaskManager-ALB-SG"
+        - Key: Stack
+          Value: !Ref "AWS::StackName"
 
 Outputs:
   TemplatesBucket:

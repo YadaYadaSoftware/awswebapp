@@ -22,6 +22,8 @@ Resources:
           Value: 'GitHub Actions Deployment'
         - Key: Application
           Value: 'TaskManager'
+        - Key: Stack
+          Value: !Ref "AWS::StackName"
 
   # Custom IAM Policy with specific permissions
   TaskManagerDeploymentPolicy:

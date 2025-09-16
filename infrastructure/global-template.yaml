@@ -133,6 +133,9 @@ Resources:
                       logger.info(f"Response sent: {response.status}")
               except Exception as e:
                   logger.error(f"Failed to send response: {str(e)}")
+      Tags:
+        - Key: Stack
+          Value: !Ref "AWS::StackName"
   ECSRoleSetupResource:
     Type: AWS::CloudFormation::CustomResource
     Properties:
@@ -222,6 +225,9 @@ Resources:
                   - kms:RevokeGrant
                   - kms:ReplicateKey
                 Resource: "*"
+      Tags:
+        - Key: Stack
+          Value: !Ref "AWS::StackName"
   BastionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -246,6 +252,9 @@ Resources:
                 Resource:
                   - !Sub arn:aws:secretsmanager:us-east-1:${AWS::AccountId}:secret:taskmanager/database/regional/us-east-1*
                   - !Sub arn:aws:secretsmanager:us-east-2:${AWS::AccountId}:secret:taskmanager/database/regional/us-east-2*
+      Tags:
+        - Key: Stack
+          Value: !Ref "AWS::StackName"
   BastionInstanceProfile:
     Type: AWS::IAM::InstanceProfile
     Properties:
@@ -304,6 +313,9 @@ Resources:
               - kms:ListGrants
               - kms:RevokeGrant
             Resource: "*"
+      Tags:
+        - Key: Stack
+          Value: !Ref "AWS::StackName"
   AuroraGlobalCluster:
     Type: AWS::RDS::GlobalCluster
     Properties:
@@ -312,6 +324,9 @@ Resources:
       EngineVersion: !Ref EngineVersion
       DeletionProtection: false
       StorageEncrypted: true
+      Tags:
+        - Key: Stack
+          Value: !Ref "AWS::StackName"
 Outputs:
   SharedLambdaRoleArn:
     Description: Shared Lambda execution role ARN

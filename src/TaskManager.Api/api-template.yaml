@@ -53,6 +53,9 @@ Resources:
     Properties:
       LogGroupName: !Sub '/aws/lambda/TaskManager-DbSetup-${Environment}'
       RetentionInDays: 7
+      Tags:
+        - Key: Stack
+          Value: !Ref "AWS::StackName"
 
   # CloudWatch Log Group for API
   ApiLambdaLogGroup:
@@ -60,6 +63,9 @@ Resources:
     Properties:
       LogGroupName: !Sub '/aws/lambda/TaskManagerApi-${Environment}'
       RetentionInDays: 7
+      Tags:
+        - Key: Stack
+          Value: !Ref "AWS::StackName"
 
   # Lambda Layer for MySQL dependencies
   MySQLLayer:
@@ -187,6 +193,7 @@ Resources:
                     'statusCode': 500,
                     'body': json.dumps({'error': error_msg})
                 }
+
       Handler: index.lambda_handler
       Runtime: python3.9
       Role: !Ref SharedLambdaRoleArn
@@ -209,7 +216,9 @@ Resources:
           Properties:
             Path: /setup-database
             Method: POST
-
+      Tags:
+        - Key: Stack
+          Value: !Ref "AWS::StackName"
   # TaskManager API Function
   TaskManagerApiFunction:
     Type: AWS::Serverless::Function
@@ -255,6 +264,7 @@ Resources:
             Method: ANY
       Tags:
         Environment: !Ref Environment
+        Stack: !Ref "AWS::StackName"
 
   # CloudWatch Alarms for API
   LambdaErrorAlarm:

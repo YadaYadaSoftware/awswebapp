@@ -110,6 +110,8 @@ Resources:
           Value: "TaskManager-Web-ECR"
         - Key: Purpose
           Value: "Container Registry"
+        - Key: Stack
+          Value: !Ref "AWS::StackName"
 
 
   # Lambda Layer for urllib3 dependency
@@ -239,6 +241,9 @@ Resources:
                   logger.info(f"Response sent: {response.status}")
               except Exception as e:
                   logger.error(f"Failed to send response: {str(e)}")
+      Tags:
+        - Key: Stack
+          Value: !Ref "AWS::StackName"
 
   # Lambda function to clean up security groups on stack deletion
   SecurityGroupCleanupFunction:
@@ -311,7 +316,7 @@ Resources:
                               for rule in sg['IpPermissionsEgress']:
                                   # Skip the default "allow all outbound" rule
                                   if not (rule.get('IpProtocol') == '-1' and
-                                         rule.get('IpRanges', [{}])[0].get('CidrIp') == '0.0.0.0/0'):
+                                          rule.get('IpRanges', [{}])[0].get('CidrIp') == '0.0.0.0/0'):
                                       egress_rules.append(rule)
 
                               if egress_rules:
@@ -372,6 +377,9 @@ Resources:
                   logger.info(f"Response sent: {response.status}")
               except Exception as e:
                   logger.error(f"Failed to send response: {str(e)}")
+      Tags:
+        - Key: Stack
+          Value: !Ref "AWS::StackName"
 
   # Lambda Layer for urllib3 dependency
   SecurityGroupCleanupLayer:
@@ -422,6 +430,8 @@ Resources:
           Value: "TaskManager-ECS-Cluster"
         - Key: Purpose
           Value: "Regional Infrastructure"
+        - Key: Stack
+          Value: !Ref "AWS::StackName"
 
   # SSH Key Pair for Bastion
   BastionKeyPair:
@@ -473,6 +483,8 @@ Resources:
           Value: "TaskManager-Bastion"
         - Key: Purpose
           Value: "Regional Infrastructure"
+        - Key: Stack
+          Value: !Ref "AWS::StackName"
 
 Outputs:
   VPCId:
