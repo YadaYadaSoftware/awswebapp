@@ -82,6 +82,7 @@ Resources:
               - kms:ListGrants
               - kms:RevokeGrant
               - kms:PutKeyPolicy
+              - kms:ReplicateKey
             Resource: '*'
 
           # STS permissions
