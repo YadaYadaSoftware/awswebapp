@@ -29,6 +29,7 @@ Parameters:
 
 Conditions:
   IsPrimary: !Equals [!Ref IsPrimaryRegion, "true"]
+  IsNotPrimary: !Equals [!Ref IsPrimaryRegion, "false"]
 
 Resources:
   # Aurora DB Subnet Group for this region
@@ -78,7 +79,7 @@ Resources:
       PreferredBackupWindow: "03:00-04:00"
       PreferredMaintenanceWindow: "sun:04:00-sun:05:00"
       StorageEncrypted: true
-      KmsKeyId: !Ref AuroraKmsKeyArn
+      KmsKeyId: !If [IsPrimary, !Ref AuroraKmsKeyArn, !GetAtt AuroraKmsKeyReplica.Arn]
       DeletionProtection: false
       ServerlessV2ScalingConfiguration:
         MinCapacity: 0.5
@@ -346,6 +347,58 @@ Resources:
     Properties:
       RouteTableId: !Ref PrivateRouteTable
       SubnetId: !Ref PrivateSubnet2
+
+  # KMS Key Replica (for multi-region support)
+  AuroraKmsKeyReplica:
+    Type: AWS::KMS::ReplicaKey
+    Condition: IsNotPrimary
+    Properties:
+      PrimaryKeyArn: !Ref AuroraKmsKeyArn
+      Description: Replica of multi-region Aurora KMS key
+      KeyPolicy:
+        Version: 2012-10-17
+        Statement:
+          - Sid: EnableIAMUserPermissions
+            Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+            Action: kms:*
+            Resource: "*"
+          - Sid: AllowRDSService
+            Effect: Allow
+            Principal:
+              Service: rds.amazonaws.com
+            Action:
+              - kms:CreateGrant
+              - kms:DescribeKey
+              - kms:Decrypt
+              - kms:Encrypt
+              - kms:GenerateDataKey
+              - kms:ReEncryptFrom
+              - kms:ReEncryptTo
+              - kms:RetireGrant
+            Resource: "*"
+          - Sid: AllowGitHubActionsUser
+            Effect: Allow
+            Principal:
+              AWS: !Ref GitHubActionsUserArn
+            Action:
+              - kms:CreateKey
+              - kms:DescribeKey
+              - kms:CreateGrant
+              - kms:Decrypt
+              - kms:Encrypt
+              - kms:GenerateDataKey
+              - kms:ReEncryptFrom
+              - kms:ReEncryptTo
+              - kms:RetireGrant
+              - kms:CreateAlias
+              - kms:DeleteAlias
+              - kms:UpdateAlias
+              - kms:ListAliases
+              - kms:ListGrants
+              - kms:RevokeGrant
+            Resource: "*"
 
   # Database Secret
   DatabaseSecret:
