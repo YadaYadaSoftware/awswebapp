@@ -393,6 +393,7 @@ jobs:
       bastion-instance-profile-arn: ${{ steps.deploy-global.outputs.BastionInstanceProfileArn }}
       aurora-global-cluster-id: ${{ steps.deploy-global.outputs.AuroraGlobalClusterId }}
       aurora-kms-key-arn: ${{ steps.deploy-global.outputs.AuroraKmsKeyArn }}
+      github-actions-user-arn: ${{ steps.get-github-user.outputs.github-actions-user-arn }}
 
     steps:
     - name: Checkout code
@@ -408,6 +409,7 @@ jobs:
         aws-region: us-east-2
 
     - name: Get GitHub Actions User ARN from IAM Setup Stack
+      id: get-github-user
       run: |
         echo "🔍 Retrieving GitHub Actions User ARN from IAM setup stack in us-east-1..."
 
@@ -424,7 +426,7 @@ jobs:
         fi
 
         echo "✅ Retrieved GitHub Actions User ARN: $GITHUB_USER_ARN"
-        echo "GITHUB_ACTIONS_USER_ARN=$GITHUB_USER_ARN" >> $GITHUB_ENV
+        echo "github-actions-user-arn=$GITHUB_USER_ARN" >> $GITHUB_OUTPUT
 
     - name: Deploy Global Infrastructure
       id: deploy-global
@@ -493,6 +495,10 @@ jobs:
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: ${{ matrix.region }}
 
+    - name: Echo GitHub Actions User ARN
+      run: |
+        echo "🔑 GitHub Actions User ARN: ${{ needs.deploy-global.outputs.github-actions-user-arn }}"
+
     - name: Upload regional-db template to S3
       run: |
         echo "Uploading regional-db template to S3..."
@@ -525,7 +531,7 @@ jobs:
       with:
         name: taskmanager-regional-db-${{ matrix.region }}
         template: infrastructure/regional-db.yaml
-        parameter-overrides: "DatabasePassword=${{ secrets.DATABASE_PASSWORD }},EngineVersion=${{ env.ENGINE_VERSION }},AuroraGlobalClusterId=${{ needs.deploy-global.outputs.aurora-global-cluster-id }},AuroraKmsKeyArn=${{ needs.deploy-global.outputs.aurora-kms-key-arn }},IsPrimaryRegion=${{ matrix.is_primary }},GitHubActionsUserArn=${{ env.GITHUB_ACTIONS_USER_ARN }}"
+        parameter-overrides: "DatabasePassword=${{ secrets.DATABASE_PASSWORD }},EngineVersion=${{ env.ENGINE_VERSION }},AuroraGlobalClusterId=${{ needs.deploy-global.outputs.aurora-global-cluster-id }},AuroraKmsKeyArn=${{ needs.deploy-global.outputs.aurora-kms-key-arn }},IsPrimaryRegion=${{ matrix.is_primary }},GitHubActionsUserArn=${{ needs.deploy-global.outputs.github-actions-user-arn }}"
         capabilities: "CAPABILITY_NAMED_IAM"
         no-fail-on-empty-changeset: "1"
       timeout-minutes: 15
