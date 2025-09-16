@@ -55,7 +55,7 @@ jobs:
       cancel-in-progress: false
     strategy:
       matrix:
-        region: [us-east-2, us-east-1]
+        region: [us-east-2, us-west-1]
     outputs:
       bucket-name: ${{ steps.deploy.outputs.TemplatesBucket }}
     steps:
@@ -461,11 +461,11 @@ jobs:
       cancel-in-progress: false
     strategy:
       matrix:
-        region: [us-east-2, us-east-1]  # Primary region first
+        region: [us-east-2, us-west-1]  # Primary region first
         include:
           - region: us-east-2
             is_primary: "true"
-          - region: us-east-1
+          - region: us-west-1
             is_primary: "false"
     outputs:
       vpc-id: ${{ steps.deploy-regional-db.outputs.VPCId }}
@@ -558,7 +558,7 @@ jobs:
       cancel-in-progress: false
     strategy:
       matrix:
-        region: [us-east-1, us-east-2]
+        region: [us-west-1, us-east-2]
     outputs:
       web-ecr-repository-uri: ${{ steps.deploy-regional.outputs.WebECRRepositoryUri }}
       bastion-host-ip: ${{ steps.deploy-regional.outputs.BastionHostIP }}
@@ -700,7 +700,7 @@ jobs:
       cancel-in-progress: false
     strategy:
       matrix:
-        region: [us-east-1, us-east-2]
+        region: [us-west-1, us-east-2]
     outputs:
       api-endpoint: ${{ steps.get-endpoints.outputs.api-endpoint }}
       web-endpoint: ${{ steps.get-endpoints.outputs.web-endpoint }}
@@ -984,7 +984,7 @@ jobs:
       cancel-in-progress: false
     strategy:
       matrix:
-        region: [us-east-1, us-east-2]
+        region: [us-west-1, us-east-2]
 
     steps:
     - name: Verify Deployment Status
