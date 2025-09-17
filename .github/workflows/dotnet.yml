@@ -326,6 +326,25 @@ jobs:
         name: sg-cleanup-layer-package
         path: sg-cleanup-layer.zip
 
+    - name: Create KMS Cleanup Lambda Layer
+      run: |
+        # Create layer directory structure
+        mkdir -p python/lib/python3.9/site-packages
+
+        # Install urllib3 for CloudFormation custom resource responses
+        pip install urllib3 -t python/lib/python3.9/site-packages/
+
+        # Create layer ZIP file
+        zip -r kms-cleanup-layer.zip python/
+
+        echo "KMS cleanup layer created successfully"
+
+    - name: Upload KMS Cleanup Layer
+      uses: actions/upload-artifact@v4
+      with:
+        name: kms-cleanup-layer-package
+        path: kms-cleanup-layer.zip
+
     # ECS cleanup layer already created by build-layers job
     # Skipping duplicate creation to avoid artifact name conflicts
 
@@ -362,16 +381,23 @@ jobs:
         name: ecs-cleanup-layer-package
         path: ./artifacts/
 
+    - name: Download KMS Layer Dependencies
+      uses: actions/download-artifact@v4
+      with:
+        name: kms-cleanup-layer-package
+        path: ./artifacts/
+
     - name: Upload Global Infrastructure Layers to S3
       run: |
         # Upload layer files required for global infrastructure
         echo "Uploading global infrastructure layer files..."
         aws s3 cp ./artifacts/iam-cleanup-layer.zip s3://${{ needs.deploy-bucket.outputs.bucket-name }}/iam-cleanup-layer.zip --region us-east-1
         aws s3 cp ./artifacts/ecs-cleanup-layer.zip s3://${{ needs.deploy-bucket.outputs.bucket-name }}/ecs-cleanup-layer.zip --region us-east-1
+        aws s3 cp ./artifacts/kms-cleanup-layer.zip s3://${{ needs.deploy-bucket.outputs.bucket-name }}/kms-cleanup-layer.zip --region us-east-1
 
         # Verify uploads
         echo "Verifying S3 uploads..."
-        aws s3 ls s3://${{ needs.deploy-bucket.outputs.bucket-name }}/ --region us-east-1 | grep -E "(iam-cleanup-layer|ecs-cleanup-layer)"
+        aws s3 ls s3://${{ needs.deploy-bucket.outputs.bucket-name }}/ --region us-east-1 | grep -E "(iam-cleanup-layer|ecs-cleanup-layer|kms-cleanup-layer)"
 
     - name: Verify Global Infrastructure Prerequisites
       run: |
@@ -452,7 +478,7 @@ jobs:
         parameter-overrides: DatabasePassword=${{ secrets.DATABASE_PASSWORD }},EngineVersion=${{ env.ENGINE_VERSION }},GitHubActionsUserArn= ${{ steps.get-github-user.outputs.github-actions-user-arn }}
         capabilities: "CAPABILITY_NAMED_IAM"
         no-fail-on-empty-changeset: "1"
-      timeout-minutes: 15
+      timeout-minutes: 20
 
     - name: Verify Global Infrastructure Deployment
       run: |
@@ -549,7 +575,7 @@ jobs:
         parameter-overrides: "DatabasePassword=${{ secrets.DATABASE_PASSWORD }},EngineVersion=${{ env.ENGINE_VERSION }},AuroraGlobalClusterId=${{ needs.deploy-global.outputs.aurora-global-cluster-id }},AuroraKmsKeyArn=${{ needs.deploy-global.outputs.aurora-kms-key-arn }},IsPrimaryRegion=${{ matrix.is_primary }},GitHubActionsUserArn=${{ needs.deploy-global.outputs.github-actions-user-arn }}"
         capabilities: "CAPABILITY_NAMED_IAM"
         no-fail-on-empty-changeset: "1"
-      timeout-minutes: 15
+      timeout-minutes: 30
 
     - name: Verify Regional Database Deployment
       run: |
@@ -691,7 +717,7 @@ jobs:
         parameter-overrides: "DatabasePassword=${{ secrets.DATABASE_PASSWORD }},SharedLambdaRoleArn=${{ needs.deploy-global.outputs.shared-lambda-role-arn }},BastionRoleArn=${{ needs.deploy-global.outputs.bastion-role-arn }},BastionInstanceProfileArn=${{ needs.deploy-global.outputs.bastion-instance-profile-arn }},AuroraGlobalClusterId=${{ needs.deploy-global.outputs.aurora-global-cluster-id }},AuroraKmsKeyArn=${{ needs.deploy-global.outputs.aurora-kms-key-arn }},EngineVersion=${{ env.ENGINE_VERSION }},VPCId=${{ needs.deploy-bucket.outputs.vpc-id }},PrivateSubnet1Id=${{ needs.deploy-bucket.outputs.private-subnet-1 }},PrivateSubnet2Id=${{ needs.deploy-bucket.outputs.private-subnet-2 }},PublicSubnet1Id=${{ needs.deploy-bucket.outputs.public-subnet-1 }},PublicSubnet2Id=${{ needs.deploy-bucket.outputs.public-subnet-2 }},LambdaSecurityGroupId=${{ needs.deploy-bucket.outputs.lambda-sg }},RDSSecurityGroupId=${{ needs.deploy-regional-db.outputs.rds-sg }},BastionSecurityGroupId=${{ needs.deploy-bucket.outputs.bastion-sg }},ALBSecurityGroupId=${{ needs.deploy-bucket.outputs.alb-sg }},ECSTaskSecurityGroupId=${{ needs.deploy-bucket.outputs.ecs-sg }},DatabaseEndpoint=${{ needs.deploy-regional-db.outputs.db-endpoint }},DatabaseReaderEndpoint=${{ needs.deploy-regional-db.outputs.db-reader-endpoint }},RegionalDatabaseSecretArn=${{ needs.deploy-regional-db.outputs.db-secret-arn }}"
         capabilities: "CAPABILITY_NAMED_IAM"
         no-fail-on-empty-changeset: "1"
-      timeout-minutes: 15
+      timeout-minutes: 20
 
     - name: Verify Regional Infrastructure Deployment
       run: |

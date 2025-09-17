@@ -224,6 +224,8 @@ Resources:
                   - kms:ListGrants
                   - kms:RevokeGrant
                   - kms:ReplicateKey
+                  - kms:DisableKey
+                  - kms:ScheduleKeyDeletion
                 Resource: "*"
       Tags:
         - Key: Stack
@@ -262,6 +264,7 @@ Resources:
         - !Ref BastionRole
   AuroraKmsKey:
     Type: AWS::KMS::Key
+    DeletionPolicy: Retain
     Properties:
       Description: Multi-region KMS key for Aurora Global Database encryption
       KeyUsage: ENCRYPT_DECRYPT
@@ -313,9 +316,152 @@ Resources:
               - kms:ListGrants
               - kms:RevokeGrant
             Resource: "*"
+          - Sid: AllowKmsCleanupFunction
+            Effect: Allow
+            Principal:
+              AWS: !GetAtt KmsCleanupFunction.Arn
+            Action:
+              - kms:DescribeKey
+              - kms:DisableKey
+              - kms:ScheduleKeyDeletion
+            Resource: "*"
       Tags:
         - Key: Stack
           Value: !Ref "AWS::StackName"
+
+  # KMS Key Cleanup Lambda Layer
+  KmsCleanupLayer:
+    Type: AWS::Lambda::LayerVersion
+    Properties:
+      LayerName: !Sub "taskmanager-kms-cleanup-layer-${AWS::StackName}"
+      Description: "urllib3 dependency for KMS cleanup Lambda"
+      Content:
+        S3Bucket: !Sub "taskmanager-templates-bucket-${AWS::Region}"
+        S3Key: "kms-cleanup-layer.zip"
+      CompatibleRuntimes:
+        - python3.9
+
+  # Lambda function to disable KMS key on stack deletion
+  KmsCleanupFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "taskmanager-kms-cleanup-${AWS::StackName}"
+      Runtime: python3.9
+      Handler: index.lambda_handler
+      Role: !GetAtt SharedLambdaExecutionRole.Arn
+      Layers:
+        - !Ref KmsCleanupLayer
+      Code:
+        ZipFile: |
+          import boto3
+          import json
+          import logging
+
+          logger = logging.getLogger()
+          logger.setLevel(logging.INFO)
+
+          kms_client = boto3.client('kms')
+
+          def lambda_handler(event, context):
+              try:
+                  request_type = event.get('RequestType')
+                  key_id = event.get('ResourceProperties', {}).get('KeyId')
+
+                  if not key_id:
+                      raise ValueError("KeyId is required")
+
+                  logger.info(f"Processing {request_type} for KMS key: {key_id}")
+
+                  if request_type == 'Delete':
+                      # Disable the KMS key instead of deleting it
+                      disable_kms_key(key_id)
+
+                      # Send success response
+                      send_response(event, context, 'SUCCESS', {'Message': f'Successfully disabled KMS key {key_id}'})
+                  else:
+                      # For Create/Update, just succeed
+                      send_response(event, context, 'SUCCESS', {'Message': f'KMS key {key_id} ready'})
+
+              except Exception as e:
+                  logger.error(f"Error processing request: {str(e)}")
+                  send_response(event, context, 'FAILED', {'Error': str(e)})
+
+          def disable_kms_key(key_id):
+              try:
+                  logger.info(f"Disabling KMS key: {key_id}")
+
+                  # First, describe the key to check its state
+                  key_info = kms_client.describe_key(KeyId=key_id)
+                  key_state = key_info['KeyMetadata']['KeyState']
+
+                  if key_state == 'Disabled':
+                      logger.info(f"KMS key {key_id} is already disabled")
+                      return
+                  elif key_state == 'PendingDeletion':
+                      logger.info(f"KMS key {key_id} is already scheduled for deletion")
+                      return
+
+                  # Disable the key
+                  kms_client.disable_key(KeyId=key_id)
+                  logger.info(f"Successfully disabled KMS key: {key_id}")
+
+                  # Optionally schedule key deletion after 7 days
+                  # kms_client.schedule_key_deletion(KeyId=key_id, PendingWindowInDays=7)
+                  # logger.info(f"Scheduled KMS key {key_id} for deletion in 7 days")
+
+              except kms_client.exceptions.NotFoundException:
+                  logger.warning(f"KMS key {key_id} not found, may have been already deleted")
+              except Exception as e:
+                  logger.error(f"Error disabling KMS key {key_id}: {str(e)}")
+                  raise
+
+          def send_response(event, context, response_status, response_data):
+              import urllib3
+              import json
+
+              response_url = event.get('ResponseURL')
+              if not response_url:
+                  return
+
+              response_body = {
+                  'Status': response_status,
+                  'Reason': response_data.get('Message', 'Operation completed'),
+                  'PhysicalResourceId': event.get('PhysicalResourceId', context.log_stream_name),
+                  'StackId': event['StackId'],
+                  'RequestId': event['RequestId'],
+                  'LogicalResourceId': event['LogicalResourceId'],
+                  'Data': response_data
+              }
+
+              json_response_body = json.dumps(response_body)
+
+              headers = {
+                  'content-type': '',
+                  'content-length': str(len(json_response_body))
+              }
+
+              http = urllib3.PoolManager()
+              try:
+                  response = http.request(
+                      'PUT',
+                      response_url,
+                      body=json_response_body,
+                      headers=headers
+                  )
+                  logger.info(f"Response sent: {response.status}")
+              except Exception as e:
+                  logger.error(f"Failed to send response: {str(e)}")
+
+  # Custom resource to trigger KMS key disable on stack deletion
+  KmsCleanupResource:
+    Type: AWS::CloudFormation::CustomResource
+    Properties:
+      ServiceToken: !GetAtt KmsCleanupFunction.Arn
+      KeyId: !Ref AuroraKmsKey
+    DependsOn:
+      - AuroraKmsKey
+      - KmsCleanupFunction
+
   AuroraGlobalCluster:
     Type: AWS::RDS::GlobalCluster
     Properties:
