@@ -63,15 +63,6 @@ jobs:
             is_primary: "false"
     outputs:
       bucket-name: ${{ steps.deploy.outputs.TemplatesBucket }}
-      vpc-id: ${{ steps.deploy.outputs.VPCId }}
-      private-subnet-1: ${{ steps.deploy.outputs.PrivateSubnet1Id }}
-      private-subnet-2: ${{ steps.deploy.outputs.PrivateSubnet2Id }}
-      public-subnet-1: ${{ steps.deploy.outputs.PublicSubnet1Id }}
-      public-subnet-2: ${{ steps.deploy.outputs.PublicSubnet2Id }}
-      lambda-sg: ${{ steps.deploy.outputs.LambdaSecurityGroupId }}
-      bastion-sg: ${{ steps.deploy.outputs.BastionSecurityGroupId }}
-      alb-sg: ${{ steps.deploy.outputs.ALBSecurityGroupId }}
-      ecs-sg: ${{ steps.deploy.outputs.ECSTaskSecurityGroupId }}
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -112,7 +103,6 @@ jobs:
       with:
         name: taskmanager-regional-bucket-${{ matrix.region }}
         template: infrastructure/regional-setup.yaml
-        parameter-overrides: "DatabasePassword=${{ secrets.DATABASE_PASSWORD }},EngineVersion=${{ env.ENGINE_VERSION }},IsPrimaryRegion=${{ matrix.is_primary }}"
         no-fail-on-empty-changeset: "1"
 
   build-layers:
@@ -303,12 +293,12 @@ jobs:
           --region us-east-2 \
           --query 'Stacks[0].StackStatus'
 
-  deploy-regional-db:
-    name: Deploy Regional Database
+  deploy-regional:
+    name: Deploy Regional Stack
     runs-on: ubuntu-latest
-    needs: [build, deploy-global, deploy-bucket]
+    needs: [build, deploy-global, deploy-bucket, yaml-lint]
     concurrency:
-      group: deploy-regional-db-${{ matrix.region }}
+      group: deploy-regional-${{ matrix.region }}
       cancel-in-progress: false
     strategy:
       matrix:
@@ -332,6 +322,11 @@ jobs:
       db-endpoint: ${{ steps.deploy-regional-db.outputs.DatabaseEndpoint }}
       db-reader-endpoint: ${{ steps.deploy-regional-db.outputs.DatabaseReaderEndpoint }}
       db-secret-arn: ${{ steps.deploy-regional-db.outputs.DatabaseSecretArn }}
+      web-ecr-repository-uri: ${{ steps.deploy-regional.outputs.WebECRRepositoryUri }}
+      bastion-host-ip: ${{ steps.deploy-regional.outputs.BastionHostIP }}
+      database-tunnel-command: ${{ steps.deploy-regional.outputs.DatabaseTunnelCommand }}
+      api-endpoint: ${{ steps.get-endpoints.outputs.api-endpoint }}
+      web-endpoint: ${{ steps.get-endpoints.outputs.web-endpoint }}
 
     steps:
     - name: Checkout code
@@ -400,35 +395,6 @@ jobs:
           --region ${{ matrix.region }} \
           --query 'Stacks[0].StackStatus'
 
-  deploy-infrastructure:
-    name: Deploy Regional Infrastructure
-    runs-on: ubuntu-latest
-    needs: [build, deploy-global, deploy-bucket, deploy-regional-db]
-    concurrency:
-      group: deploy-infrastructure-${{ matrix.region }}
-      cancel-in-progress: false
-    strategy:
-      matrix:
-        region: [us-west-1, us-east-2]
-    outputs:
-      web-ecr-repository-uri: ${{ steps.deploy-regional.outputs.WebECRRepositoryUri }}
-      bastion-host-ip: ${{ steps.deploy-regional.outputs.BastionHostIP }}
-      database-tunnel-command: ${{ steps.deploy-regional.outputs.DatabaseTunnelCommand }}
-
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: ${{ matrix.region }}
-
-
     - name: Upload templates and regional layers to S3
       run: |
         # Upload all templates
@@ -438,7 +404,6 @@ jobs:
         aws s3 cp src/TaskManager.Api/api-template.yaml s3://taskmanager-templates-bucket-${{ matrix.region }}/ --region ${{ matrix.region }}
         aws s3 cp src/TaskManager.Web2/web-template.yaml s3://taskmanager-templates-bucket-${{ matrix.region }}/ --region ${{ matrix.region }}
         aws s3 cp infrastructure/wrapper-template.yaml s3://taskmanager-templates-bucket-${{ matrix.region }}/ --region ${{ matrix.region }}
-
 
         # Verify uploads
         echo "Verifying S3 uploads..."
@@ -450,7 +415,7 @@ jobs:
         echo "DatabasePassword: [REDACTED]"
         echo "SharedLambdaRoleArn: ${{ needs.deploy-global.outputs.shared-lambda-role-arn }}"
         echo "BastionRoleArn: ${{ needs.deploy-global.outputs.bastion-role-arn }}"
-        echo "DatabaseSecretArn: ${{ needs.deploy-regional-db.outputs.db-secret-arn }}"
+        echo "DatabaseSecretArn: ${{ steps.deploy-regional-db.outputs.DatabaseSecretArn }}"
         echo "BastionInstanceProfileArn: ${{ needs.deploy-global.outputs.bastion-instance-profile-arn }}"
         echo "AuroraGlobalClusterId: ${{ needs.deploy-global.outputs.aurora-global-cluster-id }}"
 
@@ -465,7 +430,7 @@ jobs:
           exit 1
         fi
 
-        if [ -z "${{ needs.deploy-regional-db.outputs.db-secret-arn }}" ]; then
+        if [ -z "${{ steps.deploy-regional-db.outputs.DatabaseSecretArn }}" ]; then
           echo "❌ ERROR: DatabaseSecretArn is empty"
           exit 1
         fi
@@ -509,7 +474,7 @@ jobs:
       with:
         name: taskmanager-regional-${{ matrix.region }}
         template: infrastructure/regional-infrastructure.yaml
-        parameter-overrides: "DatabasePassword=${{ secrets.DATABASE_PASSWORD }},SharedLambdaRoleArn=${{ needs.deploy-global.outputs.shared-lambda-role-arn }},BastionRoleArn=${{ needs.deploy-global.outputs.bastion-role-arn }},BastionInstanceProfileArn=${{ needs.deploy-global.outputs.bastion-instance-profile-arn }},AuroraGlobalClusterId=${{ needs.deploy-global.outputs.aurora-global-cluster-id }},AuroraKmsKeyArn=${{ needs.deploy-global.outputs.aurora-kms-key-arn }},EngineVersion=${{ env.ENGINE_VERSION }},VPCId=${{ needs.deploy-bucket.outputs.vpc-id }},PrivateSubnet1Id=${{ needs.deploy-bucket.outputs.private-subnet-1 }},PrivateSubnet2Id=${{ needs.deploy-bucket.outputs.private-subnet-2 }},PublicSubnet1Id=${{ needs.deploy-bucket.outputs.public-subnet-1 }},PublicSubnet2Id=${{ needs.deploy-bucket.outputs.public-subnet-2 }},LambdaSecurityGroupId=${{ needs.deploy-bucket.outputs.lambda-sg }},RDSSecurityGroupId=${{ needs.deploy-regional-db.outputs.rds-sg }},BastionSecurityGroupId=${{ needs.deploy-bucket.outputs.bastion-sg }},ALBSecurityGroupId=${{ needs.deploy-bucket.outputs.alb-sg }},ECSTaskSecurityGroupId=${{ needs.deploy-bucket.outputs.ecs-sg }},DatabaseEndpoint=${{ needs.deploy-regional-db.outputs.db-endpoint }},DatabaseReaderEndpoint=${{ needs.deploy-regional-db.outputs.db-reader-endpoint }}"
+        parameter-overrides: "DatabasePassword=${{ secrets.DATABASE_PASSWORD }},SharedLambdaRoleArn=${{ needs.deploy-global.outputs.shared-lambda-role-arn }},BastionRoleArn=${{ needs.deploy-global.outputs.bastion-role-arn }},BastionInstanceProfileArn=${{ needs.deploy-global.outputs.bastion-instance-profile-arn }},AuroraGlobalClusterId=${{ needs.deploy-global.outputs.aurora-global-cluster-id }},AuroraKmsKeyArn=${{ needs.deploy-global.outputs.aurora-kms-key-arn }},EngineVersion=${{ env.ENGINE_VERSION }},VPCId=${{ steps.deploy-regional-db.outputs.VPCId }},PrivateSubnet1Id=${{ steps.deploy-regional-db.outputs.PrivateSubnet1Id }},PrivateSubnet2Id=${{ steps.deploy-regional-db.outputs.PrivateSubnet2Id }},PublicSubnet1Id=${{ steps.deploy-regional-db.outputs.PublicSubnet1Id }},PublicSubnet2Id=${{ steps.deploy-regional-db.outputs.PublicSubnet2Id }},LambdaSecurityGroupId=${{ steps.deploy-regional-db.outputs.LambdaSecurityGroupId }},RDSSecurityGroupId=${{ steps.deploy-regional-db.outputs.RDSSecurityGroupId }},BastionSecurityGroupId=${{ steps.deploy-regional-db.outputs.BastionSecurityGroupId }},ALBSecurityGroupId=${{ steps.deploy-regional-db.outputs.ALBSecurityGroupId }},ECSTaskSecurityGroupId=${{ steps.deploy-regional-db.outputs.ECSTaskSecurityGroupId }},DatabaseEndpoint=${{ steps.deploy-regional-db.outputs.DatabaseEndpoint }},DatabaseReaderEndpoint=${{ steps.deploy-regional-db.outputs.DatabaseReaderEndpoint }}"
         capabilities: "CAPABILITY_NAMED_IAM"
         no-fail-on-empty-changeset: "1"
       timeout-minutes: 20
@@ -527,33 +492,6 @@ jobs:
           --region ${{ matrix.region }} \
           --query 'Stacks[0].StackStatus'
 
-  deploy-application:
-    name: Deploy Branch Application
-    runs-on: ubuntu-latest
-    needs: [build, deploy-infrastructure, deploy-global, deploy-regional-db, yaml-lint, deploy-bucket]
-    concurrency:
-      group: deploy-application-${{ github.ref }}-${{ matrix.region }}
-      cancel-in-progress: false
-    strategy:
-      matrix:
-        region: [us-west-1, us-east-2]
-    outputs:
-      api-endpoint: ${{ steps.get-endpoints.outputs.api-endpoint }}
-      web-endpoint: ${{ steps.get-endpoints.outputs.web-endpoint }}
-
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: ${{ matrix.region }}
-
     - name: Build and Push Web Container Image
       env:
         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -566,7 +504,7 @@ jobs:
         BRANCH_TAG=${BRANCH_NAME:-main}
 
         # Get ECR repository URI from job outputs
-        ECR_REPO="${{ needs.deploy-infrastructure.outputs.web-ecr-repository-uri }}"
+        ECR_REPO="${{ steps.deploy-regional.outputs.WebECRRepositoryUri }}"
 
         # Validate ECR repo URI
         if [ -z "$ECR_REPO" ]; then
@@ -602,7 +540,8 @@ jobs:
           echo "✅ Pushed latest image: $ECR_REPO:latest"
         fi
 
-        echo "CONTAINER_IMAGE=$ECR_REPO:$IMAGE_TAG" >> $GITHUB_ENV
+        CONTAINER_IMAGE=$ECR_REPO:$IMAGE_TAG
+        echo "CONTAINER_IMAGE=$CONTAINER_IMAGE" >> $GITHUB_ENV
 
     - name: Get branch name for stack naming
       run: |
@@ -650,7 +589,6 @@ jobs:
       with:
         name: mysql-layer-package
         path: ./artifacts/
-
 
     - name: Upload templates and packages to S3
       run: |
@@ -769,8 +707,8 @@ jobs:
           echo "✅ Web endpoint: $WEB_URL"
         fi
 
-        BASTION_IP="${{ needs.deploy-infrastructure.outputs.bastion-host-ip }}"
-        TUNNEL_CMD="${{ needs.deploy-infrastructure.outputs.database-tunnel-command }}"
+        BASTION_IP="${{ steps.deploy-regional.outputs.BastionHostIP }}"
+        TUNNEL_CMD="${{ steps.deploy-regional.outputs.DatabaseTunnelCommand }}"
 
         # Extract API Gateway ID from URL
         API_GATEWAY_ID=$(echo $API_URL | sed 's|https://||' | sed 's|\.execute-api.*||')
@@ -793,20 +731,7 @@ jobs:
         echo "📱 SMS notification skipped - SNS topic not configured in global infrastructure"
         echo "🚀 TaskManager deployment complete! Branch: ${{ env.BRANCH_NAME }} Region: ${{ matrix.region }} API: $API_URL Web App: https://$BRANCH_NAME.appcloud.systems Database: taskmanager_${{ env.BRANCH_NAME }} ✅ Setup verified Bastion IP: $BASTION_IP Both API and Web are fully deployed and running!"
 
-  verify-deployments:
-    name: Verify All Deployments
-    runs-on: ubuntu-latest
-    needs: [deploy-application, deploy-global, deploy-regional-db]
-    if: success()
-    concurrency:
-      group: verify-deployments-${{ matrix.region }}
-      cancel-in-progress: false
-    strategy:
-      matrix:
-        region: [us-west-1, us-east-2]
-
-    steps:
-    - name: Verify Deployment Status
+    - name: Verify All Deployments
       run: |
         echo "🔍 Final verification of all deployments in ${{ matrix.region }}..."
 
@@ -873,11 +798,14 @@ jobs:
 
         echo "🎉 All deployments verified successfully in ${{ matrix.region }}!"
 
+
+
+
   update-google-oauth:
     name: Generate Google OAuth Update Instructions
     runs-on: ubuntu-latest
-    needs: [deploy-application, verify-deployments]
-    if: needs.deploy-application.result == 'success' && needs.verify-deployments.result == 'success'
+    needs: [deploy-regional]
+    if: needs.deploy-regional.result == 'success'
 
     steps:
     - name: Checkout code
@@ -888,4 +816,4 @@ jobs:
     - name: Update Google OAuth Configuration
       run: |
         chmod +x update-google-oauth.sh
-        ./update-google-oauth.sh "${{ needs.deploy-application.outputs.api-endpoint }}" "${{ needs.deploy-application.outputs.web-endpoint }}"
+        ./update-google-oauth.sh "${{ needs.deploy-regional.outputs.api-endpoint }}" "${{ needs.deploy-regional.outputs.web-endpoint }}"
