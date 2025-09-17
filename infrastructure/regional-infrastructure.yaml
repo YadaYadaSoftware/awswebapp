@@ -2,17 +2,6 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: "TaskManager Regional Infrastructure - VPC, RDS, ECS, Bastion Host"
 
-Mappings:
-  RegionMap:
-    us-east-1:
-      AMI: "ami-0c02fb55956c7d316" # Amazon Linux 2023
-    us-east-2:
-      AMI: "ami-0e1d30f2c40c4c701" # Amazon Linux 2023
-    us-west-1:
-      AMI: "ami-0cbd40fa1c1e4b0b2" # Amazon Linux 2023
-    us-west-2:
-      AMI: "ami-0c55b159cbfafe1d0" # Amazon Linux 2023
-
 Parameters:
   DatabasePassword:
     Type: String
@@ -48,6 +37,11 @@ Parameters:
   AuroraKmsKeyArn:
     Type: String
     Description: "ARN of the KMS key used by the Aurora global cluster"
+
+  LatestAmiId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: "/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-6.1-x86_64"
+    Description: "Latest Amazon Linux 2023 AMI ID from SSM Parameter Store"
 
   # Parameters from regional-db.yaml outputs
   VPCId:
@@ -145,7 +139,7 @@ Resources:
   BastionHost:
     Type: AWS::EC2::Instance
     Properties:
-      ImageId: !FindInMap [RegionMap, !Ref "AWS::Region", AMI]
+      ImageId: !Ref LatestAmiId
       InstanceType: t3.micro
       SubnetId: !Ref PublicSubnet1Id
       SecurityGroupIds:
