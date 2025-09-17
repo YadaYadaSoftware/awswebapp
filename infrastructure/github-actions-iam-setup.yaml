@@ -1,15 +1,15 @@
-AWSTemplateFormatVersion: '2010-09-09'
-Description: 'TaskManager GitHub Actions IAM User and Permissions Setup'
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "TaskManager GitHub Actions IAM User and Permissions Setup"
 
 Parameters:
   UserName:
     Type: String
-    Default: 'taskmanager-github-actions'
-    Description: 'Name for the GitHub Actions IAM user'
+    Default: "taskmanager-github-actions"
+    Description: "Name for the GitHub Actions IAM user"
 
   TemplatesBucketName:
     Type: String
-    Description: 'Name of the S3 bucket for CloudFormation templates (must already exist or be created separately)'
+    Description: "Name of the S3 bucket for CloudFormation templates (must already exist or be created separately)"
 
 Resources:
   # IAM User for GitHub Actions
@@ -19,9 +19,9 @@ Resources:
       UserName: !Ref UserName
       Tags:
         - Key: Purpose
-          Value: 'GitHub Actions Deployment'
+          Value: "GitHub Actions Deployment"
         - Key: Application
-          Value: 'TaskManager'
+          Value: "TaskManager"
         - Key: Stack
           Value: !Ref "AWS::StackName"
 
@@ -29,9 +29,9 @@ Resources:
   TaskManagerDeploymentPolicy:
     Type: AWS::IAM::Policy
     Properties:
-      PolicyName: 'TaskManagerDeploymentPolicy'
+      PolicyName: "TaskManagerDeploymentPolicy"
       PolicyDocument:
-        Version: '2012-10-17'
+        Version: "2012-10-17"
         Statement:
           # Core AWS service permissions
           - Effect: Allow
@@ -52,18 +52,18 @@ Resources:
               - acm:*
               - route53:*
               - iam:*
-            Resource: '*'
+            Resource: "*"
 
           # Service-linked role creation
           - Effect: Allow
             Action:
               - iam:CreateServiceLinkedRole
-            Resource: '*'
+            Resource: "*"
             Condition:
               StringEquals:
                 iam:AWSServiceName:
-                  - 'elasticloadbalancing.amazonaws.com'
-                  - 'ecs.amazonaws.com'
+                  - "elasticloadbalancing.amazonaws.com"
+                  - "ecs.amazonaws.com"
 
           # KMS permissions for Aurora encryption
           - Effect: Allow
@@ -87,14 +87,58 @@ Resources:
               - kms:ReplicateKey
               - kms:ScheduleKeyDeletion
               - kms:GetKeyPolicy
-            Resource: '*'
+            Resource: "*"
+
+          # Tagging permissions for all resources
+          - Effect: Allow
+            Action:
+              - ec2:CreateTags
+              - ec2:DeleteTags
+              - ec2:DescribeTags
+              - rds:AddTagsToResource
+              - rds:RemoveTagsFromResource
+              - rds:DescribeDBInstances
+              - rds:DescribeDBClusters
+              - lambda:TagResource
+              - lambda:UntagResource
+              - lambda:ListTags
+              - logs:TagLogGroup
+              - logs:UntagLogGroup
+              - logs:ListTagsLogGroup
+              - ecr:TagResource
+              - ecr:UntagResource
+              - ecr:ListTagsForResource
+              - ecs:TagResource
+              - ecs:UntagResource
+              - ecs:ListTagsForResource
+              - elasticloadbalancing:AddTags
+              - elasticloadbalancing:RemoveTags
+              - elasticloadbalancing:DescribeTags
+              - secretsmanager:TagResource
+              - secretsmanager:UntagResource
+              - secretsmanager:DescribeSecret
+              - kms:TagResource
+              - kms:UntagResource
+              - kms:ListResourceTags
+              - s3:PutBucketTagging
+              - s3:GetBucketTagging
+              - s3:DeleteBucketTagging
+              - route53:ChangeTagsForResource
+              - route53:ListTagsForResource
+              - acm:AddTagsToCertificate
+              - acm:RemoveTagsFromCertificate
+              - acm:ListTagsForCertificate
+              - cloudwatch:TagResource
+              - cloudwatch:UntagResource
+              - cloudwatch:ListTagsForResource
+            Resource: "*"
 
           # STS permissions
           - Effect: Allow
             Action:
               - sts:GetCallerIdentity
               - sts:AssumeRole
-            Resource: '*'
+            Resource: "*"
       Users:
         - !Ref GitHubActionsUser
 
@@ -110,7 +154,7 @@ Resources:
     Properties:
       Bucket: !Ref TemplatesBucketName
       PolicyDocument:
-        Version: '2012-10-17'
+        Version: "2012-10-17"
         Statement:
           - Sid: AllowCloudFormationAccess
             Effect: Allow
@@ -118,7 +162,7 @@ Resources:
               Service: cloudformation.amazonaws.com
             Action:
               - s3:GetObject
-            Resource: !Sub 'arn:aws:s3:::${TemplatesBucketName}/*'
+            Resource: !Sub "arn:aws:s3:::${TemplatesBucketName}/*"
           - Sid: AllowGitHubActionsFullAccess
             Effect: Allow
             Principal:
@@ -126,40 +170,40 @@ Resources:
             Action:
               - s3:*
             Resource:
-              - !Sub 'arn:aws:s3:::${TemplatesBucketName}'
-              - !Sub 'arn:aws:s3:::${TemplatesBucketName}/*'
+              - !Sub "arn:aws:s3:::${TemplatesBucketName}"
+              - !Sub "arn:aws:s3:::${TemplatesBucketName}/*"
 
 Outputs:
   UserName:
-    Description: 'IAM User name for GitHub Actions'
+    Description: "IAM User name for GitHub Actions"
     Value: !Ref GitHubActionsUser
     Export:
-      Name: 'TaskManager-GitHubActionsUser'
+      Name: "TaskManager-GitHubActionsUser"
 
   AccessKeyId:
-    Description: 'Access Key ID for GitHub Actions (add to GitHub secrets)'
+    Description: "Access Key ID for GitHub Actions (add to GitHub secrets)"
     Value: !Ref GitHubActionsAccessKey
 
   SecretAccessKey:
-    Description: 'Secret Access Key for GitHub Actions (add to GitHub secrets)'
+    Description: "Secret Access Key for GitHub Actions (add to GitHub secrets)"
     Value: !GetAtt GitHubActionsAccessKey.SecretAccessKey
 
   UserArn:
-    Description: 'IAM User ARN'
+    Description: "IAM User ARN"
     Value: !GetAtt GitHubActionsUser.Arn
     Export:
-      Name: 'TaskManager-GitHubActionsUserArn'
+      Name: "TaskManager-GitHubActionsUserArn"
 
   PolicyArn:
-    Description: 'Custom policy ARN'
+    Description: "Custom policy ARN"
     Value: !Ref TaskManagerDeploymentPolicy
 
   TemplatesBucketName:
-    Description: 'S3 bucket name for CloudFormation templates'
+    Description: "S3 bucket name for CloudFormation templates"
     Value: !Ref TemplatesBucketName
 
   SetupInstructions:
-    Description: 'Instructions for GitHub Secrets setup'
+    Description: "Instructions for GitHub Secrets setup"
     Value: !Sub |
       Add these to your GitHub repository secrets:
       AWS_ACCESS_KEY_ID=${GitHubActionsAccessKey}
