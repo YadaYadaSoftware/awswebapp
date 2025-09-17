@@ -241,7 +241,6 @@ jobs:
     outputs:
       shared-lambda-role-arn: ${{ steps.deploy-global.outputs.SharedLambdaRoleArn }}
       bastion-role-arn: ${{ steps.deploy-global.outputs.BastionRoleArn }}
-      database-secret-arn: ${{ steps.deploy-global.outputs.DatabaseSecretArn }}
       bastion-instance-profile-arn: ${{ steps.deploy-global.outputs.BastionInstanceProfileArn }}
       aurora-global-cluster-id: ${{ steps.deploy-global.outputs.AuroraGlobalClusterId }}
       aurora-kms-key-arn: ${{ steps.deploy-global.outputs.AuroraKmsKeyArn }}
@@ -451,7 +450,7 @@ jobs:
         echo "DatabasePassword: [REDACTED]"
         echo "SharedLambdaRoleArn: ${{ needs.deploy-global.outputs.shared-lambda-role-arn }}"
         echo "BastionRoleArn: ${{ needs.deploy-global.outputs.bastion-role-arn }}"
-        echo "DatabaseSecretArn: ${{ needs.deploy-global.outputs.database-secret-arn }}"
+        echo "DatabaseSecretArn: ${{ needs.deploy-regional-db.outputs.db-secret-arn }}"
         echo "BastionInstanceProfileArn: ${{ needs.deploy-global.outputs.bastion-instance-profile-arn }}"
         echo "AuroraGlobalClusterId: ${{ needs.deploy-global.outputs.aurora-global-cluster-id }}"
 
@@ -466,7 +465,7 @@ jobs:
           exit 1
         fi
 
-        if [ -z "${{ needs.deploy-global.outputs.database-secret-arn }}" ]; then
+        if [ -z "${{ needs.deploy-regional-db.outputs.db-secret-arn }}" ]; then
           echo "❌ ERROR: DatabaseSecretArn is empty"
           exit 1
         fi
