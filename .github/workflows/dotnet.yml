@@ -169,6 +169,26 @@ jobs:
         path: ecs-cleanup-layer.zip
         retention-days: 1
 
+    - name: Create KMS Cleanup Lambda Layer
+      run: |
+        # Create layer directory structure
+        mkdir -p python/lib/python3.9/site-packages
+
+        # Install urllib3 for CloudFormation custom resource responses
+        pip install urllib3 -t python/lib/python3.9/site-packages/
+
+        # Create layer ZIP file
+        zip -r kms-cleanup-layer.zip python/
+
+        echo "KMS cleanup layer created successfully"
+
+    - name: Upload KMS Cleanup Layer
+      uses: actions/upload-artifact@v4
+      with:
+        name: kms-cleanup-layer-package
+        path: kms-cleanup-layer.zip
+        retention-days: 1
+
   build:
     name: Build and Test Applications
     needs: build-layers
@@ -326,26 +346,7 @@ jobs:
         name: sg-cleanup-layer-package
         path: sg-cleanup-layer.zip
 
-    - name: Create KMS Cleanup Lambda Layer
-      run: |
-        # Create layer directory structure
-        mkdir -p python/lib/python3.9/site-packages
-
-        # Install urllib3 for CloudFormation custom resource responses
-        pip install urllib3 -t python/lib/python3.9/site-packages/
-
-        # Create layer ZIP file
-        zip -r kms-cleanup-layer.zip python/
-
-        echo "KMS cleanup layer created successfully"
-
-    - name: Upload KMS Cleanup Layer
-      uses: actions/upload-artifact@v4
-      with:
-        name: kms-cleanup-layer-package
-        path: kms-cleanup-layer.zip
-
-    # ECS cleanup layer already created by build-layers job
+    # KMS and ECS cleanup layers are created by build-layers job
     # Skipping duplicate creation to avoid artifact name conflicts
 
   prepare-global:
