@@ -26,10 +26,6 @@ Parameters:
     Type: String
     Description: "ARN of the bastion role from global stack"
 
-  DatabaseSecretArn:
-    Type: String
-    Description: "ARN of the database secret from global stack"
-
   BastionInstanceProfileArn:
     Type: String
     Description: "ARN of the bastion instance profile from global stack"
@@ -90,10 +86,6 @@ Parameters:
   DatabaseReaderEndpoint:
     Type: String
     Description: "Database reader endpoint from regional-db stack"
-
-  RegionalDatabaseSecretArn:
-    Type: String
-    Description: "Database secret ARN from regional-db stack"
 
 Resources:
   # ECR Repository for Web Application
@@ -235,12 +227,6 @@ Outputs:
     Value: !Ref DatabaseReaderEndpoint
     Export:
       Name: "TaskManager-DatabaseReaderEndpoint"
-
-  DatabaseSecretArn:
-    Description: "Database secret ARN"
-    Value: !Ref RegionalDatabaseSecretArn
-    Export:
-      Name: "TaskManager-DatabaseSecret"
 
   BastionHostIP:
     Description: "Bastion host public IP address"
