@@ -52,6 +52,8 @@ Resources:
               - acm:*
               - route53:*
               - iam:*
+              - ssm:GetParameter
+              - ssm:GetParameters
             Resource: "*"
 
           # Service-linked role creation

@@ -99,6 +99,16 @@ Resources:
                   - kms:DisableKey
                   - kms:ScheduleKeyDeletion
                 Resource: "*"
+        - PolicyName: SSMParameterAccess
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                  - ssm:GetParameters
+                Resource:
+                  - "arn:aws:ssm:*:*:parameter/aws/service/ami-amazon-linux-latest/*"
       Tags:
         - Key: Stack
           Value: !Ref "AWS::StackName"
@@ -126,6 +136,16 @@ Resources:
                 Resource:
                   - !Sub arn:aws:secretsmanager:us-east-1:${AWS::AccountId}:secret:taskmanager/database/regional/us-east-1*
                   - !Sub arn:aws:secretsmanager:us-east-2:${AWS::AccountId}:secret:taskmanager/database/regional/us-east-2*
+        - PolicyName: SSMParameterAccess
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                  - ssm:GetParameters
+                Resource:
+                  - "arn:aws:ssm:*:*:parameter/aws/service/ami-amazon-linux-latest/*"
       Tags:
         - Key: Stack
           Value: !Ref "AWS::StackName"
