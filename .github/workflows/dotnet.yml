@@ -438,7 +438,7 @@ jobs:
         aws s3 cp infrastructure/regional-db.yaml s3://taskmanager-templates-bucket-${{ matrix.region }}/ --region ${{ matrix.region }}
         aws s3 cp src/TaskManager.Api/api-template.yaml s3://taskmanager-templates-bucket-${{ matrix.region }}/ --region ${{ matrix.region }}
         aws s3 cp src/TaskManager.Web2/web-template.yaml s3://taskmanager-templates-bucket-${{ matrix.region }}/ --region ${{ matrix.region }}
-        aws s3 cp wrapper-template.yaml s3://taskmanager-templates-bucket-${{ matrix.region }}/ --region ${{ matrix.region }}
+        aws s3 cp infrastructure/wrapper-template.yaml s3://taskmanager-templates-bucket-${{ matrix.region }}/ --region ${{ matrix.region }}
 
 
         # Verify uploads
@@ -683,7 +683,7 @@ jobs:
       uses: aws-actions/aws-cloudformation-github-deploy@v1
       with:
         name: ${{ env.STACK_NAME }}-${{ matrix.region }}
-        template: wrapper-template.yaml
+        template: infrastructure/wrapper-template.yaml
         parameter-overrides: Environment=${{ env.BRANCH_NAME }},ApiCodeBucket=taskmanager-templates-bucket-${{ matrix.region }},WebContainerImage=${{ env.CONTAINER_IMAGE }},DeploymentToken=${{ github.sha }},DomainName=appcloud.systems,HostedZoneId=Z06422172SASV44F5Y8VA,DatabasePassword=${{ secrets.DATABASE_PASSWORD }},TemplatesBucket=taskmanager-templates-bucket-${{ matrix.region }}
         capabilities: "CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND"
         no-fail-on-empty-changeset: "1"
