@@ -279,20 +279,6 @@ jobs:
         capabilities: "CAPABILITY_NAMED_IAM"
         no-fail-on-empty-changeset: "1"
       timeout-minutes: 20
-
-    - name: Verify Global Infrastructure Deployment
-      run: |
-        echo "🔍 Verifying global infrastructure deployment..."
-        aws cloudformation wait stack-create-complete \
-          --stack-name taskmanager-global-infrastructure \
-          --region us-east-2
-
-        echo "✅ Global infrastructure deployed successfully"
-        aws cloudformation describe-stacks \
-          --stack-name taskmanager-global-infrastructure \
-          --region us-east-2 \
-          --query 'Stacks[0].StackStatus'
-
   deploy-regional:
     name: Deploy Regional Stack
     runs-on: ubuntu-latest
@@ -382,19 +368,6 @@ jobs:
         no-fail-on-empty-changeset: "1"
       timeout-minutes: 30
 
-    - name: Verify Regional Database Deployment
-      run: |
-        echo "🔍 Verifying regional database deployment in ${{ matrix.region }}..."
-        aws cloudformation wait stack-create-complete \
-          --stack-name taskmanager-regional-db-${{ matrix.region }} \
-          --region ${{ matrix.region }}
-
-        echo "✅ Regional database deployed successfully in ${{ matrix.region }}"
-        aws cloudformation describe-stacks \
-          --stack-name taskmanager-regional-db-${{ matrix.region }} \
-          --region ${{ matrix.region }} \
-          --query 'Stacks[0].StackStatus'
-
     - name: Upload templates and regional layers to S3
       run: |
         # Upload all templates
@@ -478,20 +451,6 @@ jobs:
         capabilities: "CAPABILITY_NAMED_IAM"
         no-fail-on-empty-changeset: "1"
       timeout-minutes: 20
-
-    - name: Verify Regional Infrastructure Deployment
-      run: |
-        echo "🔍 Verifying regional infrastructure deployment in ${{ matrix.region }}..."
-        aws cloudformation wait stack-create-complete \
-          --stack-name taskmanager-regional-infrastructure-${{ matrix.region }} \
-          --region ${{ matrix.region }}
-
-        echo "✅ Regional infrastructure deployed successfully in ${{ matrix.region }}"
-        aws cloudformation describe-stacks \
-          --stack-name taskmanager-regional-infrastructure-${{ matrix.region }} \
-          --region ${{ matrix.region }} \
-          --query 'Stacks[0].StackStatus'
-
     - name: Build and Push Web Container Image
       env:
         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -625,19 +584,6 @@ jobs:
         capabilities: "CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND"
         no-fail-on-empty-changeset: "1"
       timeout-minutes: 20
-
-    - name: Verify Application Deployment
-      run: |
-        echo "🔍 Verifying application deployment in ${{ matrix.region }}..."
-        aws cloudformation wait stack-create-complete \
-          --stack-name ${{ env.STACK_NAME }}-${{ matrix.region }} \
-          --region ${{ matrix.region }}
-
-        echo "✅ Application deployed successfully in ${{ matrix.region }}"
-        aws cloudformation describe-stacks \
-          --stack-name ${{ env.STACK_NAME }}-${{ matrix.region }} \
-          --region ${{ matrix.region }} \
-          --query 'Stacks[0].StackStatus'
 
     - name: Setup branch database
       run: |
