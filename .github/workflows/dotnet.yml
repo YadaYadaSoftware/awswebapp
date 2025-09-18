@@ -519,10 +519,10 @@ jobs:
     - name: Get branch name for stack naming
       run: |
         BRANCH_NAME=${{ needs.get-branch-name.outputs.branch-name }}
-        STACK_NAME="taskmanager-${BRANCH_NAME}"
+        STACK_PREFIX="taskmanager-${BRANCH_NAME}"
         echo "Branch: $BRANCH_NAME"
-        echo "Stack name: $STACK_NAME"
-        echo "STACK_NAME=$STACK_NAME" >> $GITHUB_ENV
+        echo "Stack name: $STACK_PREFIX"
+        echo "STACK_PREFIX=$STACK_PREFIX" >> $GITHUB_ENV
         echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
 
     - name: Setup SAM CLI
@@ -533,19 +533,19 @@ jobs:
     - name: Cleanup failed branch stack (if exists)
       run: |
         STACK_STATUS=$(aws cloudformation describe-stacks \
-          --stack-name ${{ env.STACK_NAME }}-${{ matrix.region }} \
+          --stack-name ${{ env.STACK_PREFIX }}-${{ matrix.region }} \
           --region ${{ matrix.region }} \
           --query 'Stacks[0].StackStatus' \
           --output text 2>/dev/null || echo "STACK_NOT_FOUND")
 
         if [ "$STACK_STATUS" = "ROLLBACK_COMPLETE" ] || [ "$STACK_STATUS" = "CREATE_FAILED" ] || [ "$STACK_STATUS" = "DELETE_FAILED" ]; then
-          echo "🗑️ Deleting failed branch stack: ${{ env.STACK_NAME }}-${{ matrix.region }}"
+          echo "🗑️ Deleting failed branch stack: ${{ env.STACK_PREFIX }}-${{ matrix.region }}"
           aws cloudformation delete-stack \
-            --stack-name ${{ env.STACK_NAME }}-${{ matrix.region }} \
+            --stack-name ${{ env.STACK_PREFIX }}-${{ matrix.region }} \
             --region ${{ matrix.region }}
 
           aws cloudformation wait stack-delete-complete \
-            --stack-name ${{ env.STACK_NAME }}-${{ matrix.region }} \
+            --stack-name ${{ env.STACK_PREFIX }}-${{ matrix.region }} \
             --region ${{ matrix.region }}
 
           echo "✅ Failed branch stack cleaned up"
@@ -583,7 +583,7 @@ jobs:
       id: deploy-wrapper
       uses: aws-actions/aws-cloudformation-github-deploy@v1
       with:
-        name: wrapper-${{ env.STACK_NAME }}
+        name: ${{ env.STACK_PREFIX }}-wrapper
         template: infrastructure/wrapper-template.yaml
         parameter-overrides: Environment=${{ needs.get-branch-name.outputs.branch-name }},ApiCodeBucket=taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-templates-bucket-${{ matrix.region }},WebContainerImage=${{ env.CONTAINER_IMAGE }},DeploymentToken=${{ github.sha }},DomainName=appcloud.systems,HostedZoneId=Z06422172SASV44F5Y8VA,TemplatesBucket=taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-templates-bucket-${{ matrix.region }}
         capabilities: "CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND"
@@ -665,8 +665,8 @@ jobs:
         API_GATEWAY_ID=$(echo $API_URL | sed 's|https://||' | sed 's|\.execute-api.*||')
 
         echo "🚀 TaskManager (${{ needs.get-branch-name.outputs.branch-name }}) deployed successfully in ${{ matrix.region }}!"
-        echo "📋 API Stack: ${{ env.STACK_NAME }}-${{ matrix.region }}-api ✅ Endpoint: $API_URL"
-        echo "📋 Web Stack: ${{ env.STACK_NAME }}-${{ matrix.region }}-web ✅ Load Balancer: $WEB_URL"
+        echo "📋 API Stack: ${{ env.STACK_PREFIX }}-${{ matrix.region }}-api ✅ Endpoint: $API_URL"
+        echo "📋 Web Stack: ${{ env.STACK_PREFIX }}-${{ matrix.region }}-web ✅ Load Balancer: $WEB_URL"
         echo "🖥️ Bastion host IP: $BASTION_IP"
         echo "💾 Database: taskmanager_${{ needs.get-branch-name.outputs.branch-name }} ✅ Setup verified"
         echo "🔗 SSH Tunnel: $TUNNEL_CMD"
@@ -732,11 +732,11 @@ jobs:
 
         # Check application deployment
         BRANCH_NAME=${{ needs.get-branch-name.outputs.branch-name }}
-        STACK_NAME="taskmanager-${BRANCH_NAME}"
+        STACK_PREFIX="taskmanager-${BRANCH_NAME}"
 
         echo "Checking application deployment..."
         APP_STATUS=$(aws cloudformation describe-stacks \
-          --stack-name ${STACK_NAME}-${{ matrix.region }} \
+          --stack-name ${STACK_PREFIX}-${{ matrix.region }} \
           --region ${{ matrix.region }} \
           --query 'Stacks[0].StackStatus' \
           --output text 2>/dev/null || echo "NOT_FOUND")
