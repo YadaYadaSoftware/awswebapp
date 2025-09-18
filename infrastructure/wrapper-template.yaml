@@ -85,7 +85,7 @@ Resources:
           ]
         VPCId:
           Fn::ImportValue:
-            Fn::Sub: "TaskManager-VPC-${AWS::Region}"
+            Fn::Sub: "TaskManager-${Environment}-VPC-${AWS::Region}"
         ALBSecurityGroupId:
           Fn::ImportValue:
             Fn::Sub: "TaskManager-ALBSecurityGroup-${AWS::Region}"
