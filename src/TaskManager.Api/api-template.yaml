@@ -217,8 +217,7 @@ Resources:
             Path: /setup-database
             Method: POST
       Tags:
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
+        Stack: !Ref "AWS::StackName"
   # TaskManager API Function
   TaskManagerApiFunction:
     Type: AWS::Serverless::Function
