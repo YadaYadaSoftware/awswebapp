@@ -1,41 +1,41 @@
-AWSTemplateFormatVersion: '2010-09-09'
+AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
-Description: 'TaskManager API - Lambda Function with Branch-Specific Database'
+Description: "TaskManager API - Lambda Function with Branch-Specific Database"
 
 Parameters:
   Environment:
     Type: String
     Default: main
-    Description: 'Environment name (typically branch name)'
+    Description: "Environment name (typically branch name)"
 
   ApiCodeBucket:
     Type: String
-    Description: 'S3 bucket name for API Lambda deployment package'
+    Description: "S3 bucket name for API Lambda deployment package"
 
   ApiCodeKey:
     Type: String
-    Description: 'S3 key for API Lambda deployment package'
-    Default: 'api-lambda-deployment.zip'
+    Description: "S3 key for API Lambda deployment package"
+    Default: "api-lambda-deployment.zip"
 
   SharedLambdaRoleArn:
     Type: String
-    Description: 'ARN of the shared Lambda execution role'
+    Description: "ARN of the shared Lambda execution role"
 
   DatabaseEndpoint:
     Type: String
-    Description: 'Database endpoint address'
+    Description: "Database endpoint address"
 
   LambdaSecurityGroupId:
     Type: String
-    Description: 'Security group ID for Lambda functions'
+    Description: "Security group ID for Lambda functions"
 
   PrivateSubnet1Id:
     Type: String
-    Description: 'Private subnet 1 ID'
+    Description: "Private subnet 1 ID"
 
   PrivateSubnet2Id:
     Type: String
-    Description: 'Private subnet 2 ID'
+    Description: "Private subnet 2 ID"
 
 Globals:
   Function:
@@ -51,7 +51,7 @@ Resources:
   DatabaseSetupLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub '/aws/lambda/TaskManager-DbSetup-${Environment}'
+      LogGroupName: !Sub "/aws/lambda/TaskManager-DbSetup-${Environment}"
       RetentionInDays: 7
       Tags:
         - Key: Stack
@@ -61,7 +61,7 @@ Resources:
   ApiLambdaLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub '/aws/lambda/TaskManagerApi-${Environment}'
+      LogGroupName: !Sub "/aws/lambda/TaskManagerApi-${Environment}"
       RetentionInDays: 7
       Tags:
         - Key: Stack
@@ -71,11 +71,11 @@ Resources:
   MySQLLayer:
     Type: AWS::Lambda::LayerVersion
     Properties:
-      LayerName: !Sub 'taskmanager-mysql-layer-${Environment}'
-      Description: 'MySQL dependencies for Lambda'
+      LayerName: !Sub "taskmanager-mysql-layer-${Environment}"
+      Description: "MySQL dependencies for Lambda"
       Content:
         S3Bucket: !Ref ApiCodeBucket
-        S3Key: 'mysql-layer.zip'
+        S3Key: "mysql-layer.zip"
       CompatibleRuntimes:
         - python3.9
 
@@ -86,7 +86,7 @@ Resources:
       - DatabaseSetupLogGroup
       - MySQLLayer
     Properties:
-      FunctionName: !Sub 'TaskManager-DbSetup-${Environment}'
+      FunctionName: !Sub "TaskManager-DbSetup-${Environment}"
       Timeout: 120
       Layers:
         - !Ref MySQLLayer
@@ -202,8 +202,8 @@ Resources:
           BRANCH_NAME: !Ref Environment
           DB_HOST: !Ref DatabaseEndpoint
           DB_USER: taskmanager_admin
-          DB_PASSWORD: !Sub '{{resolve:secretsmanager:taskmanager/database/shared:SecretString:password}}'
-          SETUP_AUTH_TOKEN: 'taskmanager-setup-secure-token-2024'
+          DB_PASSWORD: !Sub "{{resolve:secretsmanager:taskmanager/database/${Environment}/regional/${AWS::Region}:SecretString:password}}"
+          SETUP_AUTH_TOKEN: "taskmanager-setup-secure-token-2024"
       VpcConfig:
         SecurityGroupIds:
           - !Ref LambdaSecurityGroupId
@@ -226,7 +226,7 @@ Resources:
       - DatabaseSetupFunction
       - ApiLambdaLogGroup
     Properties:
-      FunctionName: !Sub 'TaskManagerApi-${Environment}'
+      FunctionName: !Sub "TaskManagerApi-${Environment}"
       CodeUri:
         Bucket: !Ref ApiCodeBucket
         Key: !Ref ApiCodeKey
@@ -239,10 +239,10 @@ Resources:
         Variables:
           ASPNETCORE_ENVIRONMENT: !Ref Environment
           ConnectionStrings__DefaultConnection: !Sub
-            - 'Server=${DatabaseEndpoint};Database=taskmanager_${DatabaseName};User Id=taskmanager_admin;Password=${DatabasePassword};SslMode=Required;'
+            - "Server=${DatabaseEndpoint};Database=taskmanager_${DatabaseName};User Id=taskmanager_admin;Password=${DatabasePassword};SslMode=Required;"
             - DatabaseEndpoint: !Ref DatabaseEndpoint
-              DatabaseName: !Sub '${Environment}'
-              DatabasePassword: !Sub '{{resolve:secretsmanager:taskmanager/database/shared:SecretString:password}}'
+              DatabaseName: !Sub "${Environment}"
+              DatabasePassword: !Sub "{{resolve:secretsmanager:taskmanager/database/${Environment}/regional/${AWS::Region}:SecretString:password}}"
       VpcConfig:
         SecurityGroupIds:
           - !Ref LambdaSecurityGroupId
@@ -270,8 +270,8 @@ Resources:
   LambdaErrorAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName: !Sub 'TaskManager-API-Errors-${Environment}'
-      AlarmDescription: 'API Lambda function error rate alarm'
+      AlarmName: !Sub "TaskManager-API-Errors-${Environment}"
+      AlarmDescription: "API Lambda function error rate alarm"
       MetricName: Errors
       Namespace: AWS/Lambda
       Statistic: Sum
@@ -285,20 +285,20 @@ Resources:
 
 Outputs:
   ApiEndpoint:
-    Description: 'API Gateway endpoint URL'
+    Description: "API Gateway endpoint URL"
     Value: !Sub
-      - 'https://${ApiId}.execute-api.${Region}.amazonaws.com/Prod/'
+      - "https://${ApiId}.execute-api.${Region}.amazonaws.com/Prod/"
       - ApiId: !Ref ServerlessRestApi
         Region: !Ref AWS::Region
 
   ApiLambdaFunctionName:
-    Description: 'API Lambda function name'
+    Description: "API Lambda function name"
     Value: !Ref TaskManagerApiFunction
 
   DatabaseName:
-    Description: 'Branch-specific database name'
-    Value: !Sub 'taskmanager_${Environment}'
+    Description: "Branch-specific database name"
+    Value: !Sub "taskmanager_${Environment}"
 
   BranchEnvironment:
-    Description: 'Branch environment name'
+    Description: "Branch environment name"
     Value: !Ref Environment

@@ -51,7 +51,7 @@ Resources:
             !Sub "arn:aws:iam::${AWS::AccountId}:role/TaskManager-Shared-Lambda-Role-us-east-1",
             !Sub "arn:aws:iam::${AWS::AccountId}:role/TaskManager-Shared-Lambda-Role-${AWS::Region}",
           ]
-        DatabaseEndpoint: !Sub "taskmanager-cluster.cluster-{{resolve:secretsmanager:taskmanager/database/shared:SecretString:cluster_arn}}.${AWS::Region}.rds.amazonaws.com"
+        DatabaseEndpoint: !Sub "taskmanager-cluster.cluster-{{resolve:secretsmanager:taskmanager/database/${Environment}/regional/${AWS::Region}:SecretString:cluster_arn}}.${AWS::Region}.rds.amazonaws.com"
         LambdaSecurityGroupId:
           Fn::ImportValue: !Sub "TaskManager-LambdaSecurityGroup-${AWS::Region}"
         PrivateSubnet1Id:
@@ -107,7 +107,7 @@ Resources:
         ECSClusterName:
           Fn::ImportValue:
             Fn::Sub: "TaskManager-ECSCluster"
-        DatabaseEndpoint: !Sub "taskmanager-cluster.cluster-{{resolve:secretsmanager:taskmanager/database/shared:SecretString:cluster_arn}}.${AWS::Region}.rds.amazonaws.com"
+        DatabaseEndpoint: !Sub "taskmanager-cluster.cluster-{{resolve:secretsmanager:taskmanager/database/${Environment}/regional/${AWS::Region}:SecretString:cluster_arn}}.${AWS::Region}.rds.amazonaws.com"
       Tags:
         - Key: Component
           Value: Web-Infrastructure

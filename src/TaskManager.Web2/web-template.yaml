@@ -1,5 +1,5 @@
-AWSTemplateFormatVersion: '2010-09-09'
-Description: 'TaskManager Web Frontend - Blazor Server ECS Container with Application Load Balancer'
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "TaskManager Web Frontend - Blazor Server ECS Container with Application Load Balancer"
 # Fixed ECS service getting stuck and 502 Bad Gateway by:
 # - Health check path: /health (excluded from authentication)
 # - Adjusted health check timing (30s interval, 5s timeout)
@@ -35,72 +35,72 @@ Parameters:
   Environment:
     Type: String
     Default: main
-    Description: 'Environment name (typically branch name)'
+    Description: "Environment name (typically branch name)"
 
   WebContainerImage:
     Type: String
-    Description: 'Container image URI for the web application'
+    Description: "Container image URI for the web application"
 
   DeploymentToken:
     Type: String
-    Description: 'Deployment token to force task definition updates'
-    Default: 'default'
+    Description: "Deployment token to force task definition updates"
+    Default: "default"
 
   DomainName:
     Type: String
-    Default: 'appcloud.systems'
-    Description: 'Domain name for SSL certificate'
+    Default: "appcloud.systems"
+    Description: "Domain name for SSL certificate"
 
   HostedZoneId:
     Type: String
-    Description: 'Route 53 hosted zone ID for the domain'
+    Description: "Route 53 hosted zone ID for the domain"
 
   SharedLambdaRoleArn:
     Type: String
-    Description: 'ARN of the shared Lambda execution role'
+    Description: "ARN of the shared Lambda execution role"
 
   VPCId:
     Type: String
-    Description: 'VPC ID'
+    Description: "VPC ID"
 
   ALBSecurityGroupId:
     Type: String
-    Description: 'Security group ID for ALB'
+    Description: "Security group ID for ALB"
 
   ECSTaskSecurityGroupId:
     Type: String
-    Description: 'Security group ID for ECS tasks'
+    Description: "Security group ID for ECS tasks"
 
   PublicSubnet1Id:
     Type: String
-    Description: 'Public subnet 1 ID'
+    Description: "Public subnet 1 ID"
 
   PublicSubnet2Id:
     Type: String
-    Description: 'Public subnet 2 ID'
+    Description: "Public subnet 2 ID"
 
   PrivateSubnet1Id:
     Type: String
-    Description: 'Private subnet 1 ID'
+    Description: "Private subnet 1 ID"
 
   PrivateSubnet2Id:
     Type: String
-    Description: 'Private subnet 2 ID'
+    Description: "Private subnet 2 ID"
 
   ECSClusterName:
     Type: String
-    Description: 'ECS cluster name'
+    Description: "ECS cluster name"
 
   DatabaseEndpoint:
     Type: String
-    Description: 'Database endpoint address'
+    Description: "Database endpoint address"
 
 Resources:
   # CloudWatch Log Group for ECS
   WebECSLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub '/ecs/TaskManagerWeb-${Environment}'
+      LogGroupName: !Sub "/ecs/TaskManagerWeb-${Environment}"
       RetentionInDays: 7
       Tags:
         - Key: Stack
@@ -110,7 +110,7 @@ Resources:
   WebLoadBalancer:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:
-      Name: !Sub 'web-${Environment}'
+      Name: !Sub "web-${Environment}"
       Type: application
       Scheme: internet-facing
       SecurityGroups:
@@ -128,7 +128,7 @@ Resources:
   WebTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
-      Name: !Sub 'webtg-${Environment}'
+      Name: !Sub "webtg-${Environment}"
       Protocol: HTTP
       Port: 80
       VpcId: !Ref VPCId
@@ -155,9 +155,9 @@ Resources:
           RedirectConfig:
             Protocol: HTTPS
             Port: 443
-            Host: '#{host}'
-            Path: '/#{path}'
-            Query: '#{query}'
+            Host: "#{host}"
+            Path: "/#{path}"
+            Query: "#{query}"
             StatusCode: HTTP_301
 
   # ALB HTTPS Listener
@@ -178,7 +178,7 @@ Resources:
     Type: AWS::Route53::RecordSet
     Properties:
       HostedZoneId: !Ref HostedZoneId
-      Name: !Sub '${Environment}.${DomainName}'
+      Name: !Sub "${Environment}.${DomainName}"
       Type: A
       AliasTarget:
         DNSName: !GetAtt WebLoadBalancer.DNSName
@@ -188,22 +188,22 @@ Resources:
   WebSSLCertificate:
     Type: AWS::CertificateManager::Certificate
     Properties:
-      DomainName: !Sub '${Environment}.${DomainName}'
+      DomainName: !Sub "${Environment}.${DomainName}"
       ValidationMethod: DNS
       DomainValidationOptions:
-        - DomainName: !Sub '${Environment}.${DomainName}'
+        - DomainName: !Sub "${Environment}.${DomainName}"
           HostedZoneId: !Ref HostedZoneId
 
   # ECS Task Definition
   WebTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
-      Family: !Sub 'webtd-${Environment}'
+      Family: !Sub "webtd-${Environment}"
       NetworkMode: awsvpc
       RequiresCompatibilities:
         - FARGATE
-      Cpu: '512'
-      Memory: '1024'
+      Cpu: "512"
+      Memory: "1024"
       ExecutionRoleArn: !Ref SharedLambdaRoleArn
       TaskRoleArn: !Ref SharedLambdaRoleArn
       ContainerDefinitions:
@@ -217,17 +217,17 @@ Resources:
               Protocol: tcp
           Environment:
             - Name: ASPNETCORE_ENVIRONMENT
-              Value: 'Production'
+              Value: "Production"
             - Name: ConnectionStrings__DefaultConnection
               Value: !Sub
-                - 'Server=${DatabaseEndpoint};Database=taskmanager_${DatabaseName};User Id=taskmanager_admin;Password=${DatabasePassword};SslMode=Required;'
+                - "Server=${DatabaseEndpoint};Database=taskmanager_${DatabaseName};User Id=taskmanager_admin;Password=${DatabasePassword};SslMode=Required;"
                 - DatabaseEndpoint: !Ref DatabaseEndpoint
-                  DatabaseName: !Sub '${Environment}'
-                  DatabasePassword: !Sub '{{resolve:secretsmanager:taskmanager/database/shared:SecretString:password}}'
+                  DatabaseName: !Sub "${Environment}"
+                  DatabasePassword: !Sub "{{resolve:secretsmanager:taskmanager/database/${Environment}/regional/${AWS::Region}:SecretString:password}}"
             - Name: ASPNETCORE_URLS
-              Value: 'http://*:80'
+              Value: "http://*:80"
             - Name: DOTNET_RUNNING_IN_CONTAINER
-              Value: 'true'
+              Value: "true"
             - Name: AWS__Logging__LogGroup
               Value: !Ref WebECSLogGroup
             - Name: AWS__Logging__Region
@@ -248,7 +248,7 @@ Resources:
       - WebListener
       - WebTaskDefinition
     Properties:
-      ServiceName: !Sub 'websvc-${Environment}'
+      ServiceName: !Sub "websvc-${Environment}"
       Cluster: !Ref ECSClusterName
       TaskDefinition: !Ref WebTaskDefinition
       DesiredCount: 1
@@ -275,8 +275,8 @@ Resources:
   WebECSServiceAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName: !Sub 'TaskManager-Web-Unhealthy-${Environment}'
-      AlarmDescription: 'Web ECS service unhealthy targets alarm'
+      AlarmName: !Sub "TaskManager-Web-Unhealthy-${Environment}"
+      AlarmDescription: "Web ECS service unhealthy targets alarm"
       MetricName: UnHealthyHostCount
       Namespace: AWS/ApplicationELB
       Statistic: Maximum
@@ -292,18 +292,17 @@ Resources:
 
 Outputs:
   WebEndpoint:
-    Description: 'Web application endpoint URL'
-    Value: !Sub 'https://${Environment}.${DomainName}'
+    Description: "Web application endpoint URL"
+    Value: !Sub "https://${Environment}.${DomainName}"
 
   WebLoadBalancerDNS:
-    Description: 'Web Load Balancer DNS name'
+    Description: "Web Load Balancer DNS name"
     Value: !GetAtt WebLoadBalancer.DNSName
 
-
   WebTaskDefinition:
-    Description: 'Web ECS task definition'
+    Description: "Web ECS task definition"
     Value: !Ref WebTaskDefinition
 
   WebServiceName:
-    Description: 'Web ECS service name'
+    Description: "Web ECS service name"
     Value: !Ref WebService
