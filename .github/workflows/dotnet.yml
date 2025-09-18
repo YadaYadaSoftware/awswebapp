@@ -117,6 +117,7 @@ jobs:
         template: infrastructure/regional-setup.yaml
         parameter-overrides: BranchName=${{ needs.get-branch-name.outputs.branch-name }}
         no-fail-on-empty-changeset: "1"
+        timeout-in-minutes: 5
 
   build-layers:
     name: Build MySQL Lambda Layer
@@ -291,7 +292,7 @@ jobs:
         parameter-overrides: DatabasePassword=${{ secrets.DATABASE_PASSWORD }},EngineVersion=${{ env.ENGINE_VERSION }},GitHubActionsUserArn=${{ steps.get-github-user.outputs.github-actions-user-arn }}
         capabilities: "CAPABILITY_NAMED_IAM"
         no-fail-on-empty-changeset: "1"
-      timeout-minutes: 20
+        timeout-in-minutes: 20
   deploy-regional:
     name: Deploy Regional Stack
     runs-on: ubuntu-latest
@@ -379,7 +380,7 @@ jobs:
         parameter-overrides: "BranchName=${{ needs.get-branch-name.outputs.branch-name }},DatabasePassword=${{ secrets.DATABASE_PASSWORD }},EngineVersion=${{ env.ENGINE_VERSION }},AuroraGlobalClusterId=${{ needs.deploy-global.outputs.aurora-global-cluster-id }},AuroraKmsKeyArn=${{ needs.deploy-global.outputs.aurora-kms-key-arn }},IsPrimaryRegion=${{ matrix.is_primary }},GitHubActionsUserArn=${{ needs.deploy-global.outputs.github-actions-user-arn }}"
         capabilities: "CAPABILITY_NAMED_IAM"
         no-fail-on-empty-changeset: "1"
-        timeout-minutes: 30
+        timeout-in-minutes: 30
 
     - name: Upload templates and regional layers to S3
       run: |
@@ -463,7 +464,7 @@ jobs:
         parameter-overrides: "BranchName=${{ needs.get-branch-name.outputs.branch-name }},DatabasePassword=${{ secrets.DATABASE_PASSWORD }},SharedLambdaRoleArn=${{ needs.deploy-global.outputs.shared-lambda-role-arn }},BastionRoleArn=${{ needs.deploy-global.outputs.bastion-role-arn }},BastionInstanceProfileArn=${{ needs.deploy-global.outputs.bastion-instance-profile-arn }},AuroraGlobalClusterId=${{ needs.deploy-global.outputs.aurora-global-cluster-id }},AuroraKmsKeyArn=${{ needs.deploy-global.outputs.aurora-kms-key-arn }},EngineVersion=${{ env.ENGINE_VERSION }},VPCId=${{ steps.deploy-regional-db.outputs.VPCId }},PrivateSubnet1Id=${{ steps.deploy-regional-db.outputs.PrivateSubnet1Id }},PrivateSubnet2Id=${{ steps.deploy-regional-db.outputs.PrivateSubnet2Id }},PublicSubnet1Id=${{ steps.deploy-regional-db.outputs.PublicSubnet1Id }},PublicSubnet2Id=${{ steps.deploy-regional-db.outputs.PublicSubnet2Id }},LambdaSecurityGroupId=${{ steps.deploy-regional-db.outputs.LambdaSecurityGroupId }},RDSSecurityGroupId=${{ steps.deploy-regional-db.outputs.RDSSecurityGroupId }},BastionSecurityGroupId=${{ steps.deploy-regional-db.outputs.BastionSecurityGroupId }},ALBSecurityGroupId=${{ steps.deploy-regional-db.outputs.ALBSecurityGroupId }},ECSTaskSecurityGroupId=${{ steps.deploy-regional-db.outputs.ECSTaskSecurityGroupId }},DatabaseEndpoint=${{ steps.deploy-regional-db.outputs.DatabaseEndpoint }},DatabaseReaderEndpoint=${{ steps.deploy-regional-db.outputs.DatabaseReaderEndpoint }}"
         capabilities: "CAPABILITY_NAMED_IAM"
         no-fail-on-empty-changeset: "1"
-        timeout-minutes: 20
+        timeout-in-minutes: 20
     - name: Build and Push Web Container Image
       env:
         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
