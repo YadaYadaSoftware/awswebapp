@@ -52,9 +52,12 @@ Resources:
             !Sub "arn:aws:iam::${AWS::AccountId}:role/TaskManager-Shared-Lambda-Role-${AWS::Region}",
           ]
         DatabaseEndpoint: !Sub "taskmanager-cluster.cluster-{{resolve:secretsmanager:taskmanager/database/shared:SecretString:cluster_arn}}.${AWS::Region}.rds.amazonaws.com"
-        LambdaSecurityGroupId: !Sub "{{resolve:ssm:/taskmanager/lambda-security-group-id}}"
-        PrivateSubnet1Id: !Sub "{{resolve:ssm:/taskmanager/private-subnet-1-id}}"
-        PrivateSubnet2Id: !Sub "{{resolve:ssm:/taskmanager/private-subnet-2-id}}"
+        LambdaSecurityGroupId:
+          Fn::ImportValue: !Sub "TaskManager-LambdaSecurityGroup-${AWS::Region}"
+        PrivateSubnet1Id:
+          Fn::ImportValue: !Sub "TaskManager-PrivateSubnet1-${AWS::Region}"
+        PrivateSubnet2Id:
+          Fn::ImportValue: !Sub "TaskManager-PrivateSubnet2-${AWS::Region}"
       Tags:
         - Key: Component
           Value: API
@@ -80,14 +83,30 @@ Resources:
             !Sub "arn:aws:iam::${AWS::AccountId}:role/TaskManager-Shared-Lambda-Role-us-east-1",
             !Sub "arn:aws:iam::${AWS::AccountId}:role/TaskManager-Shared-Lambda-Role-${AWS::Region}",
           ]
-        VPCId: !Sub "{{resolve:ssm:/taskmanager/vpc-id}}"
-        ALBSecurityGroupId: !Sub "{{resolve:ssm:/taskmanager/alb-security-group-id}}"
-        ECSTaskSecurityGroupId: !Sub "{{resolve:ssm:/taskmanager/ecs-task-security-group-id}}"
-        PublicSubnet1Id: !Sub "{{resolve:ssm:/taskmanager/public-subnet-1-id}}"
-        PublicSubnet2Id: !Sub "{{resolve:ssm:/taskmanager/public-subnet-2-id}}"
-        PrivateSubnet1Id: !Sub "{{resolve:ssm:/taskmanager/private-subnet-1-id}}"
-        PrivateSubnet2Id: !Sub "{{resolve:ssm:/taskmanager/private-subnet-2-id}}"
-        ECSClusterName: !Sub "{{resolve:ssm:/taskmanager/ecs-cluster-name}}"
+        VPCId:
+          Fn::ImportValue:
+            Fn::Sub: "TaskManager-VPC-${AWS::Region}"
+        ALBSecurityGroupId:
+          Fn::ImportValue:
+            Fn::Sub: "TaskManager-ALBSecurityGroup-${AWS::Region}"
+        ECSTaskSecurityGroupId:
+          Fn::ImportValue:
+            Fn::Sub: "TaskManager-ECSTaskSecurityGroup-${AWS::Region}"
+        PublicSubnet1Id:
+          Fn::ImportValue:
+            Fn::Sub: "TaskManager-PublicSubnet1-${AWS::Region}"
+        PublicSubnet2Id:
+          Fn::ImportValue:
+            Fn::Sub: "TaskManager-PublicSubnet2-${AWS::Region}"
+        PrivateSubnet1Id:
+          Fn::ImportValue:
+            Fn::Sub: "TaskManager-PrivateSubnet1-${AWS::Region}"
+        PrivateSubnet2Id:
+          Fn::ImportValue:
+            Fn::Sub: "TaskManager-PrivateSubnet2-${AWS::Region}"
+        ECSClusterName:
+          Fn::ImportValue:
+            Fn::Sub: "TaskManager-ECSCluster"
         DatabaseEndpoint: !Sub "taskmanager-cluster.cluster-{{resolve:secretsmanager:taskmanager/database/shared:SecretString:cluster_arn}}.${AWS::Region}.rds.amazonaws.com"
       Tags:
         - Key: Component
