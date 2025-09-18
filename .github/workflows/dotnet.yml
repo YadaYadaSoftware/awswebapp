@@ -10,7 +10,6 @@ env:
   AWS_REGION: us-east-1
   AWS_REGION_2: us-east-2
   ENGINE_VERSION: 8.0.mysql_aurora.3.10.0
-  BRANCH_NAME: ${GITHUB_REF#refs/heads/}
 
 jobs:
   yaml-lint:
@@ -80,19 +79,19 @@ jobs:
     - name: Cleanup failed bucket stack (if exists)
       run: |
         STACK_STATUS=$(aws cloudformation describe-stacks \
-          --stack-name taskmanager-${{ env.BRANCH_NAME }}-regional-bucket-${{ matrix.region }} \
+          --stack-name taskmanager-${GITHUB_REF#refs/heads/}-regional-bucket \
           --region ${{ matrix.region }} \
           --query 'Stacks[0].StackStatus' \
           --output text 2>/dev/null || echo "STACK_NOT_FOUND")
 
         if [ "$STACK_STATUS" = "ROLLBACK_FAILED" ] || [ "$STACK_STATUS" = "ROLLBACK_COMPLETE" ] || [ "$STACK_STATUS" = "CREATE_FAILED" ] || [ "$STACK_STATUS" = "DELETE_FAILED" ]; then
-          echo "🗑️ Deleting failed bucket stack: taskmanager-${{ env.BRANCH_NAME }}-regional-bucket-${{ matrix.region }}"
+          echo "🗑️ Deleting failed bucket stack: taskmanager-${GITHUB_REF#refs/heads/}-regional-bucket"
           aws cloudformation delete-stack \
-            --stack-name taskmanager-${{ env.BRANCH_NAME }}-regional-bucket-${{ matrix.region }} \
+            --stack-name taskmanager-${GITHUB_REF#refs/heads/}-regional-bucket \
             --region ${{ matrix.region }}
 
           aws cloudformation wait stack-delete-complete \
-            --stack-name taskmanager-${{ env.BRANCH_NAME }}-regional-bucket-${{ matrix.region }} \
+            --stack-name taskmanager-${GITHUB_REF#refs/heads/}-regional-bucket \
             --region ${{ matrix.region }}
 
           echo "✅ Failed bucket stack cleaned up"
@@ -102,9 +101,9 @@ jobs:
       id: deploy
       uses: aws-actions/aws-cloudformation-github-deploy@v1
       with:
-        name: taskmanager-${{ env.BRANCH_NAME }}-regional-bucket
+        name: taskmanager-${GITHUB_REF#refs/heads/}-regional-bucket
         template: infrastructure/regional-setup.yaml
-        parameter-overrides: BranchName=${{ env.BRANCH_NAME }}
+        parameter-overrides: BranchName=${GITHUB_REF#refs/heads/}
         no-fail-on-empty-changeset: "1"
 
   build-layers:
@@ -275,9 +274,9 @@ jobs:
       id: deploy-global
       uses: aws-actions/aws-cloudformation-github-deploy@v1
       with:
-        name: taskmanager-global-infrastructure
+        name: taskmanager-${GITHUB_REF#refs/heads/}-global-infrastructure
         template: infrastructure/global-template.yaml
-        parameter-overrides: DatabasePassword=${{ secrets.DATABASE_PASSWORD }},EngineVersion=${{ env.ENGINE_VERSION }},GitHubActionsUserArn=${{ steps.get-github-user.outputs.github-actions-user-arn }}
+        parameter-overrides: BranchName=${GITHUB_REF#refs/heads/},DatabasePassword=${{ secrets.DATABASE_PASSWORD }},EngineVersion=${{ env.ENGINE_VERSION }},GitHubActionsUserArn=${{ steps.get-github-user.outputs.github-actions-user-arn }}
         capabilities: "CAPABILITY_NAMED_IAM"
         no-fail-on-empty-changeset: "1"
       timeout-minutes: 20
@@ -336,24 +335,24 @@ jobs:
     - name: Upload regional-db template to S3
       run: |
         echo "Uploading regional-db template to S3..."
-        aws s3 cp infrastructure/regional-db.yaml s3://taskmanager-${{ env.BRANCH_NAME }}-templates-bucket-${{ matrix.region }}/ --region ${{ matrix.region }}
+        aws s3 cp infrastructure/regional-db.yaml s3://taskmanager-${GITHUB_REF#refs/heads/}-templates-bucket-${{ matrix.region }}/ --region ${{ matrix.region }}
 
     - name: Cleanup failed regional-db stack (if exists)
       run: |
         STACK_STATUS=$(aws cloudformation describe-stacks \
-          --stack-name taskmanager-${{ env.BRANCH_NAME }}-regional-db-${{ matrix.region }} \
+          --stack-name taskmanager-${GITHUB_REF#refs/heads/}-regional-db-${{ matrix.region }} \
           --region ${{ matrix.region }} \
           --query 'Stacks[0].StackStatus' \
           --output text 2>/dev/null || echo "STACK_NOT_FOUND")
 
         if [ "$STACK_STATUS" = "ROLLBACK_FAILED" ] || [ "$STACK_STATUS" = "ROLLBACK_COMPLETE" ] || [ "$STACK_STATUS" = "CREATE_FAILED" ] || [ "$STACK_STATUS" = "DELETE_FAILED" ]; then
-          echo "🗑️ Deleting failed regional-db stack: taskmanager-${{ env.BRANCH_NAME }}-regional-db-${{ matrix.region }}"
+          echo "🗑️ Deleting failed regional-db stack: taskmanager-${GITHUB_REF#refs/heads/}-regional-db-${{ matrix.region }}"
           aws cloudformation delete-stack \
-            --stack-name taskmanager-${{ env.BRANCH_NAME }}-regional-db-${{ matrix.region }} \
+            --stack-name taskmanager-${GITHUB_REF#refs/heads/}-regional-db-${{ matrix.region }} \
             --region ${{ matrix.region }}
 
           aws cloudformation wait stack-delete-complete \
-            --stack-name taskmanager-${{ env.BRANCH_NAME }}-regional-db-${{ matrix.region }} \
+            --stack-name taskmanager-${GITHUB_REF#refs/heads/}-regional-db-${{ matrix.region }} \
             --region ${{ matrix.region }}
 
           echo "✅ Failed regional-db stack cleaned up"
@@ -363,26 +362,26 @@ jobs:
       id: deploy-regional-db
       uses: aws-actions/aws-cloudformation-github-deploy@v1
       with:
-        name: taskmanager-${{ env.BRANCH_NAME }}-regional-db
+        name: taskmanager-${GITHUB_REF#refs/heads/}-regional-db
         template: infrastructure/regional-db.yaml
-        parameter-overrides: "BranchName=${{ env.BRANCH_NAME }},DatabasePassword=${{ secrets.DATABASE_PASSWORD }},EngineVersion=${{ env.ENGINE_VERSION }},AuroraGlobalClusterId=${{ needs.deploy-global.outputs.aurora-global-cluster-id }},AuroraKmsKeyArn=${{ needs.deploy-global.outputs.aurora-kms-key-arn }},IsPrimaryRegion=${{ matrix.is_primary }},GitHubActionsUserArn=${{ needs.deploy-global.outputs.github-actions-user-arn }}"
+        parameter-overrides: "BranchName=${GITHUB_REF#refs/heads/},DatabasePassword=${{ secrets.DATABASE_PASSWORD }},EngineVersion=${{ env.ENGINE_VERSION }},AuroraGlobalClusterId=${{ needs.deploy-global.outputs.aurora-global-cluster-id }},AuroraKmsKeyArn=${{ needs.deploy-global.outputs.aurora-kms-key-arn }},IsPrimaryRegion=${{ matrix.is_primary }},GitHubActionsUserArn=${{ needs.deploy-global.outputs.github-actions-user-arn }}"
         capabilities: "CAPABILITY_NAMED_IAM"
         no-fail-on-empty-changeset: "1"
-      timeout-minutes: 30
+        timeout-minutes: 30
 
     - name: Upload templates and regional layers to S3
       run: |
         # Upload all templates
         echo "Uploading templates to S3..."
-        aws s3 cp infrastructure/regional-infrastructure.yaml s3://taskmanager-${{ env.BRANCH_NAME }}-templates-bucket-${{ matrix.region }}/ --region ${{ matrix.region }}
-        aws s3 cp infrastructure/regional-db.yaml s3://taskmanager-${{ env.BRANCH_NAME }}-templates-bucket-${{ matrix.region }}/ --region ${{ matrix.region }}
-        aws s3 cp src/TaskManager.Api/api-template.yaml s3://taskmanager-${{ env.BRANCH_NAME }}-templates-bucket-${{ matrix.region }}/ --region ${{ matrix.region }}
-        aws s3 cp src/TaskManager.Web2/web-template.yaml s3://taskmanager-${{ env.BRANCH_NAME }}-templates-bucket-${{ matrix.region }}/ --region ${{ matrix.region }}
-        aws s3 cp infrastructure/wrapper-template.yaml s3://taskmanager-${{ env.BRANCH_NAME }}-templates-bucket-${{ matrix.region }}/ --region ${{ matrix.region }}
+        aws s3 cp infrastructure/regional-infrastructure.yaml s3://taskmanager-${GITHUB_REF#refs/heads/}-templates-bucket-${{ matrix.region }}/ --region ${{ matrix.region }}
+        aws s3 cp infrastructure/regional-db.yaml s3://taskmanager-${GITHUB_REF#refs/heads/}-templates-bucket-${{ matrix.region }}/ --region ${{ matrix.region }}
+        aws s3 cp src/TaskManager.Api/api-template.yaml s3://taskmanager-${GITHUB_REF#refs/heads/}-templates-bucket-${{ matrix.region }}/ --region ${{ matrix.region }}
+        aws s3 cp src/TaskManager.Web2/web-template.yaml s3://taskmanager-${GITHUB_REF#refs/heads/}-templates-bucket-${{ matrix.region }}/ --region ${{ matrix.region }}
+        aws s3 cp infrastructure/wrapper-template.yaml s3://taskmanager-${GITHUB_REF#refs/heads/}-templates-bucket-${{ matrix.region }}/ --region ${{ matrix.region }}
 
         # Verify uploads
         echo "Verifying S3 uploads..."
-        aws s3 ls s3://taskmanager-${{ env.BRANCH_NAME }}-templates-bucket-${{ matrix.region }}/ --region ${{ matrix.region }}
+        aws s3 ls s3://taskmanager-${GITHUB_REF#refs/heads/}-templates-bucket-${{ matrix.region }}/ --region ${{ matrix.region }}
 
     - name: Validate Parameter Values
       run: |
@@ -425,19 +424,19 @@ jobs:
     - name: Cleanup failed regional stack (if exists)
       run: |
         STACK_STATUS=$(aws cloudformation describe-stacks \
-          --stack-name taskmanager-${{ env.BRANCH_NAME }}-regional-${{ matrix.region }} \
+          --stack-name taskmanager-${GITHUB_REF#refs/heads/}-regional-${{ matrix.region }} \
           --region ${{ matrix.region }} \
           --query 'Stacks[0].StackStatus' \
           --output text 2>/dev/null || echo "STACK_NOT_FOUND")
 
         if [ "$STACK_STATUS" = "ROLLBACK_FAILED" ] || [ "$STACK_STATUS" = "ROLLBACK_COMPLETE" ] || [ "$STACK_STATUS" = "CREATE_FAILED" ] || [ "$STACK_STATUS" = "DELETE_FAILED" ]; then
-          echo "🗑️ Deleting failed regional stack: taskmanager-${{ env.BRANCH_NAME }}-regional-${{ matrix.region }}"
+          echo "🗑️ Deleting failed regional stack: taskmanager-${GITHUB_REF#refs/heads/}-regional-${{ matrix.region }}"
           aws cloudformation delete-stack \
-            --stack-name taskmanager-${{ env.BRANCH_NAME }}-regional-${{ matrix.region }} \
+            --stack-name taskmanager-${GITHUB_REF#refs/heads/}-regional-${{ matrix.region }} \
             --region ${{ matrix.region }}
 
           aws cloudformation wait stack-delete-complete \
-            --stack-name taskmanager-${{ env.BRANCH_NAME }}-regional-${{ matrix.region }} \
+            --stack-name taskmanager-${GITHUB_REF#refs/heads/}-regional-${{ matrix.region }} \
             --region ${{ matrix.region }}
 
           echo "✅ Failed regional stack cleaned up"
@@ -447,9 +446,9 @@ jobs:
       id: deploy-regional
       uses: aws-actions/aws-cloudformation-github-deploy@v1
       with:
-        name: taskmanager-${{ env.BRANCH_NAME }}-regional-infrastructure
+        name: taskmanager-${GITHUB_REF#refs/heads/}-regional-infrastructure
         template: infrastructure/regional-infrastructure.yaml
-        parameter-overrides: "BranchName=${{ env.BRANCH_NAME }},DatabasePassword=${{ secrets.DATABASE_PASSWORD }},SharedLambdaRoleArn=${{ needs.deploy-global.outputs.shared-lambda-role-arn }},BastionRoleArn=${{ needs.deploy-global.outputs.bastion-role-arn }},BastionInstanceProfileArn=${{ needs.deploy-global.outputs.bastion-instance-profile-arn }},AuroraGlobalClusterId=${{ needs.deploy-global.outputs.aurora-global-cluster-id }},AuroraKmsKeyArn=${{ needs.deploy-global.outputs.aurora-kms-key-arn }},EngineVersion=${{ env.ENGINE_VERSION }},VPCId=${{ steps.deploy-regional-db.outputs.VPCId }},PrivateSubnet1Id=${{ steps.deploy-regional-db.outputs.PrivateSubnet1Id }},PrivateSubnet2Id=${{ steps.deploy-regional-db.outputs.PrivateSubnet2Id }},PublicSubnet1Id=${{ steps.deploy-regional-db.outputs.PublicSubnet1Id }},PublicSubnet2Id=${{ steps.deploy-regional-db.outputs.PublicSubnet2Id }},LambdaSecurityGroupId=${{ steps.deploy-regional-db.outputs.LambdaSecurityGroupId }},RDSSecurityGroupId=${{ steps.deploy-regional-db.outputs.RDSSecurityGroupId }},BastionSecurityGroupId=${{ steps.deploy-regional-db.outputs.BastionSecurityGroupId }},ALBSecurityGroupId=${{ steps.deploy-regional-db.outputs.ALBSecurityGroupId }},ECSTaskSecurityGroupId=${{ steps.deploy-regional-db.outputs.ECSTaskSecurityGroupId }},DatabaseEndpoint=${{ steps.deploy-regional-db.outputs.DatabaseEndpoint }},DatabaseReaderEndpoint=${{ steps.deploy-regional-db.outputs.DatabaseReaderEndpoint }}"
+        parameter-overrides: "BranchName=${GITHUB_REF#refs/heads/},DatabasePassword=${{ secrets.DATABASE_PASSWORD }},SharedLambdaRoleArn=${{ needs.deploy-global.outputs.shared-lambda-role-arn }},BastionRoleArn=${{ needs.deploy-global.outputs.bastion-role-arn }},BastionInstanceProfileArn=${{ needs.deploy-global.outputs.bastion-instance-profile-arn }},AuroraGlobalClusterId=${{ needs.deploy-global.outputs.aurora-global-cluster-id }},AuroraKmsKeyArn=${{ needs.deploy-global.outputs.aurora-kms-key-arn }},EngineVersion=${{ env.ENGINE_VERSION }},VPCId=${{ steps.deploy-regional-db.outputs.VPCId }},PrivateSubnet1Id=${{ steps.deploy-regional-db.outputs.PrivateSubnet1Id }},PrivateSubnet2Id=${{ steps.deploy-regional-db.outputs.PrivateSubnet2Id }},PublicSubnet1Id=${{ steps.deploy-regional-db.outputs.PublicSubnet1Id }},PublicSubnet2Id=${{ steps.deploy-regional-db.outputs.PublicSubnet2Id }},LambdaSecurityGroupId=${{ steps.deploy-regional-db.outputs.LambdaSecurityGroupId }},RDSSecurityGroupId=${{ steps.deploy-regional-db.outputs.RDSSecurityGroupId }},BastionSecurityGroupId=${{ steps.deploy-regional-db.outputs.BastionSecurityGroupId }},ALBSecurityGroupId=${{ steps.deploy-regional-db.outputs.ALBSecurityGroupId }},ECSTaskSecurityGroupId=${{ steps.deploy-regional-db.outputs.ECSTaskSecurityGroupId }},DatabaseEndpoint=${{ steps.deploy-regional-db.outputs.DatabaseEndpoint }},DatabaseReaderEndpoint=${{ steps.deploy-regional-db.outputs.DatabaseReaderEndpoint }}"
         capabilities: "CAPABILITY_NAMED_IAM"
         no-fail-on-empty-changeset: "1"
         timeout-minutes: 20
@@ -460,7 +459,7 @@ jobs:
         AWS_DEFAULT_REGION: ${{ env.AWS_REGION }}
       run: |
         # Use GitVersion for unique image tagging
-        BRANCH_NAME=${{ env.BRANCH_NAME }}
+        BRANCH_NAME=${GITHUB_REF#refs/heads/}
         IMAGE_TAG=${{ needs.build.outputs.semVer }}
         BRANCH_TAG=${BRANCH_NAME:-main}
 
@@ -506,7 +505,7 @@ jobs:
 
     - name: Get branch name for stack naming
       run: |
-        BRANCH_NAME=${{ env.BRANCH_NAME }}
+        BRANCH_NAME=${GITHUB_REF#refs/heads/}
         STACK_NAME="taskmanager-${BRANCH_NAME}"
         echo "Branch: $BRANCH_NAME"
         echo "Stack name: $STACK_NAME"
@@ -558,14 +557,14 @@ jobs:
         ls -la ./artifacts/
 
         # Upload Lambda deployment packages
-        aws s3 cp ./artifacts/api-lambda-deployment.zip s3://taskmanager-${{ env.BRANCH_NAME }}-templates-bucket-${{ matrix.region }}/api-lambda-deployment.zip --region ${{ matrix.region }}
+        aws s3 cp ./artifacts/api-lambda-deployment.zip s3://taskmanager-${GITHUB_REF#refs/heads/}-templates-bucket-${{ matrix.region }}/api-lambda-deployment.zip --region ${{ matrix.region }}
 
         # Upload MySQL layer
-        aws s3 cp ./artifacts/mysql-layer.zip s3://taskmanager-${{ env.BRANCH_NAME }}-templates-bucket-${{ matrix.region }}/mysql-layer.zip --region ${{ matrix.region }}
+        aws s3 cp ./artifacts/mysql-layer.zip s3://taskmanager-${GITHUB_REF#refs/heads/}-templates-bucket-${{ matrix.region }}/mysql-layer.zip --region ${{ matrix.region }}
 
         # Verify uploads
         echo "S3 bucket contents:"
-        aws s3 ls s3://taskmanager-${{ env.BRANCH_NAME }}-templates-bucket-${{ matrix.region }}/ --region ${{ matrix.region }} | grep -E "(api-lambda-deployment|mysql-layer)"
+        aws s3 ls s3://taskmanager-${GITHUB_REF#refs/heads/}-templates-bucket-${{ matrix.region }}/ --region ${{ matrix.region }} | grep -E "(api-lambda-deployment|mysql-layer)"
 
     - name: Deploy Wrapper Template (Nested Stacks)
       id: deploy-wrapper
@@ -573,14 +572,14 @@ jobs:
       with:
         name: wrapper-${{ env.STACK_NAME }}
         template: infrastructure/wrapper-template.yaml
-        parameter-overrides: BranchName=${{ env.BRANCH_NAME }},Environment=${{ env.BRANCH_NAME }},ApiCodeBucket=taskmanager-${{ env.BRANCH_NAME }}-templates-bucket-${{ matrix.region }},WebContainerImage=${{ env.CONTAINER_IMAGE }},DeploymentToken=${{ github.sha }},DomainName=appcloud.systems,HostedZoneId=Z06422172SASV44F5Y8VA,TemplatesBucket=taskmanager-${{ env.BRANCH_NAME }}-templates-bucket-${{ matrix.region }}
+        parameter-overrides: BranchName=${GITHUB_REF#refs/heads/},Environment=${GITHUB_REF#refs/heads/},ApiCodeBucket=taskmanager-${GITHUB_REF#refs/heads/}-templates-bucket-${{ matrix.region }},WebContainerImage=${{ env.CONTAINER_IMAGE }},DeploymentToken=${{ github.sha }},DomainName=appcloud.systems,HostedZoneId=Z06422172SASV44F5Y8VA,TemplatesBucket=taskmanager-${GITHUB_REF#refs/heads/}-templates-bucket-${{ matrix.region }}
         capabilities: "CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND"
         no-fail-on-empty-changeset: "1"
       timeout-minutes: 20
 
     - name: Setup branch database
       run: |
-        echo "Setting up database for branch: ${{ env.BRANCH_NAME }}"
+        echo "Setting up database for branch: ${GITHUB_REF#refs/heads/}"
 
         # Get API endpoint from wrapper stack outputs
         API_URL="${{ steps.deploy-wrapper.outputs.ApiEndpoint }}"
@@ -652,11 +651,11 @@ jobs:
         # Extract API Gateway ID from URL
         API_GATEWAY_ID=$(echo $API_URL | sed 's|https://||' | sed 's|\.execute-api.*||')
 
-        echo "🚀 TaskManager (${{ env.BRANCH_NAME }}) deployed successfully in ${{ matrix.region }}!"
+        echo "🚀 TaskManager (${GITHUB_REF#refs/heads/}) deployed successfully in ${{ matrix.region }}!"
         echo "📋 API Stack: ${{ env.STACK_NAME }}-${{ matrix.region }}-api ✅ Endpoint: $API_URL"
         echo "📋 Web Stack: ${{ env.STACK_NAME }}-${{ matrix.region }}-web ✅ Load Balancer: $WEB_URL"
         echo "🖥️ Bastion host IP: $BASTION_IP"
-        echo "💾 Database: taskmanager_${{ env.BRANCH_NAME }} ✅ Setup verified"
+        echo "💾 Database: taskmanager_${GITHUB_REF#refs/heads/} ✅ Setup verified"
         echo "🔗 SSH Tunnel: $TUNNEL_CMD"
 
         # Set outputs for other jobs
@@ -668,7 +667,7 @@ jobs:
       run: |
         # Note: SMS notification disabled as SNS topic is not defined in global template
         echo "📱 SMS notification skipped - SNS topic not configured in global infrastructure"
-        echo "🚀 TaskManager deployment complete! Branch: ${{ env.BRANCH_NAME }} Region: ${{ matrix.region }} API: $API_URL Web App: https://$BRANCH_NAME.appcloud.systems Database: taskmanager_${{ env.BRANCH_NAME }} ✅ Setup verified Bastion IP: $BASTION_IP Both API and Web are fully deployed and running!"
+        echo "🚀 TaskManager deployment complete! Branch: ${GITHUB_REF#refs/heads/} Region: ${{ matrix.region }} API: $API_URL Web App: https://$BRANCH_NAME.appcloud.systems Database: taskmanager_${GITHUB_REF#refs/heads/} ✅ Setup verified Bastion IP: $BASTION_IP Both API and Web are fully deployed and running!"
 
     - name: Verify All Deployments
       run: |
@@ -678,7 +677,7 @@ jobs:
         if [ "${{ matrix.region }}" = "us-east-1" ]; then
           echo "Checking global infrastructure..."
           GLOBAL_STATUS=$(aws cloudformation describe-stacks \
-            --stack-name taskmanager-${{ env.BRANCH_NAME }}-global-infrastructure \
+            --stack-name taskmanager-${GITHUB_REF#refs/heads/}-global-infrastructure \
             --region us-east-1 \
             --query 'Stacks[0].StackStatus' \
             --output text 2>/dev/null || echo "NOT_FOUND")
@@ -693,7 +692,7 @@ jobs:
         # Check regional database
         echo "Checking regional database..."
         REGIONAL_DB_STATUS=$(aws cloudformation describe-stacks \
-          --stack-name taskmanager-${{ env.BRANCH_NAME }}-regional-db-${{ matrix.region }} \
+          --stack-name taskmanager-${GITHUB_REF#refs/heads/}-regional-db-${{ matrix.region }} \
           --region ${{ matrix.region }} \
           --query 'Stacks[0].StackStatus' \
           --output text 2>/dev/null || echo "NOT_FOUND")
@@ -707,7 +706,7 @@ jobs:
         # Check regional infrastructure
         echo "Checking regional infrastructure..."
         REGIONAL_STATUS=$(aws cloudformation describe-stacks \
-          --stack-name taskmanager-${{ env.BRANCH_NAME }}-regional-${{ matrix.region }} \
+          --stack-name taskmanager-${GITHUB_REF#refs/heads/}-regional-${{ matrix.region }} \
           --region ${{ matrix.region }} \
           --query 'Stacks[0].StackStatus' \
           --output text 2>/dev/null || echo "NOT_FOUND")
@@ -719,7 +718,7 @@ jobs:
         echo "✅ Regional infrastructure: $REGIONAL_STATUS"
 
         # Check application deployment
-        BRANCH_NAME=${{ env.BRANCH_NAME }}
+        BRANCH_NAME=${GITHUB_REF#refs/heads/}
         STACK_NAME="taskmanager-${BRANCH_NAME}"
 
         echo "Checking application deployment..."
