@@ -30,6 +30,9 @@ Parameters:
   GitHubActionsUserArn:
     Type: String
     Description: ARN of the GitHub Actions IAM user from IAM setup stack
+  BranchName:
+    Type: String
+    Description: Branch name for resource naming
 
 Conditions:
   IsPrimary: !Equals [!Ref IsPrimaryRegion, "true"]
@@ -286,7 +289,7 @@ Resources:
       SubnetIds:
         - !Ref PrivateSubnet1
         - !Ref PrivateSubnet2
-      DBSubnetGroupName: !Sub "taskmanager-aurora-subnet-group-${AWS::Region}"
+      DBSubnetGroupName: !Sub "taskmanager-${BranchName}-aurora-subnet-group-${AWS::Region}"
       Tags:
         - Key: Name
           Value: "TaskManager-Aurora-SubnetGroup"
@@ -314,6 +317,7 @@ Resources:
     Type: AWS::RDS::DBCluster
     Properties:
       GlobalClusterIdentifier: !Ref AuroraGlobalClusterId
+      DBClusterIdentifier: !Sub "taskmanager-${BranchName}-aurora-cluster-${AWS::Region}"
       Engine: aurora-mysql
       EngineVersion: !Ref EngineVersion
       MasterUsername: !If [IsPrimary, "taskmanager_admin", !Ref "AWS::NoValue"]
@@ -353,7 +357,7 @@ Resources:
   AuroraInstance:
     Type: AWS::RDS::DBInstance
     Properties:
-      DBInstanceIdentifier: !Sub "taskmanager-aurora-instance-${AWS::Region}"
+      DBInstanceIdentifier: !Sub "taskmanager-${BranchName}-aurora-instance-${AWS::Region}"
       DBClusterIdentifier: !Ref AuroraCluster
       DBInstanceClass: db.serverless
       Engine: aurora-mysql
@@ -452,7 +456,7 @@ Resources:
   DatabaseSecret:
     Type: AWS::SecretsManager::Secret
     Properties:
-      Name: !Sub "taskmanager/database/regional/${AWS::Region}"
+      Name: !Sub "taskmanager/database/${BranchName}/regional/${AWS::Region}"
       Description: Database credentials for Aurora Regional Cluster
       SecretString: !Sub |
         {
@@ -474,7 +478,7 @@ Outputs:
     Description: VPC ID for regional database
     Value: !Ref TaskManagerVPC
     Export:
-      Name: !Sub "TaskManager-VPC-${AWS::Region}"
+      Name: !Sub "TaskManager-${BranchName}-VPC-${AWS::Region}"
 
   PrivateSubnet1Id:
     Description: Private subnet 1 ID

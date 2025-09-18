@@ -1,11 +1,16 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: "Regional S3 bucket setup"
 
+Parameters:
+  BranchName:
+    Type: String
+    Description: "Branch name for resource naming"
+
 Resources:
   RegionalArtifactsBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Sub "taskmanager-templates-bucket-${AWS::Region}"
+      BucketName: !Sub "taskmanager-${BranchName}-templates-bucket-${AWS::Region}"
       VersioningConfiguration:
         Status: Enabled
       PublicAccessBlockConfiguration:
@@ -26,4 +31,4 @@ Outputs:
     Description: "Name of the templates bucket"
     Value: !Ref RegionalArtifactsBucket
     Export:
-      Name: !Sub "TaskManager-RegionalTemplatesBucket-${AWS::Region}"
+      Name: !Sub "TaskManager-${BranchName}-RegionalTemplatesBucket-${AWS::Region}"
