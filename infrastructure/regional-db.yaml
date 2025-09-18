@@ -400,6 +400,7 @@ Resources:
   # KMS Key Replica (for multi-region support)
   AuroraKmsKeyReplica:
     Type: AWS::KMS::ReplicaKey
+    DeletionPolicy: Retain
     Condition: IsNotPrimary
     Properties:
       PrimaryKeyArn: !Ref AuroraKmsKeyArn
