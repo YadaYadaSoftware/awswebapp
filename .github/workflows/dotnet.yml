@@ -561,15 +561,6 @@ jobs:
         # Upload MySQL layer
         aws s3 cp ./artifacts/mysql-layer.zip s3://taskmanager-templates-bucket-${{ matrix.region }}/mysql-layer.zip --region ${{ matrix.region }}
 
-        # Upload S3 cleanup layer
-        aws s3 cp ./artifacts/s3-cleanup-layer.zip s3://taskmanager-templates-bucket-${{ matrix.region }}/s3-cleanup-layer.zip --region ${{ matrix.region }}
-
-        # Upload IAM cleanup layer
-        aws s3 cp ./artifacts/iam-cleanup-layer.zip s3://taskmanager-templates-bucket-${{ matrix.region }}/iam-cleanup-layer.zip --region ${{ matrix.region }}
-
-        # Upload ECS cleanup layer
-        aws s3 cp ./artifacts/ecs-cleanup-layer.zip s3://taskmanager-templates-bucket-${{ matrix.region }}/ecs-cleanup-layer.zip --region ${{ matrix.region }}
-
         # Verify uploads
         echo "S3 bucket contents:"
         aws s3 ls s3://taskmanager-templates-bucket-${{ matrix.region }}/ --region ${{ matrix.region }} | grep -E "(api-lambda-deployment|mysql-layer)"
