@@ -173,17 +173,6 @@ Resources:
         - Type: forward
           TargetGroupArn: !Ref WebTargetGroup
 
-  # Route 53 Record for subdomain
-  WebDNSRecord:
-    Type: AWS::Route53::RecordSet
-    Properties:
-      HostedZoneId: !Ref HostedZoneId
-      Name: !Sub "${Environment}.${DomainName}"
-      Type: A
-      AliasTarget:
-        DNSName: !GetAtt WebLoadBalancer.DNSName
-        HostedZoneId: !FindInMap [RegionMap, !Ref AWS::Region, ALBHostedZoneId]
-
   # SSL Certificate for HTTPS (subdomain)
   WebSSLCertificate:
     Type: AWS::CertificateManager::Certificate
@@ -298,6 +287,10 @@ Outputs:
   WebLoadBalancerDNS:
     Description: "Web Load Balancer DNS name"
     Value: !GetAtt WebLoadBalancer.DNSName
+
+  WebLoadBalancerHostedZoneId:
+    Description: "Web Load Balancer hosted zone ID"
+    Value: !FindInMap [RegionMap, !Ref AWS::Region, ALBHostedZoneId]
 
   WebTaskDefinition:
     Description: "Web ECS task definition"

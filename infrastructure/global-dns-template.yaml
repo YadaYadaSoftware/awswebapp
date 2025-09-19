@@ -1,0 +1,116 @@
+---
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Global DNS Configuration for Multi-Region Failover"
+
+Parameters:
+  Environment:
+    Type: String
+    Default: main
+    Description: "Environment name (typically branch name)"
+
+  DomainName:
+    Type: String
+    Default: "appcloud.systems"
+    Description: "Domain name for SSL certificate"
+
+  HostedZoneId:
+    Type: String
+    Description: "Route 53 hosted zone ID for the domain"
+
+  PrimaryRegion:
+    Type: String
+    Default: "us-east-1"
+    Description: "Primary region for failover"
+
+  SecondaryRegion:
+    Type: String
+    Default: "us-east-2"
+    Description: "Secondary region for failover"
+
+Resources:
+  # Health Check for Primary ALB
+  PrimaryHealthCheck:
+    Type: AWS::Route53::HealthCheck
+    Properties:
+      HealthCheckConfig:
+        Type: HTTP
+        ResourcePath: /health
+        FullyQualifiedDomainName:
+          Fn::ImportValue: !Sub "TaskManager-${Environment}-${PrimaryRegion}-WebLoadBalancerDNS"
+        Port: 80
+        RequestInterval: 30
+        FailureThreshold: 2
+      HealthCheckTags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Purpose
+          Value: Primary-Web-Failover
+
+  # Health Check for Secondary ALB
+  SecondaryHealthCheck:
+    Type: AWS::Route53::HealthCheck
+    Properties:
+      HealthCheckConfig:
+        Type: HTTP
+        ResourcePath: /health
+        FullyQualifiedDomainName:
+          Fn::ImportValue: !Sub "TaskManager-${Environment}-${SecondaryRegion}-WebLoadBalancerDNS"
+        Port: 80
+        RequestInterval: 30
+        FailureThreshold: 2
+      HealthCheckTags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Purpose
+          Value: Secondary-Web-Failover
+
+  # Primary Failover Record
+  PrimaryDNSRecord:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Sub "${Environment}.${DomainName}"
+      Type: A
+      SetIdentifier: !Sub "primary-${Environment}"
+      Failover: PRIMARY
+      AliasTarget:
+        DNSName:
+          Fn::ImportValue: !Sub "TaskManager-${Environment}-${PrimaryRegion}-WebLoadBalancerDNS"
+        HostedZoneId:
+          Fn::ImportValue: !Sub "TaskManager-${Environment}-${PrimaryRegion}-WebLoadBalancerHostedZoneId"
+      HealthCheckId: !Ref PrimaryHealthCheck
+
+  # Secondary Failover Record
+  SecondaryDNSRecord:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Sub "${Environment}.${DomainName}"
+      Type: A
+      SetIdentifier: !Sub "secondary-${Environment}"
+      Failover: SECONDARY
+      AliasTarget:
+        DNSName:
+          Fn::ImportValue: !Sub "TaskManager-${Environment}-${SecondaryRegion}-WebLoadBalancerDNS"
+        HostedZoneId:
+          Fn::ImportValue: !Sub "TaskManager-${Environment}-${SecondaryRegion}-WebLoadBalancerHostedZoneId"
+      HealthCheckId: !Ref SecondaryHealthCheck
+
+Outputs:
+  WebEndpoint:
+    Description: "Web application endpoint URL"
+    Value: !Sub "https://${Environment}.${DomainName}"
+    Export:
+      Name: !Sub "TaskManager-${Environment}-WebEndpoint"
+
+  PrimaryHealthCheckId:
+    Description: "Primary health check ID"
+    Value: !Ref PrimaryHealthCheck
+    Export:
+      Name: !Sub "TaskManager-${Environment}-PrimaryHealthCheck"
+
+  SecondaryHealthCheckId:
+    Description: "Secondary health check ID"
+    Value: !Ref SecondaryHealthCheck
+    Export:
+      Name: !Sub "TaskManager-${Environment}-SecondaryHealthCheck"

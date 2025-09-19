@@ -149,7 +149,13 @@ Outputs:
     Description: "Web Load Balancer DNS name"
     Value: !GetAtt TaskManagerWebStack.Outputs.WebLoadBalancerDNS
     Export:
-      Name: !Sub "TaskManager-${Environment}-WebLoadBalancerDNS"
+      Name: !Sub "TaskManager-${Environment}-${AWS::Region}-WebLoadBalancerDNS"
+
+  WebLoadBalancerHostedZoneId:
+    Description: "Web Load Balancer hosted zone ID"
+    Value: !GetAtt TaskManagerWebStack.Outputs.WebLoadBalancerHostedZoneId
+    Export:
+      Name: !Sub "TaskManager-${Environment}-${AWS::Region}-WebLoadBalancerHostedZoneId"
 
   WebTaskDefinition:
     Description: "Web ECS task definition"
