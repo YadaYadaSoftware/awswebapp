@@ -96,103 +96,63 @@ Resources:
         import os
         import logging
         import pymysql
+        from urllib.request import urlopen, Request
 
         logger = logging.getLogger()
         logger.setLevel(logging.INFO)
 
-        def lambda_handler(event, context):
+        def send_response(event, context, response_status, response_data, physical_resource_id):
+            response_body = {
+                'Status': response_status,
+                'Reason': response_data.get('Reason', 'See CloudWatch Logs'),
+                'PhysicalResourceId': physical_resource_id,
+                'StackId': event['StackId'],
+                'RequestId': event['RequestId'],
+                'LogicalResourceId': event['LogicalResourceId'],
+                'Data': response_data
+            }
+            json_response_body = json.dumps(response_body)
+            headers = {
+                'content-type': '',
+                'content-length': str(len(json_response_body))
+            }
             try:
-                # Simple token-based authentication for CI/CD access
-                auth_token = event.get('headers', {}).get('Authorization') or \
-                            event.get('queryStringParameters', {}).get('token', '')
-                expected_token = os.environ.get('SETUP_AUTH_TOKEN', 'taskmanager-setup-token')
+                req = Request(event['ResponseURL'], data=json_response_body.encode('utf-8'), headers=headers, method='PUT')
+                with urlopen(req) as response:
+                    logger.info(f"Response sent: {response.status}")
+            except Exception as e:
+                logger.error(f"Failed to send response: {e}")
 
-                if auth_token != expected_token:
-                    logger.warning("Unauthorized access attempt to setup-database endpoint")
-                    return {
-                        'statusCode': 401,
-                        'body': json.dumps({'error': 'Unauthorized'})
-                    }
-
-                # Validate required environment variables
-                required_vars = ['BRANCH_NAME', 'DB_HOST', 'DB_USER', 'DB_PASSWORD']
-                missing_vars = [var for var in required_vars \
-                               if var not in os.environ or not os.environ[var]]
-
-                if missing_vars:
-                    error_msg = f"Missing required environment variables: {', '.join(missing_vars)}"
-                    logger.error(error_msg)
-                    return {
-                        'statusCode': 500,
-                        'body': json.dumps({'error': error_msg})
-                    }
-
-                # Create branch-specific database name
-                branch_name = os.environ['BRANCH_NAME']
-                db_name = f"taskmanager_{branch_name}"
-
-                # Validate database name (MySQL naming rules)
-                if not db_name.replace('_', '').replace('-', '').isalnum() or len(db_name) > 64:
-                    error_msg = f"Invalid database name: {db_name} (must be alphanumeric, underscore, or hyphen, max 64 chars)"
-                    logger.error(error_msg)
-                    return {
-                        'statusCode': 400,
-                        'body': json.dumps({'error': error_msg})
-                    }
-
-                logger.info(f"Attempting to setup database: {db_name}")
-
-                # Connect to MySQL using PyMySQL
-                try:
-                    conn = pymysql.connect(
-                        host=os.environ['DB_HOST'],
-                        user=os.environ['DB_USER'],
-                        password=os.environ['DB_PASSWORD'],
-                        database='taskmanager',
-                        port=3306,
-                        ssl={'ssl': {}}
-                    )
-                    logger.info("Successfully connected to MySQL")
-
-                    # MySQL autocommit is enabled by default
-                    cursor = conn.cursor()
-
-                    # Check if database exists
+        def lambda_handler(event, context):
+            request_type = event['RequestType']
+            branch_name = os.environ['BRANCH_NAME']
+            db_name = f"taskmanager_{branch_name}"
+            physical_resource_id = db_name
+            try:
+                conn = pymysql.connect(
+                    host=os.environ['DB_HOST'],
+                    user=os.environ['DB_USER'],
+                    password=os.environ['DB_PASSWORD'],
+                    database='taskmanager',
+                    port=3306,
+                    ssl={'ssl': {}}
+                )
+                cursor = conn.cursor()
+                if request_type == 'Create':
                     cursor.execute("SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME = %s", [db_name])
                     exists = cursor.fetchone()
-
                     if not exists:
-                        # Create database
                         cursor.execute(f"CREATE DATABASE `{db_name}`")
                         logger.info(f"Created database: {db_name}")
-                        message = f"Database {db_name} created successfully"
-                    else:
-                        logger.info(f"Database already exists: {db_name}")
-                        message = f"Database {db_name} already exists"
-
-                    cursor.close()
-                    conn.close()
-
-                    return {
-                        'statusCode': 200,
-                        'body': json.dumps({'message': message, 'database': db_name})
-                    }
-
-                except Exception as e:
-                    error_msg = f"Database operation failed: {str(e)}"
-                    logger.error(error_msg)
-                    return {
-                        'statusCode': 500,
-                        'body': json.dumps({'error': error_msg})
-                    }
-
+                elif request_type == 'Delete':
+                    cursor.execute(f"DROP DATABASE IF EXISTS `{db_name}`")
+                    logger.info(f"Dropped database: {db_name}")
+                cursor.close()
+                conn.close()
+                send_response(event, context, 'SUCCESS', {}, physical_resource_id)
             except Exception as e:
-                error_msg = f"Unexpected error: {str(e)}"
-                logger.error(error_msg)
-                return {
-                    'statusCode': 500,
-                    'body': json.dumps({'error': error_msg})
-                }
+                logger.error(f"Error: {e}")
+                send_response(event, context, 'FAILED', {'Reason': str(e)}, physical_resource_id)
 
       Handler: index.lambda_handler
       Runtime: python3.9
@@ -203,21 +163,21 @@ Resources:
           DB_HOST: !Ref DatabaseEndpoint
           DB_USER: taskmanager_admin
           DB_PASSWORD: !Sub "{{resolve:secretsmanager:taskmanager/database/${Environment}/regional/${AWS::Region}:SecretString:password}}"
-          SETUP_AUTH_TOKEN: "taskmanager-setup-secure-token-2024"
       VpcConfig:
         SecurityGroupIds:
           - !Ref LambdaSecurityGroupId
         SubnetIds:
           - !Ref PrivateSubnet1Id
           - !Ref PrivateSubnet2Id
-      Events:
-        CreateDatabase:
-          Type: Api
-          Properties:
-            Path: /setup-database
-            Method: POST
       Tags:
         Stack: !Ref "AWS::StackName"
+
+  # Custom resource to trigger database setup
+  DatabaseSetupCustomResource:
+    Type: AWS::CloudFormation::CustomResource
+    Properties:
+      ServiceToken: !GetAtt DatabaseSetupFunction.Arn
+
   # TaskManager API Function
   TaskManagerApiFunction:
     Type: AWS::Serverless::Function
