@@ -33,6 +33,10 @@ Parameters:
     Type: String
     Description: "S3 bucket name for CloudFormation templates"
 
+  SharedLambdaRoleArn:
+    Type: String
+    Description: "ARN of the shared Lambda execution role"
+
 Conditions:
   IsUSEast1: !Equals [!Ref AWS::Region, "us-east-1"]
 
@@ -45,8 +49,7 @@ Resources:
       Parameters:
         Environment: !Ref Environment
         ApiCodeBucket: !Ref ApiCodeBucket
-        SharedLambdaRoleArn:
-          Fn::ImportValue: "TaskManager-SharedLambdaRole"
+        SharedLambdaRoleArn: !Ref SharedLambdaRoleArn
         DatabaseEndpoint: !Sub "taskmanager-cluster.cluster-{{resolve:secretsmanager:taskmanager/database/${Environment}/regional/${AWS::Region}:SecretString:cluster_arn}}.${AWS::Region}.rds.amazonaws.com"
         LambdaSecurityGroupId:
           Fn::ImportValue: !Sub "TaskManager-LambdaSecurityGroup-${AWS::Region}"
@@ -73,8 +76,7 @@ Resources:
         DeploymentToken: !Ref DeploymentToken
         DomainName: !Ref DomainName
         HostedZoneId: !Ref HostedZoneId
-        SharedLambdaRoleArn:
-          Fn::ImportValue: "TaskManager-SharedLambdaRole"
+        SharedLambdaRoleArn: !Ref SharedLambdaRoleArn
         VPCId:
           Fn::ImportValue:
             Fn::Sub: "TaskManager-${Environment}-VPC-${AWS::Region}"
