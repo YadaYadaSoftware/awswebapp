@@ -46,7 +46,7 @@ Resources:
         Environment: !Ref Environment
         ApiCodeBucket: !Ref ApiCodeBucket
         SharedLambdaRoleArn:
-          Fn::ImportValue: !Sub "TaskManager-SharedLambdaRole-${AWS::Region}"
+          Fn::ImportValue: "TaskManager-SharedLambdaRole"
         DatabaseEndpoint: !Sub "taskmanager-cluster.cluster-{{resolve:secretsmanager:taskmanager/database/${Environment}/regional/${AWS::Region}:SecretString:cluster_arn}}.${AWS::Region}.rds.amazonaws.com"
         LambdaSecurityGroupId:
           Fn::ImportValue: !Sub "TaskManager-LambdaSecurityGroup-${AWS::Region}"
@@ -74,7 +74,7 @@ Resources:
         DomainName: !Ref DomainName
         HostedZoneId: !Ref HostedZoneId
         SharedLambdaRoleArn:
-          Fn::ImportValue: !Sub "TaskManager-SharedLambdaRole-${AWS::Region}"
+          Fn::ImportValue: "TaskManager-SharedLambdaRole"
         VPCId:
           Fn::ImportValue:
             Fn::Sub: "TaskManager-${Environment}-VPC-${AWS::Region}"
