@@ -15,103 +15,6 @@ Parameters:
     Type: String
     Description: ARN of the GitHub Actions IAM user from IAM setup stack
 Resources:
-  SharedLambdaExecutionRole:
-    Type: AWS::IAM::Role
-    Properties:
-      RoleName: !Sub TaskManager-Shared-Lambda-Role-${AWS::Region}
-      AssumeRolePolicyDocument:
-        Version: 2012-10-17
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service:
-                - lambda.amazonaws.com
-                - ecs-tasks.amazonaws.com
-            Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
-      Policies:
-        - PolicyName: SecretsManagerAccess
-          PolicyDocument:
-            Version: 2012-10-17
-            Statement:
-              - Effect: Allow
-                Action:
-                  - secretsmanager:GetSecretValue
-                  - secretsmanager:DescribeSecret
-                Resource:
-                  - !Sub arn:aws:secretsmanager:us-east-1:${AWS::AccountId}:secret:taskmanager/database/regional/us-east-1*
-                  - !Sub arn:aws:secretsmanager:us-east-2:${AWS::AccountId}:secret:taskmanager/database/regional/us-east-2*
-        - PolicyName: CloudWatchLogs
-          PolicyDocument:
-            Version: 2012-10-17
-            Statement:
-              - Effect: Allow
-                Action:
-                  - logs:CreateLogGroup
-                  - logs:CreateLogStream
-                  - logs:PutLogEvents
-                Resource:
-                  - !Sub arn:aws:logs:us-east-1:${AWS::AccountId}:*
-                  - !Sub arn:aws:logs:us-east-2:${AWS::AccountId}:*
-        - PolicyName: RDSAccess
-          PolicyDocument:
-            Version: 2012-10-17
-            Statement:
-              - Effect: Allow
-                Action:
-                  - rds:CreateDBCluster
-                  - rds:ModifyDBCluster
-                  - rds:DeleteDBCluster
-                  - rds:DescribeDBClusters
-                  - rds:DescribeDBInstances
-                  - rds:DescribeGlobalClusters
-                  - rds:ModifyGlobalCluster
-                  - rds:DeleteGlobalCluster
-                  - rds-data:ExecuteStatement
-                  - rds-data:BatchExecuteStatement
-                Resource:
-                  - !Sub arn:aws:rds:us-east-1:${AWS::AccountId}:cluster:taskmanager-*
-                  - !Sub arn:aws:rds:us-east-2:${AWS::AccountId}:cluster:taskmanager-*
-                  - !Sub arn:aws:rds::${AWS::AccountId}:global-cluster:taskmanager-global-cluster
-        - PolicyName: KMSAccess
-          PolicyDocument:
-            Version: 2012-10-17
-            Statement:
-              - Effect: Allow
-                Action:
-                  - kms:CreateKey
-                  - kms:DescribeKey
-                  - kms:CreateGrant
-                  - kms:Decrypt
-                  - kms:Encrypt
-                  - kms:GenerateDataKey
-                  - kms:ReEncryptFrom
-                  - kms:ReEncryptTo
-                  - kms:RetireGrant
-                  - kms:CreateAlias
-                  - kms:DeleteAlias
-                  - kms:UpdateAlias
-                  - kms:ListAliases
-                  - kms:ListGrants
-                  - kms:RevokeGrant
-                  - kms:ReplicateKey
-                  - kms:DisableKey
-                  - kms:ScheduleKeyDeletion
-                Resource: "*"
-        - PolicyName: SSMParameterAccess
-          PolicyDocument:
-            Version: 2012-10-17
-            Statement:
-              - Effect: Allow
-                Action:
-                  - ssm:GetParameter
-                  - ssm:GetParameters
-                Resource:
-                  - "arn:aws:ssm:*:*:parameter/aws/service/ami-amazon-linux-latest/*"
-      Tags:
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
   BastionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -224,11 +127,6 @@ Resources:
         - Key: Stack
           Value: !Ref "AWS::StackName"
 Outputs:
-  SharedLambdaRoleArn:
-    Description: Shared Lambda execution role ARN
-    Value: !GetAtt SharedLambdaExecutionRole.Arn
-    Export:
-      Name: TaskManager-SharedLambdaRole
   BastionRoleArn:
     Description: Bastion role ARN
     Value: !GetAtt BastionRole.Arn

@@ -18,10 +18,6 @@ Parameters:
     Description: "Public key material for bastion SSH access (generate locally with ssh-keygen and paste the .pub content here)"
     Default: "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCuSPS013ezN5lbrX/yOgu2d5n+97vzyj0P7oD2n5mCyblEG184U6r0LOu+DWURveDTLOtBEUCa5cCfnW3vTd6A25t9fHJFB0V+DuOCQ+tMVLxvs3yu61Cmz4ChNEK/qUX9YtpDwXJP1SmnKUPJOnFAfUwyClBqbQjd6rkyYYKmuRLD3llEXZDO/GwLpWO3KvNWLYJnz+MAJL4LU1JXimYfJqVmd3PUGUyUI55d5lqfZYCGxwzb3Eg31bZ4ljf0vBT6ztgwrVvBvpRlkmTRqcqvypS/3zDd6USmf8rLOB5VwnFw+f4o88K1x3O5iqZrRxApjdlLA8IDIH7uFP89KjKX 17034@DESKTOP-3BGTTVG"
 
-  SharedLambdaRoleArn:
-    Type: String
-    Description: "ARN of the shared Lambda execution role from global stack"
-
   BastionRoleArn:
     Type: String
     Description: "ARN of the bastion role from global stack"
@@ -125,6 +121,102 @@ Resources:
         - Key: Stack
           Value: !Ref "AWS::StackName"
 
+  # Shared Lambda Execution Role
+  SharedLambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub TaskManager-Shared-Lambda-Role-${AWS::Region}
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+                - ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+      Policies:
+        - PolicyName: SecretsManagerAccess
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                  - secretsmanager:DescribeSecret
+                Resource:
+                  - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:taskmanager/database/regional/${AWS::Region}*
+        - PolicyName: CloudWatchLogs
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:*
+        - PolicyName: RDSAccess
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - rds:CreateDBCluster
+                  - rds:ModifyDBCluster
+                  - rds:DeleteDBCluster
+                  - rds:DescribeDBClusters
+                  - rds:DescribeDBInstances
+                  - rds:DescribeGlobalClusters
+                  - rds:ModifyGlobalCluster
+                  - rds:DeleteGlobalCluster
+                  - rds-data:ExecuteStatement
+                  - rds-data:BatchExecuteStatement
+                Resource:
+                  - !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster:taskmanager-*
+                  - !Sub arn:aws:rds::${AWS::AccountId}:global-cluster:taskmanager-global-cluster
+        - PolicyName: KMSAccess
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - kms:CreateKey
+                  - kms:DescribeKey
+                  - kms:CreateGrant
+                  - kms:Decrypt
+                  - kms:Encrypt
+                  - kms:GenerateDataKey
+                  - kms:ReEncryptFrom
+                  - kms:ReEncryptTo
+                  - kms:RetireGrant
+                  - kms:CreateAlias
+                  - kms:DeleteAlias
+                  - kms:UpdateAlias
+                  - kms:ListAliases
+                  - kms:ListGrants
+                  - kms:RevokeGrant
+                  - kms:ReplicateKey
+                  - kms:DisableKey
+                  - kms:ScheduleKeyDeletion
+                Resource: "*"
+        - PolicyName: SSMParameterAccess
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                  - ssm:GetParameters
+                Resource:
+                  - "arn:aws:ssm:*:*:parameter/aws/service/ami-amazon-linux-latest/*"
+      Tags:
+        - Key: Stack
+          Value: !Ref "AWS::StackName"
+
   # SSH Key Pair for Bastion
   BastionKeyPair:
     Type: AWS::EC2::KeyPair
@@ -189,31 +281,31 @@ Outputs:
     Description: "Private subnet 1 ID"
     Value: !Ref PrivateSubnet1Id
     Export:
-      Name: "TaskManager-PrivateSubnet1"
+      Name: !Sub "TaskManager-PrivateSubnet1-${AWS::Region}"
 
   PrivateSubnet2Id:
     Description: "Private subnet 2 ID"
     Value: !Ref PrivateSubnet2Id
     Export:
-      Name: "TaskManager-PrivateSubnet2"
+      Name: !Sub "TaskManager-PrivateSubnet2-${AWS::Region}"
 
   PublicSubnet1Id:
     Description: "Public subnet 1 ID"
     Value: !Ref PublicSubnet1Id
     Export:
-      Name: "TaskManager-PublicSubnet1"
+      Name: !Sub "TaskManager-PublicSubnet1-${AWS::Region}"
 
   PublicSubnet2Id:
     Description: "Public subnet 2 ID"
     Value: !Ref PublicSubnet2Id
     Export:
-      Name: "TaskManager-PublicSubnet2"
+      Name: !Sub "TaskManager-PublicSubnet2-${AWS::Region}"
 
   LambdaSecurityGroupId:
     Description: "Security group for Lambda functions"
     Value: !Ref LambdaSecurityGroupId
     Export:
-      Name: "TaskManager-LambdaSecurityGroup"
+      Name: !Sub "TaskManager-LambdaSecurityGroup-${AWS::Region}"
 
   RDSSecurityGroupId:
     Description: "Security group for RDS access"
@@ -270,16 +362,22 @@ Outputs:
     Description: "Security group for Application Load Balancer"
     Value: !Ref ALBSecurityGroupId
     Export:
-      Name: "TaskManager-ALBSecurityGroup"
+      Name: !Sub "TaskManager-ALBSecurityGroup-${AWS::Region}"
 
   ECSTaskSecurityGroupId:
     Description: "Security group for ECS tasks"
     Value: !Ref ECSTaskSecurityGroupId
     Export:
-      Name: "TaskManager-ECSTaskSecurityGroup"
+      Name: !Sub "TaskManager-ECSTaskSecurityGroup-${AWS::Region}"
 
   WebECRRepositoryUri:
     Description: "ECR repository URI for web application"
     Value: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/taskmanager-web"
     Export:
       Name: "TaskManager-WebECRRepositoryUri"
+
+  SharedLambdaRoleArn:
+    Description: "Shared Lambda execution role ARN"
+    Value: !GetAtt SharedLambdaExecutionRole.Arn
+    Export:
+      Name: !Sub "TaskManager-SharedLambdaRole-${AWS::Region}"
