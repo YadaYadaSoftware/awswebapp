@@ -325,6 +325,7 @@ jobs:
       web-ecr-repository-uri: ${{ steps.deploy-regional.outputs.WebECRRepositoryUri }}
       bastion-host-ip: ${{ steps.deploy-regional.outputs.BastionHostIP }}
       database-tunnel-command: ${{ steps.deploy-regional.outputs.DatabaseTunnelCommand }}
+      ecs-cluster-name: ${{ steps.deploy-regional.outputs.ECSClusterName }}
       api-endpoint: ${{ steps.get-endpoints.outputs.api-endpoint }}
       web-endpoint: ${{ steps.get-endpoints.outputs.web-endpoint }}
 
@@ -585,7 +586,7 @@ jobs:
       with:
         name: ${{ env.STACK_PREFIX }}-wrapper
         template: infrastructure/wrapper-template.yaml
-        parameter-overrides: Environment=${{ needs.get-branch-name.outputs.branch-name }},ApiCodeBucket=taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-templates-bucket-${{ matrix.region }},WebContainerImage=${{ env.CONTAINER_IMAGE }},DeploymentToken=${{ github.sha }},DomainName=appcloud.systems,HostedZoneId=Z06422172SASV44F5Y8VA,TemplatesBucket=taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-templates-bucket-${{ matrix.region }},SharedLambdaRoleArn=${{ needs.deploy-global.outputs.shared-lambda-role-arn }}
+        parameter-overrides: Environment=${{ needs.get-branch-name.outputs.branch-name }},ApiCodeBucket=taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-templates-bucket-${{ matrix.region }},WebContainerImage=${{ env.CONTAINER_IMAGE }},DeploymentToken=${{ github.sha }},DomainName=appcloud.systems,HostedZoneId=Z06422172SASV44F5Y8VA,TemplatesBucket=taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-templates-bucket-${{ matrix.region }},SharedLambdaRoleArn=${{ needs.deploy-global.outputs.shared-lambda-role-arn }},VPCId=${{ needs.deploy-regional.outputs.vpc-id }},LambdaSecurityGroupId=${{ needs.deploy-regional.outputs.lambda-sg }},PrivateSubnet1Id=${{ needs.deploy-regional.outputs.private-subnet-1 }},PrivateSubnet2Id=${{ needs.deploy-regional.outputs.private-subnet-2 }},ALBSecurityGroupId=${{ needs.deploy-regional.outputs.alb-sg }},ECSTaskSecurityGroupId=${{ needs.deploy-regional.outputs.ecs-sg }},PublicSubnet1Id=${{ needs.deploy-regional.outputs.public-subnet-1 }},PublicSubnet2Id=${{ needs.deploy-regional.outputs.public-subnet-2 }},ECSClusterName=${{ needs.deploy-regional.outputs.ecs-cluster-name }}
         capabilities: "CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND"
         no-fail-on-empty-changeset: "1"
       timeout-minutes: 20

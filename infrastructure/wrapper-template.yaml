@@ -37,6 +37,42 @@ Parameters:
     Type: String
     Description: "ARN of the shared Lambda execution role"
 
+  VPCId:
+    Type: String
+    Description: "VPC ID"
+
+  LambdaSecurityGroupId:
+    Type: String
+    Description: "Security group ID for Lambda functions"
+
+  PrivateSubnet1Id:
+    Type: String
+    Description: "Private subnet 1 ID"
+
+  PrivateSubnet2Id:
+    Type: String
+    Description: "Private subnet 2 ID"
+
+  ALBSecurityGroupId:
+    Type: String
+    Description: "Security group ID for ALB"
+
+  ECSTaskSecurityGroupId:
+    Type: String
+    Description: "Security group ID for ECS tasks"
+
+  PublicSubnet1Id:
+    Type: String
+    Description: "Public subnet 1 ID"
+
+  PublicSubnet2Id:
+    Type: String
+    Description: "Public subnet 2 ID"
+
+  ECSClusterName:
+    Type: String
+    Description: "ECS cluster name"
+
 Conditions:
   IsUSEast1: !Equals [!Ref AWS::Region, "us-east-1"]
 
@@ -51,12 +87,9 @@ Resources:
         ApiCodeBucket: !Ref ApiCodeBucket
         SharedLambdaRoleArn: !Ref SharedLambdaRoleArn
         DatabaseEndpoint: !Sub "taskmanager-cluster.cluster-{{resolve:secretsmanager:taskmanager/database/${Environment}/regional/${AWS::Region}:SecretString:cluster_arn}}.${AWS::Region}.rds.amazonaws.com"
-        LambdaSecurityGroupId:
-          Fn::ImportValue: !Sub "TaskManager-LambdaSecurityGroup-${AWS::Region}"
-        PrivateSubnet1Id:
-          Fn::ImportValue: !Sub "TaskManager-PrivateSubnet1-${AWS::Region}"
-        PrivateSubnet2Id:
-          Fn::ImportValue: !Sub "TaskManager-PrivateSubnet2-${AWS::Region}"
+        LambdaSecurityGroupId: !Ref LambdaSecurityGroupId
+        PrivateSubnet1Id: !Ref PrivateSubnet1Id
+        PrivateSubnet2Id: !Ref PrivateSubnet2Id
       Tags:
         - Key: Component
           Value: API
@@ -77,30 +110,14 @@ Resources:
         DomainName: !Ref DomainName
         HostedZoneId: !Ref HostedZoneId
         SharedLambdaRoleArn: !Ref SharedLambdaRoleArn
-        VPCId:
-          Fn::ImportValue:
-            Fn::Sub: "TaskManager-${Environment}-VPC-${AWS::Region}"
-        ALBSecurityGroupId:
-          Fn::ImportValue:
-            Fn::Sub: "TaskManager-ALBSecurityGroup-${AWS::Region}"
-        ECSTaskSecurityGroupId:
-          Fn::ImportValue:
-            Fn::Sub: "TaskManager-ECSTaskSecurityGroup-${AWS::Region}"
-        PublicSubnet1Id:
-          Fn::ImportValue:
-            Fn::Sub: "TaskManager-PublicSubnet1-${AWS::Region}"
-        PublicSubnet2Id:
-          Fn::ImportValue:
-            Fn::Sub: "TaskManager-PublicSubnet2-${AWS::Region}"
-        PrivateSubnet1Id:
-          Fn::ImportValue:
-            Fn::Sub: "TaskManager-PrivateSubnet1-${AWS::Region}"
-        PrivateSubnet2Id:
-          Fn::ImportValue:
-            Fn::Sub: "TaskManager-PrivateSubnet2-${AWS::Region}"
-        ECSClusterName:
-          Fn::ImportValue:
-            Fn::Sub: "TaskManager-ECSCluster"
+        VPCId: !Ref VPCId
+        ALBSecurityGroupId: !Ref ALBSecurityGroupId
+        ECSTaskSecurityGroupId: !Ref ECSTaskSecurityGroupId
+        PublicSubnet1Id: !Ref PublicSubnet1Id
+        PublicSubnet2Id: !Ref PublicSubnet2Id
+        PrivateSubnet1Id: !Ref PrivateSubnet1Id
+        PrivateSubnet2Id: !Ref PrivateSubnet2Id
+        ECSClusterName: !Ref ECSClusterName
         DatabaseEndpoint: !Sub "taskmanager-cluster.cluster-{{resolve:secretsmanager:taskmanager/database/${Environment}/regional/${AWS::Region}:SecretString:cluster_arn}}.${AWS::Region}.rds.amazonaws.com"
       Tags:
         - Key: Component
