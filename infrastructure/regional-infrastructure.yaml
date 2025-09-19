@@ -179,60 +179,6 @@ Resources:
           Value: !Ref "AWS::StackName"
 
 Outputs:
-  VPCId:
-    Description: "VPC ID for branch applications"
-    Value: !Ref VPCId
-    Export:
-      Name: "TaskManager-VPC"
-
-  PrivateSubnet1Id:
-    Description: "Private subnet 1 ID"
-    Value: !Ref PrivateSubnet1Id
-    Export:
-      Name: !Sub "TaskManager-PrivateSubnet1-${AWS::Region}"
-
-  PrivateSubnet2Id:
-    Description: "Private subnet 2 ID"
-    Value: !Ref PrivateSubnet2Id
-    Export:
-      Name: !Sub "TaskManager-PrivateSubnet2-${AWS::Region}"
-
-  PublicSubnet1Id:
-    Description: "Public subnet 1 ID"
-    Value: !Ref PublicSubnet1Id
-    Export:
-      Name: !Sub "TaskManager-PublicSubnet1-${AWS::Region}"
-
-  PublicSubnet2Id:
-    Description: "Public subnet 2 ID"
-    Value: !Ref PublicSubnet2Id
-    Export:
-      Name: !Sub "TaskManager-PublicSubnet2-${AWS::Region}"
-
-  LambdaSecurityGroupId:
-    Description: "Security group for Lambda functions"
-    Value: !Ref LambdaSecurityGroupId
-    Export:
-      Name: !Sub "TaskManager-LambdaSecurityGroup-${AWS::Region}"
-
-  RDSSecurityGroupId:
-    Description: "Security group for RDS access"
-    Value: !Ref RDSSecurityGroupId
-    Export:
-      Name: "TaskManager-RDSSecurityGroup"
-
-  DatabaseEndpoint:
-    Description: "Aurora MySQL cluster endpoint"
-    Value: !Ref DatabaseEndpoint
-    Export:
-      Name: "TaskManager-DatabaseEndpoint"
-
-  DatabaseReaderEndpoint:
-    Description: "Aurora MySQL reader endpoint"
-    Value: !Ref DatabaseReaderEndpoint
-    Export:
-      Name: "TaskManager-DatabaseReaderEndpoint"
-
   BastionHostIP:
     Description: "Bastion host public IP address"
     Value: !GetAtt BastionHost.PublicIp
@@ -265,18 +211,6 @@ Outputs:
     Value: !Ref ECSCluster
     Export:
       Name: "TaskManager-ECSCluster"
-
-  ALBSecurityGroupId:
-    Description: "Security group for Application Load Balancer"
-    Value: !Ref ALBSecurityGroupId
-    Export:
-      Name: !Sub "TaskManager-ALBSecurityGroup-${AWS::Region}"
-
-  ECSTaskSecurityGroupId:
-    Description: "Security group for ECS tasks"
-    Value: !Ref ECSTaskSecurityGroupId
-    Export:
-      Name: !Sub "TaskManager-ECSTaskSecurityGroup-${AWS::Region}"
 
   WebECRRepositoryUri:
     Description: "ECR repository URI for web application"
