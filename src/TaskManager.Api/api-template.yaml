@@ -28,14 +28,20 @@ Parameters:
   LambdaSecurityGroupId:
     Type: String
     Description: "Security group ID for Lambda functions"
+    AllowedPattern: "^sg-[0-9a-zA-Z]+$"
+    MinLength: 1
 
   PrivateSubnet1Id:
     Type: String
     Description: "Private subnet 1 ID"
+    AllowedPattern: "^subnet-[0-9a-z]+$"
+    MinLength: 1
 
   PrivateSubnet2Id:
     Type: String
     Description: "Private subnet 2 ID"
+    AllowedPattern: "^subnet-[0-9a-z]+$"
+    MinLength: 1
 
 Globals:
   Function:
