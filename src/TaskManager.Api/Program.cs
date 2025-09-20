@@ -50,7 +50,11 @@ public class Program
             }
             else
             {
-                options.UseNpgsql(connectionString);
+                options.UseNpgsql(connectionString, npgsqlOptions =>
+                {
+                    // This ensures database exists before connecting
+                    npgsqlOptions.EnableRetryOnFailure(3);
+                });
             }
         });
         

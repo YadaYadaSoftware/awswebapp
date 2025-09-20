@@ -586,54 +586,13 @@ jobs:
       with:
         name: ${{ env.STACK_PREFIX }}-wrapper
         template: infrastructure/wrapper-template.yaml
-        parameter-overrides: Environment=${{ needs.get-branch-name.outputs.branch-name }},ApiCodeBucket=taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-templates-bucket-${{ matrix.region }},WebContainerImage=${{ env.CONTAINER_IMAGE }},DeploymentToken=${{ github.sha }},DomainName=appcloud.systems,HostedZoneId=Z06422172SASV44F5Y8VA,TemplatesBucket=taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-templates-bucket-${{ matrix.region }},SharedLambdaRoleArn=${{ needs.deploy-global.outputs.shared-lambda-role-arn }},VPCId=${{ steps.deploy-regional-db.outputs.VPCId }},LambdaSecurityGroupId=${{ steps.deploy-regional-db.outputs.LambdaSecurityGroupId }},PrivateSubnet1Id=${{ steps.deploy-regional-db.outputs.PrivateSubnet1Id }},PrivateSubnet2Id=${{ steps.deploy-regional-db.outputs.PrivateSubnet2Id }},ALBSecurityGroupId=${{ steps.deploy-regional-db.outputs.ALBSecurityGroupId }},ECSTaskSecurityGroupId=${{ steps.deploy-regional-db.outputs.ECSTaskSecurityGroupId }},PublicSubnet1Id=${{ steps.deploy-regional-db.outputs.PublicSubnet1Id }},PublicSubnet2Id=${{ steps.deploy-regional-db.outputs.PublicSubnet2Id }},ECSClusterName=${{ steps.deploy-regional.outputs.ecs-cluster-name }},IsPrimaryRegion=${{ matrix.is_primary }}
+        parameter-overrides: Environment=${{ needs.get-branch-name.outputs.branch-name }},ApiCodeBucket=taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-templates-bucket-${{ matrix.region }},WebContainerImage=${{ env.CONTAINER_IMAGE }},DeploymentToken=${{ github.sha }},DomainName=appcloud.systems,HostedZoneId=Z06422172SASV44F5Y8VA,TemplatesBucket=taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-templates-bucket-${{ matrix.region }},SharedLambdaRoleArn=${{ needs.deploy-global.outputs.shared-lambda-role-arn }},VPCId=${{ steps.deploy-regional-db.outputs.VPCId }},LambdaSecurityGroupId=${{ steps.deploy-regional-db.outputs.LambdaSecurityGroupId }},PrivateSubnet1Id=${{ steps.deploy-regional-db.outputs.PrivateSubnet1Id }},PrivateSubnet2Id=${{ steps.deploy-regional-db.outputs.PrivateSubnet2Id }},ALBSecurityGroupId=${{ steps.deploy-regional-db.outputs.ALBSecurityGroupId }},ECSTaskSecurityGroupId=${{ steps.deploy-regional-db.outputs.ECSTaskSecurityGroupId }},PublicSubnet1Id=${{ steps.deploy-regional-db.outputs.PublicSubnet1Id }},PublicSubnet2Id=${{ steps.deploy-regional-db.outputs.PublicSubnet2Id }},ECSClusterName=${{ steps.deploy-regional.outputs.ecs-cluster-name }}
         capabilities: "CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND"
         no-fail-on-empty-changeset: "1"
       timeout-minutes: 20
 
-    - name: Setup branch database
-      run: |
-        echo "Setting up database for branch: ${{ needs.get-branch-name.outputs.branch-name }}"
-
-        # Get API endpoint from wrapper stack outputs
-        API_URL="${{ steps.deploy-wrapper.outputs.ApiEndpoint }}"
-
-        if [ -z "$API_URL" ]; then
-          echo "❌ API endpoint not found in stack outputs"
-          echo "This indicates the CloudFormation deployment failed or the output is not ready"
-          exit 1
-        fi
-
-        echo "✅ API endpoint from stack outputs: $API_URL"
-
-        # Test API connectivity first
-        echo "Testing API connectivity..."
-        HEALTH_CHECK_CMD="curl -f -s --max-time 30 \"$API_URL/health\""
-        echo "Executing: $HEALTH_CHECK_CMD"
-        if ! eval "$HEALTH_CHECK_CMD" > /dev/null; then
-          echo "❌ API health check failed"
-          exit 1
-        fi
-        echo "✅ API is healthy"
-
-        # Setup database with token authentication
-        echo "Setting up database..."
-        DB_SETUP_CMD="curl -s -w \"\nHTTP_STATUS:%{http_code}\" -X POST \"${API_URL}setup-database\" -H \"Authorization: taskmanager-setup-secure-token-2024\" --max-time 60"
-        echo "Executing: $DB_SETUP_CMD"
-        DB_SETUP_RESPONSE=$(eval "$DB_SETUP_CMD")
-
-        HTTP_STATUS=$(echo "$DB_SETUP_RESPONSE" | grep "HTTP_STATUS:" | cut -d: -f2)
-        RESPONSE_BODY=$(echo "$DB_SETUP_RESPONSE" | sed '/HTTP_STATUS:/d')
-
-        echo "Database setup response: $RESPONSE_BODY"
-        echo "HTTP Status: $HTTP_STATUS"
-
-        if [ "$HTTP_STATUS" = "200" ] || [ "$HTTP_STATUS" = "201" ]; then
-          echo "✅ Database setup completed successfully"
-        else
-          echo "❌ Database setup failed with HTTP status: $HTTP_STATUS"
-          exit 1
-        fi
+    # Database setup removed - now handled automatically by Entity Framework
+    # EF will create the database and run migrations when the API first starts
 
     - name: Get deployment outputs
       id: get-endpoints
@@ -669,7 +628,7 @@ jobs:
         echo "📋 API Stack: ${{ env.STACK_PREFIX }}-${{ matrix.region }}-api ✅ Endpoint: $API_URL"
         echo "📋 Web Stack: ${{ env.STACK_PREFIX }}-${{ matrix.region }}-web ✅ Load Balancer: $WEB_URL"
         echo "🖥️ Bastion host IP: $BASTION_IP"
-        echo "💾 Database: taskmanager_${{ needs.get-branch-name.outputs.branch-name }} ✅ Setup verified"
+        echo "💾 Database: taskmanager_${{ needs.get-branch-name.outputs.branch-name }} ✅ Auto-created by EF"
         echo "🔗 SSH Tunnel: $TUNNEL_CMD"
 
         # Set outputs for other jobs
@@ -681,7 +640,7 @@ jobs:
       run: |
         # Note: SMS notification disabled as SNS topic is not defined in global template
         echo "📱 SMS notification skipped - SNS topic not configured in global infrastructure"
-        echo "🚀 TaskManager deployment complete! Branch: ${{ needs.get-branch-name.outputs.branch-name }} Region: ${{ matrix.region }} API: $API_URL Web App: https://$BRANCH_NAME.appcloud.systems Database: taskmanager_${{ needs.get-branch-name.outputs.branch-name }} ✅ Setup verified Bastion IP: $BASTION_IP Both API and Web are fully deployed and running!"
+        echo "🚀 TaskManager deployment complete! Branch: ${{ needs.get-branch-name.outputs.branch-name }} Region: ${{ matrix.region }} API: $API_URL Web App: https://$BRANCH_NAME.appcloud.systems Database: taskmanager_${{ needs.get-branch-name.outputs.branch-name }} ✅ Auto-created by EF Bastion IP: $BASTION_IP Both API and Web are fully deployed and running!"
 
     - name: Verify All Deployments
       run: |

@@ -21,20 +21,23 @@ public class DatabaseMigrationService : IDatabaseMigrationService
     {
         try
         {
-            _logger.LogInformation("Checking for pending migrations...");
-            
+            _logger.LogInformation("Ensuring database exists and applying migrations...");
+
+            // This will create the database if it doesn't exist
+            await _context.Database.EnsureCreatedAsync();
+
             var pendingMigrations = await _context.Database.GetPendingMigrationsAsync();
-            
+
             if (pendingMigrations.Any())
             {
-                _logger.LogInformation("Applying {Count} pending migrations: {Migrations}", 
-                    pendingMigrations.Count(), 
+                _logger.LogInformation("Applying {Count} pending migrations: {Migrations}",
+                    pendingMigrations.Count(),
                     string.Join(", ", pendingMigrations));
-                
+
                 await _context.Database.MigrateAsync();
-                
+
                 _logger.LogInformation("Database migrations applied successfully.");
-                
+
                 // Apply seed data after migrations
                 await SeedDataAsync();
             }

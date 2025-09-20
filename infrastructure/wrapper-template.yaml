@@ -73,12 +73,6 @@ Parameters:
     Type: String
     Description: "ECS cluster name"
 
-  IsPrimaryRegion:
-    Type: String
-    AllowedValues: ["true", "false"]
-    Default: "false"
-    Description: "Whether this region hosts the primary cluster"
-
 Resources:
   # API Stack (Nested)
   TaskManagerApiStack:
@@ -93,7 +87,6 @@ Resources:
         LambdaSecurityGroupId: !Ref LambdaSecurityGroupId
         PrivateSubnet1Id: !Ref PrivateSubnet1Id
         PrivateSubnet2Id: !Ref PrivateSubnet2Id
-        IsPrimaryRegion: !Ref IsPrimaryRegion
       Tags:
         - Key: Component
           Value: API
