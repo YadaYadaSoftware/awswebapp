@@ -73,8 +73,11 @@ Parameters:
     Type: String
     Description: "ECS cluster name"
 
-Conditions:
-  IsUSEast1: !Equals [!Ref AWS::Region, "us-east-1"]
+  IsPrimaryRegion:
+    Type: String
+    AllowedValues: ["true", "false"]
+    Default: "false"
+    Description: "Whether this region hosts the primary cluster"
 
 Resources:
   # API Stack (Nested)
@@ -90,6 +93,7 @@ Resources:
         LambdaSecurityGroupId: !Ref LambdaSecurityGroupId
         PrivateSubnet1Id: !Ref PrivateSubnet1Id
         PrivateSubnet2Id: !Ref PrivateSubnet2Id
+        IsPrimaryRegion: !Ref IsPrimaryRegion
       Tags:
         - Key: Component
           Value: API
