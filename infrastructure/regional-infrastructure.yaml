@@ -208,7 +208,7 @@ Outputs:
 
   ECSClusterName:
     Description: "ECS cluster name"
-    Value: !GetAtt ECSCluster.ClusterName
+    Value: !GetAtt ECSCluster.Arn
     Export:
       Name: "TaskManager-ECSCluster"
 
