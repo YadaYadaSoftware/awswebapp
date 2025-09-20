@@ -43,6 +43,15 @@ Parameters:
     AllowedPattern: "^subnet-[0-9a-z]+$"
     MinLength: 1
 
+  IsPrimaryRegion:
+    Type: String
+    AllowedValues: ["true", "false"]
+    Default: "false"
+    Description: "Whether this region hosts the primary cluster"
+
+Conditions:
+  IsPrimary: !Equals [!Ref IsPrimaryRegion, "true"]
+
 Globals:
   Function:
     Runtime: dotnet8
@@ -56,6 +65,8 @@ Resources:
   # CloudWatch Log Group for Database Setup
   DatabaseSetupLogGroup:
     Type: AWS::Logs::LogGroup
+    Condition: IsPrimary
+    DeletionPolicy: Retain
     Properties:
       LogGroupName: !Sub "/aws/lambda/TaskManager-DbSetup-${Environment}"
       RetentionInDays: 7
@@ -88,6 +99,7 @@ Resources:
   # Branch-specific database creation Lambda
   DatabaseSetupFunction:
     Type: AWS::Serverless::Function
+    Condition: IsPrimary
     DependsOn:
       - DatabaseSetupLogGroup
       - MySQLLayer
@@ -211,6 +223,7 @@ Resources:
   # Custom resource to trigger database setup
   DatabaseSetupCustomResource:
     Type: AWS::CloudFormation::CustomResource
+    Condition: IsPrimary
     Properties:
       ServiceToken: !GetAtt DatabaseSetupFunction.Arn
 
