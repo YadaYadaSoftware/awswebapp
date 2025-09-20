@@ -155,7 +155,7 @@ Resources:
             # Sanitize branch name for database use
             # Replace invalid characters and ensure length constraints
             import re
-            sanitized_branch = re.sub(r'[^a-zA-Z0-9_-]', '_', branch_name)
+            sanitized_branch = re.sub(r'[^a-zA-Z0-9_]', '_', branch_name)
             sanitized_branch = sanitized_branch[:50]  # Leave room for prefix
 
             # Ensure we have a valid branch name after sanitization
