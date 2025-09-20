@@ -7,8 +7,8 @@ on:
   pull_request:
 
 env:
-  AWS_REGION: us-east-1
-  AWS_REGION_2: us-east-2
+  AWS_REGION_SECONDARY: us-west-1
+  AWS_REGION_PRIMARY: us-east-2
   ENGINE_VERSION: 8.0.mysql_aurora.3.10.0
 
 jobs:
@@ -261,7 +261,7 @@ jobs:
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: us-east-2
+        aws-region: ${{ env.AWS_REGION_PRIMARY }}
 
     - name: Get GitHub Actions User ARN from IAM Setup Stack
       id: get-github-user
@@ -470,7 +470,7 @@ jobs:
       env:
         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
         AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        AWS_DEFAULT_REGION: ${{ env.AWS_REGION }}
+        AWS_DEFAULT_REGION: ${{ env.AWS_REGION_SECONDARY }}
       run: |
         # Use GitVersion for unique image tagging
         BRANCH_NAME=${{ needs.get-branch-name.outputs.branch-name }}
@@ -734,14 +734,14 @@ jobs:
     - name: Upload Global DNS template to S3
       run: |
         echo "Uploading global DNS template to S3..."
-        aws s3 cp infrastructure/global-dns-template.yaml s3://taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-templates-bucket-us-east-2/ --region us-east-2
+        aws s3 cp infrastructure/global-dns-template.yaml s3://taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-templates-bucket-${{ env.AWS_REGION_PRIMARY }}/ --region ${{ env.AWS_REGION_PRIMARY }}
 
     - name: Deploy Global DNS Failover Stack
       uses: aws-actions/aws-cloudformation-github-deploy@v1
       with:
         name: taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-global-dns
         template: infrastructure/global-dns-template.yaml
-        parameter-overrides: Environment=${{ needs.get-branch-name.outputs.branch-name }},DomainName=appcloud.systems,HostedZoneId=Z06422172SASV44F5Y8VA,PrimaryRegion=us-east-2,SecondaryRegion=us-west-1
+        parameter-overrides: Environment=${{ needs.get-branch-name.outputs.branch-name }},DomainName=appcloud.systems,HostedZoneId=Z06422172SASV44F5Y8VA,PrimaryRegion=${{ env.AWS_REGION_PRIMARY }},SecondaryRegion=${{ env.AWS_REGION_SECONDARY }}
         no-fail-on-empty-changeset: "1"
         timeout-in-minutes: 10
 
