@@ -16,22 +16,38 @@
     "!Not sequence",
     "!Equals sequence",
     "!And sequence",
-    "!Or sequence"
+    "!Or sequence",
+    "!Fn::Base64 scalar",
+    "!Fn::Cidr sequence",
+    "!Fn::FindInMap sequence",
+    "!Fn::GetAtt sequence",
+    "!Fn::GetAZs scalar",
+    "!Fn::ImportValue scalar",
+    "!Fn::Join sequence",
+    "!Fn::Select sequence",
+    "!Fn::Split sequence",
+    "!Fn::Sub scalar",
+    "!Fn::Transform mapping",
+    "!Fn::If sequence",
+    "!Fn::Not sequence",
+    "!Fn::Equals sequence",
+    "!Fn::And sequence",
+    "!Fn::Or sequence"
   ],
-  "yaml.schemas": {
-    "https://raw.githubusercontent.com/awslabs/goformation/master/schema/cloudformation.schema.json": [
-      "*template*.yaml",
-      "*template*.yml",
-      "infrastructure/*.yaml",
-      "infrastructure/*.yml",
-      "src/*/api-template.yaml",
-      "src/*/web-template.yaml"
-    ]
-  },
-  "yaml.validate": true,
+  "yaml.schemas": {},
+  "yaml.validate": false,
   "yaml.format.enable": true,
+  "yaml.format.singleQuote": false,
+  "yaml.format.bracketSpacing": true,
   "[yaml]": {
     "editor.defaultFormatter": "redhat.vscode-yaml",
-    "editor.formatOnSave": true
-  }
+    "editor.formatOnSave": true,
+    "editor.quickSuggestions": {
+      "other": true,
+      "comments": false,
+      "strings": true
+    },
+    "editor.suggest.showKeywords": true
+  },
+  "redhat.telemetry.enabled": false
 }

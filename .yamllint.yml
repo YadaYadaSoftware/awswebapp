@@ -10,4 +10,11 @@ rules:
     min-spaces-from-content: 1
   trailing-spaces: disable
   new-line-at-end-of-file: disable
-  
+  # Disable rules that conflict with CloudFormation syntax
+  indentation:
+    indent-sequences: false
+  key-duplicates: disable
+  # Allow CloudFormation intrinsic functions
+  truthy:
+    allowed-values: ["true", "false", "True", "False", "TRUE", "FALSE"]
+    check-keys: false

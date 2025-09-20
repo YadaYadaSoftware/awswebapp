@@ -217,6 +217,17 @@ Resources:
                   - ssm:GetParameters
                 Resource:
                   - "arn:aws:ssm:*:*:parameter/aws/service/ami-amazon-linux-latest/*"
+        - PolicyName: ECRAccess
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ecr:GetAuthorizationToken
+                  - ecr:BatchCheckLayerAvailability
+                  - ecr:GetDownloadUrlForLayer
+                  - ecr:BatchGetImage
+                Resource: "*"
       Tags:
         - Key: Stack
           Value: !Ref "AWS::StackName"
