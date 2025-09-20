@@ -143,6 +143,16 @@ Resources:
 
         def lambda_handler(event, context):
             request_type = event['RequestType']
+
+            # Enhanced logging for CloudFormation events
+            try:
+                logger.info(f"CloudFormation Event: {json.dumps(event)}")
+                logger.info(f"Request Type: {request_type}")
+                logger.info(f"Request ID: {event.get('RequestId', 'N/A')}")
+                logger.info(f"Stack ID: {event.get('StackId', 'N/A')}")
+            except Exception as log_e:
+                pass  # Don't fail if logging fails
+
             branch_name = os.environ.get('BRANCH_NAME', '').strip()
 
             # Validate branch name
@@ -179,6 +189,13 @@ Resources:
             conn = None
             cursor = None
             try:
+                try:
+                    logger.info(f"Attempting database connection for {request_type} operation")
+                    logger.info(f"Database name: {db_name}")
+                    logger.info(f"Host: {os.environ.get('DB_HOST', 'N/A')}")
+                except Exception as log_e:
+                    pass
+
                 conn = pymysql.connect(
                     host=os.environ['DB_HOST'],
                     user=os.environ['DB_USER'],
@@ -187,7 +204,18 @@ Resources:
                     port=3306,
                     ssl={'ssl': {}}
                 )
+
+                try:
+                    logger.info("Database connection successful")
+                except Exception as log_e:
+                    pass
+
                 cursor = conn.cursor()
+
+                try:
+                    logger.info("Database cursor created successfully")
+                except Exception as log_e:
+                    pass
                 if request_type == 'Create':
                     cursor.execute("SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME = %s", [db_name])
                     exists = cursor.fetchone()
@@ -201,21 +229,36 @@ Resources:
                 elif request_type == 'Delete':
                     # For delete operations, always succeed even if database drop fails
                     try:
-                        cursor.execute(f"DROP DATABASE IF EXISTS `{db_name}`")
                         try:
-                            logger.info(f"Dropped database: {db_name}")
+                            logger.info(f"Executing DROP DATABASE IF EXISTS `{db_name}`")
                         except Exception as log_e:
-                            pass  # Logging failure doesn't matter for delete
+                            pass
+
+                        cursor.execute(f"DROP DATABASE IF EXISTS `{db_name}`")
+
+                        try:
+                            logger.info(f"Successfully executed DROP DATABASE for: {db_name}")
+                        except Exception as log_e:
+                            pass
                     except Exception as delete_e:
                         # Log the delete failure but don't fail the operation
                         try:
-                            logger.warning(f"Database drop failed (but continuing): {delete_e}")
+                            logger.warning(f"Database drop command failed: {str(delete_e)}")
+                            logger.warning(f"Error type: {type(delete_e).__name__}")
+                            logger.warning(f"Database name that failed: {db_name}")
                         except Exception as log_e:
                             pass  # Even logging failure doesn't break delete
                 cursor.close()
                 conn.close()
                 try:
+                    logger.info(f"Database connection closed successfully for {request_type}")
+                except Exception as log_e:
+                    pass
+
+                try:
+                    logger.info(f"Sending SUCCESS response to CloudFormation for {request_type}")
                     send_response(event, context, 'SUCCESS', {}, physical_resource_id)
+                    logger.info(f"SUCCESS response sent successfully for {request_type}")
                 except Exception as resp_e:
                     # If response fails, log but operation was successful
                     try:
@@ -225,15 +268,35 @@ Resources:
             except Exception as e:
                 # Ensure cleanup happens even on error
                 try:
+                    logger.info(f"Exception occurred during {request_type}: {str(e)}")
+                except Exception as log_e:
+                    pass
+
+                try:
                     if cursor:
                         cursor.close()
-                except Exception:
-                    pass
+                        try:
+                            logger.info("Cursor closed during exception cleanup")
+                        except Exception as log_e:
+                            pass
+                except Exception as cleanup_e:
+                    try:
+                        logger.warning(f"Failed to close cursor during cleanup: {cleanup_e}")
+                    except Exception as log_e:
+                        pass
+
                 try:
                     if conn:
                         conn.close()
-                except Exception:
-                    pass
+                        try:
+                            logger.info("Connection closed during exception cleanup")
+                        except Exception as log_e:
+                            pass
+                except Exception as cleanup_e:
+                    try:
+                        logger.warning(f"Failed to close connection during cleanup: {cleanup_e}")
+                    except Exception as log_e:
+                        pass
 
                 # For delete operations, always succeed even on errors
                 if request_type == 'Delete':
