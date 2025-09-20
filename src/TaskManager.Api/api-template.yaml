@@ -176,6 +176,8 @@ Resources:
                 return
 
             physical_resource_id = db_name
+            conn = None
+            cursor = None
             try:
                 conn = pymysql.connect(
                     host=os.environ['DB_HOST'],
@@ -191,16 +193,77 @@ Resources:
                     exists = cursor.fetchone()
                     if not exists:
                         cursor.execute(f"CREATE DATABASE `{db_name}`")
-                        logger.info(f"Created database: {db_name}")
+                        try:
+                            logger.info(f"Created database: {db_name}")
+                        except Exception as log_e:
+                            # Log error but don't fail the operation
+                            pass
                 elif request_type == 'Delete':
-                    cursor.execute(f"DROP DATABASE IF EXISTS `{db_name}`")
-                    logger.info(f"Dropped database: {db_name}")
+                    # For delete operations, always succeed even if database drop fails
+                    try:
+                        cursor.execute(f"DROP DATABASE IF EXISTS `{db_name}`")
+                        try:
+                            logger.info(f"Dropped database: {db_name}")
+                        except Exception as log_e:
+                            pass  # Logging failure doesn't matter for delete
+                    except Exception as delete_e:
+                        # Log the delete failure but don't fail the operation
+                        try:
+                            logger.warning(f"Database drop failed (but continuing): {delete_e}")
+                        except Exception as log_e:
+                            pass  # Even logging failure doesn't break delete
                 cursor.close()
                 conn.close()
-                send_response(event, context, 'SUCCESS', {}, physical_resource_id)
+                try:
+                    send_response(event, context, 'SUCCESS', {}, physical_resource_id)
+                except Exception as resp_e:
+                    # If response fails, log but operation was successful
+                    try:
+                        logger.error(f"Failed to send success response: {resp_e}")
+                    except Exception:
+                        pass
             except Exception as e:
-                logger.error(f"Error: {e}")
-                send_response(event, context, 'FAILED', {'Reason': str(e)}, physical_resource_id)
+                # Ensure cleanup happens even on error
+                try:
+                    if cursor:
+                        cursor.close()
+                except Exception:
+                    pass
+                try:
+                    if conn:
+                        conn.close()
+                except Exception:
+                    pass
+
+                # For delete operations, always succeed even on errors
+                if request_type == 'Delete':
+                    try:
+                        logger.warning(f"Delete operation encountered error (but succeeding): {e}")
+                    except Exception as log_e:
+                        pass
+                    try:
+                        send_response(event, context, 'SUCCESS', {'Reason': f'Delete completed with warnings: {str(e)}'}, physical_resource_id)
+                    except Exception as resp_e:
+                        try:
+                            logger.error(f"Failed to send delete success response: {resp_e}")
+                        except Exception:
+                            pass
+                else:
+                    # For create operations, fail on errors
+                    try:
+                        logger.error(f"Database operation failed: {e}")
+                    except Exception as log_e:
+                        # If logging fails, continue with response
+                        pass
+
+                    try:
+                        send_response(event, context, 'FAILED', {'Reason': str(e)}, physical_resource_id)
+                    except Exception as resp_e:
+                        # If response fails, try to log the failure
+                        try:
+                            logger.error(f"Failed to send failure response: {resp_e}")
+                        except Exception:
+                            pass
 
       Handler: index.lambda_handler
       Runtime: python3.9
