@@ -294,7 +294,6 @@ Resources:
   TaskManagerApiFunction:
     Type: AWS::Serverless::Function
     DependsOn:
-      - DatabaseSetupFunction
       - ApiLambdaLogGroup
     Properties:
       FunctionName: !Sub "TaskManagerApi-${Environment}"
