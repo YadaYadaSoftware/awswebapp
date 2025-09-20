@@ -131,8 +131,38 @@ Resources:
 
         def lambda_handler(event, context):
             request_type = event['RequestType']
-            branch_name = os.environ['BRANCH_NAME']
-            db_name = f"taskmanager_{branch_name}"
+            branch_name = os.environ.get('BRANCH_NAME', '').strip()
+
+            # Validate branch name
+            if not branch_name:
+                error_msg = "BRANCH_NAME environment variable is empty or not set"
+                logger.error(error_msg)
+                send_response(event, context, 'FAILED', {'Reason': error_msg}, 'invalid-branch-name')
+                return
+
+            # Sanitize branch name for database use
+            # Replace invalid characters and ensure length constraints
+            import re
+            sanitized_branch = re.sub(r'[^a-zA-Z0-9_-]', '_', branch_name)
+            sanitized_branch = sanitized_branch[:50]  # Leave room for prefix
+
+            # Ensure we have a valid branch name after sanitization
+            if not sanitized_branch or sanitized_branch == '_':
+                sanitized_branch = 'main'
+
+            db_name = f"taskmanager_{sanitized_branch}"
+
+            # Validate database name length (MySQL limit is 64 characters)
+            if len(db_name) > 64:
+                db_name = db_name[:64]
+
+            # Ensure database name is valid for MySQL
+            if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', db_name):
+                error_msg = f"Invalid database name: {db_name}"
+                logger.error(error_msg)
+                send_response(event, context, 'FAILED', {'Reason': error_msg}, 'invalid-db-name')
+                return
+
             physical_resource_id = db_name
             try:
                 conn = pymysql.connect(
