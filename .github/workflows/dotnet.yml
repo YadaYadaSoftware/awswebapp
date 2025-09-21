@@ -215,6 +215,7 @@ jobs:
       bastion-instance-profile-arn: ${{ steps.deploy-global.outputs.BastionInstanceProfileArn }}
       aurora-global-cluster-id: ${{ steps.deploy-global.outputs.AuroraGlobalClusterId }}
       aurora-kms-key-arn: ${{ steps.deploy-global.outputs.AuroraKmsKeyArn }}
+      vpc-flow-logs-role-arn: ${{ steps.deploy-global.outputs.VPCFlowLogsRoleArn }}
       github-actions-user-arn: ${{ steps.get-github-user.outputs.github-actions-user-arn }}
 
     steps:
@@ -359,7 +360,7 @@ jobs:
       with:
         name: taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-regional-vpc-db
         template: infrastructure/regional-vpc-db.yaml
-        parameter-overrides: "BranchName=${{ needs.get-branch-name.outputs.branch-name }},DatabasePassword=${{ secrets.DATABASE_PASSWORD }},EngineVersion=${{ env.ENGINE_VERSION }},AuroraGlobalClusterId=${{ needs.deploy-global.outputs.aurora-global-cluster-id }},AuroraKmsKeyArn=${{ matrix.region == 'us-west-1' && steps.deploy-kms-replica.outputs.AuroraKmsKeyReplicaArn || needs.deploy-global.outputs.aurora-kms-key-arn }},IsPrimaryRegion=${{ matrix.is_primary }},GitHubActionsUserArn=${{ needs.deploy-global.outputs.github-actions-user-arn }},LogRetentionDays=7"
+        parameter-overrides: "BranchName=${{ needs.get-branch-name.outputs.branch-name }},DatabasePassword=${{ secrets.DATABASE_PASSWORD }},EngineVersion=${{ env.ENGINE_VERSION }},AuroraGlobalClusterId=${{ needs.deploy-global.outputs.aurora-global-cluster-id }},AuroraKmsKeyArn=${{ matrix.region == 'us-west-1' && steps.deploy-kms-replica.outputs.AuroraKmsKeyReplicaArn || needs.deploy-global.outputs.aurora-kms-key-arn }},IsPrimaryRegion=${{ matrix.is_primary }},GitHubActionsUserArn=${{ needs.deploy-global.outputs.github-actions-user-arn }},VPCFlowLogsRoleArn=${{ needs.deploy-global.outputs.vpc-flow-logs-role-arn }},LogRetentionDays=7"
         capabilities: "CAPABILITY_NAMED_IAM"
         no-fail-on-empty-changeset: "1"
         timeout-in-minutes: 30
