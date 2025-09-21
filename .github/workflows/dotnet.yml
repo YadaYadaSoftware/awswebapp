@@ -315,10 +315,22 @@ jobs:
       run: |
         echo "🔑 GitHub Actions User ARN: ${{ needs.deploy-global.outputs.github-actions-user-arn }}"
 
-    - name: Upload regional-vpc-db template to S3
+    - name: Upload regional templates to S3
       run: |
-        echo "Uploading regional-vpc-db template to S3..."
+        echo "Uploading regional templates to S3..."
         aws s3 cp infrastructure/regional-vpc-db.yaml s3://taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-templates-bucket-${{ matrix.region }}/ --region ${{ matrix.region }}
+        aws s3 cp infrastructure/regional-kms-replica.yaml s3://taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-templates-bucket-${{ matrix.region }}/ --region ${{ matrix.region }}
+
+    - name: Deploy Regional KMS Replica (Secondary Region Only)
+      if: matrix.region == 'us-west-1'
+      id: deploy-kms-replica
+      uses: aws-actions/aws-cloudformation-github-deploy@v1
+      with:
+        name: taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-regional-kms-replica
+        template: infrastructure/regional-kms-replica.yaml
+        parameter-overrides: PrimaryKeyArn=${{ needs.deploy-global.outputs.aurora-kms-key-arn }},GitHubActionsUserArn=${{ needs.deploy-global.outputs.github-actions-user-arn }},BranchName=${{ needs.get-branch-name.outputs.branch-name }}
+        no-fail-on-empty-changeset: "1"
+        timeout-in-minutes: 10
 
     - name: Cleanup failed regional-vpc-db stack (if exists)
       run: |
@@ -347,7 +359,7 @@ jobs:
       with:
         name: taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-regional-vpc-db
         template: infrastructure/regional-vpc-db.yaml
-        parameter-overrides: "BranchName=${{ needs.get-branch-name.outputs.branch-name }},DatabasePassword=${{ secrets.DATABASE_PASSWORD }},EngineVersion=${{ env.ENGINE_VERSION }},AuroraGlobalClusterId=${{ needs.deploy-global.outputs.aurora-global-cluster-id }},AuroraKmsKeyArn=${{ needs.deploy-global.outputs.aurora-kms-key-arn }},IsPrimaryRegion=${{ matrix.is_primary }},GitHubActionsUserArn=${{ needs.deploy-global.outputs.github-actions-user-arn }},LogRetentionDays=7"
+        parameter-overrides: "BranchName=${{ needs.get-branch-name.outputs.branch-name }},DatabasePassword=${{ secrets.DATABASE_PASSWORD }},EngineVersion=${{ env.ENGINE_VERSION }},AuroraGlobalClusterId=${{ needs.deploy-global.outputs.aurora-global-cluster-id }},AuroraKmsKeyArn=${{ needs.deploy-global.outputs.aurora-kms-key-arn }},IsPrimaryRegion=${{ matrix.is_primary }},GitHubActionsUserArn=${{ needs.deploy-global.outputs.github-actions-user-arn }},LogRetentionDays=7${{ matrix.region == 'us-west-1' && format(',AuroraKmsKeyReplicaArn={0}', steps.deploy-kms-replica.outputs.AuroraKmsKeyReplicaArn) || '' }}"
         capabilities: "CAPABILITY_NAMED_IAM"
         no-fail-on-empty-changeset: "1"
         timeout-in-minutes: 30
@@ -358,6 +370,7 @@ jobs:
         echo "Uploading templates to S3..."
         aws s3 cp infrastructure/regional-infrastructure.yaml s3://taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-templates-bucket-${{ matrix.region }}/ --region ${{ matrix.region }}
         aws s3 cp infrastructure/regional-vpc-db.yaml s3://taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-templates-bucket-${{ matrix.region }}/ --region ${{ matrix.region }}
+        aws s3 cp infrastructure/regional-kms-replica.yaml s3://taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-templates-bucket-${{ matrix.region }}/ --region ${{ matrix.region }}
         aws s3 cp src/TaskManager.Api/api-template.yaml s3://taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-templates-bucket-${{ matrix.region }}/ --region ${{ matrix.region }}
         aws s3 cp src/TaskManager.Web2/web-template.yaml s3://taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-templates-bucket-${{ matrix.region }}/ --region ${{ matrix.region }}
         aws s3 cp infrastructure/wrapper-template.yaml s3://taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-templates-bucket-${{ matrix.region }}/ --region ${{ matrix.region }}

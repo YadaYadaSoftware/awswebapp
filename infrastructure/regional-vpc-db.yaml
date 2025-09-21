@@ -21,6 +21,10 @@ Parameters:
     Type: String
     Description: ARN of the KMS key used by the Aurora global cluster
 
+  AuroraKmsKeyReplicaArn:
+    Type: String
+    Description: ARN of the KMS key replica for this region
+
   IsPrimaryRegion:
     Type: String
     AllowedValues: ["true", "false"]
@@ -390,7 +394,7 @@ Resources:
       PreferredMaintenanceWindow: "sun:04:00-sun:05:00"
       StorageEncrypted: true
       KmsKeyId:
-        !If [IsPrimary, !Ref AuroraKmsKeyArn, !GetAtt AuroraKmsKeyReplica.Arn]
+        !If [IsPrimary, !Ref AuroraKmsKeyArn, !Ref AuroraKmsKeyReplicaArn]
       DeletionProtection: false
       ServerlessV2ScalingConfiguration:
         MinCapacity: 0.5
@@ -505,62 +509,6 @@ Resources:
           Value: RDSSecurityGroup
         - Key: Name
           Value: "TaskManager-Aurora-SG"
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
-
-  # KMS Key Replica (for multi-region support)
-  AuroraKmsKeyReplica:
-    Type: AWS::KMS::ReplicaKey
-    DeletionPolicy: Retain
-    Condition: IsNotPrimary
-    Properties:
-      PrimaryKeyArn: !Ref AuroraKmsKeyArn
-      Description: Replica of multi-region Aurora KMS key
-      KeyPolicy:
-        Version: 2012-10-17
-        Statement:
-          - Sid: EnableIAMUserPermissions
-            Effect: Allow
-            Principal:
-              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:root"
-            Action: kms:*
-            Resource: "*"
-          - Sid: AllowRDSService
-            Effect: Allow
-            Principal:
-              Service: rds.amazonaws.com
-            Action:
-              - kms:CreateGrant
-              - kms:DescribeKey
-              - kms:Decrypt
-              - kms:Encrypt
-              - kms:GenerateDataKey
-              - kms:ReEncryptFrom
-              - kms:ReEncryptTo
-              - kms:RetireGrant
-            Resource: "*"
-          - Sid: AllowGitHubActionsUser
-            Effect: Allow
-            Principal:
-              AWS: !Ref GitHubActionsUserArn
-            Action:
-              - kms:CreateKey
-              - kms:DescribeKey
-              - kms:CreateGrant
-              - kms:Decrypt
-              - kms:Encrypt
-              - kms:GenerateDataKey
-              - kms:ReEncryptFrom
-              - kms:ReEncryptTo
-              - kms:RetireGrant
-              - kms:CreateAlias
-              - kms:DeleteAlias
-              - kms:UpdateAlias
-              - kms:ListAliases
-              - kms:ListGrants
-              - kms:RevokeGrant
-            Resource: "*"
-      Tags:
         - Key: Stack
           Value: !Ref "AWS::StackName"
 
