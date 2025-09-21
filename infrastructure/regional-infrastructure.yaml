@@ -92,6 +92,16 @@ Parameters:
     Type: String
     Description: "ARN of the shared Lambda role from global stack"
 
+  GoogleOAuthClientId:
+    Type: String
+    Description: "Google OAuth Client ID"
+    NoEcho: true
+
+  GoogleOAuthClientSecret:
+    Type: String
+    Description: "Google OAuth Client Secret"
+    NoEcho: true
+
 Resources:
   # ECR Repository for Web Application
   WebECRRepository:
@@ -122,6 +132,25 @@ Resources:
           Value: "TaskManager-ECS-Cluster"
         - Key: Purpose
           Value: "Regional Infrastructure"
+        - Key: Stack
+          Value: !Ref "AWS::StackName"
+
+  # Google OAuth Secrets
+  GoogleOAuthSecrets:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub "taskmanager/google-oauth/${AWS::StackName}"
+      Description: "Google OAuth credentials for TaskManager web application"
+      SecretString: !Sub |
+        {
+          "clientId": "${GoogleOAuthClientId}",
+          "clientSecret": "${GoogleOAuthClientSecret}"
+        }
+      Tags:
+        - Key: Name
+          Value: "TaskManager-GoogleOAuth-Secrets"
+        - Key: Purpose
+          Value: "Google OAuth Configuration"
         - Key: Stack
           Value: !Ref "AWS::StackName"
 
@@ -217,3 +246,9 @@ Outputs:
     Value: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/taskmanager-web"
     Export:
       Name: "TaskManager-WebECRRepositoryUri"
+
+  GoogleOAuthSecretArn:
+    Description: "ARN of the Google OAuth secrets"
+    Value: !Ref GoogleOAuthSecrets
+    Export:
+      Name: !Sub "TaskManager-GoogleOAuthSecretArn-${AWS::StackName}"

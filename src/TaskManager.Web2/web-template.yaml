@@ -91,6 +91,10 @@ Parameters:
     Type: String
     Description: "ECS cluster name"
 
+  GoogleOAuthSecretArn:
+    Type: String
+    Description: "ARN of the Google OAuth secrets in Secrets Manager"
+
   DatabaseEndpoint:
     Type: String
     Description: "Database endpoint address"
@@ -223,6 +227,10 @@ Resources:
               Value: !Ref AWS::Region
             - Name: DEPLOYMENT_TOKEN
               Value: !Ref DeploymentToken
+            - Name: Authentication__Google__ClientId
+              Value: !Sub "{{resolve:secretsmanager:${GoogleOAuthSecretArn}:SecretString:clientId}}"
+            - Name: Authentication__Google__ClientSecret
+              Value: !Sub "{{resolve:secretsmanager:${GoogleOAuthSecretArn}:SecretString:clientSecret}}"
           LogConfiguration:
             LogDriver: awslogs
             Options:

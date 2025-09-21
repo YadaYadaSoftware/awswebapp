@@ -73,6 +73,10 @@ Parameters:
     Type: String
     Description: "ECS cluster name"
 
+  GoogleOAuthSecretArn:
+    Type: String
+    Description: "ARN of the Google OAuth secrets in Secrets Manager"
+
 Resources:
   # API Stack (Nested)
   TaskManagerApiStack:
@@ -115,6 +119,7 @@ Resources:
         PrivateSubnet1Id: !Ref PrivateSubnet1Id
         PrivateSubnet2Id: !Ref PrivateSubnet2Id
         ECSClusterName: !Ref ECSClusterName
+        GoogleOAuthSecretArn: !Ref GoogleOAuthSecretArn
         DatabaseEndpoint: !Sub "taskmanager-cluster.cluster-{{resolve:secretsmanager:taskmanager/database/${Environment}/regional/${AWS::Region}:SecretString:cluster_arn}}.${AWS::Region}.rds.amazonaws.com"
       Tags:
         - Key: Component
