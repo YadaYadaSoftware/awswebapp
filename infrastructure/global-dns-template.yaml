@@ -27,6 +27,22 @@ Parameters:
     Default: "us-east-2"
     Description: "Secondary region for failover"
 
+  PrimaryWebLoadBalancerDNS:
+    Type: String
+    Description: "DNS name of the primary web load balancer"
+
+  PrimaryWebLoadBalancerHostedZoneId:
+    Type: String
+    Description: "Hosted zone ID of the primary web load balancer"
+
+  SecondaryWebLoadBalancerDNS:
+    Type: String
+    Description: "DNS name of the secondary web load balancer"
+
+  SecondaryWebLoadBalancerHostedZoneId:
+    Type: String
+    Description: "Hosted zone ID of the secondary web load balancer"
+
 Resources:
   # Health Check for Primary ALB
   PrimaryHealthCheck:
@@ -35,8 +51,7 @@ Resources:
       HealthCheckConfig:
         Type: HTTP
         ResourcePath: /health
-        FullyQualifiedDomainName:
-          Fn::ImportValue: !Sub "TaskManager-${Environment}-${PrimaryRegion}-WebLoadBalancerDNS"
+        FullyQualifiedDomainName: !Ref PrimaryWebLoadBalancerDNS
         Port: 80
         RequestInterval: 30
         FailureThreshold: 2
@@ -53,8 +68,7 @@ Resources:
       HealthCheckConfig:
         Type: HTTP
         ResourcePath: /health
-        FullyQualifiedDomainName:
-          Fn::ImportValue: !Sub "TaskManager-${Environment}-${SecondaryRegion}-WebLoadBalancerDNS"
+        FullyQualifiedDomainName: !Ref SecondaryWebLoadBalancerDNS
         Port: 80
         RequestInterval: 30
         FailureThreshold: 2
@@ -74,10 +88,8 @@ Resources:
       SetIdentifier: !Sub "primary-${Environment}"
       Failover: PRIMARY
       AliasTarget:
-        DNSName:
-          Fn::ImportValue: !Sub "TaskManager-${Environment}-${PrimaryRegion}-WebLoadBalancerDNS"
-        HostedZoneId:
-          Fn::ImportValue: !Sub "TaskManager-${Environment}-${PrimaryRegion}-WebLoadBalancerHostedZoneId"
+        DNSName: !Ref PrimaryWebLoadBalancerDNS
+        HostedZoneId: !Ref PrimaryWebLoadBalancerHostedZoneId
       HealthCheckId: !Ref PrimaryHealthCheck
 
   # Secondary Failover Record
@@ -90,10 +102,8 @@ Resources:
       SetIdentifier: !Sub "secondary-${Environment}"
       Failover: SECONDARY
       AliasTarget:
-        DNSName:
-          Fn::ImportValue: !Sub "TaskManager-${Environment}-${SecondaryRegion}-WebLoadBalancerDNS"
-        HostedZoneId:
-          Fn::ImportValue: !Sub "TaskManager-${Environment}-${SecondaryRegion}-WebLoadBalancerHostedZoneId"
+        DNSName: !Ref SecondaryWebLoadBalancerDNS
+        HostedZoneId: !Ref SecondaryWebLoadBalancerHostedZoneId
       HealthCheckId: !Ref SecondaryHealthCheck
 
 Outputs:
