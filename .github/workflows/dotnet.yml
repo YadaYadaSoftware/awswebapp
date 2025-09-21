@@ -276,19 +276,19 @@ jobs:
           - region: us-west-1
             is_primary: "false"
     outputs:
-      vpc-id: ${{ steps.deploy-regional-db.outputs.VPCId }}
-      private-subnet-1: ${{ steps.deploy-regional-db.outputs.PrivateSubnet1Id }}
-      private-subnet-2: ${{ steps.deploy-regional-db.outputs.PrivateSubnet2Id }}
-      public-subnet-1: ${{ steps.deploy-regional-db.outputs.PublicSubnet1Id }}
-      public-subnet-2: ${{ steps.deploy-regional-db.outputs.PublicSubnet2Id }}
-      lambda-sg: ${{ steps.deploy-regional-db.outputs.LambdaSecurityGroupId }}
-      rds-sg: ${{ steps.deploy-regional-db.outputs.RDSSecurityGroupId }}
-      bastion-sg: ${{ steps.deploy-regional-db.outputs.BastionSecurityGroupId }}
-      alb-sg: ${{ steps.deploy-regional-db.outputs.ALBSecurityGroupId }}
-      ecs-sg: ${{ steps.deploy-regional-db.outputs.ECSTaskSecurityGroupId }}
-      db-endpoint: ${{ steps.deploy-regional-db.outputs.DatabaseEndpoint }}
-      db-reader-endpoint: ${{ steps.deploy-regional-db.outputs.DatabaseReaderEndpoint }}
-      db-secret-arn: ${{ steps.deploy-regional-db.outputs.DatabaseSecretArn }}
+      vpc-id: ${{ steps.deploy-regional-vpc-db.outputs.VPCId }}
+      private-subnet-1: ${{ steps.deploy-regional-vpc-db.outputs.PrivateSubnet1Id }}
+      private-subnet-2: ${{ steps.deploy-regional-vpc-db.outputs.PrivateSubnet2Id }}
+      public-subnet-1: ${{ steps.deploy-regional-vpc-db.outputs.PublicSubnet1Id }}
+      public-subnet-2: ${{ steps.deploy-regional-vpc-db.outputs.PublicSubnet2Id }}
+      lambda-sg: ${{ steps.deploy-regional-vpc-db.outputs.LambdaSecurityGroupId }}
+      rds-sg: ${{ steps.deploy-regional-vpc-db.outputs.RDSSecurityGroupId }}
+      bastion-sg: ${{ steps.deploy-regional-vpc-db.outputs.BastionSecurityGroupId }}
+      alb-sg: ${{ steps.deploy-regional-vpc-db.outputs.ALBSecurityGroupId }}
+      ecs-sg: ${{ steps.deploy-regional-vpc-db.outputs.ECSTaskSecurityGroupId }}
+      db-endpoint: ${{ steps.deploy-regional-vpc-db.outputs.DatabaseEndpoint }}
+      db-reader-endpoint: ${{ steps.deploy-regional-vpc-db.outputs.DatabaseReaderEndpoint }}
+      db-secret-arn: ${{ steps.deploy-regional-vpc-db.outputs.DatabaseSecretArn }}
       web-ecr-repository-uri: ${{ needs.deploy-infrastructure.outputs.web-ecr-repository-uri }}
       bastion-host-ip: ${{ steps.deploy-regional.outputs.BastionHostIP }}
       database-tunnel-command: ${{ steps.deploy-regional.outputs.DatabaseTunnelCommand }}
@@ -313,38 +313,38 @@ jobs:
       run: |
         echo "🔑 GitHub Actions User ARN: ${{ needs.deploy-global.outputs.github-actions-user-arn }}"
 
-    - name: Upload regional-db template to S3
+    - name: Upload regional-vpc-db template to S3
       run: |
-        echo "Uploading regional-db template to S3..."
-        aws s3 cp infrastructure/regional-db.yaml s3://taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-templates-bucket-${{ matrix.region }}/ --region ${{ matrix.region }}
+        echo "Uploading regional-vpc-db template to S3..."
+        aws s3 cp infrastructure/regional-vpc-db.yaml s3://taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-templates-bucket-${{ matrix.region }}/ --region ${{ matrix.region }}
 
-    - name: Cleanup failed regional-db stack (if exists)
+    - name: Cleanup failed regional-vpc-db stack (if exists)
       run: |
         STACK_STATUS=$(aws cloudformation describe-stacks \
-          --stack-name taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-regional-db-${{ matrix.region }} \
+          --stack-name taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-regional-vpc-db-${{ matrix.region }} \
           --region ${{ matrix.region }} \
           --query 'Stacks[0].StackStatus' \
           --output text 2>/dev/null || echo "STACK_NOT_FOUND")
 
         if [ "$STACK_STATUS" = "ROLLBACK_FAILED" ] || [ "$STACK_STATUS" = "ROLLBACK_COMPLETE" ] || [ "$STACK_STATUS" = "CREATE_FAILED" ] || [ "$STACK_STATUS" = "DELETE_FAILED" ]; then
-          echo "🗑️ Deleting failed regional-db stack: taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-regional-db-${{ matrix.region }}"
+          echo "🗑️ Deleting failed regional-vpc-db stack: taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-regional-vpc-db-${{ matrix.region }}"
           aws cloudformation delete-stack \
-            --stack-name taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-regional-db-${{ matrix.region }} \
+            --stack-name taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-regional-vpc-db-${{ matrix.region }} \
             --region ${{ matrix.region }}
 
           aws cloudformation wait stack-delete-complete \
-            --stack-name taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-regional-db-${{ matrix.region }} \
+            --stack-name taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-regional-vpc-db-${{ matrix.region }} \
             --region ${{ matrix.region }}
 
-          echo "✅ Failed regional-db stack cleaned up"
+          echo "✅ Failed regional-vpc-db stack cleaned up"
         fi
 
     - name: Deploy Regional Database
-      id: deploy-regional-db
+      id: deploy-regional-vpc-db
       uses: aws-actions/aws-cloudformation-github-deploy@v1
       with:
-        name: taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-regional-db
-        template: infrastructure/regional-db.yaml
+        name: taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-regional-vpc-db
+        template: infrastructure/regional-vpc-db.yaml
         parameter-overrides: "BranchName=${{ needs.get-branch-name.outputs.branch-name }},DatabasePassword=${{ secrets.DATABASE_PASSWORD }},EngineVersion=${{ env.ENGINE_VERSION }},AuroraGlobalClusterId=${{ needs.deploy-global.outputs.aurora-global-cluster-id }},AuroraKmsKeyArn=${{ needs.deploy-global.outputs.aurora-kms-key-arn }},IsPrimaryRegion=${{ matrix.is_primary }},GitHubActionsUserArn=${{ needs.deploy-global.outputs.github-actions-user-arn }},LogRetentionDays=7"
         capabilities: "CAPABILITY_NAMED_IAM"
         no-fail-on-empty-changeset: "1"
@@ -355,7 +355,7 @@ jobs:
         # Upload all templates
         echo "Uploading templates to S3..."
         aws s3 cp infrastructure/regional-infrastructure.yaml s3://taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-templates-bucket-${{ matrix.region }}/ --region ${{ matrix.region }}
-        aws s3 cp infrastructure/regional-db.yaml s3://taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-templates-bucket-${{ matrix.region }}/ --region ${{ matrix.region }}
+        aws s3 cp infrastructure/regional-vpc-db.yaml s3://taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-templates-bucket-${{ matrix.region }}/ --region ${{ matrix.region }}
         aws s3 cp src/TaskManager.Api/api-template.yaml s3://taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-templates-bucket-${{ matrix.region }}/ --region ${{ matrix.region }}
         aws s3 cp src/TaskManager.Web2/web-template.yaml s3://taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-templates-bucket-${{ matrix.region }}/ --region ${{ matrix.region }}
         aws s3 cp infrastructure/wrapper-template.yaml s3://taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-templates-bucket-${{ matrix.region }}/ --region ${{ matrix.region }}
@@ -370,7 +370,7 @@ jobs:
         echo "DatabasePassword: [REDACTED]"
         echo "SharedLambdaRoleArn: ${{ needs.deploy-global.outputs.shared-lambda-role-arn }}"
         echo "BastionRoleArn: ${{ needs.deploy-global.outputs.bastion-role-arn }}"
-        echo "DatabaseSecretArn: ${{ steps.deploy-regional-db.outputs.DatabaseSecretArn }}"
+        echo "DatabaseSecretArn: ${{ steps.deploy-regional-vpc-db.outputs.DatabaseSecretArn }}"
         echo "BastionInstanceProfileArn: ${{ needs.deploy-global.outputs.bastion-instance-profile-arn }}"
         echo "AuroraGlobalClusterId: ${{ needs.deploy-global.outputs.aurora-global-cluster-id }}"
 
@@ -385,7 +385,7 @@ jobs:
           exit 1
         fi
 
-        if [ -z "${{ steps.deploy-regional-db.outputs.DatabaseSecretArn }}" ]; then
+        if [ -z "${{ steps.deploy-regional-vpc-db.outputs.DatabaseSecretArn }}" ]; then
           echo "❌ ERROR: DatabaseSecretArn is empty"
           exit 1
         fi
@@ -429,7 +429,7 @@ jobs:
       with:
         name: taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-regional-infrastructure
         template: infrastructure/regional-infrastructure.yaml
-        parameter-overrides: "DatabasePassword=${{ secrets.DATABASE_PASSWORD }},SharedLambdaRoleArn=${{ needs.deploy-global.outputs.shared-lambda-role-arn }},BastionRoleArn=${{ needs.deploy-global.outputs.bastion-role-arn }},BastionInstanceProfileArn=${{ needs.deploy-global.outputs.bastion-instance-profile-arn }},AuroraGlobalClusterId=${{ needs.deploy-global.outputs.aurora-global-cluster-id }},AuroraKmsKeyArn=${{ needs.deploy-global.outputs.aurora-kms-key-arn }},EngineVersion=${{ env.ENGINE_VERSION }},VPCId=${{ steps.deploy-regional-db.outputs.VPCId }},PrivateSubnet1Id=${{ steps.deploy-regional-db.outputs.PrivateSubnet1Id }},PrivateSubnet2Id=${{ steps.deploy-regional-db.outputs.PrivateSubnet2Id }},PublicSubnet1Id=${{ steps.deploy-regional-db.outputs.PublicSubnet1Id }},PublicSubnet2Id=${{ steps.deploy-regional-db.outputs.PublicSubnet2Id }},LambdaSecurityGroupId=${{ steps.deploy-regional-db.outputs.LambdaSecurityGroupId }},RDSSecurityGroupId=${{ steps.deploy-regional-db.outputs.RDSSecurityGroupId }},BastionSecurityGroupId=${{ steps.deploy-regional-db.outputs.BastionSecurityGroupId }},ALBSecurityGroupId=${{ steps.deploy-regional-db.outputs.ALBSecurityGroupId }},ECSTaskSecurityGroupId=${{ steps.deploy-regional-db.outputs.ECSTaskSecurityGroupId }},DatabaseEndpoint=${{ steps.deploy-regional-db.outputs.DatabaseEndpoint }},DatabaseReaderEndpoint=${{ steps.deploy-regional-db.outputs.DatabaseReaderEndpoint }},GoogleOAuthClientId=${{ secrets.GOOGLE_OAUTH_CLIENT_ID }},GoogleOAuthClientSecret=${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}"
+        parameter-overrides: "DatabasePassword=${{ secrets.DATABASE_PASSWORD }},SharedLambdaRoleArn=${{ needs.deploy-global.outputs.shared-lambda-role-arn }},BastionRoleArn=${{ needs.deploy-global.outputs.bastion-role-arn }},BastionInstanceProfileArn=${{ needs.deploy-global.outputs.bastion-instance-profile-arn }},AuroraGlobalClusterId=${{ needs.deploy-global.outputs.aurora-global-cluster-id }},AuroraKmsKeyArn=${{ needs.deploy-global.outputs.aurora-kms-key-arn }},EngineVersion=${{ env.ENGINE_VERSION }},VPCId=${{ steps.deploy-regional-vpc-db.outputs.VPCId }},PrivateSubnet1Id=${{ steps.deploy-regional-vpc-db.outputs.PrivateSubnet1Id }},PrivateSubnet2Id=${{ steps.deploy-regional-vpc-db.outputs.PrivateSubnet2Id }},PublicSubnet1Id=${{ steps.deploy-regional-vpc-db.outputs.PublicSubnet1Id }},PublicSubnet2Id=${{ steps.deploy-regional-vpc-db.outputs.PublicSubnet2Id }},LambdaSecurityGroupId=${{ steps.deploy-regional-vpc-db.outputs.LambdaSecurityGroupId }},RDSSecurityGroupId=${{ steps.deploy-regional-vpc-db.outputs.RDSSecurityGroupId }},BastionSecurityGroupId=${{ steps.deploy-regional-vpc-db.outputs.BastionSecurityGroupId }},ALBSecurityGroupId=${{ steps.deploy-regional-vpc-db.outputs.ALBSecurityGroupId }},ECSTaskSecurityGroupId=${{ steps.deploy-regional-vpc-db.outputs.ECSTaskSecurityGroupId }},DatabaseEndpoint=${{ steps.deploy-regional-vpc-db.outputs.DatabaseEndpoint }},DatabaseReaderEndpoint=${{ steps.deploy-regional-vpc-db.outputs.DatabaseReaderEndpoint }},GoogleOAuthClientId=${{ secrets.GOOGLE_OAUTH_CLIENT_ID }},GoogleOAuthClientSecret=${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}"
         capabilities: "CAPABILITY_NAMED_IAM"
         no-fail-on-empty-changeset: "1"
         timeout-in-minutes: 20
@@ -553,7 +553,7 @@ jobs:
       with:
         name: ${{ env.STACK_PREFIX }}-wrapper
         template: infrastructure/wrapper-template.yaml
-        parameter-overrides: Environment=${{ needs.get-branch-name.outputs.branch-name }},ApiCodeBucket=taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-templates-bucket-${{ matrix.region }},WebContainerImage=${{ env.CONTAINER_IMAGE }},DeploymentToken=${{ github.sha }},DomainName=appcloud.systems,HostedZoneId=Z06422172SASV44F5Y8VA,TemplatesBucket=taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-templates-bucket-${{ matrix.region }},SharedLambdaRoleArn=${{ needs.deploy-global.outputs.shared-lambda-role-arn }},VPCId=${{ steps.deploy-regional-db.outputs.VPCId }},LambdaSecurityGroupId=${{ steps.deploy-regional-db.outputs.LambdaSecurityGroupId }},PrivateSubnet1Id=${{ steps.deploy-regional-db.outputs.PrivateSubnet1Id }},PrivateSubnet2Id=${{ steps.deploy-regional-db.outputs.PrivateSubnet2Id }},ALBSecurityGroupId=${{ steps.deploy-regional-db.outputs.ALBSecurityGroupId }},ECSTaskSecurityGroupId=${{ steps.deploy-regional-db.outputs.ECSTaskSecurityGroupId }},PublicSubnet1Id=${{ steps.deploy-regional-db.outputs.PublicSubnet1Id }},PublicSubnet2Id=${{ steps.deploy-regional-db.outputs.PublicSubnet2Id }},ECSClusterName=${{ steps.deploy-regional.outputs.ECSClusterName }},GoogleOAuthSecretArn=${{ steps.deploy-regional.outputs.GoogleOAuthSecretArn }},LogRetentionDays=7
+        parameter-overrides: Environment=${{ needs.get-branch-name.outputs.branch-name }},ApiCodeBucket=taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-templates-bucket-${{ matrix.region }},WebContainerImage=${{ env.CONTAINER_IMAGE }},DeploymentToken=${{ github.sha }},DomainName=appcloud.systems,HostedZoneId=Z06422172SASV44F5Y8VA,TemplatesBucket=taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-templates-bucket-${{ matrix.region }},SharedLambdaRoleArn=${{ needs.deploy-global.outputs.shared-lambda-role-arn }},VPCId=${{ steps.deploy-regional-vpc-db.outputs.VPCId }},LambdaSecurityGroupId=${{ steps.deploy-regional-vpc-db.outputs.LambdaSecurityGroupId }},PrivateSubnet1Id=${{ steps.deploy-regional-vpc-db.outputs.PrivateSubnet1Id }},PrivateSubnet2Id=${{ steps.deploy-regional-vpc-db.outputs.PrivateSubnet2Id }},ALBSecurityGroupId=${{ steps.deploy-regional-vpc-db.outputs.ALBSecurityGroupId }},ECSTaskSecurityGroupId=${{ steps.deploy-regional-vpc-db.outputs.ECSTaskSecurityGroupId }},PublicSubnet1Id=${{ steps.deploy-regional-vpc-db.outputs.PublicSubnet1Id }},PublicSubnet2Id=${{ steps.deploy-regional-vpc-db.outputs.PublicSubnet2Id }},ECSClusterName=${{ steps.deploy-regional.outputs.ECSClusterName }},GoogleOAuthSecretArn=${{ steps.deploy-regional.outputs.GoogleOAuthSecretArn }},LogRetentionDays=7
         capabilities: "CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND"
         no-fail-on-empty-changeset: "1"
       timeout-minutes: 20
@@ -632,7 +632,7 @@ jobs:
         # Check regional database
         echo "Checking regional database..."
         REGIONAL_DB_STATUS=$(aws cloudformation describe-stacks \
-          --stack-name taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-regional-db-${{ matrix.region }} \
+          --stack-name taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-regional-vpc-db-${{ matrix.region }} \
           --region ${{ matrix.region }} \
           --query 'Stacks[0].StackStatus' \
           --output text 2>/dev/null || echo "NOT_FOUND")

@@ -39,54 +39,54 @@ Parameters:
     Default: "/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-6.1-x86_64"
     Description: "Latest Amazon Linux 2023 AMI ID from SSM Parameter Store"
 
-  # Parameters from regional-db.yaml outputs
+  # Parameters from regional-vpc-db.yaml outputs
   VPCId:
     Type: String
-    Description: "VPC ID from regional-db stack"
+    Description: "VPC ID from regional-vpc-db stack"
 
   PrivateSubnet1Id:
     Type: String
-    Description: "Private subnet 1 ID from regional-db stack"
+    Description: "Private subnet 1 ID from regional-vpc-db stack"
 
   PrivateSubnet2Id:
     Type: String
-    Description: "Private subnet 2 ID from regional-db stack"
+    Description: "Private subnet 2 ID from regional-vpc-db stack"
 
   PublicSubnet1Id:
     Type: String
-    Description: "Public subnet 1 ID from regional-db stack"
+    Description: "Public subnet 1 ID from regional-vpc-db stack"
 
   PublicSubnet2Id:
     Type: String
-    Description: "Public subnet 2 ID from regional-db stack"
+    Description: "Public subnet 2 ID from regional-vpc-db stack"
 
   LambdaSecurityGroupId:
     Type: String
-    Description: "Lambda security group ID from regional-db stack"
+    Description: "Lambda security group ID from regional-vpc-db stack"
 
   RDSSecurityGroupId:
     Type: String
-    Description: "RDS security group ID from regional-db stack"
+    Description: "RDS security group ID from regional-vpc-db stack"
 
   BastionSecurityGroupId:
     Type: String
-    Description: "Bastion security group ID from regional-db stack"
+    Description: "Bastion security group ID from regional-vpc-db stack"
 
   ALBSecurityGroupId:
     Type: String
-    Description: "ALB security group ID from regional-db stack"
+    Description: "ALB security group ID from regional-vpc-db stack"
 
   ECSTaskSecurityGroupId:
     Type: String
-    Description: "ECS task security group ID from regional-db stack"
+    Description: "ECS task security group ID from regional-vpc-db stack"
 
   DatabaseEndpoint:
     Type: String
-    Description: "Database endpoint from regional-db stack"
+    Description: "Database endpoint from regional-vpc-db stack"
 
   DatabaseReaderEndpoint:
     Type: String
-    Description: "Database reader endpoint from regional-db stack"
+    Description: "Database reader endpoint from regional-vpc-db stack"
 
   SharedLambdaRoleArn:
     Type: String
