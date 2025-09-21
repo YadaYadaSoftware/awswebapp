@@ -402,6 +402,54 @@ Resources:
         - Key: Stack
           Value: !Ref "AWS::StackName"
 
+  # VPC Flow Logs
+  VPCFlowLogsLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/vpc/flowlogs/TaskManager-${BranchName}-VPC-${AWS::Region}"
+      RetentionInDays: !Ref LogRetentionDays
+      Tags:
+        - Key: Stack
+          Value: !Ref "AWS::StackName"
+
+  VPCFlowLogsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "TaskManager-VPCFlowLogs-Role-${BranchName}-${AWS::Region}"
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: vpc-flow-logs.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: VPCFlowLogsPolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                  - logs:DescribeLogGroups
+                  - logs:DescribeLogStreams
+                Resource: "*"
+      Tags:
+        - Key: Stack
+          Value: !Ref "AWS::StackName"
+
+  VPCFlowLogs:
+    Type: AWS::EC2::FlowLog
+    Properties:
+      ResourceId: !Ref TaskManagerVPC
+      ResourceType: VPC
+      TrafficType: ALL
+      DeliverLogsPermissionArn: !GetAtt VPCFlowLogsRole.Arn
+      LogDestinationType: CloudWatchLogs
+      LogGroupName: !Ref VPCFlowLogsLogGroup
+
   # Security Groups
   RDSSecurityGroup:
     Type: AWS::EC2::SecurityGroup
