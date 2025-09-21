@@ -14,11 +14,14 @@ Parameters:
   GitHubActionsUserArn:
     Type: String
     Description: ARN of the GitHub Actions IAM user from IAM setup stack
+  BranchName:
+    Type: String
+    Description: Branch name for resource naming
 Resources:
   BastionRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub TaskManager-Bastion-Role-${AWS::Region}
+      RoleName: !Sub TaskManager-Bastion-Role-${BranchName}-${AWS::Region}
       AssumeRolePolicyDocument:
         Version: 2012-10-17
         Statement:
@@ -122,7 +125,7 @@ Resources:
   AuroraGlobalCluster:
     Type: AWS::RDS::GlobalCluster
     Properties:
-      GlobalClusterIdentifier: taskmanager-global-cluster
+      GlobalClusterIdentifier: !Sub taskmanager-${BranchName}-global-cluster
       Engine: aurora-mysql
       EngineVersion: !Ref EngineVersion
       DeletionProtection: false
@@ -135,7 +138,7 @@ Resources:
   SharedLambdaExecutionRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub TaskManager-Shared-Lambda-Role
+      RoleName: !Sub TaskManager-Shared-Lambda-Role-${BranchName}
       AssumeRolePolicyDocument:
         Version: 2012-10-17
         Statement:
@@ -243,7 +246,7 @@ Resources:
   VPCFlowLogsRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: TaskManager-VPCFlowLogs-Role
+      RoleName: !Sub TaskManager-VPCFlowLogs-Role-${BranchName}
       AssumeRolePolicyDocument:
         Version: 2012-10-17
         Statement:
@@ -272,31 +275,31 @@ Outputs:
     Description: Bastion role ARN
     Value: !GetAtt BastionRole.Arn
     Export:
-      Name: TaskManager-BastionRole
+      Name: !Sub TaskManager-BastionRole-${BranchName}
   BastionInstanceProfileArn:
     Description: Bastion instance profile ARN
     Value: !Ref BastionInstanceProfile
     Export:
-      Name: TaskManager-BastionInstanceProfile
+      Name: !Sub TaskManager-BastionInstanceProfile-${BranchName}
   AuroraGlobalClusterId:
     Description: Aurora Global Database cluster identifier
     Value: !Ref AuroraGlobalCluster
     Export:
-      Name: TaskManager-AuroraGlobalCluster
+      Name: !Sub TaskManager-AuroraGlobalCluster-${BranchName}
   AuroraKmsKeyArn:
     Description: KMS key ARN used for Aurora encryption
     Value: !GetAtt AuroraKmsKey.Arn
     Export:
-      Name: TaskManager-AuroraKmsKey
+      Name: !Sub TaskManager-AuroraKmsKey-${BranchName}
 
   SharedLambdaRoleArn:
     Description: Shared Lambda execution role ARN
     Value: !GetAtt SharedLambdaExecutionRole.Arn
     Export:
-      Name: TaskManager-SharedLambdaRole
+      Name: !Sub TaskManager-SharedLambdaRole-${BranchName}
 
   VPCFlowLogsRoleArn:
     Description: VPC Flow Logs role ARN
     Value: !GetAtt VPCFlowLogsRole.Arn
     Export:
-      Name: TaskManager-VPCFlowLogsRole
+      Name: !Sub TaskManager-VPCFlowLogsRole-${BranchName}
