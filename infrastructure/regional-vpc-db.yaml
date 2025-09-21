@@ -19,12 +19,7 @@ Parameters:
 
   AuroraKmsKeyArn:
     Type: String
-    Description: ARN of the KMS key used by the Aurora global cluster
-
-  AuroraKmsKeyReplicaArn:
-    Type: String
-    Default: ""
-    Description: ARN of the KMS key replica for this region
+    Description: ARN of the KMS key (primary or replica) for Aurora encryption in this region
 
   IsPrimaryRegion:
     Type: String
@@ -394,8 +389,7 @@ Resources:
       PreferredBackupWindow: "03:00-04:00"
       PreferredMaintenanceWindow: "sun:04:00-sun:05:00"
       StorageEncrypted: true
-      KmsKeyId:
-        !If [IsPrimary, !Ref AuroraKmsKeyArn, !Ref AuroraKmsKeyReplicaArn]
+      KmsKeyId: !Ref AuroraKmsKeyArn
       DeletionProtection: false
       ServerlessV2ScalingConfiguration:
         MinCapacity: 0.5
