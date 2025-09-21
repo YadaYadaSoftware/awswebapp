@@ -34,6 +34,11 @@ Parameters:
     Type: String
     Description: Branch name for resource naming
 
+  LogRetentionDays:
+    Type: Number
+    Default: 7
+    Description: Number of days to retain CloudWatch logs
+
 Conditions:
   IsPrimary: !Equals [!Ref IsPrimaryRegion, "true"]
   IsNotPrimary: !Equals [!Ref IsPrimaryRegion, "false"]
@@ -317,25 +322,25 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub "/aws/rds/cluster/taskmanager-${BranchName}-aurora-cluster-${AWS::Region}/audit"
-      RetentionInDays: 7
+      RetentionInDays: !Ref LogRetentionDays
 
   AuroraErrorLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub "/aws/rds/cluster/taskmanager-${BranchName}-aurora-cluster-${AWS::Region}/error"
-      RetentionInDays: 7
+      RetentionInDays: !Ref LogRetentionDays
 
   AuroraGeneralLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub "/aws/rds/cluster/taskmanager-${BranchName}-aurora-cluster-${AWS::Region}/general"
-      RetentionInDays: 7
+      RetentionInDays: !Ref LogRetentionDays
 
   AuroraSlowQueryLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub "/aws/rds/cluster/taskmanager-${BranchName}-aurora-cluster-${AWS::Region}/slowquery"
-      RetentionInDays: 7
+      RetentionInDays: !Ref LogRetentionDays
 
   # Aurora Serverless v2 Cluster
   AuroraCluster:

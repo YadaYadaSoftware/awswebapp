@@ -99,13 +99,18 @@ Parameters:
     Type: String
     Description: "Database endpoint address"
 
+  LogRetentionDays:
+    Type: Number
+    Default: 7
+    Description: Number of days to retain CloudWatch logs
+
 Resources:
   # CloudWatch Log Group for ECS
   WebECSLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub "/ecs/TaskManagerWeb-${Environment}"
-      RetentionInDays: 7
+      RetentionInDays: !Ref LogRetentionDays
       Tags:
         - Key: Stack
           Value: !Ref "AWS::StackName"

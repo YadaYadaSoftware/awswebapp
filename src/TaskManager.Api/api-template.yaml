@@ -43,6 +43,11 @@ Parameters:
     AllowedPattern: "^subnet-[0-9a-z]+$"
     MinLength: 1
 
+  LogRetentionDays:
+    Type: Number
+    Default: 7
+    Description: Number of days to retain CloudWatch logs
+
 # Removed IsPrimaryRegion parameter and condition - no longer needed
 
 Globals:
@@ -63,7 +68,7 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub "/aws/lambda/TaskManagerApi-${Environment}"
-      RetentionInDays: 7
+      RetentionInDays: !Ref LogRetentionDays
       Tags:
         - Key: Stack
           Value: !Ref "AWS::StackName"
