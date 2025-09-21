@@ -477,7 +477,7 @@ Resources:
       ResourceType: VPC
       TrafficType: ALL
       DeliverLogsPermissionArn: !GetAtt VPCFlowLogsRole.Arn
-      LogDestinationType: CloudWatchLogs
+      LogDestinationType: cloud-watch-logs
       LogGroupName: !Ref VPCFlowLogsLogGroup
 
   # Security Groups
