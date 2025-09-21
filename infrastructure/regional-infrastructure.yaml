@@ -1,6 +1,6 @@
 ---
 AWSTemplateFormatVersion: "2010-09-09"
-Description: "TaskManager Regional Infrastructure - VPC, RDS, ECS, Bastion Host"
+Description: "TaskManager Regional Infrastructure - VPC, RDS, ECS"
 
 Parameters:
   DatabasePassword:
@@ -13,19 +13,6 @@ Parameters:
     Type: String
     Description: "Aurora MySQL engine version for the regional cluster"
 
-  BastionPublicKeyMaterial:
-    Type: String
-    Description: "Public key material for bastion SSH access (generate locally with ssh-keygen and paste the .pub content here)"
-    Default: "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCuSPS013ezN5lbrX/yOgu2d5n+97vzyj0P7oD2n5mCyblEG184U6r0LOu+DWURveDTLOtBEUCa5cCfnW3vTd6A25t9fHJFB0V+DuOCQ+tMVLxvs3yu61Cmz4ChNEK/qUX9YtpDwXJP1SmnKUPJOnFAfUwyClBqbQjd6rkyYYKmuRLD3llEXZDO/GwLpWO3KvNWLYJnz+MAJL4LU1JXimYfJqVmd3PUGUyUI55d5lqfZYCGxwzb3Eg31bZ4ljf0vBT6ztgwrVvBvpRlkmTRqcqvypS/3zDd6USmf8rLOB5VwnFw+f4o88K1x3O5iqZrRxApjdlLA8IDIH7uFP89KjKX 17034@DESKTOP-3BGTTVG"
-
-  BastionRoleArn:
-    Type: String
-    Description: "ARN of the bastion role from global stack"
-
-  BastionInstanceProfileArn:
-    Type: String
-    Description: "ARN of the bastion instance profile from global stack"
-
   AuroraGlobalClusterId:
     Type: String
     Description: "ID of the Aurora global cluster from global stack"
@@ -34,10 +21,6 @@ Parameters:
     Type: String
     Description: "ARN of the KMS key used by the Aurora global cluster"
 
-  LatestAmiId:
-    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
-    Default: "/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-6.1-x86_64"
-    Description: "Latest Amazon Linux 2023 AMI ID from SSM Parameter Store"
 
   # Parameters from regional-vpc-db.yaml outputs
   VPCId:
@@ -67,10 +50,6 @@ Parameters:
   RDSSecurityGroupId:
     Type: String
     Description: "RDS security group ID from regional-vpc-db stack"
-
-  BastionSecurityGroupId:
-    Type: String
-    Description: "Bastion security group ID from regional-vpc-db stack"
 
   ALBSecurityGroupId:
     Type: String
@@ -103,8 +82,6 @@ Parameters:
     NoEcho: true
 
 Resources:
-  # Note: Bastion IAM role cleanup is handled by the global stack's IAM cleanup function
-  # The BastionRole is created in the global stack and cleaned up there
 
   # ECS Cluster
   ECSCluster:
@@ -142,90 +119,8 @@ Resources:
         - Key: Stack
           Value: !Ref "AWS::StackName"
 
-  # SSH Key Pair for Bastion
-  BastionKeyPair:
-    Type: AWS::EC2::KeyPair
-    Properties:
-      KeyName: !Sub "taskmanager-bastion-key-${AWS::StackName}-updated"
-      KeyType: rsa
-      KeyFormat: pem
-      PublicKeyMaterial: !Ref BastionPublicKeyMaterial
-
-  # Bastion Instance Profile (using global)
-
-  BastionHost:
-    Type: AWS::EC2::Instance
-    Properties:
-      ImageId: !Ref LatestAmiId
-      InstanceType: t3.micro
-      SubnetId: !Ref PublicSubnet1Id
-      SecurityGroupIds:
-        - !Ref BastionSecurityGroupId
-      IamInstanceProfile: !Ref BastionInstanceProfileArn
-      KeyName: !Ref BastionKeyPair
-      UserData:
-        Fn::Base64: !Sub |
-          #!/bin/bash
-          yum update -y
-          yum install -y mysql
-
-          # Create connection helper script
-          cat > /home/ec2-user/connect-to-db.sh << 'EOF'
-          #!/bin/bash
-          echo "TaskManager Aurora MySQL Database Connection Helper"
-          echo "Aurora Endpoint: ${DatabaseEndpoint}"
-          echo ""
-          echo "To connect to Aurora MySQL database:"
-          echo "mysql -h ${DatabaseEndpoint} -u taskmanager_admin -p"
-          echo ""
-          echo "Available databases:"
-          echo "- Connect and run: SHOW DATABASES; to list all databases"
-          echo "- Each branch creates its own database (e.g., taskmanager_main, taskmanager_feature1)"
-          echo ""
-          echo "Note: This is a cluster in the Aurora Global Database"
-          EOF
-
-          chmod +x /home/ec2-user/connect-to-db.sh
-          chown ec2-user:ec2-user /home/ec2-user/connect-to-db.sh
-      Tags:
-        - Key: LogicalId
-          Value: BastionHost
-        - Key: Name
-          Value: "TaskManager-Bastion"
-        - Key: Purpose
-          Value: "Regional Infrastructure"
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
-
 Outputs:
-  BastionHostIP:
-    Description: "Bastion host public IP address"
-    Value: !GetAtt BastionHost.PublicIp
-    Export:
-      Name: "TaskManager-BastionIP"
-
-  BastionHostId:
-    Description: "Bastion host instance ID"
-    Value: !Ref BastionHost
-    Export:
-      Name: "TaskManager-BastionHostId"
-
-  BastionKeyPairName:
-    Description: "Name of the SSH key pair for bastion access"
-    Value: !Ref BastionKeyPair
-    Export:
-      Name: "TaskManager-BastionKeyPairName"
-
-  DatabaseTunnelCommand:
-    Description: "SSH tunnel command for Aurora MySQL database access"
-    Value: !Sub
-      - "ssh -i your-key.pem -L 3306:${DbEndpoint}:3306 ec2-user@${BastionIp}"
-      - DbEndpoint: !Ref DatabaseEndpoint
-        BastionIp: !GetAtt BastionHost.PublicIp
-    Export:
-      Name: "TaskManager-DatabaseTunnelCommand"
-
-  ECSClusterName:
+   ECSClusterName:
     Description: "ECS cluster name"
     Value: !GetAtt ECSCluster.Arn
     Export:

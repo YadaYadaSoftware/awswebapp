@@ -18,50 +18,6 @@ Parameters:
     Type: String
     Description: Branch name for resource naming
 Resources:
-  BastionRole:
-    Type: AWS::IAM::Role
-    Properties:
-      RoleName: !Sub TaskManager-Bastion-Role-${BranchName}-${AWS::Region}
-      AssumeRolePolicyDocument:
-        Version: 2012-10-17
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: ec2.amazonaws.com
-            Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
-      Policies:
-        - PolicyName: SecretsManagerRead
-          PolicyDocument:
-            Version: 2012-10-17
-            Statement:
-              - Effect: Allow
-                Action:
-                  - secretsmanager:GetSecretValue
-                Resource:
-                  - !Sub arn:aws:secretsmanager:us-east-1:${AWS::AccountId}:secret:taskmanager/database/regional/us-east-1*
-                  - !Sub arn:aws:secretsmanager:us-east-2:${AWS::AccountId}:secret:taskmanager/database/regional/us-east-2*
-        - PolicyName: SSMParameterAccess
-          PolicyDocument:
-            Version: 2012-10-17
-            Statement:
-              - Effect: Allow
-                Action:
-                  - ssm:GetParameter
-                  - ssm:GetParameters
-                Resource:
-                  - "arn:aws:ssm:*:*:parameter/aws/service/ami-amazon-linux-latest/*"
-      Tags:
-        - Key: LogicalId
-          Value: AuroraGlobalCluster
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
-  BastionInstanceProfile:
-    Type: AWS::IAM::InstanceProfile
-    Properties:
-      Roles:
-        - !Ref BastionRole
   AuroraKmsKey:
     Type: AWS::KMS::Key
     DeletionPolicy: Retain
@@ -132,7 +88,7 @@ Resources:
       StorageEncrypted: true
       Tags:
         - Key: LogicalId
-          Value: BastionRole
+          Value: AuroraGlobalCluster
         - Key: Stack
           Value: !Ref "AWS::StackName"
   SharedLambdaExecutionRole:
@@ -271,16 +227,6 @@ Resources:
         - Key: Stack
           Value: !Ref "AWS::StackName"
 Outputs:
-  BastionRoleArn:
-    Description: Bastion role ARN
-    Value: !GetAtt BastionRole.Arn
-    Export:
-      Name: !Sub TaskManager-BastionRole-${BranchName}
-  BastionInstanceProfileArn:
-    Description: Bastion instance profile ARN
-    Value: !Ref BastionInstanceProfile
-    Export:
-      Name: !Sub TaskManager-BastionInstanceProfile-${BranchName}
   AuroraGlobalClusterId:
     Description: Aurora Global Database cluster identifier
     Value: !Ref AuroraGlobalCluster

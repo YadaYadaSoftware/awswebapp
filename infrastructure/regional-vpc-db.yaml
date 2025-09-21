@@ -82,8 +82,7 @@ Resources:
       VpcId: !Ref TaskManagerVPC
       InternetGatewayId: !Ref InternetGateway
 
-  # Public Subnets for NAT Gateway and Bastion
-  PublicSubnet1:
+  # Public Subnets for NAT Gateway  PublicSubnet1:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref TaskManagerVPC
@@ -235,28 +234,6 @@ Resources:
           Value: LambdaSecurityGroup
         - Key: Name
           Value: "TaskManager-Lambda-SG"
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
-
-  BastionSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupDescription: Security group for bastion host
-      VpcId: !Ref TaskManagerVPC
-      SecurityGroupIngress:
-        - IpProtocol: tcp
-          FromPort: 22
-          ToPort: 22
-          CidrIp: 0.0.0.0/0
-          Description: SSH access from anywhere
-      SecurityGroupEgress:
-        - IpProtocol: -1
-          CidrIp: 0.0.0.0/0
-      Tags:
-        - Key: LogicalId
-          Value: BastionSecurityGroup
-        - Key: Name
-          Value: "TaskManager-Bastion-SG"
         - Key: Stack
           Value: !Ref "AWS::StackName"
 
@@ -470,10 +447,6 @@ Resources:
         - IpProtocol: tcp
           FromPort: 3306
           ToPort: 3306
-          SourceSecurityGroupId: !Ref BastionSecurityGroup
-        - IpProtocol: tcp
-          FromPort: 3306
-          ToPort: 3306
           SourceSecurityGroupId: !Ref ECSTaskSecurityGroup
       Tags:
         - Key: LogicalId
@@ -540,12 +513,6 @@ Outputs:
     Value: !Ref LambdaSecurityGroup
     Export:
       Name: !Sub "TaskManager-LambdaSecurityGroup-${AWS::Region}"
-
-  BastionSecurityGroupId:
-    Description: Security group for bastion host
-    Value: !Ref BastionSecurityGroup
-    Export:
-      Name: !Sub "TaskManager-BastionSecurityGroup-${AWS::Region}"
 
   ALBSecurityGroupId:
     Description: Security group for Application Load Balancer
