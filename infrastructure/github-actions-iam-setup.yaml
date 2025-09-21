@@ -18,6 +18,8 @@ Resources:
     Properties:
       UserName: !Ref UserName
       Tags:
+        - Key: LogicalId
+          Value: GitHubActionsUser
         - Key: Purpose
           Value: "GitHub Actions Deployment"
         - Key: Application

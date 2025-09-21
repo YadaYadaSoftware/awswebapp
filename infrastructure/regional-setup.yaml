@@ -19,6 +19,8 @@ Resources:
         IgnorePublicAcls: true
         RestrictPublicBuckets: true
       Tags:
+        - Key: LogicalId
+          Value: RegionalArtifactsBucket
         - Key: Name
           Value: "TaskManager-Templates-Bucket"
         - Key: Purpose
@@ -34,6 +36,8 @@ Resources:
         ScanOnPush: true
       ImageTagMutability: "MUTABLE"
       Tags:
+        - Key: LogicalId
+          Value: WebECRRepository
         - Key: Name
           Value: "TaskManager-Web-ECR"
         - Key: Purpose

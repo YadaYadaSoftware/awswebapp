@@ -52,6 +52,8 @@ Resources:
       EnableDnsHostnames: true
       EnableDnsSupport: true
       Tags:
+        - Key: LogicalId
+          Value: TaskManagerVPC
         - Key: Name
           Value: "TaskManager-VPC"
         - Key: Purpose
@@ -63,6 +65,8 @@ Resources:
     Type: AWS::EC2::InternetGateway
     Properties:
       Tags:
+        - Key: LogicalId
+          Value: InternetGateway
         - Key: Name
           Value: "TaskManager-IGW"
         - Key: Stack
@@ -83,6 +87,8 @@ Resources:
       AvailabilityZone: !Select [0, !GetAZs ""]
       MapPublicIpOnLaunch: true
       Tags:
+        - Key: LogicalId
+          Value: PublicSubnet1
         - Key: Name
           Value: "TaskManager-Public-Subnet-1"
         - Key: Stack
@@ -96,6 +102,8 @@ Resources:
       AvailabilityZone: !Select [1, !GetAZs ""]
       MapPublicIpOnLaunch: true
       Tags:
+        - Key: LogicalId
+          Value: PublicSubnet2
         - Key: Name
           Value: "TaskManager-Public-Subnet-2"
         - Key: Stack
@@ -109,6 +117,8 @@ Resources:
       CidrBlock: 10.0.3.0/24
       AvailabilityZone: !Select [0, !GetAZs ""]
       Tags:
+        - Key: LogicalId
+          Value: PrivateSubnet1
         - Key: Name
           Value: "TaskManager-Private-Subnet-1"
         - Key: Stack
@@ -121,6 +131,8 @@ Resources:
       CidrBlock: 10.0.4.0/24
       AvailabilityZone: !Select [1, !GetAZs ""]
       Tags:
+        - Key: LogicalId
+          Value: PrivateSubnet2
         - Key: Name
           Value: "TaskManager-Private-Subnet-2"
         - Key: Stack
@@ -215,6 +227,8 @@ Resources:
         - IpProtocol: -1
           CidrIp: 0.0.0.0/0
       Tags:
+        - Key: LogicalId
+          Value: LambdaSecurityGroup
         - Key: Name
           Value: "TaskManager-Lambda-SG"
         - Key: Stack
@@ -235,6 +249,8 @@ Resources:
         - IpProtocol: -1
           CidrIp: 0.0.0.0/0
       Tags:
+        - Key: LogicalId
+          Value: BastionSecurityGroup
         - Key: Name
           Value: "TaskManager-Bastion-SG"
         - Key: Stack
@@ -255,6 +271,8 @@ Resources:
         - IpProtocol: -1
           CidrIp: 0.0.0.0/0
       Tags:
+        - Key: LogicalId
+          Value: ECSTaskSecurityGroup
         - Key: Name
           Value: "TaskManager-ECS-Task-SG"
         - Key: Stack
@@ -280,6 +298,8 @@ Resources:
         - IpProtocol: -1
           CidrIp: 0.0.0.0/0
       Tags:
+        - Key: LogicalId
+          Value: ALBSecurityGroup
         - Key: Name
           Value: "TaskManager-ALB-SG"
         - Key: Stack
@@ -296,6 +316,8 @@ Resources:
         - !Ref PrivateSubnet2
       DBSubnetGroupName: !Sub "taskmanager-${BranchName}-aurora-subnet-group-${AWS::Region}"
       Tags:
+        - Key: LogicalId
+          Value: AuroraDBSubnetGroup
         - Key: Name
           Value: "TaskManager-Aurora-SubnetGroup"
         - Key: Region
@@ -374,6 +396,8 @@ Resources:
         - general
         - slowquery
       Tags:
+        - Key: LogicalId
+          Value: AuroraCluster
         - Key: Name
           Value: !Sub "TaskManager-Aurora-Cluster-${AWS::Region}"
         - Key: Purpose
@@ -393,6 +417,8 @@ Resources:
       Engine: aurora-mysql
       PubliclyAccessible: false
       Tags:
+        - Key: LogicalId
+          Value: AuroraInstance
         - Key: Name
           Value: !Sub "TaskManager-Aurora-Instance-${AWS::Region}"
         - Key: Purpose
@@ -470,6 +496,8 @@ Resources:
           ToPort: 3306
           SourceSecurityGroupId: !Ref ECSTaskSecurityGroup
       Tags:
+        - Key: LogicalId
+          Value: RDSSecurityGroup
         - Key: Name
           Value: "TaskManager-Aurora-SG"
         - Key: Stack

@@ -112,6 +112,8 @@ Resources:
     Properties:
       ClusterName: "TaskManager-Cluster"
       Tags:
+        - Key: LogicalId
+          Value: ECSCluster
         - Key: Name
           Value: "TaskManager-ECS-Cluster"
         - Key: Purpose
@@ -131,6 +133,8 @@ Resources:
           "clientSecret": "${GoogleOAuthClientSecret}"
         }
       Tags:
+        - Key: LogicalId
+          Value: GoogleOAuthSecrets
         - Key: Name
           Value: "TaskManager-GoogleOAuth-Secrets"
         - Key: Purpose
@@ -184,6 +188,8 @@ Resources:
           chmod +x /home/ec2-user/connect-to-db.sh
           chown ec2-user:ec2-user /home/ec2-user/connect-to-db.sh
       Tags:
+        - Key: LogicalId
+          Value: BastionHost
         - Key: Name
           Value: "TaskManager-Bastion"
         - Key: Purpose

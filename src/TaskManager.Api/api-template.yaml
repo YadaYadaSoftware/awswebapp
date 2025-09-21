@@ -74,6 +74,8 @@ Resources:
       LogGroupName: !Sub "/aws/lambda/TaskManagerApi-${Environment}"
       RetentionInDays: !Ref LogRetentionDays
       Tags:
+        - Key: LogicalId
+          Value: ApiLambdaLogGroup
         - Key: Stack
           Value: !Ref "AWS::StackName"
 
@@ -84,6 +86,8 @@ Resources:
       LogGroupName: !Sub "/aws/apigateway/TaskManagerApi-${Environment}"
       RetentionInDays: !Ref LogRetentionDays
       Tags:
+        - Key: LogicalId
+          Value: ApiGatewayAccessLogGroup
         - Key: Stack
           Value: !Ref "AWS::StackName"
 
@@ -138,6 +142,7 @@ Resources:
             Path: /api/{proxy+}
             Method: ANY
       Tags:
+        LogicalId: TaskManagerApiFunction
         Environment: !Ref Environment
         Stack: !Ref "AWS::StackName"
 

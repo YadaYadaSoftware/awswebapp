@@ -92,6 +92,8 @@ Resources:
         PrivateSubnet1Id: !Ref PrivateSubnet1Id
         PrivateSubnet2Id: !Ref PrivateSubnet2Id
       Tags:
+        - Key: LogicalId
+          Value: TaskManagerApiStack
         - Key: Component
           Value: API
         - Key: Environment
@@ -122,6 +124,8 @@ Resources:
         GoogleOAuthSecretArn: !Ref GoogleOAuthSecretArn
         DatabaseEndpoint: !Sub "taskmanager-cluster.cluster-{{resolve:secretsmanager:taskmanager/database/${Environment}/regional/${AWS::Region}:SecretString:cluster_arn}}.${AWS::Region}.rds.amazonaws.com"
       Tags:
+        - Key: LogicalId
+          Value: TaskManagerWebStack
         - Key: Component
           Value: Web-Infrastructure
         - Key: Environment

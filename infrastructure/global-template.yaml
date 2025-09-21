@@ -50,6 +50,8 @@ Resources:
                 Resource:
                   - "arn:aws:ssm:*:*:parameter/aws/service/ami-amazon-linux-latest/*"
       Tags:
+        - Key: LogicalId
+          Value: AuroraGlobalCluster
         - Key: Stack
           Value: !Ref "AWS::StackName"
   BastionInstanceProfile:
@@ -112,6 +114,8 @@ Resources:
               - kms:RevokeGrant
             Resource: "*"
       Tags:
+        - Key: LogicalId
+          Value: AuroraKmsKey
         - Key: Stack
           Value: !Ref "AWS::StackName"
 
@@ -124,6 +128,8 @@ Resources:
       DeletionProtection: false
       StorageEncrypted: true
       Tags:
+        - Key: LogicalId
+          Value: BastionRole
         - Key: Stack
           Value: !Ref "AWS::StackName"
   SharedLambdaExecutionRole:
@@ -229,6 +235,8 @@ Resources:
                   - ecr:BatchGetImage
                 Resource: "*"
       Tags:
+        - Key: LogicalId
+          Value: SharedLambdaExecutionRole
         - Key: Stack
           Value: !Ref "AWS::StackName"
 Outputs:

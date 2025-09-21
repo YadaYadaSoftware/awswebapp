@@ -112,6 +112,8 @@ Resources:
       LogGroupName: !Sub "/ecs/TaskManagerWeb-${Environment}"
       RetentionInDays: !Ref LogRetentionDays
       Tags:
+        - Key: LogicalId
+          Value: WebECSLogGroup
         - Key: Stack
           Value: !Ref "AWS::StackName"
 
@@ -128,6 +130,8 @@ Resources:
         - !Ref PublicSubnet1Id
         - !Ref PublicSubnet2Id
       Tags:
+        - Key: LogicalId
+          Value: WebLoadBalancer
         - Key: Environment
           Value: !Ref Environment
         - Key: Stack
@@ -149,6 +153,8 @@ Resources:
       UnhealthyThresholdCount: 2
       HealthCheckPort: 80
       Tags:
+        - Key: LogicalId
+          Value: WebTargetGroup
         - Key: Stack
           Value: !Ref "AWS::StackName"
 
@@ -268,6 +274,8 @@ Resources:
           ContainerPort: 80
       HealthCheckGracePeriodSeconds: 300
       Tags:
+        - Key: LogicalId
+          Value: WebService
         - Key: Environment
           Value: !Ref Environment
         - Key: Stack
