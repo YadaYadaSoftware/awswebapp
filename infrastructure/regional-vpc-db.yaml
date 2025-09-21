@@ -23,6 +23,7 @@ Parameters:
 
   AuroraKmsKeyReplicaArn:
     Type: String
+    Default: ""
     Description: ARN of the KMS key replica for this region
 
   IsPrimaryRegion:
