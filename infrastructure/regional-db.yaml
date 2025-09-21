@@ -312,6 +312,31 @@ Resources:
         slow_query_log: "1"
         long_query_time: "2"
 
+  # CloudWatch Log Groups for Aurora Cluster
+  AuroraAuditLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/rds/cluster/taskmanager-${BranchName}-aurora-cluster-${AWS::Region}/audit"
+      RetentionInDays: 7
+
+  AuroraErrorLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/rds/cluster/taskmanager-${BranchName}-aurora-cluster-${AWS::Region}/error"
+      RetentionInDays: 7
+
+  AuroraGeneralLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/rds/cluster/taskmanager-${BranchName}-aurora-cluster-${AWS::Region}/general"
+      RetentionInDays: 7
+
+  AuroraSlowQueryLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/rds/cluster/taskmanager-${BranchName}-aurora-cluster-${AWS::Region}/slowquery"
+      RetentionInDays: 7
+
   # Aurora Serverless v2 Cluster
   AuroraCluster:
     Type: AWS::RDS::DBCluster
