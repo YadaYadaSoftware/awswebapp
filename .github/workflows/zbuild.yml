@@ -1,6 +1,6 @@
 # TaskManager CI/CD Pipeline - Shared Infrastructure + Branch Applications
 
-name: TaskManager CI/CD
+name: Deploy Everything
 
 on:
   push:
@@ -255,7 +255,7 @@ jobs:
       id: deploy-global
       uses: aws-actions/aws-cloudformation-github-deploy@v1
       with:
-        name: taskmanager-global-infrastructure
+        name: taskmanager-global-infrastructure-${{ needs.get-branch-name.outputs.branch-name }}
         template: infrastructure/global-template.yaml
         parameter-overrides: DatabasePassword=${{ secrets.DATABASE_PASSWORD }},EngineVersion=${{ env.ENGINE_VERSION }},GitHubActionsUserArn=${{ steps.get-github-user.outputs.github-actions-user-arn }},BranchName=${{ needs.get-branch-name.outputs.branch-name }}
         capabilities: "CAPABILITY_NAMED_IAM"
