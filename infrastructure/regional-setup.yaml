@@ -54,6 +54,6 @@ Outputs:
 
   WebECRRepositoryUri:
     Description: "ECR repository URI for web application"
-    Value: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/taskmanager-web"
+    Value: !GetAtt WebECRRepository.RepositoryUri
     Export:
       Name: !Sub "TaskManager-${BranchName}-WebECRRepositoryUri-${AWS::Region}"
