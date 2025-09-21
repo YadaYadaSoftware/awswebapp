@@ -366,6 +366,11 @@ Resources:
 
   # Aurora Serverless v2 Cluster
   AuroraCluster:
+    DependsOn:
+      - AuroraAuditLogGroup
+      - AuroraErrorLogGroup
+      - AuroraGeneralLogGroup
+      - AuroraSlowQueryLogGroup
     Type: AWS::RDS::DBCluster
     Properties:
       GlobalClusterIdentifier: !Ref AuroraGlobalClusterId
