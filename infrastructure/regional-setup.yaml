@@ -26,9 +26,30 @@ Resources:
         - Key: Stack
           Value: !Ref "AWS::StackName"
 
+  WebECRRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: "taskmanager-web"
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      ImageTagMutability: "MUTABLE"
+      Tags:
+        - Key: Name
+          Value: "TaskManager-Web-ECR"
+        - Key: Purpose
+          Value: "Container Registry"
+        - Key: Stack
+          Value: !Ref "AWS::StackName"
+
 Outputs:
   TemplatesBucket:
     Description: "Name of the templates bucket"
     Value: !Ref RegionalArtifactsBucket
     Export:
       Name: !Sub "TaskManager-${BranchName}-RegionalTemplatesBucket-${AWS::Region}"
+
+  WebECRRepositoryUri:
+    Description: "ECR repository URI for web application"
+    Value: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/taskmanager-web"
+    Export:
+      Name: !Sub "TaskManager-${BranchName}-WebECRRepositoryUri-${AWS::Region}"

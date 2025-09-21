@@ -41,6 +41,7 @@ jobs:
             is_primary: "false"
     outputs:
       bucket-name: ${{ steps.deploy.outputs.TemplatesBucket }}
+      web-ecr-repository-uri: ${{ steps.deploy.outputs.WebECRRepositoryUri }}
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -288,7 +289,7 @@ jobs:
       db-endpoint: ${{ steps.deploy-regional-db.outputs.DatabaseEndpoint }}
       db-reader-endpoint: ${{ steps.deploy-regional-db.outputs.DatabaseReaderEndpoint }}
       db-secret-arn: ${{ steps.deploy-regional-db.outputs.DatabaseSecretArn }}
-      web-ecr-repository-uri: ${{ steps.deploy-regional.outputs.WebECRRepositoryUri }}
+      web-ecr-repository-uri: ${{ needs.deploy-bucket.outputs.web-ecr-repository-uri }}
       bastion-host-ip: ${{ steps.deploy-regional.outputs.BastionHostIP }}
       database-tunnel-command: ${{ steps.deploy-regional.outputs.DatabaseTunnelCommand }}
       ecs-cluster-name: ${{ steps.deploy-regional.outputs.ECSClusterName }}
@@ -444,7 +445,7 @@ jobs:
         BRANCH_TAG=${BRANCH_NAME:-main}
 
         # Get ECR repository URI from job outputs
-        ECR_REPO="${{ steps.deploy-regional.outputs.WebECRRepositoryUri }}"
+        ECR_REPO="${{ needs.deploy-bucket.outputs.web-ecr-repository-uri }}"
 
         # Validate ECR repo URI
         if [ -z "$ECR_REPO" ]; then
