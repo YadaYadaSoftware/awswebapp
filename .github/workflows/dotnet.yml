@@ -24,12 +24,12 @@ jobs:
         BRANCH_NAME=${GITHUB_REF#refs/heads/}
         echo "branch-name=$BRANCH_NAME" >> $GITHUB_OUTPUT
 
-  deploy-bucket:
-    name: Deploy Regional Bucket
+  deploy-infrastructure:
+    name: Deploy Regional Infrastructure
     needs: [get-branch-name]
     runs-on: ubuntu-latest
     concurrency:
-      group: deploy-bucket-${{ matrix.region }}
+      group: deploy-infrastructure-${{ matrix.region }}
       cancel-in-progress: false
     strategy:
       matrix:
@@ -55,32 +55,32 @@ jobs:
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: ${{ matrix.region }}
 
-    - name: Cleanup failed bucket stack (if exists)
+    - name: Cleanup failed infrastructure stack (if exists)
       run: |
         STACK_STATUS=$(aws cloudformation describe-stacks \
-          --stack-name taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-regional-bucket \
+          --stack-name taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-regional-infrastructure \
           --region ${{ matrix.region }} \
           --query 'Stacks[0].StackStatus' \
           --output text 2>/dev/null || echo "STACK_NOT_FOUND")
 
         if [ "$STACK_STATUS" = "ROLLBACK_FAILED" ] || [ "$STACK_STATUS" = "ROLLBACK_COMPLETE" ] || [ "$STACK_STATUS" = "CREATE_FAILED" ] || [ "$STACK_STATUS" = "DELETE_FAILED" ]; then
-          echo "🗑️ Deleting failed bucket stack: taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-regional-bucket"
+          echo "🗑️ Deleting failed infrastructure stack: taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-regional-infrastructure"
           aws cloudformation delete-stack \
-            --stack-name taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-regional-bucket \
+            --stack-name taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-regional-infrastructure \
             --region ${{ matrix.region }}
 
           aws cloudformation wait stack-delete-complete \
-            --stack-name taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-regional-bucket \
+            --stack-name taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-regional-infrastructure \
             --region ${{ matrix.region }}
 
-          echo "✅ Failed bucket stack cleaned up"
+          echo "✅ Failed infrastructure stack cleaned up"
         fi
 
-    - name: Deploy Regional Bucket
+    - name: Deploy Regional Infrastructure
       id: deploy
       uses: aws-actions/aws-cloudformation-github-deploy@v1
       with:
-        name: taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-regional-bucket
+        name: taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-regional-infrastructure
         template: infrastructure/regional-setup.yaml
         parameter-overrides: BranchName=${{ needs.get-branch-name.outputs.branch-name }}
         no-fail-on-empty-changeset: "1"
@@ -89,7 +89,7 @@ jobs:
   build-layers:
     name: Build MySQL Lambda Layer
     runs-on: ubuntu-latest
-    needs: deploy-bucket
+    needs: deploy-infrastructure
     concurrency:
       group: build-layers
       cancel-in-progress: false
@@ -205,7 +205,7 @@ jobs:
   deploy-global:
     name: Deploy Global Infrastructure
     runs-on: ubuntu-latest
-    needs: [deploy-bucket, get-branch-name]
+    needs: [deploy-infrastructure, get-branch-name]
     concurrency:
       group: deploy-global
       cancel-in-progress: false
@@ -263,7 +263,7 @@ jobs:
   deploy-regional:
     name: Deploy Regional Stack
     runs-on: ubuntu-latest
-    needs: [build, deploy-global, deploy-bucket, get-branch-name]
+    needs: [build, deploy-global, deploy-infrastructure, get-branch-name]
     concurrency:
       group: deploy-regional-${{ matrix.region }}
       cancel-in-progress: false
@@ -289,7 +289,7 @@ jobs:
       db-endpoint: ${{ steps.deploy-regional-db.outputs.DatabaseEndpoint }}
       db-reader-endpoint: ${{ steps.deploy-regional-db.outputs.DatabaseReaderEndpoint }}
       db-secret-arn: ${{ steps.deploy-regional-db.outputs.DatabaseSecretArn }}
-      web-ecr-repository-uri: ${{ needs.deploy-bucket.outputs.web-ecr-repository-uri }}
+      web-ecr-repository-uri: ${{ needs.deploy-infrastructure.outputs.web-ecr-repository-uri }}
       bastion-host-ip: ${{ steps.deploy-regional.outputs.BastionHostIP }}
       database-tunnel-command: ${{ steps.deploy-regional.outputs.DatabaseTunnelCommand }}
       ecs-cluster-name: ${{ steps.deploy-regional.outputs.ECSClusterName }}
@@ -445,7 +445,7 @@ jobs:
         BRANCH_TAG=${BRANCH_NAME:-main}
 
         # Get ECR repository URI from job outputs
-        ECR_REPO="${{ needs.deploy-bucket.outputs.web-ecr-repository-uri }}"
+        ECR_REPO="${{ needs.deploy-infrastructure.outputs.web-ecr-repository-uri }}"
 
         # Validate ECR repo URI
         if [ -z "$ECR_REPO" ]; then
