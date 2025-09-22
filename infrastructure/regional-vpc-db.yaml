@@ -82,7 +82,8 @@ Resources:
       VpcId: !Ref TaskManagerVPC
       InternetGatewayId: !Ref InternetGateway
 
-  # Public Subnets for NAT Gateway  PublicSubnet1:
+  # Public Subnets for NAT Gateway
+  PublicSubnet1:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref TaskManagerVPC
