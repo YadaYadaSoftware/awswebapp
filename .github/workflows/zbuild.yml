@@ -80,7 +80,7 @@ jobs:
       id: deploy
       uses: aws-actions/aws-cloudformation-github-deploy@v1
       with:
-        name: taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-regional-infrastructure
+        name: taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-regional-containers
         template: infrastructure/regional-setup.yaml
         parameter-overrides: BranchName=${{ needs.get-branch-name.outputs.branch-name }}
         no-fail-on-empty-changeset: "1"
