@@ -62,9 +62,11 @@ Globals:
     AccessLogSetting:
       DestinationArn: !GetAtt ApiGatewayAccessLogGroup.Arn
       Format: '{"requestId":"$context.requestId","ip":"$context.identity.sourceIp","caller":"$context.identity.caller","user":"$context.identity.user","requestTime":"$context.requestTime","httpMethod":"$context.httpMethod","resourcePath":"$context.resourcePath","status":"$context.status","protocol":"$context.protocol","responseLength":"$context.responseLength"}'
-    AccessLogSetting:
-      DestinationArn: !GetAtt ApiGatewayAccessLogGroup.Arn
-      Format: '{"requestId":"$context.requestId","ip":"$context.identity.sourceIp","caller":"$context.identity.caller","user":"$context.identity.user","requestTime":"$context.requestTime","httpMethod":"$context.httpMethod","resourcePath":"$context.resourcePath","status":"$context.status","protocol":"$context.protocol","responseLength":"$context.responseLength"}'
+    MethodSettings:
+      - HttpMethod: "*"
+        ResourcePath: "/*"
+        LoggingLevel: INFO
+        DataTraceEnabled: true
 
 Resources:
   # CloudWatch Log Group for Database Setup - REMOVED
@@ -91,6 +93,18 @@ Resources:
       Tags:
         - Key: LogicalId
           Value: ApiGatewayAccessLogGroup
+        - Key: Stack
+          Value: !Ref "AWS::StackName"
+
+  # CloudWatch Log Group for API Gateway Execution Logs
+  ApiGatewayExecutionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/apigateway/${ServerlessRestApi}/Prod"
+      RetentionInDays: !Ref LogRetentionDays
+      Tags:
+        - Key: LogicalId
+          Value: ApiGatewayExecutionLogGroup
         - Key: Stack
           Value: !Ref "AWS::StackName"
 
