@@ -252,6 +252,8 @@ Resources:
                   - logs:PutLogEvents
                   - logs:DescribeLogGroups
                   - logs:DescribeLogStreams
+                  - logs:FilterLogEvents
+                  - logs:GetLogEvents
                 Resource: "*"
       Tags:
         - Key: LogicalId
@@ -259,10 +261,6 @@ Resources:
         - Key: Stack
           Value: !Ref "AWS::StackName"
 
-  ApiGatewayAccount:
-    Type: AWS::ApiGateway::Account
-    Properties:
-      CloudWatchRoleArn: !GetAtt ApiGatewayCloudWatchLogsRole.Arn
 Outputs:
   AuroraGlobalClusterId:
     Description: Aurora Global Database cluster identifier
@@ -286,3 +284,9 @@ Outputs:
     Value: !GetAtt VPCFlowLogsRole.Arn
     Export:
       Name: !Sub TaskManager-VPCFlowLogsRole-${BranchName}
+
+  ApiGatewayCloudWatchLogsRoleArn:
+    Description: API Gateway CloudWatch Logs role ARN
+    Value: !GetAtt ApiGatewayCloudWatchLogsRole.Arn
+    Export:
+      Name: !Sub TaskManager-ApiGatewayCloudWatchLogsRole-${BranchName}

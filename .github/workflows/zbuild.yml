@@ -210,6 +210,7 @@ jobs:
       aurora-global-cluster-id: ${{ steps.deploy-global.outputs.AuroraGlobalClusterId }}
       aurora-kms-key-arn: ${{ steps.deploy-global.outputs.AuroraKmsKeyArn }}
       vpc-flow-logs-role-arn: ${{ steps.deploy-global.outputs.VPCFlowLogsRoleArn }}
+      api-gateway-cloudwatch-logs-role-arn: ${{ steps.deploy-global.outputs.ApiGatewayCloudWatchLogsRoleArn }}
       github-actions-user-arn: ${{ steps.get-github-user.outputs.github-actions-user-arn }}
 
     steps:
@@ -223,7 +224,7 @@ jobs:
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: ${{ env.AWS_REGION_PRIMARY }}
+        aws-region: us-east-1
 
     - name: Get GitHub Actions User ARN from IAM Setup Stack
       id: get-github-user
@@ -423,7 +424,7 @@ jobs:
       with:
         name: taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-regional-infrastructure
         template: infrastructure/regional-infrastructure.yaml
-        parameter-overrides: "DatabasePassword=${{ secrets.DATABASE_PASSWORD }},SharedLambdaRoleArn=${{ needs.deploy-global.outputs.shared-lambda-role-arn }},AuroraGlobalClusterId=${{ needs.deploy-global.outputs.aurora-global-cluster-id }},AuroraKmsKeyArn=${{ needs.deploy-global.outputs.aurora-kms-key-arn }},EngineVersion=${{ env.ENGINE_VERSION }},VPCId=${{ steps.deploy-regional-vpc-db.outputs.VPCId }},PrivateSubnet1Id=${{ steps.deploy-regional-vpc-db.outputs.PrivateSubnet1Id }},PrivateSubnet2Id=${{ steps.deploy-regional-vpc-db.outputs.PrivateSubnet2Id }},PublicSubnet1Id=${{ steps.deploy-regional-vpc-db.outputs.PublicSubnet1Id }},PublicSubnet2Id=${{ steps.deploy-regional-vpc-db.outputs.PublicSubnet2Id }},LambdaSecurityGroupId=${{ steps.deploy-regional-vpc-db.outputs.LambdaSecurityGroupId }},RDSSecurityGroupId=${{ steps.deploy-regional-vpc-db.outputs.RDSSecurityGroupId }},ALBSecurityGroupId=${{ steps.deploy-regional-vpc-db.outputs.ALBSecurityGroupId }},ECSTaskSecurityGroupId=${{ steps.deploy-regional-vpc-db.outputs.ECSTaskSecurityGroupId }},DatabaseEndpoint=${{ steps.deploy-regional-vpc-db.outputs.DatabaseEndpoint }},DatabaseReaderEndpoint=${{ steps.deploy-regional-vpc-db.outputs.DatabaseReaderEndpoint }},GoogleOAuthClientId=${{ secrets.GOOGLE_OAUTH_CLIENT_ID }},GoogleOAuthClientSecret=${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}"
+        parameter-overrides: "BranchName=${{ needs.get-branch-name.outputs.branch-name }},DatabasePassword=${{ secrets.DATABASE_PASSWORD }},SharedLambdaRoleArn=${{ needs.deploy-global.outputs.shared-lambda-role-arn }},AuroraGlobalClusterId=${{ needs.deploy-global.outputs.aurora-global-cluster-id }},AuroraKmsKeyArn=${{ needs.deploy-global.outputs.aurora-kms-key-arn }},EngineVersion=${{ env.ENGINE_VERSION }},VPCId=${{ steps.deploy-regional-vpc-db.outputs.VPCId }},PrivateSubnet1Id=${{ steps.deploy-regional-vpc-db.outputs.PrivateSubnet1Id }},PrivateSubnet2Id=${{ steps.deploy-regional-vpc-db.outputs.PrivateSubnet2Id }},PublicSubnet1Id=${{ steps.deploy-regional-vpc-db.outputs.PublicSubnet1Id }},PublicSubnet2Id=${{ steps.deploy-regional-vpc-db.outputs.PublicSubnet2Id }},LambdaSecurityGroupId=${{ steps.deploy-regional-vpc-db.outputs.LambdaSecurityGroupId }},RDSSecurityGroupId=${{ steps.deploy-regional-vpc-db.outputs.RDSSecurityGroupId }},ALBSecurityGroupId=${{ steps.deploy-regional-vpc-db.outputs.ALBSecurityGroupId }},ECSTaskSecurityGroupId=${{ steps.deploy-regional-vpc-db.outputs.ECSTaskSecurityGroupId }},DatabaseEndpoint=${{ steps.deploy-regional-vpc-db.outputs.DatabaseEndpoint }},DatabaseReaderEndpoint=${{ steps.deploy-regional-vpc-db.outputs.DatabaseReaderEndpoint }},GoogleOAuthClientId=${{ secrets.GOOGLE_OAUTH_CLIENT_ID }},GoogleOAuthClientSecret=${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }},ApiGatewayCloudWatchLogsRoleArn=${{ needs.deploy-global.outputs.api-gateway-cloudwatch-logs-role-arn }}"
         capabilities: "CAPABILITY_NAMED_IAM"
         no-fail-on-empty-changeset: "1"
         timeout-in-minutes: 20
