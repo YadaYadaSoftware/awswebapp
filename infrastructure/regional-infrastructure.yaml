@@ -21,7 +21,6 @@ Parameters:
     Type: String
     Description: "ARN of the KMS key used by the Aurora global cluster"
 
-
   # Parameters from regional-vpc-db.yaml outputs
   VPCId:
     Type: String
@@ -82,7 +81,6 @@ Parameters:
     NoEcho: true
 
 Resources:
-
   # ECS Cluster
   ECSCluster:
     Type: AWS::ECS::Cluster
@@ -120,7 +118,7 @@ Resources:
           Value: !Ref "AWS::StackName"
 
 Outputs:
-   ECSClusterName:
+  ECSClusterName:
     Description: "ECS cluster name"
     Value: !GetAtt ECSCluster.Arn
     Export:
