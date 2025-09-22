@@ -56,6 +56,8 @@ Resources:
         RequestInterval: 30
         FailureThreshold: 2
       HealthCheckTags:
+        - Key: LogicalId
+          Value: PrimaryHealthCheck
         - Key: Environment
           Value: !Ref Environment
         - Key: Purpose
@@ -73,6 +75,8 @@ Resources:
         RequestInterval: 30
         FailureThreshold: 2
       HealthCheckTags:
+        - Key: LogicalId
+          Value: SecondaryHealthCheck
         - Key: Environment
           Value: !Ref Environment
         - Key: Purpose

@@ -299,6 +299,11 @@ Resources:
           Value: !GetAtt WebLoadBalancer.LoadBalancerFullName
         - Name: TargetGroup
           Value: !GetAtt WebTargetGroup.TargetGroupFullName
+      Tags:
+        - Key: LogicalId
+          Value: WebECSServiceAlarm
+        - Key: Stack
+          Value: !Ref "AWS::StackName"
 
 Outputs:
   WebEndpoint:

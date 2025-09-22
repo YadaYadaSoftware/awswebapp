@@ -224,6 +224,8 @@ Resources:
                   - logs:DescribeLogStreams
                 Resource: "*"
       Tags:
+        - Key: LogicalId
+          Value: VPCFlowLogsRole
         - Key: Stack
           Value: !Ref "AWS::StackName"
 Outputs:

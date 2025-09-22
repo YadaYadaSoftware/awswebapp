@@ -67,6 +67,8 @@ Resources:
               - kms:RevokeGrant
             Resource: "*"
       Tags:
+        - Key: LogicalId
+          Value: AuroraKmsKeyReplica
         - Key: Stack
           Value: !Ref "AWS::StackName"
 

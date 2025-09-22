@@ -162,6 +162,11 @@ Resources:
       Dimensions:
         - Name: FunctionName
           Value: !Ref TaskManagerApiFunction
+      Tags:
+        - Key: LogicalId
+          Value: LambdaErrorAlarm
+        - Key: Stack
+          Value: !Ref "AWS::StackName"
 
 Outputs:
   ApiEndpoint:

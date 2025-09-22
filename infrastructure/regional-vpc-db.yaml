@@ -149,6 +149,8 @@ Resources:
     Properties:
       Domain: vpc
       Tags:
+        - Key: LogicalId
+          Value: NATGateway1EIP
         - Key: Stack
           Value: !Ref "AWS::StackName"
 
@@ -158,6 +160,8 @@ Resources:
       AllocationId: !GetAtt NATGateway1EIP.AllocationId
       SubnetId: !Ref PublicSubnet1
       Tags:
+        - Key: LogicalId
+          Value: NATGateway1
         - Key: Stack
           Value: !Ref "AWS::StackName"
 
@@ -167,6 +171,8 @@ Resources:
     Properties:
       VpcId: !Ref TaskManagerVPC
       Tags:
+        - Key: LogicalId
+          Value: PublicRouteTable
         - Key: Name
           Value: "TaskManager-Public-RT"
         - Key: Stack
@@ -197,6 +203,8 @@ Resources:
     Properties:
       VpcId: !Ref TaskManagerVPC
       Tags:
+        - Key: LogicalId
+          Value: PrivateRouteTable
         - Key: Name
           Value: "TaskManager-Private-RT"
         - Key: Stack
@@ -327,24 +335,44 @@ Resources:
     Properties:
       LogGroupName: !Sub "/aws/rds/cluster/taskmanager-${BranchName}-aurora-cluster-${AWS::Region}/audit"
       RetentionInDays: !Ref LogRetentionDays
+      Tags:
+        - Key: LogicalId
+          Value: AuroraAuditLogGroup
+        - Key: Stack
+          Value: !Ref "AWS::StackName"
 
   AuroraErrorLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub "/aws/rds/cluster/taskmanager-${BranchName}-aurora-cluster-${AWS::Region}/error"
       RetentionInDays: !Ref LogRetentionDays
+      Tags:
+        - Key: LogicalId
+          Value: AuroraErrorLogGroup
+        - Key: Stack
+          Value: !Ref "AWS::StackName"
 
   AuroraGeneralLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub "/aws/rds/cluster/taskmanager-${BranchName}-aurora-cluster-${AWS::Region}/general"
       RetentionInDays: !Ref LogRetentionDays
+      Tags:
+        - Key: LogicalId
+          Value: AuroraGeneralLogGroup
+        - Key: Stack
+          Value: !Ref "AWS::StackName"
 
   AuroraSlowQueryLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub "/aws/rds/cluster/taskmanager-${BranchName}-aurora-cluster-${AWS::Region}/slowquery"
       RetentionInDays: !Ref LogRetentionDays
+      Tags:
+        - Key: LogicalId
+          Value: AuroraSlowQueryLogGroup
+        - Key: Stack
+          Value: !Ref "AWS::StackName"
 
   # Aurora Serverless v2 Cluster
   AuroraCluster:
@@ -421,6 +449,8 @@ Resources:
       LogGroupName: !Sub "/aws/vpc/flowlogs/TaskManager-${BranchName}-VPC-${AWS::Region}"
       RetentionInDays: !Ref LogRetentionDays
       Tags:
+        - Key: LogicalId
+          Value: VPCFlowLogsLogGroup
         - Key: Stack
           Value: !Ref "AWS::StackName"
 
@@ -433,6 +463,11 @@ Resources:
       DeliverLogsPermissionArn: !Ref VPCFlowLogsRoleArn
       LogDestinationType: cloud-watch-logs
       LogGroupName: !Ref VPCFlowLogsLogGroup
+      Tags:
+        - Key: LogicalId
+          Value: VPCFlowLogs
+        - Key: Stack
+          Value: !Ref "AWS::StackName"
 
   # Security Groups
   RDSSecurityGroup:
@@ -475,6 +510,8 @@ Resources:
           "secret_arn": "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:taskmanager/database/regional/${AWS::Region}"
         }
       Tags:
+        - Key: LogicalId
+          Value: DatabaseSecret
         - Key: Stack
           Value: !Ref "AWS::StackName"
 

@@ -76,7 +76,7 @@ jobs:
           echo "✅ Failed infrastructure stack cleaned up"
         fi
 
-    - name: Deploy Regional Infrastructure
+    - name: Deploy Regional Setup
       id: deploy
       uses: aws-actions/aws-cloudformation-github-deploy@v1
       with:
