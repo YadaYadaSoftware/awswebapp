@@ -62,6 +62,9 @@ Globals:
     AccessLogSetting:
       DestinationArn: !GetAtt ApiGatewayAccessLogGroup.Arn
       Format: '{"requestId":"$context.requestId","ip":"$context.identity.sourceIp","caller":"$context.identity.caller","user":"$context.identity.user","requestTime":"$context.requestTime","httpMethod":"$context.httpMethod","resourcePath":"$context.resourcePath","status":"$context.status","protocol":"$context.protocol","responseLength":"$context.responseLength"}'
+    AccessLogSetting:
+      DestinationArn: !GetAtt ApiGatewayAccessLogGroup.Arn
+      Format: '{"requestId":"$context.requestId","ip":"$context.identity.sourceIp","caller":"$context.identity.caller","user":"$context.identity.user","requestTime":"$context.requestTime","httpMethod":"$context.httpMethod","resourcePath":"$context.resourcePath","status":"$context.status","protocol":"$context.protocol","responseLength":"$context.responseLength"}'
 
 Resources:
   # CloudWatch Log Group for Database Setup - REMOVED
