@@ -81,7 +81,7 @@ jobs:
       uses: aws-actions/aws-cloudformation-github-deploy@v1
       with:
         name: taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-regional-containers
-        template: infrastructure/regional-setup.yaml
+        template: infrastructure/regional-containers.yaml
         parameter-overrides: BranchName=${{ needs.get-branch-name.outputs.branch-name }}
         no-fail-on-empty-changeset: "1"
         timeout-in-minutes: 5
