@@ -228,29 +228,6 @@ Resources:
           Value: VPCFlowLogsRole
         - Key: Stack
           Value: !Ref "AWS::StackName"
-Outputs:
-  AuroraGlobalClusterId:
-    Description: Aurora Global Database cluster identifier
-    Value: !Ref AuroraGlobalCluster
-    Export:
-      Name: !Sub TaskManager-AuroraGlobalCluster-${BranchName}
-  AuroraKmsKeyArn:
-    Description: KMS key ARN used for Aurora encryption
-    Value: !GetAtt AuroraKmsKey.Arn
-    Export:
-      Name: !Sub TaskManager-AuroraKmsKey-${BranchName}
-
-  SharedLambdaRoleArn:
-    Description: Shared Lambda execution role ARN
-    Value: !GetAtt SharedLambdaExecutionRole.Arn
-    Export:
-      Name: !Sub TaskManager-SharedLambdaRole-${BranchName}
-
-  VPCFlowLogsRoleArn:
-    Description: VPC Flow Logs role ARN
-    Value: !GetAtt VPCFlowLogsRole.Arn
-    Export:
-      Name: !Sub TaskManager-VPCFlowLogsRole-${BranchName}
 
   ApiGatewayCloudWatchLogsRole:
     Type: AWS::IAM::Role
@@ -286,3 +263,26 @@ Outputs:
     Type: AWS::ApiGateway::Account
     Properties:
       CloudWatchRoleArn: !GetAtt ApiGatewayCloudWatchLogsRole.Arn
+Outputs:
+  AuroraGlobalClusterId:
+    Description: Aurora Global Database cluster identifier
+    Value: !Ref AuroraGlobalCluster
+    Export:
+      Name: !Sub TaskManager-AuroraGlobalCluster-${BranchName}
+  AuroraKmsKeyArn:
+    Description: KMS key ARN used for Aurora encryption
+    Value: !GetAtt AuroraKmsKey.Arn
+    Export:
+      Name: !Sub TaskManager-AuroraKmsKey-${BranchName}
+
+  SharedLambdaRoleArn:
+    Description: Shared Lambda execution role ARN
+    Value: !GetAtt SharedLambdaExecutionRole.Arn
+    Export:
+      Name: !Sub TaskManager-SharedLambdaRole-${BranchName}
+
+  VPCFlowLogsRoleArn:
+    Description: VPC Flow Logs role ARN
+    Value: !GetAtt VPCFlowLogsRole.Arn
+    Export:
+      Name: !Sub TaskManager-VPCFlowLogsRole-${BranchName}
