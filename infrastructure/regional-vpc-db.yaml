@@ -50,6 +50,7 @@ Conditions:
 Resources:
   # VPC and Networking
   TaskManagerVPC:
+    DependsOn: VPCFlowLogsLogGroup
     Type: AWS::EC2::VPC
     Properties:
       CidrBlock: 10.0.0.0/16
@@ -66,6 +67,7 @@ Resources:
           Value: !Ref "AWS::StackName"
 
   InternetGateway:
+    DependsOn: VPCFlowLogsLogGroup
     Type: AWS::EC2::InternetGateway
     Properties:
       Tags:
@@ -77,6 +79,7 @@ Resources:
           Value: !Ref "AWS::StackName"
 
   AttachGateway:
+    DependsOn: VPCFlowLogsLogGroup
     Type: AWS::EC2::VPCGatewayAttachment
     Properties:
       VpcId: !Ref TaskManagerVPC
@@ -84,6 +87,7 @@ Resources:
 
   # Public Subnets for NAT Gateway
   PublicSubnet1:
+    DependsOn: VPCFlowLogsLogGroup
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref TaskManagerVPC
@@ -99,6 +103,7 @@ Resources:
           Value: !Ref "AWS::StackName"
 
   PublicSubnet2:
+    DependsOn: VPCFlowLogsLogGroup
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref TaskManagerVPC
@@ -115,6 +120,7 @@ Resources:
 
   # Private Subnets for Lambda and RDS
   PrivateSubnet1:
+    DependsOn: VPCFlowLogsLogGroup
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref TaskManagerVPC
@@ -129,6 +135,7 @@ Resources:
           Value: !Ref "AWS::StackName"
 
   PrivateSubnet2:
+    DependsOn: VPCFlowLogsLogGroup
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref TaskManagerVPC
@@ -144,6 +151,7 @@ Resources:
 
   # NAT Gateway for private subnet internet access
   NATGateway1EIP:
+    DependsOn: VPCFlowLogsLogGroup
     Type: AWS::EC2::EIP
     DependsOn: AttachGateway
     Properties:
@@ -155,6 +163,7 @@ Resources:
           Value: !Ref "AWS::StackName"
 
   NATGateway1:
+    DependsOn: VPCFlowLogsLogGroup
     Type: AWS::EC2::NatGateway
     Properties:
       AllocationId: !GetAtt NATGateway1EIP.AllocationId
@@ -167,6 +176,7 @@ Resources:
 
   # Route Tables
   PublicRouteTable:
+    DependsOn: VPCFlowLogsLogGroup
     Type: AWS::EC2::RouteTable
     Properties:
       VpcId: !Ref TaskManagerVPC
@@ -179,6 +189,7 @@ Resources:
           Value: !Ref "AWS::StackName"
 
   DefaultPublicRoute:
+    DependsOn: VPCFlowLogsLogGroup
     Type: AWS::EC2::Route
     DependsOn: AttachGateway
     Properties:
@@ -187,18 +198,21 @@ Resources:
       GatewayId: !Ref InternetGateway
 
   PublicSubnet1RouteTableAssociation:
+    DependsOn: VPCFlowLogsLogGroup
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
       RouteTableId: !Ref PublicRouteTable
       SubnetId: !Ref PublicSubnet1
 
   PublicSubnet2RouteTableAssociation:
+    DependsOn: VPCFlowLogsLogGroup
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
       RouteTableId: !Ref PublicRouteTable
       SubnetId: !Ref PublicSubnet2
 
   PrivateRouteTable:
+    DependsOn: VPCFlowLogsLogGroup
     Type: AWS::EC2::RouteTable
     Properties:
       VpcId: !Ref TaskManagerVPC
@@ -211,6 +225,7 @@ Resources:
           Value: !Ref "AWS::StackName"
 
   DefaultPrivateRoute:
+    DependsOn: VPCFlowLogsLogGroup
     Type: AWS::EC2::Route
     Properties:
       RouteTableId: !Ref PrivateRouteTable
@@ -218,12 +233,14 @@ Resources:
       NatGatewayId: !Ref NATGateway1
 
   PrivateSubnet1RouteTableAssociation:
+    DependsOn: VPCFlowLogsLogGroup
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
       RouteTableId: !Ref PrivateRouteTable
       SubnetId: !Ref PrivateSubnet1
 
   PrivateSubnet2RouteTableAssociation:
+    DependsOn: VPCFlowLogsLogGroup
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
       RouteTableId: !Ref PrivateRouteTable
@@ -231,6 +248,7 @@ Resources:
 
   # Security Groups
   LambdaSecurityGroup:
+    DependsOn: VPCFlowLogsLogGroup
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Security group for Lambda functions
@@ -247,6 +265,7 @@ Resources:
           Value: !Ref "AWS::StackName"
 
   ECSTaskSecurityGroup:
+    DependsOn: VPCFlowLogsLogGroup
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Security group for ECS tasks
@@ -269,6 +288,7 @@ Resources:
           Value: !Ref "AWS::StackName"
 
   ALBSecurityGroup:
+    DependsOn: VPCFlowLogsLogGroup
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Security group for Application Load Balancer
@@ -298,6 +318,7 @@ Resources:
   # Aurora DB Subnet Group
   # Aurora DB Subnet Group for this region
   AuroraDBSubnetGroup:
+    DependsOn: VPCFlowLogsLogGroup
     Type: AWS::RDS::DBSubnetGroup
     Properties:
       DBSubnetGroupDescription: "Subnet group for Aurora cluster in this region"
@@ -317,6 +338,7 @@ Resources:
 
   # Aurora DB Cluster Parameter Group
   AuroraClusterParameterGroup:
+    DependsOn: VPCFlowLogsLogGroup
     Type: AWS::RDS::DBClusterParameterGroup
     Properties:
       Family: aurora-mysql8.0
@@ -331,6 +353,7 @@ Resources:
 
   # CloudWatch Log Groups for Aurora Cluster
   AuroraAuditLogGroup:
+    DependsOn: VPCFlowLogsLogGroup
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub "/aws/rds/cluster/taskmanager-${BranchName}-aurora-cluster-${AWS::Region}/audit"
@@ -342,6 +365,7 @@ Resources:
           Value: !Ref "AWS::StackName"
 
   AuroraErrorLogGroup:
+    DependsOn: VPCFlowLogsLogGroup
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub "/aws/rds/cluster/taskmanager-${BranchName}-aurora-cluster-${AWS::Region}/error"
@@ -353,6 +377,7 @@ Resources:
           Value: !Ref "AWS::StackName"
 
   AuroraGeneralLogGroup:
+    DependsOn: VPCFlowLogsLogGroup
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub "/aws/rds/cluster/taskmanager-${BranchName}-aurora-cluster-${AWS::Region}/general"
@@ -364,6 +389,7 @@ Resources:
           Value: !Ref "AWS::StackName"
 
   AuroraSlowQueryLogGroup:
+    DependsOn: VPCFlowLogsLogGroup
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub "/aws/rds/cluster/taskmanager-${BranchName}-aurora-cluster-${AWS::Region}/slowquery"
@@ -381,6 +407,7 @@ Resources:
       - AuroraErrorLogGroup
       - AuroraGeneralLogGroup
       - AuroraSlowQueryLogGroup
+      - VPCFlowLogsLogGroup
     Type: AWS::RDS::DBCluster
     Properties:
       GlobalClusterIdentifier: !Ref AuroraGlobalClusterId
@@ -423,6 +450,7 @@ Resources:
 
   # Aurora Serverless v2 Instance
   AuroraInstance:
+    DependsOn: VPCFlowLogsLogGroup
     Type: AWS::RDS::DBInstance
     Properties:
       DBInstanceIdentifier: !Sub "taskmanager-${BranchName}-aurora-instance-${AWS::Region}"
@@ -455,6 +483,7 @@ Resources:
           Value: !Ref "AWS::StackName"
 
   VPCFlowLogs:
+    DependsOn: VPCFlowLogsLogGroup
     Type: AWS::EC2::FlowLog
     Properties:
       ResourceId: !Ref TaskManagerVPC
@@ -471,6 +500,7 @@ Resources:
 
   # Security Groups
   RDSSecurityGroup:
+    DependsOn: VPCFlowLogsLogGroup
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Security group for Aurora MySQL Serverless
@@ -494,6 +524,7 @@ Resources:
 
   # Database Secret
   DatabaseSecret:
+    DependsOn: VPCFlowLogsLogGroup
     Type: AWS::SecretsManager::Secret
     Properties:
       Name: !Sub "taskmanager/database/${BranchName}/regional/${AWS::Region}"
