@@ -76,7 +76,7 @@ jobs:
           echo "✅ Failed infrastructure stack cleaned up"
         fi
 
-    - name: Deploy Regional Setup
+    - name: deploy (regional-containers)
       id: deploy
       uses: aws-actions/aws-cloudformation-github-deploy@v1
       with:
@@ -249,7 +249,7 @@ jobs:
         echo "✅ Retrieved GitHub Actions User ARN: $GITHUB_USER_ARN"
         echo "github-actions-user-arn=$GITHUB_USER_ARN" >> $GITHUB_OUTPUT
 
-    - name: Deploy Global Infrastructure
+    - name: deploy (global-template)
       id: deploy-global
       uses: aws-actions/aws-cloudformation-github-deploy@v1
       with:
@@ -317,7 +317,7 @@ jobs:
         aws s3 cp infrastructure/regional-vpc-db.yaml s3://taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-templates-bucket-${{ matrix.region }}/ --region ${{ matrix.region }}
         aws s3 cp infrastructure/regional-kms-replica.yaml s3://taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-templates-bucket-${{ matrix.region }}/ --region ${{ matrix.region }}
 
-    - name: Deploy Regional KMS Replica (Secondary Region Only)
+    - name: deploy (regional-kms-replica)
       if: matrix.region == 'us-west-1'
       id: deploy-kms-replica
       uses: aws-actions/aws-cloudformation-github-deploy@v1
@@ -349,7 +349,7 @@ jobs:
           echo "✅ Failed regional-vpc-db stack cleaned up"
         fi
 
-    - name: Deploy Regional Database
+    - name: deploy (regional-vpc-db)
       id: deploy-regional-vpc-db
       uses: aws-actions/aws-cloudformation-github-deploy@v1
       with:
@@ -422,7 +422,7 @@ jobs:
           echo "✅ Failed regional stack cleaned up"
         fi
 
-    - name: Deploy Regional Infrastructure
+    - name: deploy (regional-infrastructure)
       id: deploy-regional
       uses: aws-actions/aws-cloudformation-github-deploy@v1
       with:
@@ -546,7 +546,7 @@ jobs:
         echo "S3 bucket contents:"
         aws s3 ls s3://taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-templates-bucket-${{ matrix.region }}/ --region ${{ matrix.region }} | grep -E "(api-lambda-deployment|mysql-layer)"
 
-    - name: Deploy Wrapper Template (Nested Stacks)
+    - name: deploy (wrapper-template)
       id: deploy-wrapper
       uses: aws-actions/aws-cloudformation-github-deploy@v1
       with:
@@ -738,7 +738,7 @@ jobs:
         echo "secondary-web-load-balancer-dns=$SECONDARY_DNS" >> $GITHUB_OUTPUT
         echo "secondary-web-load-balancer-hosted-zone-id=$SECONDARY_HZ" >> $GITHUB_OUTPUT
 
-    - name: Deploy Global DNS Failover Stack
+    - name: deploy (global-dns-template)
       uses: aws-actions/aws-cloudformation-github-deploy@v1
       with:
         name: taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-global-dns
