@@ -39,9 +39,6 @@ jobs:
             is_primary: "true"
           - region: us-west-1
             is_primary: "false"
-    outputs:
-      bucket-name: ${{ steps.deploy.outputs.TemplatesBucket }}
-      web-ecr-repository-uri: ${{ steps.deploy.outputs.WebECRRepositoryUri }}
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -58,26 +55,25 @@ jobs:
     - name: Cleanup failed infrastructure stack (if exists)
       run: |
         STACK_STATUS=$(aws cloudformation describe-stacks \
-          --stack-name taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-regional-infrastructure \
+          --stack-name taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-regional-containers \
           --region ${{ matrix.region }} \
           --query 'Stacks[0].StackStatus' \
           --output text 2>/dev/null || echo "STACK_NOT_FOUND")
 
         if [ "$STACK_STATUS" = "ROLLBACK_FAILED" ] || [ "$STACK_STATUS" = "ROLLBACK_COMPLETE" ] || [ "$STACK_STATUS" = "CREATE_FAILED" ] || [ "$STACK_STATUS" = "DELETE_FAILED" ]; then
-          echo "🗑️ Deleting failed infrastructure stack: taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-regional-infrastructure"
+          echo "🗑️ Deleting failed infrastructure stack: taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-regional-containers"
           aws cloudformation delete-stack \
-            --stack-name taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-regional-infrastructure \
+            --stack-name taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-regional-containers \
             --region ${{ matrix.region }}
 
           aws cloudformation wait stack-delete-complete \
-            --stack-name taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-regional-infrastructure \
+            --stack-name taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-regional-containers \
             --region ${{ matrix.region }}
 
           echo "✅ Failed infrastructure stack cleaned up"
         fi
 
     - name: deploy (regional-containers)
-      id: deploy
       uses: aws-actions/aws-cloudformation-github-deploy@v1
       with:
         name: taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-regional-containers
@@ -287,7 +283,6 @@ jobs:
       db-endpoint: ${{ steps.deploy-regional-vpc-db.outputs.DatabaseEndpoint }}
       db-reader-endpoint: ${{ steps.deploy-regional-vpc-db.outputs.DatabaseReaderEndpoint }}
       db-secret-arn: ${{ steps.deploy-regional-vpc-db.outputs.DatabaseSecretArn }}
-      web-ecr-repository-uri: ${{ needs.deploy-infrastructure.outputs.web-ecr-repository-uri }}
       ecs-cluster-name: ${{ steps.deploy-regional.outputs.ECSClusterName }}
       api-endpoint: ${{ steps.get-endpoints.outputs.api-endpoint }}
       web-endpoint: ${{ steps.get-endpoints.outputs.web-endpoint }}
@@ -432,28 +427,28 @@ jobs:
         capabilities: "CAPABILITY_NAMED_IAM"
         no-fail-on-empty-changeset: "1"
         timeout-in-minutes: 20
+    - name: Get AWS Account ID
+      id: account-id
+      run: |
+        ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+        echo "account-id=$ACCOUNT_ID" >> $GITHUB_OUTPUT
+
     - name: Build and Push Web Container Image
       env:
         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
         AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        AWS_DEFAULT_REGION: ${{ env.AWS_REGION_SECONDARY }}
+        AWS_DEFAULT_REGION: ${{ matrix.region }}
       run: |
         # Use GitVersion for unique image tagging
         BRANCH_NAME=${{ needs.get-branch-name.outputs.branch-name }}
         IMAGE_TAG=${{ needs.build.outputs.semVer }}
         BRANCH_TAG=${BRANCH_NAME:-main}
 
-        # Get ECR repository URI from job outputs
-        ECR_REPO="${{ needs.deploy-infrastructure.outputs.web-ecr-repository-uri }}"
+        # Construct ECR repository URI
+        ACCOUNT_ID=${{ steps.account-id.outputs.account-id }}
+        ECR_REPO="${ACCOUNT_ID}.dkr.ecr.${{ matrix.region }}.amazonaws.com/taskmanager-web-${{ matrix.region }}"
 
-        # Validate ECR repo URI
-        if [ -z "$ECR_REPO" ]; then
-          echo "❌ ERROR: ECR repository URI not found in job outputs"
-          exit 1
-        fi
-
-        echo "✅ Successfully retrieved ECR URI from job outputs: $ECR_REPO"
-        echo "🎯 Final ECR repository: $ECR_REPO"
+        echo "🎯 ECR repository: $ECR_REPO"
         echo "🏷️ Version tag: $IMAGE_TAG"
         echo "🌿 Branch tag: $BRANCH_TAG"
 
