@@ -135,7 +135,7 @@ Outputs:
     Description: "ECS cluster name"
     Value: !GetAtt ECSCluster.Arn
     Export:
-      Name: "TaskManager-ECSCluster"
+      Name: !Sub "TaskManager-${BranchName}-ECSCluster"
 
   GoogleOAuthSecretArn:
     Description: "ARN of the Google OAuth secrets"
