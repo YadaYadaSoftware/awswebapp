@@ -561,7 +561,7 @@ jobs:
         echo "Getting deployment outputs from stack outputs..."
 
         # Get API endpoint from wrapper stack outputs
-        API_URL="${{ steps.deploy-wrapper.outputs.TaskManagerApiEndpoint }}"
+        API_URL="${{ steps.deploy-wrapper.outputs.ApiEndpoint }}"
 
         if [ -z "$API_URL" ]; then
           echo "❌ API endpoint not found in stack outputs"
