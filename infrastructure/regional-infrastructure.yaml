@@ -121,6 +121,11 @@ Resources:
         - Key: Stack
           Value: !Ref "AWS::StackName"
 
+  ApiGatewayAccount:
+    Type: AWS::ApiGateway::Account
+    Properties:
+      CloudWatchRoleArn: !Ref ApiGatewayCloudWatchLogsRoleArn
+
 Outputs:
   ECSClusterName:
     Description: "ECS cluster name"
@@ -133,8 +138,3 @@ Outputs:
     Value: !Ref GoogleOAuthSecrets
     Export:
       Name: !Sub "TaskManager-GoogleOAuthSecretArn-${AWS::StackName}"
-
- ApiGatewayAccount:
-   Type: AWS::ApiGateway::Account
-   Properties:
-     CloudWatchRoleArn: !Ref ApiGatewayCloudWatchLogsRoleArn
