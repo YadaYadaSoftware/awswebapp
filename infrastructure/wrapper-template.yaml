@@ -87,7 +87,7 @@ Resources:
         Environment: !Ref Environment
         ApiCodeBucket: !Ref ApiCodeBucket
         SharedLambdaRoleArn: !Ref SharedLambdaRoleArn
-        DatabaseEndpoint: !Sub "taskmanager-cluster.cluster-{{resolve:secretsmanager:taskmanager/database/${Environment}/regional/${AWS::Region}:SecretString:cluster_arn}}.${AWS::Region}.rds.amazonaws.com"
+        DatabaseEndpoint: "{{resolve:secretsmanager:taskmanager/database/${Environment}/regional/${AWS::Region}:SecretString:host}}"
         LambdaSecurityGroupId: !Ref LambdaSecurityGroupId
         PrivateSubnet1Id: !Ref PrivateSubnet1Id
         PrivateSubnet2Id: !Ref PrivateSubnet2Id
@@ -122,7 +122,7 @@ Resources:
         PrivateSubnet2Id: !Ref PrivateSubnet2Id
         ECSClusterName: !Ref ECSClusterName
         GoogleOAuthSecretArn: !Ref GoogleOAuthSecretArn
-        DatabaseEndpoint: !Sub "taskmanager-cluster.cluster-{{resolve:secretsmanager:taskmanager/database/${Environment}/regional/${AWS::Region}:SecretString:cluster_arn}}.${AWS::Region}.rds.amazonaws.com"
+        DatabaseEndpoint: "{{resolve:secretsmanager:taskmanager/database/${Environment}/regional/${AWS::Region}:SecretString:host}}"
       Tags:
         - Key: LogicalId
           Value: TaskManagerWebStack
