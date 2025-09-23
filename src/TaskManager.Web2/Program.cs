@@ -34,21 +34,10 @@ builder.Services.AddScoped<AuthenticationStateProvider, RevalidatingIdentityAuth
 builder.Services.AddSingleton<WeatherForecastService>();
 builder.Services.AddHealthChecks();
 var configuration = builder.Configuration;
-var logger = LoggerFactory.Create(builder => builder.AddConsole()).CreateLogger("GoogleOAuth");
 builder.Services.AddAuthentication().AddGoogle(googleOptions =>
 {
     googleOptions.ClientId = configuration["Authentication:Google:ClientId"];
     googleOptions.ClientSecret = configuration["Authentication:Google:ClientSecret"];
-    logger.LogInformation("Google OAuth Callback Path: {CallbackPath}", googleOptions.CallbackPath);
-    googleOptions.Events = new Microsoft.AspNetCore.Authentication.OAuth.OAuthEvents
-    {
-        OnRedirectToAuthorizationEndpoint = context =>
-        {
-            logger.LogInformation("Request Scheme: {Scheme}, Host: {Host}", context.HttpContext.Request.Scheme, context.HttpContext.Request.Host);
-            logger.LogInformation("OAuth Authorization URL: {AuthorizationUrl}", context.RedirectUri);
-            return Task.CompletedTask;
-        }
-    };
 });
 
 var app = builder.Build();
