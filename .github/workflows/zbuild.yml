@@ -746,10 +746,30 @@ jobs:
       run: |
         echo "🔍 Verifying DNS failover configuration..."
 
+        # Check if global-dns stack exists
+        GLOBAL_DNS_STACK=$(aws cloudformation describe-stacks \
+          --stack-name taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-global-dns \
+          --region us-east-1 \
+          --query 'Stacks[0].StackStatus' \
+          --output text 2>/dev/null || echo "STACK_NOT_FOUND")
+
+        if [ "$GLOBAL_DNS_STACK" = "STACK_NOT_FOUND" ]; then
+          echo "❌ Global DNS stack not found, deploying it now..."
+          # Deploy global-dns stack
+          aws cloudformation deploy \
+            --stack-name taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-global-dns \
+            --template-file infrastructure/global-dns-template.yaml \
+            --parameter-overrides Environment=${{ needs.get-branch-name.outputs.branch-name }} DomainName=appcloud.systems HostedZoneId=Z06422172SASV44F5Y8VA PrimaryRegion=${{ env.AWS_REGION_PRIMARY }} SecondaryRegion=${{ env.AWS_REGION_SECONDARY }} PrimaryWebLoadBalancerDNS=${{ steps.get-lb-details.outputs.primary-web-load-balancer-dns }} PrimaryWebLoadBalancerHostedZoneId=${{ steps.get-lb-details.outputs.primary-web-load-balancer-hosted-zone-id }} SecondaryWebLoadBalancerDNS=${{ steps.get-lb-details.outputs.secondary-web-load-balancer-dns }} SecondaryWebLoadBalancerHostedZoneId=${{ steps.get-lb-details.outputs.secondary-web-load-balancer-hosted-zone-id }} \
+            --region us-east-1 \
+            --no-fail-on-empty-changeset
+          echo "✅ Global DNS stack deployed"
+        fi
+
         # Check health checks
         PRIMARY_HC=$(aws route53 get-health-check \
           --health-check-id $(aws cloudformation describe-stacks \
             --stack-name taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-global-dns \
+            --region us-east-1 \
             --query 'Stacks[0].Outputs[?OutputKey==`PrimaryHealthCheckId`].OutputValue' \
             --output text) \
           --query 'HealthCheck.HealthCheckConfig.FullyQualifiedDomainName' \
@@ -758,6 +778,7 @@ jobs:
         SECONDARY_HC=$(aws route53 get-health-check \
           --health-check-id $(aws cloudformation describe-stacks \
             --stack-name taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-global-dns \
+            --region us-east-1 \
             --query 'Stacks[0].Outputs[?OutputKey==`SecondaryHealthCheckId`].OutputValue' \
             --output text) \
           --query 'HealthCheck.HealthCheckConfig.FullyQualifiedDomainName' \

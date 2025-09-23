@@ -49,10 +49,10 @@ Resources:
     Type: AWS::Route53::HealthCheck
     Properties:
       HealthCheckConfig:
-        Type: HTTP
+        Type: HTTPS
         ResourcePath: /health
         FullyQualifiedDomainName: !Ref PrimaryWebLoadBalancerDNS
-        Port: 80
+        Port: 443
         RequestInterval: 30
         FailureThreshold: 2
       HealthCheckTags:
@@ -68,10 +68,10 @@ Resources:
     Type: AWS::Route53::HealthCheck
     Properties:
       HealthCheckConfig:
-        Type: HTTP
+        Type: HTTPS
         ResourcePath: /health
         FullyQualifiedDomainName: !Ref SecondaryWebLoadBalancerDNS
-        Port: 80
+        Port: 443
         RequestInterval: 30
         FailureThreshold: 2
       HealthCheckTags:
