@@ -34,10 +34,27 @@ builder.Services.AddScoped<AuthenticationStateProvider, RevalidatingIdentityAuth
 builder.Services.AddSingleton<WeatherForecastService>();
 builder.Services.AddHealthChecks();
 var configuration = builder.Configuration;
+builder.Services.AddAntiforgery(options =>
+{
+    options.ExcludedPaths.Add("/signin-google");
+});
+
 builder.Services.AddAuthentication().AddGoogle(googleOptions =>
 {
     googleOptions.ClientId = configuration["Authentication:Google:ClientId"];
     googleOptions.ClientSecret = configuration["Authentication:Google:ClientSecret"];
+    googleOptions.Events = new Microsoft.AspNetCore.Authentication.OAuth.OAuthEvents
+    {
+        OnRedirectToAuthorizationEndpoint = context =>
+        {
+            var uri = new UriBuilder(context.RedirectUri);
+            uri.Scheme = "https";
+            uri.Host = "20250916-1500-rds-2.appcloud.systems";
+            context.RedirectUri = uri.ToString();
+            context.Response.Redirect(context.RedirectUri);
+            context.HandleResponse();
+        }
+    };
 });
 
 var app = builder.Build();
