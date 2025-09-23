@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.UI;
 using Microsoft.EntityFrameworkCore;
+using Pomelo.EntityFrameworkCore.MySql;
 using TaskManager.Web2.Areas.Identity;
 using TaskManager.Web2.Data;
 using static Microsoft.Extensions.DependencyInjection.GoogleExtensions;
@@ -15,14 +16,14 @@ var builder = WebApplication.CreateBuilder(args);
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
 {
-    // Use SQL Server in development, PostgreSQL in production
+    // Use SQL Server in development, MySQL in production
     if (builder.Environment.IsDevelopment())
     {
         options.UseSqlServer(connectionString);
     }
     else
     {
-        options.UseNpgsql(connectionString);
+        options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString));
     }
 });
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();

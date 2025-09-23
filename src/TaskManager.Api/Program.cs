@@ -4,6 +4,7 @@ using Amazon.Lambda.Core;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
+using Pomelo.EntityFrameworkCore.MySql;
 using TaskManager.Api.Services;
 using TaskManager.Data;
 
@@ -42,7 +43,7 @@ public class Program
                 throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
             }
 
-            // Use SQL Server in development, PostgreSQL in production
+            // Use SQL Server in development, MySQL in production
             if (Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") == "Development" ||
                 Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT") == "Development")
             {
@@ -50,10 +51,10 @@ public class Program
             }
             else
             {
-                options.UseNpgsql(connectionString, npgsqlOptions =>
+                options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString), mysqlOptions =>
                 {
                     // This ensures database exists before connecting
-                    npgsqlOptions.EnableRetryOnFailure(3);
+                    mysqlOptions.EnableRetryOnFailure(3);
                 });
             }
         });

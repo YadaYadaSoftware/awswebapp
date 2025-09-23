@@ -46,7 +46,7 @@ public class Program
                 var connectionString = context.Configuration.GetConnectionString("DefaultConnection");
                 
                 services.AddDbContext<TaskManagerDbContext>(options =>
-                    options.UseNpgsql(connectionString));
+                    options.UseSqlServer(connectionString));
                 
                 services.AddLogging();
             });
