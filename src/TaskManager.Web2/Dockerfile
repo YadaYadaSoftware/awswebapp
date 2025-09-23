@@ -23,8 +23,9 @@ RUN dotnet build "TaskManager.Web2.csproj" -c Release -o /app/build
 # Publish the app
 FROM build AS publish
 ARG VERSION=1.0.0
+ARG ASSEMBLY_VERSION=1.0.0.0
 ARG INFORMATIONAL_VERSION=1.0.0
-RUN dotnet publish "TaskManager.Web2.csproj" -c Release -o /app/publish /p:UseAppHost=false /p:Version=${VERSION} /p:InformationalVersion=${INFORMATIONAL_VERSION}
+RUN dotnet publish "TaskManager.Web2.csproj" -c Release -o /app/publish /p:UseAppHost=false /p:Version=${VERSION} /p:AssemblyVersion=${ASSEMBLY_VERSION} /p:InformationalVersion=${INFORMATIONAL_VERSION}
 
 # Use the official ASP.NET runtime image
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS final

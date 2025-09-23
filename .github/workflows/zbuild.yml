@@ -394,7 +394,7 @@ jobs:
         echo "🌿 Branch tag: $BRANCH_TAG"
 
         # Build container image from root context
-        docker build -t taskmanager-web:$IMAGE_TAG -f src/TaskManager.Web2/Dockerfile .
+        docker build -t taskmanager-web:$IMAGE_TAG -f src/TaskManager.Web2/Dockerfile . --build-arg VERSION=${{ needs.build.outputs.semVer }} --build-arg ASSEMBLY_VERSION=${{ needs.build.outputs.assemblySemVer }}
 
         # Login to ECR
         aws ecr get-login-password --region ${{ matrix.region }} | docker login --username AWS --password-stdin $ECR_REPO
