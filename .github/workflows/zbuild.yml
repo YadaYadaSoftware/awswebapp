@@ -315,7 +315,7 @@ jobs:
 
     - name: Set regional stack names
       run: |
-        echo "REGIONAL_VPC_DB_STACK_NAME=taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-regional-vpc-db-${{ matrix.region }}" >> $GITHUB_ENV
+        echo "REGIONAL_VPC_DB_STACK_NAME=taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-regional-vpc-db" >> $GITHUB_ENV
 
     - name: deploy (regional-kms-replica)
       id: deploy-kms-replica
