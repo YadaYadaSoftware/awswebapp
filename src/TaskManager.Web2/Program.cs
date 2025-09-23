@@ -48,8 +48,8 @@ builder.Services.AddAuthentication().AddGoogle(googleOptions =>
         OnRedirectToAuthorizationEndpoint = context =>
         {
             var uri = new UriBuilder(context.RedirectUri);
-            uri.Scheme = "https";
-            uri.Host = "20250916-1500-rds-2.appcloud.systems";
+            uri.Scheme = context.HttpContext.Request.Scheme;
+            uri.Host = context.HttpContext.Request.Host;
             context.RedirectUri = uri.ToString();
             context.Response.Redirect(context.RedirectUri);
             context.HandleResponse();
