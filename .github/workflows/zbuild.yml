@@ -135,12 +135,12 @@ jobs:
     - name: Publish API for Lambda
       run: |
         echo "Publishing API with version: ${{ steps.gitversion.outputs.semVer }}"
-        dotnet publish src/TaskManager.Api/TaskManager.Api.csproj --configuration Release --output ./publish/api --runtime linux-x64 --self-contained false /p:Version=${{ steps.gitversion.outputs.semVer }}
+        dotnet publish src/TaskManager.Api/TaskManager.Api.csproj --configuration Release --output ./publish/api --runtime linux-x64 --self-contained false /p:Version=${{ steps.gitversion.outputs.semVer }} /p:AssemblyVersion=${{ steps.gitversion.outputs.assemblySemVer }}
 
     - name: Publish Web for Container
       run: |
         echo "Publishing Web with version: ${{ steps.gitversion.outputs.semVer }}"
-        dotnet publish src/TaskManager.Web2/TaskManager.Web2.csproj --configuration Release --output ./publish/web --runtime linux-x64 --self-contained false /p:Version=${{ steps.gitversion.outputs.semVer }}
+        dotnet publish src/TaskManager.Web2/TaskManager.Web2.csproj --configuration Release --output ./publish/web --runtime linux-x64 --self-contained false /p:Version=${{ steps.gitversion.outputs.semVer }} /p:AssemblyVersion=${{ steps.gitversion.outputs.assemblySemVer }}
 
     - name: Create API Lambda deployment package
       run: |
