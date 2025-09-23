@@ -313,6 +313,10 @@ jobs:
         aws s3 cp infrastructure/regional-vpc-db.yaml s3://taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-templates-bucket-${{ matrix.region }}/ --region ${{ matrix.region }}
         aws s3 cp infrastructure/regional-kms-replica.yaml s3://taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-templates-bucket-${{ matrix.region }}/ --region ${{ matrix.region }}
 
+    - name: Set regional stack names
+      run: |
+        echo "REGIONAL_VPC_DB_STACK_NAME=taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-regional-vpc-db-${{ matrix.region }}" >> $GITHUB_ENV
+
     - name: deploy (regional-kms-replica)
       id: deploy-kms-replica
       uses: aws-actions/aws-cloudformation-github-deploy@v1
@@ -326,19 +330,19 @@ jobs:
     - name: Cleanup failed regional-vpc-db stack (if exists)
       run: |
         STACK_STATUS=$(aws cloudformation describe-stacks \
-          --stack-name taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-regional-vpc-db-${{ matrix.region }} \
+          --stack-name ${{ env.REGIONAL_VPC_DB_STACK_NAME }} \
           --region ${{ matrix.region }} \
           --query 'Stacks[0].StackStatus' \
           --output text 2>/dev/null || echo "STACK_NOT_FOUND")
 
         if [ "$STACK_STATUS" = "ROLLBACK_FAILED" ] || [ "$STACK_STATUS" = "ROLLBACK_COMPLETE" ] || [ "$STACK_STATUS" = "CREATE_FAILED" ] || [ "$STACK_STATUS" = "DELETE_FAILED" ]; then
-          echo "🗑️ Deleting failed regional-vpc-db stack: taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-regional-vpc-db-${{ matrix.region }}"
+          echo "🗑️ Deleting failed regional-vpc-db stack: ${{ env.REGIONAL_VPC_DB_STACK_NAME }}"
           aws cloudformation delete-stack \
-            --stack-name taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-regional-vpc-db-${{ matrix.region }} \
+            --stack-name ${{ env.REGIONAL_VPC_DB_STACK_NAME }} \
             --region ${{ matrix.region }}
 
           aws cloudformation wait stack-delete-complete \
-            --stack-name taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-regional-vpc-db-${{ matrix.region }} \
+            --stack-name ${{ env.REGIONAL_VPC_DB_STACK_NAME }} \
             --region ${{ matrix.region }}
 
           echo "✅ Failed regional-vpc-db stack cleaned up"
@@ -348,7 +352,7 @@ jobs:
       id: deploy-regional-vpc-db
       uses: aws-actions/aws-cloudformation-github-deploy@v1
       with:
-        name: taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-regional-vpc-db
+        name: ${{ env.REGIONAL_VPC_DB_STACK_NAME }}
         template: infrastructure/regional-vpc-db.yaml
         parameter-overrides: "BranchName=${{ needs.get-branch-name.outputs.branch-name }},DatabasePassword=${{ secrets.DATABASE_PASSWORD }},EngineVersion=${{ env.ENGINE_VERSION }},AuroraGlobalClusterId=${{ needs.deploy-global.outputs.aurora-global-cluster-id }},AuroraKmsKeyArn=${{ steps.deploy-kms-replica.outputs.AuroraKmsKeyReplicaArn }},IsPrimaryRegion=${{ matrix.is_primary }},GitHubActionsUserArn=${{ needs.deploy-global.outputs.github-actions-user-arn }},VPCFlowLogsRoleArn=${{ needs.deploy-global.outputs.vpc-flow-logs-role-arn }},LogRetentionDays=7"
         capabilities: "CAPABILITY_NAMED_IAM"
@@ -621,7 +625,7 @@ jobs:
         # Check regional database
         echo "Checking regional database..."
         REGIONAL_DB_STATUS=$(aws cloudformation describe-stacks \
-          --stack-name taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-regional-vpc-db-${{ matrix.region }} \
+          --stack-name ${{ env.REGIONAL_VPC_DB_STACK_NAME }} \
           --region ${{ matrix.region }} \
           --query 'Stacks[0].StackStatus' \
           --output text 2>/dev/null || echo "NOT_FOUND")
