@@ -262,7 +262,13 @@ jobs:
       ecs-sg: ${{ steps.deploy-regional-vpc-db.outputs.ECSTaskSecurityGroupId }}
       db-endpoint: ${{ steps.deploy-regional-vpc-db.outputs.DatabaseEndpoint }}
       db-reader-endpoint: ${{ steps.deploy-regional-vpc-db.outputs.DatabaseReaderEndpoint }}
-      db-secret-arn: ${{ steps.deploy-regional-vpc-db.outputs.DatabaseSecretArn }}
+      db-username: ${{ steps.deploy-regional-vpc-db.outputs.DatabaseUsername }}
+      db-engine: ${{ steps.deploy-regional-vpc-db.outputs.DatabaseEngine }}
+      db-host: ${{ steps.deploy-regional-vpc-db.outputs.DatabaseHost }}
+      db-port: ${{ steps.deploy-regional-vpc-db.outputs.DatabasePort }}
+      db-name: ${{ steps.deploy-regional-vpc-db.outputs.DatabaseName }}
+      db-cluster-arn: ${{ steps.deploy-regional-vpc-db.outputs.DatabaseClusterArn }}
+      db-password-secret-arn: ${{ steps.deploy-regional-vpc-db.outputs.DatabasePasswordSecretArn }}
       ecs-cluster-name: ${{ steps.deploy-regional.outputs.ECSClusterName }}
       api-endpoint: ${{ steps.get-endpoints.outputs.api-endpoint }}
       web-endpoint: ${{ steps.get-endpoints.outputs.web-endpoint }}
@@ -467,7 +473,7 @@ jobs:
       with:
         name: ${{ env.STACK_PREFIX }}-wrapper
         template: infrastructure/wrapper-template.yaml
-        parameter-overrides: Environment=${{ needs.get-branch-name.outputs.branch-name }},ApiCodeBucket=taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-templates-bucket-${{ matrix.region }},WebContainerImage=${{ env.CONTAINER_IMAGE }},DeploymentToken=${{ github.sha }},DomainName=appcloud.systems,HostedZoneId=Z06422172SASV44F5Y8VA,TemplatesBucket=taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-templates-bucket-${{ matrix.region }},SharedLambdaRoleArn=${{ needs.deploy-global.outputs.shared-lambda-role-arn }},VPCId=${{ steps.deploy-regional-vpc-db.outputs.VPCId }},LambdaSecurityGroupId=${{ steps.deploy-regional-vpc-db.outputs.LambdaSecurityGroupId }},PrivateSubnet1Id=${{ steps.deploy-regional-vpc-db.outputs.PrivateSubnet1Id }},PrivateSubnet2Id=${{ steps.deploy-regional-vpc-db.outputs.PrivateSubnet2Id }},ALBSecurityGroupId=${{ steps.deploy-regional-vpc-db.outputs.ALBSecurityGroupId }},ECSTaskSecurityGroupId=${{ steps.deploy-regional-vpc-db.outputs.ECSTaskSecurityGroupId }},PublicSubnet1Id=${{ steps.deploy-regional-vpc-db.outputs.PublicSubnet1Id }},PublicSubnet2Id=${{ steps.deploy-regional-vpc-db.outputs.PublicSubnet2Id }},ECSClusterName=${{ steps.deploy-regional.outputs.ECSClusterName }},GoogleOAuthSecretArn=${{ steps.deploy-regional.outputs.GoogleOAuthSecretArn }}
+        parameter-overrides: Environment=${{ needs.get-branch-name.outputs.branch-name }},ApiCodeBucket=taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-templates-bucket-${{ matrix.region }},WebContainerImage=${{ env.CONTAINER_IMAGE }},DeploymentToken=${{ github.sha }},DomainName=appcloud.systems,HostedZoneId=Z06422172SASV44F5Y8VA,TemplatesBucket=taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-templates-bucket-${{ matrix.region }},SharedLambdaRoleArn=${{ needs.deploy-global.outputs.shared-lambda-role-arn }},VPCId=${{ steps.deploy-regional-vpc-db.outputs.VPCId }},LambdaSecurityGroupId=${{ steps.deploy-regional-vpc-db.outputs.LambdaSecurityGroupId }},PrivateSubnet1Id=${{ steps.deploy-regional-vpc-db.outputs.PrivateSubnet1Id }},PrivateSubnet2Id=${{ steps.deploy-regional-vpc-db.outputs.PrivateSubnet2Id }},ALBSecurityGroupId=${{ steps.deploy-regional-vpc-db.outputs.ALBSecurityGroupId }},ECSTaskSecurityGroupId=${{ steps.deploy-regional-vpc-db.outputs.ECSTaskSecurityGroupId }},PublicSubnet1Id=${{ steps.deploy-regional-vpc-db.outputs.PublicSubnet1Id }},PublicSubnet2Id=${{ steps.deploy-regional-vpc-db.outputs.PublicSubnet2Id }},ECSClusterName=${{ steps.deploy-regional.outputs.ECSClusterName }},GoogleOAuthSecretArn=${{ steps.deploy-regional.outputs.GoogleOAuthSecretArn }},DatabaseUsername=${{ steps.deploy-regional-vpc-db.outputs.DatabaseUsername }},DatabaseEngine=${{ steps.deploy-regional-vpc-db.outputs.DatabaseEngine }},DatabaseHost=${{ steps.deploy-regional-vpc-db.outputs.DatabaseHost }},DatabasePort=${{ steps.deploy-regional-vpc-db.outputs.DatabasePort }},DatabaseName=${{ steps.deploy-regional-vpc-db.outputs.DatabaseName }},DatabaseClusterArn=${{ steps.deploy-regional-vpc-db.outputs.DatabaseClusterArn }},DatabasePasswordSecretArn=${{ steps.deploy-regional-vpc-db.outputs.DatabasePasswordSecretArn }}
         capabilities: "CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND"
         no-fail-on-empty-changeset: "1"
       timeout-minutes: 20

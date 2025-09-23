@@ -77,6 +77,34 @@ Parameters:
     Type: String
     Description: "ARN of the Google OAuth secrets in Secrets Manager"
 
+  DatabaseUsername:
+    Type: String
+    Description: "Database username"
+
+  DatabaseEngine:
+    Type: String
+    Description: "Database engine"
+
+  DatabaseHost:
+    Type: String
+    Description: "Database host endpoint"
+
+  DatabasePort:
+    Type: String
+    Description: "Database port"
+
+  DatabaseName:
+    Type: String
+    Description: "Database name"
+
+  DatabaseClusterArn:
+    Type: String
+    Description: "Database cluster ARN"
+
+  DatabasePasswordSecretArn:
+    Type: String
+    Description: "Database password secret ARN"
+
 Resources:
   # API Stack (Nested)
   TaskManagerApiStack:
@@ -87,7 +115,13 @@ Resources:
         Environment: !Ref Environment
         ApiCodeBucket: !Ref ApiCodeBucket
         SharedLambdaRoleArn: !Ref SharedLambdaRoleArn
-        DatabaseEndpoint: "{{resolve:secretsmanager:taskmanager/database/${Environment}/regional/${AWS::Region}:SecretString:host}}"
+        DatabaseHost: !Ref DatabaseHost
+        DatabaseUsername: !Ref DatabaseUsername
+        DatabaseEngine: !Ref DatabaseEngine
+        DatabasePort: !Ref DatabasePort
+        DatabaseName: !Ref DatabaseName
+        DatabaseClusterArn: !Ref DatabaseClusterArn
+        DatabasePasswordSecretArn: !Ref DatabasePasswordSecretArn
         LambdaSecurityGroupId: !Ref LambdaSecurityGroupId
         PrivateSubnet1Id: !Ref PrivateSubnet1Id
         PrivateSubnet2Id: !Ref PrivateSubnet2Id
@@ -122,7 +156,13 @@ Resources:
         PrivateSubnet2Id: !Ref PrivateSubnet2Id
         ECSClusterName: !Ref ECSClusterName
         GoogleOAuthSecretArn: !Ref GoogleOAuthSecretArn
-        DatabaseEndpoint: "{{resolve:secretsmanager:taskmanager/database/${Environment}/regional/${AWS::Region}:SecretString:host}}"
+        DatabaseHost: !Ref DatabaseHost
+        DatabaseUsername: !Ref DatabaseUsername
+        DatabaseEngine: !Ref DatabaseEngine
+        DatabasePort: !Ref DatabasePort
+        DatabaseName: !Ref DatabaseName
+        DatabaseClusterArn: !Ref DatabaseClusterArn
+        DatabasePasswordSecretArn: !Ref DatabasePasswordSecretArn
       Tags:
         - Key: LogicalId
           Value: TaskManagerWebStack

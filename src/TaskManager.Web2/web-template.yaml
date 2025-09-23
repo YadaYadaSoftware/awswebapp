@@ -95,9 +95,33 @@ Parameters:
     Type: String
     Description: "ARN of the Google OAuth secrets in Secrets Manager"
 
-  DatabaseEndpoint:
+  DatabaseHost:
     Type: String
-    Description: "Database endpoint address"
+    Description: "Database host endpoint"
+
+  DatabaseUsername:
+    Type: String
+    Description: "Database username"
+
+  DatabaseEngine:
+    Type: String
+    Description: "Database engine"
+
+  DatabasePort:
+    Type: String
+    Description: "Database port"
+
+  DatabaseName:
+    Type: String
+    Description: "Database name"
+
+  DatabaseClusterArn:
+    Type: String
+    Description: "Database cluster ARN"
+
+  DatabasePasswordSecretArn:
+    Type: String
+    Description: "Database password secret ARN"
 
   LogRetentionDays:
     Type: Number
@@ -224,10 +248,11 @@ Resources:
               Value: "Production"
             - Name: ConnectionStrings__DefaultConnection
               Value: !Sub
-                - "Server=${DatabaseEndpoint};Database=taskmanager_${DatabaseName};User Id=taskmanager_admin;Password=${DatabasePassword};SslMode=Required;"
-                - DatabaseEndpoint: !Ref DatabaseEndpoint
-                  DatabaseName: !Sub "${Environment}"
-                  DatabasePassword: !Sub "{{resolve:secretsmanager:taskmanager/database/${Environment}/regional/${AWS::Region}:SecretString:password}}"
+                - "Server=${DatabaseHost};Database=${DatabaseName};User Id=${DatabaseUsername};Password=${DatabasePassword};SslMode=Required;"
+                - DatabaseHost: !Ref DatabaseHost
+                  DatabaseName: !Ref DatabaseName
+                  DatabaseUsername: !Ref DatabaseUsername
+                  DatabasePassword: !Sub "{{resolve:secretsmanager:${DatabasePasswordSecretArn}:SecretString}}"
             - Name: ASPNETCORE_URLS
               Value: "http://*:80"
             - Name: DOTNET_RUNNING_IN_CONTAINER

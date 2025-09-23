@@ -522,29 +522,20 @@ Resources:
         - Key: Stack
           Value: !Ref "AWS::StackName"
 
-  # Database Secret
-  DatabaseSecret:
+  # Database Password Secret (only password remains sensitive)
+  DatabasePasswordSecret:
     DependsOn: VPCFlowLogsLogGroup
     Type: AWS::SecretsManager::Secret
     Properties:
-      Name: !Sub "taskmanager/database/${BranchName}/regional/${AWS::Region}"
-      Description: Database credentials for Aurora Regional Cluster
-      SecretString: !Sub |
-        {
-          "username": "taskmanager_admin",
-          "password": "${DatabasePassword}",
-          "engine": "aurora-mysql",
-          "host": "${AuroraCluster.Endpoint.Address}",
-          "port": "${AuroraCluster.Endpoint.Port}",
-          "dbname": "taskmanager",
-          "cluster_arn": "${AuroraCluster.DBClusterArn}",
-          "secret_arn": "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:taskmanager/database/regional/${AWS::Region}"
-        }
+      Name: !Sub "taskmanager/database/${BranchName}/regional/${AWS::Region}/password"
+      Description: Database password for Aurora Regional Cluster
+      SecretString: !Ref DatabasePassword
       Tags:
         - Key: LogicalId
-          Value: DatabaseSecret
+          Value: DatabasePasswordSecret
         - Key: Stack
           Value: !Ref "AWS::StackName"
+
 
 Outputs:
   VPCId:
@@ -591,9 +582,33 @@ Outputs:
     Description: Aurora MySQL reader endpoint
     Value: !GetAtt AuroraCluster.ReadEndpoint.Address
 
-  DatabaseSecretArn:
-    Description: Database secret ARN
-    Value: !Ref DatabaseSecret
+  DatabaseUsername:
+    Description: Database username
+    Value: "taskmanager_admin"
+
+  DatabaseEngine:
+    Description: Database engine
+    Value: "aurora-mysql"
+
+  DatabaseHost:
+    Description: Database host endpoint
+    Value: !GetAtt AuroraCluster.Endpoint.Address
+
+  DatabasePort:
+    Description: Database port
+    Value: !GetAtt AuroraCluster.Endpoint.Port
+
+  DatabaseName:
+    Description: Database name
+    Value: "taskmanager"
+
+  DatabaseClusterArn:
+    Description: Database cluster ARN
+    Value: !Ref AuroraCluster
+
+  DatabasePasswordSecretArn:
+    Description: Database password secret ARN
+    Value: !Ref DatabasePasswordSecret
 
   RDSSecurityGroupId:
     Description: Security group for RDS access
