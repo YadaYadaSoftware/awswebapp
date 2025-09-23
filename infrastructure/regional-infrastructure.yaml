@@ -84,17 +84,21 @@ Parameters:
     Type: String
     Description: "ARN of the API Gateway CloudWatch Logs role from global stack"
 
+  BranchName:
+    Type: String
+    Description: Branch name for resource naming
+
 Resources:
   # ECS Cluster
   ECSCluster:
     Type: AWS::ECS::Cluster
     Properties:
-      ClusterName: "TaskManager-Cluster"
+      ClusterName: !Sub "TaskManager-Cluster-${BranchName}"
       Tags:
         - Key: LogicalId
           Value: ECSCluster
         - Key: Name
-          Value: "TaskManager-ECS-Cluster"
+          Value: !Sub "TaskManager-ECS-Cluster-${BranchName}"
         - Key: Purpose
           Value: "Regional Infrastructure"
         - Key: Stack
@@ -104,7 +108,7 @@ Resources:
   GoogleOAuthSecrets:
     Type: AWS::SecretsManager::Secret
     Properties:
-      Name: !Sub "taskmanager/google-oauth/${AWS::StackName}"
+      Name: !Sub "taskmanager/google-oauth/${BranchName}"
       Description: "Google OAuth credentials for TaskManager web application"
       SecretString: !Sub |
         {
@@ -115,7 +119,7 @@ Resources:
         - Key: LogicalId
           Value: GoogleOAuthSecrets
         - Key: Name
-          Value: "TaskManager-GoogleOAuth-Secrets"
+          Value: !Sub "TaskManager-GoogleOAuth-Secrets-${BranchName}"
         - Key: Purpose
           Value: "Google OAuth Configuration"
         - Key: Stack
@@ -137,4 +141,4 @@ Outputs:
     Description: "ARN of the Google OAuth secrets"
     Value: !Ref GoogleOAuthSecrets
     Export:
-      Name: !Sub "TaskManager-GoogleOAuthSecretArn-${AWS::StackName}"
+      Name: !Sub "TaskManager-GoogleOAuthSecretArn-${BranchName}"
