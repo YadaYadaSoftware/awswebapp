@@ -343,8 +343,11 @@ jobs:
         echo "🔍 Debug: Parameter values being passed to CloudFormation:"
         echo "DatabasePassword: [REDACTED]"
         echo "SharedLambdaRoleArn: ${{ needs.deploy-global.outputs.shared-lambda-role-arn }}"
-        echo "DatabaseSecretArn: ${{ steps.deploy-regional-vpc-db.outputs.DatabaseSecretArn }}"
         echo "AuroraGlobalClusterId: ${{ needs.deploy-global.outputs.aurora-global-cluster-id }}"
+        echo "DatabaseHost: ${{ steps.deploy-regional-vpc-db.outputs.DatabaseHost }}"
+        echo "DatabaseUsername: ${{ steps.deploy-regional-vpc-db.outputs.DatabaseUsername }}"
+        echo "DatabaseName: ${{ steps.deploy-regional-vpc-db.outputs.DatabaseName }}"
+        echo "DatabasePasswordSecretArn: ${{ steps.deploy-regional-vpc-db.outputs.DatabasePasswordSecretArn }}"
 
         # Validate that job outputs are not empty
         if [ -z "${{ needs.deploy-global.outputs.shared-lambda-role-arn }}" ]; then
@@ -352,13 +355,18 @@ jobs:
           exit 1
         fi
 
-        if [ -z "${{ steps.deploy-regional-vpc-db.outputs.DatabaseSecretArn }}" ]; then
-          echo "❌ ERROR: DatabaseSecretArn is empty"
+        if [ -z "${{ needs.deploy-global.outputs.aurora-global-cluster-id }}" ]; then
+          echo "❌ ERROR: AuroraGlobalClusterId is empty"
           exit 1
         fi
 
-        if [ -z "${{ needs.deploy-global.outputs.aurora-global-cluster-id }}" ]; then
-          echo "❌ ERROR: AuroraGlobalClusterId is empty"
+        if [ -z "${{ steps.deploy-regional-vpc-db.outputs.DatabaseHost }}" ]; then
+          echo "❌ ERROR: DatabaseHost is empty"
+          exit 1
+        fi
+
+        if [ -z "${{ steps.deploy-regional-vpc-db.outputs.DatabasePasswordSecretArn }}" ]; then
+          echo "❌ ERROR: DatabasePasswordSecretArn is empty"
           exit 1
         fi
 
