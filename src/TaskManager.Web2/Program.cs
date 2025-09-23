@@ -43,10 +43,14 @@ builder.Services.AddAuthentication().AddGoogle(googleOptions =>
 var app = builder.Build();
 
 // Configure forwarded headers for ALB
-app.UseForwardedHeaders(new ForwardedHeadersOptions
+var forwardedHeadersOptions = new ForwardedHeadersOptions
 {
     ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
-});
+};
+// Clear known proxies/networks to allow ALB (which has dynamic IPs)
+forwardedHeadersOptions.KnownProxies.Clear();
+forwardedHeadersOptions.KnownNetworks.Clear();
+app.UseForwardedHeaders(forwardedHeadersOptions);
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
