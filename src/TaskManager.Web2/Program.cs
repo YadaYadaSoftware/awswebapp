@@ -44,6 +44,7 @@ builder.Services.AddAuthentication().AddGoogle(googleOptions =>
     {
         OnRedirectToAuthorizationEndpoint = context =>
         {
+            logger.LogInformation("Request Scheme: {Scheme}, Host: {Host}", context.HttpContext.Request.Scheme, context.HttpContext.Request.Host);
             logger.LogInformation("OAuth Authorization URL: {AuthorizationUrl}", context.RedirectUri);
             return Task.CompletedTask;
         }
