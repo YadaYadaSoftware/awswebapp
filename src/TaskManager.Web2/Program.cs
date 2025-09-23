@@ -34,11 +34,6 @@ builder.Services.AddScoped<AuthenticationStateProvider, RevalidatingIdentityAuth
 builder.Services.AddSingleton<WeatherForecastService>();
 builder.Services.AddHealthChecks();
 var configuration = builder.Configuration;
-builder.Services.AddAntiforgery(options =>
-{
-    options.ExcludedPaths.Add("/signin-google");
-});
-
 builder.Services.AddAuthentication().AddGoogle(googleOptions =>
 {
     googleOptions.ClientId = configuration["Authentication:Google:ClientId"];
@@ -49,10 +44,10 @@ builder.Services.AddAuthentication().AddGoogle(googleOptions =>
         {
             var uri = new UriBuilder(context.RedirectUri);
             uri.Scheme = context.HttpContext.Request.Scheme;
-            uri.Host = context.HttpContext.Request.Host;
+            uri.Host = context.HttpContext.Request.Host.ToString();
             context.RedirectUri = uri.ToString();
             context.Response.Redirect(context.RedirectUri);
-            context.HandleResponse();
+            return Task.CompletedTask;
         }
     };
 });
