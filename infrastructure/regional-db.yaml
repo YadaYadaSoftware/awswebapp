@@ -1,0 +1,262 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+Description: TaskManager Regional Database Infrastructure - Aurora Clusters, RDS Resources
+
+Parameters:
+  DatabasePassword:
+    Type: String
+    NoEcho: true
+    MinLength: 8
+    Description: Password for the Aurora MySQL database
+
+  EngineVersion:
+    Type: String
+    Description: Aurora MySQL engine version for the regional cluster
+
+  AuroraGlobalClusterId:
+    Type: String
+    Description: ID of the Aurora global cluster from global stack
+
+  AuroraKmsKeyArn:
+    Type: String
+    Description: ARN of the KMS key (primary or replica) for Aurora encryption in this region
+
+  IsPrimaryRegion:
+    Type: String
+    AllowedValues: ["true", "false"]
+    Default: "false"
+    Description: Whether this region hosts the primary cluster
+
+  GitHubActionsUserArn:
+    Type: String
+    Description: ARN of the GitHub Actions IAM user from IAM setup stack
+
+  BranchName:
+    Type: String
+    Description: Branch name for resource naming
+
+  VPCId:
+    Type: String
+    Description: VPC ID from VPC stack
+
+  PrivateSubnet1Id:
+    Type: String
+    Description: Private subnet 1 ID from VPC stack
+
+  PrivateSubnet2Id:
+    Type: String
+    Description: Private subnet 2 ID from VPC stack
+
+  RDSSecurityGroupId:
+    Type: String
+    Description: Security group for RDS access from VPC stack
+
+  LogRetentionDays:
+    Type: Number
+    Default: 7
+    Description: Number of days to retain CloudWatch logs
+
+Conditions:
+  IsPrimary: !Equals [!Ref IsPrimaryRegion, "true"]
+  IsNotPrimary: !Equals [!Ref IsPrimaryRegion, "false"]
+
+Resources:
+  # Aurora DB Subnet Group
+  AuroraDBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: "Subnet group for Aurora cluster in this region"
+      SubnetIds:
+        - !Ref PrivateSubnet1Id
+        - !Ref PrivateSubnet2Id
+      DBSubnetGroupName: !Sub "taskmanager-${BranchName}-aurora-subnet-group-${AWS::Region}"
+      Tags:
+        - Key: LogicalId
+          Value: AuroraDBSubnetGroup
+        - Key: Name
+          Value: "TaskManager-Aurora-SubnetGroup"
+        - Key: Region
+          Value: !Ref AWS::Region
+        - Key: Stack
+          Value: !Ref "AWS::StackName"
+
+  # Aurora DB Cluster Parameter Group
+  AuroraClusterParameterGroup:
+    Type: AWS::RDS::DBClusterParameterGroup
+    Properties:
+      Family: aurora-mysql8.0
+      Description: "Parameter group for Aurora MySQL cluster"
+      Parameters:
+        character_set_server: utf8mb4
+        collation_server: utf8mb4_unicode_ci
+        innodb_buffer_pool_size: "{DBInstanceClassMemory*3/4}"
+        max_connections: "200"
+        slow_query_log: "1"
+        long_query_time: "2"
+
+  # CloudWatch Log Groups for Aurora Cluster
+  AuroraAuditLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/rds/cluster/taskmanager-${BranchName}-aurora-cluster-${AWS::Region}/audit"
+      RetentionInDays: !Ref LogRetentionDays
+      Tags:
+        - Key: LogicalId
+          Value: AuroraAuditLogGroup
+        - Key: Stack
+          Value: !Ref "AWS::StackName"
+
+  AuroraErrorLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/rds/cluster/taskmanager-${BranchName}-aurora-cluster-${AWS::Region}/error"
+      RetentionInDays: !Ref LogRetentionDays
+      Tags:
+        - Key: LogicalId
+          Value: AuroraErrorLogGroup
+        - Key: Stack
+          Value: !Ref "AWS::StackName"
+
+  AuroraGeneralLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/rds/cluster/taskmanager-${BranchName}-aurora-cluster-${AWS::Region}/general"
+      RetentionInDays: !Ref LogRetentionDays
+      Tags:
+        - Key: LogicalId
+          Value: AuroraGeneralLogGroup
+        - Key: Stack
+          Value: !Ref "AWS::StackName"
+
+  AuroraSlowQueryLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/rds/cluster/taskmanager-${BranchName}-aurora-cluster-${AWS::Region}/slowquery"
+      RetentionInDays: !Ref LogRetentionDays
+      Tags:
+        - Key: LogicalId
+          Value: AuroraSlowQueryLogGroup
+        - Key: Stack
+          Value: !Ref "AWS::StackName"
+
+  # Aurora Serverless v2 Cluster
+  AuroraCluster:
+    DependsOn:
+      - AuroraAuditLogGroup
+      - AuroraErrorLogGroup
+      - AuroraGeneralLogGroup
+      - AuroraSlowQueryLogGroup
+    Type: AWS::RDS::DBCluster
+    Properties:
+      GlobalClusterIdentifier: !Ref AuroraGlobalClusterId
+      DBClusterIdentifier: !Sub "taskmanager-${BranchName}-aurora-cluster-${AWS::Region}"
+      Engine: aurora-mysql
+      EngineVersion: !Ref EngineVersion
+      MasterUsername: !If [IsPrimary, "taskmanager_admin", !Ref "AWS::NoValue"]
+      MasterUserPassword:
+        !If [IsPrimary, !Ref DatabasePassword, !Ref "AWS::NoValue"]
+      DatabaseName: !If [IsPrimary, "taskmanager", !Ref "AWS::NoValue"]
+      DBSubnetGroupName: !Ref AuroraDBSubnetGroup
+      DBClusterParameterGroupName: !Ref AuroraClusterParameterGroup
+      VpcSecurityGroupIds:
+        - !Ref RDSSecurityGroupId
+      BackupRetentionPeriod: 7
+      PreferredBackupWindow: "03:00-04:00"
+      PreferredMaintenanceWindow: "sun:04:00-sun:05:00"
+      StorageEncrypted: true
+      KmsKeyId: !Ref AuroraKmsKeyArn
+      DeletionProtection: false
+      ServerlessV2ScalingConfiguration:
+        MinCapacity: 0.5
+        MaxCapacity: 4
+      EnableCloudwatchLogsExports:
+        - audit
+        - error
+        - general
+        - slowquery
+      Tags:
+        - Key: LogicalId
+          Value: AuroraCluster
+        - Key: Name
+          Value: !Sub "TaskManager-Aurora-Cluster-${AWS::Region}"
+        - Key: Purpose
+          Value: !Sub "${IsPrimaryRegion} Aurora Cluster"
+        - Key: Region
+          Value: !Ref AWS::Region
+        - Key: Stack
+          Value: !Ref "AWS::StackName"
+
+  # Aurora Serverless v2 Instance
+  AuroraInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBInstanceIdentifier: !Sub "taskmanager-${BranchName}-aurora-instance-${AWS::Region}"
+      DBClusterIdentifier: !Ref AuroraCluster
+      DBInstanceClass: db.serverless
+      Engine: aurora-mysql
+      PubliclyAccessible: false
+      Tags:
+        - Key: LogicalId
+          Value: AuroraInstance
+        - Key: Name
+          Value: !Sub "TaskManager-Aurora-Instance-${AWS::Region}"
+        - Key: Purpose
+          Value: "Regional Aurora Instance"
+        - Key: Region
+          Value: !Ref AWS::Region
+        - Key: Stack
+          Value: !Ref "AWS::StackName"
+
+  # Database Password Secret (only password remains sensitive)
+  DatabasePasswordSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub "taskmanager/database/${BranchName}/regional/${AWS::Region}/password"
+      Description: Database password for Aurora Regional Cluster
+      SecretString: !Ref DatabasePassword
+      Tags:
+        - Key: LogicalId
+          Value: DatabasePasswordSecret
+        - Key: Stack
+          Value: !Ref "AWS::StackName"
+
+Outputs:
+  AuroraClusterId:
+    Description: Aurora Regional Cluster ID
+    Value: !Ref AuroraCluster
+
+  DatabaseEndpoint:
+    Description: Aurora MySQL cluster endpoint
+    Value: !GetAtt AuroraCluster.Endpoint.Address
+
+  DatabaseReaderEndpoint:
+    Description: Aurora MySQL reader endpoint
+    Value: !GetAtt AuroraCluster.ReadEndpoint.Address
+
+  DatabaseUsername:
+    Description: Database username
+    Value: "taskmanager_admin"
+
+  DatabaseEngine:
+    Description: Database engine
+    Value: "aurora-mysql"
+
+  DatabaseHost:
+    Description: Database host endpoint
+    Value: !GetAtt AuroraCluster.Endpoint.Address
+
+  DatabasePort:
+    Description: Database port
+    Value: !GetAtt AuroraCluster.Endpoint.Port
+
+  DatabaseName:
+    Description: Database name
+    Value: "taskmanager"
+
+  DatabaseClusterArn:
+    Description: Database cluster ARN
+    Value: !Ref AuroraCluster
+
+  DatabasePasswordSecretArn:
+    Description: Database password secret ARN
+    Value: !Ref DatabasePasswordSecret
