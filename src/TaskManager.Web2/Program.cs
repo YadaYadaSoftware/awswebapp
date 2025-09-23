@@ -43,6 +43,12 @@ builder.Services.AddAuthentication().AddGoogle(googleOptions =>
 
 var app = builder.Build();
 
+// Apply database migrations on startup in production
+if (!app.Environment.IsDevelopment())
+{
+    await ApplyDatabaseMigrations(app);
+}
+
 // Configure forwarded headers for ALB
 var forwardedHeadersOptions = new ForwardedHeadersOptions
 {
@@ -79,3 +85,30 @@ app.MapBlazorHub();
 app.MapFallbackToPage("/_Host");
 
 app.Run();
+
+async Task ApplyDatabaseMigrations(WebApplication app)
+{
+    using var scope = app.Services.CreateScope();
+    var services = scope.ServiceProvider;
+    var logger = services.GetRequiredService<ILogger<Program>>();
+    var context = services.GetRequiredService<ApplicationDbContext>();
+
+    try
+    {
+        logger.LogInformation("Ensuring database exists and applying migrations for ApplicationDbContext...");
+
+        // This will create the database if it doesn't exist
+        await context.Database.EnsureCreatedAsync();
+
+        // This will apply all pending migrations
+        await context.Database.MigrateAsync();
+
+        logger.LogInformation("Database migrations applied successfully.");
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "An error occurred while applying database migrations.");
+        // Don't throw - let the application start even if migrations fail
+        // This prevents application startup issues in production
+    }
+}
