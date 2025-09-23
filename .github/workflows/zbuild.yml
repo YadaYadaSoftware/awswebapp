@@ -270,10 +270,10 @@ jobs:
       db-cluster-arn: ${{ steps.deploy-regional-vpc-db.outputs.DatabaseClusterArn }}
       db-password-secret-arn: ${{ steps.deploy-regional-vpc-db.outputs.DatabasePasswordSecretArn }}
       ecs-cluster-name: ${{ steps.deploy-regional.outputs.ECSClusterName }}
-      api-endpoint: ${{ steps.get-endpoints.outputs.api-endpoint }}
-      web-endpoint: ${{ steps.get-endpoints.outputs.web-endpoint }}
-      web-load-balancer-dns: ${{ steps.deploy-wrapper.outputs.WebLoadBalancerDNS }}
-      web-load-balancer-hosted-zone-id: ${{ steps.deploy-wrapper.outputs.WebLoadBalancerHostedZoneId }}
+      api-endpoint: ${{ steps.deploy-api.outputs.ApiEndpoint }}
+      web-endpoint: ${{ steps.deploy-web.outputs.WebEndpoint }}
+      web-load-balancer-dns: ${{ steps.deploy-web.outputs.WebLoadBalancerDNS }}
+      web-load-balancer-hosted-zone-id: ${{ steps.deploy-web.outputs.WebLoadBalancerHostedZoneId }}
 
     steps:
     - name: Checkout code
@@ -325,14 +325,11 @@ jobs:
 
     - name: Upload templates and regional layers to S3
       run: |
-        # Upload all templates
-        echo "Uploading templates to S3..."
+        # Upload infrastructure templates to S3
+        echo "Uploading infrastructure templates to S3..."
         aws s3 cp infrastructure/regional-infrastructure.yaml s3://taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-templates-bucket-${{ matrix.region }}/ --region ${{ matrix.region }}
         aws s3 cp infrastructure/regional-vpc-db.yaml s3://taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-templates-bucket-${{ matrix.region }}/ --region ${{ matrix.region }}
         aws s3 cp infrastructure/regional-kms-replica.yaml s3://taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-templates-bucket-${{ matrix.region }}/ --region ${{ matrix.region }}
-        aws s3 cp src/TaskManager.Api/api-template.yaml s3://taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-templates-bucket-${{ matrix.region }}/ --region ${{ matrix.region }}
-        aws s3 cp src/TaskManager.Web2/web-template.yaml s3://taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-templates-bucket-${{ matrix.region }}/ --region ${{ matrix.region }}
-        aws s3 cp infrastructure/wrapper-template.yaml s3://taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-templates-bucket-${{ matrix.region }}/ --region ${{ matrix.region }}
 
         # Verify uploads
         echo "Verifying S3 uploads..."
@@ -475,16 +472,27 @@ jobs:
         echo "S3 bucket contents:"
         aws s3 ls s3://taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-templates-bucket-${{ matrix.region }}/ --region ${{ matrix.region }} | grep -E "(api-lambda-deployment|mysql-layer)"
 
-    - name: deploy (wrapper-template)
-      id: deploy-wrapper
+    - name: deploy (api-template)
+      id: deploy-api
       uses: aws-actions/aws-cloudformation-github-deploy@v1
       with:
-        name: ${{ env.STACK_PREFIX }}-wrapper
-        template: infrastructure/wrapper-template.yaml
-        parameter-overrides: Environment=${{ needs.get-branch-name.outputs.branch-name }},ApiCodeBucket=taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-templates-bucket-${{ matrix.region }},WebContainerImage=${{ env.CONTAINER_IMAGE }},DeploymentToken=${{ github.sha }},DomainName=appcloud.systems,HostedZoneId=Z06422172SASV44F5Y8VA,TemplatesBucket=taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-templates-bucket-${{ matrix.region }},SharedLambdaRoleArn=${{ needs.deploy-global.outputs.shared-lambda-role-arn }},VPCId=${{ steps.deploy-regional-vpc-db.outputs.VPCId }},LambdaSecurityGroupId=${{ steps.deploy-regional-vpc-db.outputs.LambdaSecurityGroupId }},PrivateSubnet1Id=${{ steps.deploy-regional-vpc-db.outputs.PrivateSubnet1Id }},PrivateSubnet2Id=${{ steps.deploy-regional-vpc-db.outputs.PrivateSubnet2Id }},ALBSecurityGroupId=${{ steps.deploy-regional-vpc-db.outputs.ALBSecurityGroupId }},ECSTaskSecurityGroupId=${{ steps.deploy-regional-vpc-db.outputs.ECSTaskSecurityGroupId }},PublicSubnet1Id=${{ steps.deploy-regional-vpc-db.outputs.PublicSubnet1Id }},PublicSubnet2Id=${{ steps.deploy-regional-vpc-db.outputs.PublicSubnet2Id }},ECSClusterName=${{ steps.deploy-regional.outputs.ECSClusterName }},GoogleOAuthSecretArn=${{ steps.deploy-regional.outputs.GoogleOAuthSecretArn }},DatabaseUsername=${{ steps.deploy-regional-vpc-db.outputs.DatabaseUsername }},DatabaseEngine=${{ steps.deploy-regional-vpc-db.outputs.DatabaseEngine }},DatabaseHost=${{ steps.deploy-regional-vpc-db.outputs.DatabaseHost }},DatabasePort=${{ steps.deploy-regional-vpc-db.outputs.DatabasePort }},DatabaseName=${{ steps.deploy-regional-vpc-db.outputs.DatabaseName }},DatabaseClusterArn=${{ steps.deploy-regional-vpc-db.outputs.DatabaseClusterArn }},DatabasePasswordSecretArn=${{ steps.deploy-regional-vpc-db.outputs.DatabasePasswordSecretArn }}
-        capabilities: "CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND"
+        name: ${{ env.STACK_PREFIX }}-api
+        template: src/TaskManager.Api/api-template.yaml
+        parameter-overrides: Environment=${{ needs.get-branch-name.outputs.branch-name }},ApiCodeBucket=taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-templates-bucket-${{ matrix.region }},SharedLambdaRoleArn=${{ needs.deploy-global.outputs.shared-lambda-role-arn }},DatabaseHost=${{ steps.deploy-regional-vpc-db.outputs.DatabaseHost }},DatabaseUsername=${{ steps.deploy-regional-vpc-db.outputs.DatabaseUsername }},DatabaseEngine=${{ steps.deploy-regional-vpc-db.outputs.DatabaseEngine }},DatabasePort=${{ steps.deploy-regional-vpc-db.outputs.DatabasePort }},DatabaseName=${{ steps.deploy-regional-vpc-db.outputs.DatabaseName }},DatabaseClusterArn=${{ steps.deploy-regional-vpc-db.outputs.DatabaseClusterArn }},DatabasePasswordSecretArn=${{ steps.deploy-regional-vpc-db.outputs.DatabasePasswordSecretArn }},LambdaSecurityGroupId=${{ steps.deploy-regional-vpc-db.outputs.LambdaSecurityGroupId }},PrivateSubnet1Id=${{ steps.deploy-regional-vpc-db.outputs.PrivateSubnet1Id }},PrivateSubnet2Id=${{ steps.deploy-regional-vpc-db.outputs.PrivateSubnet2Id }}
+        capabilities: "CAPABILITY_IAM"
         no-fail-on-empty-changeset: "1"
-      timeout-minutes: 20
+      timeout-minutes: 15
+
+    - name: deploy (web-template)
+      id: deploy-web
+      uses: aws-actions/aws-cloudformation-github-deploy@v1
+      with:
+        name: ${{ env.STACK_PREFIX }}-web
+        template: src/TaskManager.Web2/web-template.yaml
+        parameter-overrides: Environment=${{ needs.get-branch-name.outputs.branch-name }},WebContainerImage=${{ env.CONTAINER_IMAGE }},DeploymentToken=${{ github.sha }},DomainName=appcloud.systems,HostedZoneId=Z06422172SASV44F5Y8VA,SharedLambdaRoleArn=${{ needs.deploy-global.outputs.shared-lambda-role-arn }},VPCId=${{ steps.deploy-regional-vpc-db.outputs.VPCId }},ALBSecurityGroupId=${{ steps.deploy-regional-vpc-db.outputs.ALBSecurityGroupId }},ECSTaskSecurityGroupId=${{ steps.deploy-regional-vpc-db.outputs.ECSTaskSecurityGroupId }},PublicSubnet1Id=${{ steps.deploy-regional-vpc-db.outputs.PublicSubnet1Id }},PublicSubnet2Id=${{ steps.deploy-regional-vpc-db.outputs.PublicSubnet2Id }},PrivateSubnet1Id=${{ steps.deploy-regional-vpc-db.outputs.PrivateSubnet1Id }},PrivateSubnet2Id=${{ steps.deploy-regional-vpc-db.outputs.PrivateSubnet2Id }},ECSClusterName=${{ steps.deploy-regional.outputs.ECSClusterName }},GoogleOAuthSecretArn=${{ steps.deploy-regional.outputs.GoogleOAuthSecretArn }},DatabaseHost=${{ steps.deploy-regional-vpc-db.outputs.DatabaseHost }},DatabaseUsername=${{ steps.deploy-regional-vpc-db.outputs.DatabaseUsername }},DatabaseEngine=${{ steps.deploy-regional-vpc-db.outputs.DatabaseEngine }},DatabasePort=${{ steps.deploy-regional-vpc-db.outputs.DatabasePort }},DatabaseName=${{ steps.deploy-regional-vpc-db.outputs.DatabaseName }},DatabaseClusterArn=${{ steps.deploy-regional-vpc-db.outputs.DatabaseClusterArn }},DatabasePasswordSecretArn=${{ steps.deploy-regional-vpc-db.outputs.DatabasePasswordSecretArn }}
+        capabilities: "CAPABILITY_IAM"
+        no-fail-on-empty-changeset: "1"
+      timeout-minutes: 15
 
     # Database setup removed - now handled automatically by Entity Framework
     # EF will create the database and run migrations when the API first starts
@@ -494,8 +502,8 @@ jobs:
       run: |
         echo "Getting deployment outputs from stack outputs..."
 
-        # Get API endpoint from wrapper stack outputs
-        API_URL="${{ steps.deploy-wrapper.outputs.ApiEndpoint }}"
+        # Get API endpoint from API stack outputs
+        API_URL="${{ steps.deploy-api.outputs.ApiEndpoint }}"
 
         if [ -z "$API_URL" ]; then
           echo "❌ API endpoint not found in stack outputs"
@@ -503,8 +511,8 @@ jobs:
         fi
         echo "✅ API endpoint: $API_URL"
 
-        # Get Web endpoint from wrapper stack outputs
-        WEB_URL="${{ steps.deploy-wrapper.outputs.WebLoadBalancerDNS }}"
+        # Get Web endpoint from Web stack outputs
+        WEB_URL="${{ steps.deploy-web.outputs.WebLoadBalancerDNS }}"
 
         if [ -z "$WEB_URL" ]; then
           echo "⚠️ Web endpoint not found in stack outputs"
@@ -517,8 +525,8 @@ jobs:
         API_GATEWAY_ID=$(echo $API_URL | sed 's|https://||' | sed 's|\.execute-api.*||')
 
         echo "🚀 TaskManager (${{ needs.get-branch-name.outputs.branch-name }}) deployed successfully in ${{ matrix.region }}!"
-        echo "📋 API Stack: ${{ env.STACK_PREFIX }}-${{ matrix.region }}-api ✅ Endpoint: $API_URL"
-        echo "📋 Web Stack: ${{ env.STACK_PREFIX }}-${{ matrix.region }}-web ✅ Load Balancer: $WEB_URL"
+        echo "📋 API Stack: ${{ env.STACK_PREFIX }}-api ✅ Endpoint: $API_URL"
+        echo "📋 Web Stack: ${{ env.STACK_PREFIX }}-web ✅ Load Balancer: $WEB_URL"
         echo "💾 Database: taskmanager_${{ needs.get-branch-name.outputs.branch-name }} ✅ Auto-created by EF"
 
         # Set outputs for other jobs
@@ -566,26 +574,26 @@ jobs:
 
         # Get primary load balancer details
         PRIMARY_DNS=$(aws cloudformation describe-stacks \
-          --stack-name taskmanager-${BRANCH_NAME}-wrapper \
+          --stack-name taskmanager-${BRANCH_NAME}-web \
           --region ${{ env.AWS_REGION_PRIMARY }} \
           --query 'Stacks[0].Outputs[?OutputKey==`WebLoadBalancerDNS`].OutputValue' \
           --output text)
 
         PRIMARY_HZ=$(aws cloudformation describe-stacks \
-          --stack-name taskmanager-${BRANCH_NAME}-wrapper \
+          --stack-name taskmanager-${BRANCH_NAME}-web \
           --region ${{ env.AWS_REGION_PRIMARY }} \
           --query 'Stacks[0].Outputs[?OutputKey==`WebLoadBalancerHostedZoneId`].OutputValue' \
           --output text)
 
         # Get secondary load balancer details
         SECONDARY_DNS=$(aws cloudformation describe-stacks \
-          --stack-name taskmanager-${BRANCH_NAME}-wrapper \
+          --stack-name taskmanager-${BRANCH_NAME}-web \
           --region ${{ env.AWS_REGION_SECONDARY }} \
           --query 'Stacks[0].Outputs[?OutputKey==`WebLoadBalancerDNS`].OutputValue' \
           --output text)
 
         SECONDARY_HZ=$(aws cloudformation describe-stacks \
-          --stack-name taskmanager-${BRANCH_NAME}-wrapper \
+          --stack-name taskmanager-${BRANCH_NAME}-web \
           --region ${{ env.AWS_REGION_SECONDARY }} \
           --query 'Stacks[0].Outputs[?OutputKey==`WebLoadBalancerHostedZoneId`].OutputValue' \
           --output text)
