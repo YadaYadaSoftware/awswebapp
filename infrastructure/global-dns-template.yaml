@@ -114,17 +114,11 @@ Outputs:
   WebEndpoint:
     Description: "Web application endpoint URL"
     Value: !Sub "https://${Environment}.${DomainName}"
-    Export:
-      Name: !Sub "TaskManager-${Environment}-WebEndpoint"
 
   PrimaryHealthCheckId:
     Description: "Primary health check ID"
     Value: !Ref PrimaryHealthCheck
-    Export:
-      Name: !Sub "TaskManager-${Environment}-PrimaryHealthCheck"
 
   SecondaryHealthCheckId:
     Description: "Secondary health check ID"
     Value: !Ref SecondaryHealthCheck
-    Export:
-      Name: !Sub "TaskManager-${Environment}-SecondaryHealthCheck"

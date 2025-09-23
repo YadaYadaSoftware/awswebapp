@@ -181,8 +181,6 @@ Outputs:
   UserName:
     Description: "IAM User name for GitHub Actions"
     Value: !Ref GitHubActionsUser
-    Export:
-      Name: "TaskManager-GitHubActionsUser"
 
   AccessKeyId:
     Description: "Access Key ID for GitHub Actions (add to GitHub secrets)"
@@ -195,8 +193,6 @@ Outputs:
   UserArn:
     Description: "IAM User ARN"
     Value: !GetAtt GitHubActionsUser.Arn
-    Export:
-      Name: "TaskManager-GitHubActionsUserArn"
 
   PolicyArn:
     Description: "Custom policy ARN"

@@ -265,28 +265,18 @@ Outputs:
   AuroraGlobalClusterId:
     Description: Aurora Global Database cluster identifier
     Value: !Ref AuroraGlobalCluster
-    Export:
-      Name: !Sub TaskManager-AuroraGlobalCluster-${BranchName}
   AuroraKmsKeyArn:
     Description: KMS key ARN used for Aurora encryption
     Value: !GetAtt AuroraKmsKey.Arn
-    Export:
-      Name: !Sub TaskManager-AuroraKmsKey-${BranchName}
 
   SharedLambdaRoleArn:
     Description: Shared Lambda execution role ARN
     Value: !GetAtt SharedLambdaExecutionRole.Arn
-    Export:
-      Name: !Sub TaskManager-SharedLambdaRole-${BranchName}
 
   VPCFlowLogsRoleArn:
     Description: VPC Flow Logs role ARN
     Value: !GetAtt VPCFlowLogsRole.Arn
-    Export:
-      Name: !Sub TaskManager-VPCFlowLogsRole-${BranchName}
 
   ApiGatewayCloudWatchLogsRoleArn:
     Description: API Gateway CloudWatch Logs role ARN
     Value: !GetAtt ApiGatewayCloudWatchLogsRole.Arn
-    Export:
-      Name: !Sub TaskManager-ApiGatewayCloudWatchLogsRole-${BranchName}

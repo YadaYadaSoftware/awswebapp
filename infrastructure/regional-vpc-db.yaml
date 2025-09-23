@@ -550,77 +550,51 @@ Outputs:
   VPCId:
     Description: VPC ID for regional database
     Value: !Ref TaskManagerVPC
-    Export:
-      Name: !Sub "TaskManager-${BranchName}-VPC-${AWS::Region}"
 
   PrivateSubnet1Id:
     Description: Private subnet 1 ID
     Value: !Ref PrivateSubnet1
-    Export:
-      Name: !Sub "TaskManager-${BranchName}-PrivateSubnet1-${AWS::Region}"
 
   PrivateSubnet2Id:
     Description: Private subnet 2 ID
     Value: !Ref PrivateSubnet2
-    Export:
-      Name: !Sub "TaskManager-${BranchName}-PrivateSubnet2-${AWS::Region}"
 
   PublicSubnet1Id:
     Description: Public subnet 1 ID
     Value: !Ref PublicSubnet1
-    Export:
-      Name: !Sub "TaskManager-${BranchName}-PublicSubnet1-${AWS::Region}"
 
   PublicSubnet2Id:
     Description: Public subnet 2 ID
     Value: !Ref PublicSubnet2
-    Export:
-      Name: !Sub "TaskManager-${BranchName}-PublicSubnet2-${AWS::Region}"
 
   LambdaSecurityGroupId:
     Description: Security group for Lambda functions
     Value: !Ref LambdaSecurityGroup
-    Export:
-      Name: !Sub "TaskManager-${BranchName}-LambdaSecurityGroup-${AWS::Region}"
 
   ALBSecurityGroupId:
     Description: Security group for Application Load Balancer
     Value: !Ref ALBSecurityGroup
-    Export:
-      Name: !Sub "TaskManager-${BranchName}-ALBSecurityGroup-${AWS::Region}"
 
   ECSTaskSecurityGroupId:
     Description: Security group for ECS tasks
     Value: !Ref ECSTaskSecurityGroup
-    Export:
-      Name: !Sub "TaskManager-${BranchName}-ECSTaskSecurityGroup-${AWS::Region}"
 
   AuroraClusterId:
     Description: Aurora Regional Cluster ID
     Value: !Ref AuroraCluster
-    Export:
-      Name: !Sub "TaskManager-${BranchName}-AuroraCluster-${AWS::Region}"
 
   DatabaseEndpoint:
     Description: Aurora MySQL cluster endpoint
     Value: !GetAtt AuroraCluster.Endpoint.Address
-    Export:
-      Name: !Sub "TaskManager-${BranchName}-DatabaseEndpoint-${AWS::Region}"
 
   DatabaseReaderEndpoint:
     Description: Aurora MySQL reader endpoint
     Value: !GetAtt AuroraCluster.ReadEndpoint.Address
-    Export:
-      Name: !Sub "TaskManager-${BranchName}-DatabaseReaderEndpoint-${AWS::Region}"
 
   DatabaseSecretArn:
     Description: Database secret ARN
     Value: !Ref DatabaseSecret
-    Export:
-      Name: !Sub "TaskManager-${BranchName}-DatabaseSecret-${AWS::Region}"
 
   RDSSecurityGroupId:
     Description: Security group for RDS access
     Value: !Ref RDSSecurityGroup
-    Export:
-      Name: !Sub "TaskManager-${BranchName}-RDSSecurityGroup-${AWS::Region}"

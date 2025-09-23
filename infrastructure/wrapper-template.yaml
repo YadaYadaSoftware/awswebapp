@@ -136,50 +136,34 @@ Outputs:
   ApiEndpoint:
     Description: "API Gateway endpoint URL"
     Value: !GetAtt TaskManagerApiStack.Outputs.ApiEndpoint
-    Export:
-      Name: !Sub "TaskManager-${Environment}-ApiEndpoint"
 
   ApiLambdaFunctionName:
     Description: "API Lambda function name"
     Value: !GetAtt TaskManagerApiStack.Outputs.ApiLambdaFunctionName
-    Export:
-      Name: !Sub "TaskManager-${Environment}-ApiLambdaFunction"
 
   WebEndpoint:
     Description: "Web application endpoint URL"
     Value: !GetAtt TaskManagerWebStack.Outputs.WebEndpoint
-    Export:
-      Name: !Sub "TaskManager-${Environment}-WebEndpoint"
 
   WebLoadBalancerDNS:
     Description: "Web Load Balancer DNS name"
     Value: !GetAtt TaskManagerWebStack.Outputs.WebLoadBalancerDNS
-    Export:
-      Name: !Sub "TaskManager-${Environment}-${AWS::Region}-WebLoadBalancerDNS"
 
   WebLoadBalancerHostedZoneId:
     Description: "Web Load Balancer hosted zone ID"
     Value: !GetAtt TaskManagerWebStack.Outputs.WebLoadBalancerHostedZoneId
-    Export:
-      Name: !Sub "TaskManager-${Environment}-${AWS::Region}-WebLoadBalancerHostedZoneId"
 
   WebTaskDefinition:
     Description: "Web ECS task definition"
     Value: !GetAtt TaskManagerWebStack.Outputs.WebTaskDefinition
-    Export:
-      Name: !Sub "TaskManager-${Environment}-WebTaskDefinition"
 
   WebServiceName:
     Description: "Web ECS service name"
     Value: !GetAtt TaskManagerWebStack.Outputs.WebServiceName
-    Export:
-      Name: !Sub "TaskManager-${Environment}-WebService"
 
   BranchEnvironment:
     Description: "Branch environment name"
     Value: !Ref Environment
-    Export:
-      Name: !Sub "TaskManager-${Environment}-Environment"
 
   DeploymentSummary:
     Description: "Deployment summary"

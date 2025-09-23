@@ -76,5 +76,3 @@ Outputs:
   AuroraKmsKeyReplicaArn:
     Description: ARN of the KMS key replica
     Value: !GetAtt AuroraKmsKeyReplica.Arn
-    Export:
-      Name: !Sub "TaskManager-AuroraKmsKeyReplica-${BranchName}-${AWS::Region}"
