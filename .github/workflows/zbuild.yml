@@ -52,27 +52,6 @@ jobs:
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: ${{ matrix.region }}
 
-    - name: Cleanup failed infrastructure stack (if exists)
-      run: |
-        STACK_STATUS=$(aws cloudformation describe-stacks \
-          --stack-name taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-regional-containers \
-          --region ${{ matrix.region }} \
-          --query 'Stacks[0].StackStatus' \
-          --output text 2>/dev/null || echo "STACK_NOT_FOUND")
-
-        if [ "$STACK_STATUS" = "ROLLBACK_FAILED" ] || [ "$STACK_STATUS" = "ROLLBACK_COMPLETE" ] || [ "$STACK_STATUS" = "CREATE_FAILED" ] || [ "$STACK_STATUS" = "DELETE_FAILED" ]; then
-          echo "🗑️ Deleting failed infrastructure stack: taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-regional-containers"
-          aws cloudformation delete-stack \
-            --stack-name taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-regional-containers \
-            --region ${{ matrix.region }}
-
-          aws cloudformation wait stack-delete-complete \
-            --stack-name taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-regional-containers \
-            --region ${{ matrix.region }}
-
-          echo "✅ Failed infrastructure stack cleaned up"
-        fi
-
     - name: deploy (regional-containers)
       uses: aws-actions/aws-cloudformation-github-deploy@v1
       with:
@@ -327,27 +306,6 @@ jobs:
         no-fail-on-empty-changeset: "1"
         timeout-in-minutes: 10
 
-    - name: Cleanup failed regional-vpc-db stack (if exists)
-      run: |
-        STACK_STATUS=$(aws cloudformation describe-stacks \
-          --stack-name ${{ env.REGIONAL_VPC_DB_STACK_NAME }} \
-          --region ${{ matrix.region }} \
-          --query 'Stacks[0].StackStatus' \
-          --output text 2>/dev/null || echo "STACK_NOT_FOUND")
-
-        if [ "$STACK_STATUS" = "ROLLBACK_FAILED" ] || [ "$STACK_STATUS" = "ROLLBACK_COMPLETE" ] || [ "$STACK_STATUS" = "CREATE_FAILED" ] || [ "$STACK_STATUS" = "DELETE_FAILED" ]; then
-          echo "🗑️ Deleting failed regional-vpc-db stack: ${{ env.REGIONAL_VPC_DB_STACK_NAME }}"
-          aws cloudformation delete-stack \
-            --stack-name ${{ env.REGIONAL_VPC_DB_STACK_NAME }} \
-            --region ${{ matrix.region }}
-
-          aws cloudformation wait stack-delete-complete \
-            --stack-name ${{ env.REGIONAL_VPC_DB_STACK_NAME }} \
-            --region ${{ matrix.region }}
-
-          echo "✅ Failed regional-vpc-db stack cleaned up"
-        fi
-
     - name: deploy (regional-vpc-db)
       id: deploy-regional-vpc-db
       uses: aws-actions/aws-cloudformation-github-deploy@v1
@@ -399,27 +357,6 @@ jobs:
         fi
 
         echo "✅ All parameter values are present, proceeding with deployment..."
-
-    - name: Cleanup failed regional stack (if exists)
-      run: |
-        STACK_STATUS=$(aws cloudformation describe-stacks \
-          --stack-name taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-regional-${{ matrix.region }} \
-          --region ${{ matrix.region }} \
-          --query 'Stacks[0].StackStatus' \
-          --output text 2>/dev/null || echo "STACK_NOT_FOUND")
-
-        if [ "$STACK_STATUS" = "ROLLBACK_FAILED" ] || [ "$STACK_STATUS" = "ROLLBACK_COMPLETE" ] || [ "$STACK_STATUS" = "CREATE_FAILED" ] || [ "$STACK_STATUS" = "DELETE_FAILED" ]; then
-          echo "🗑️ Deleting failed regional stack: taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-regional-${{ matrix.region }}"
-          aws cloudformation delete-stack \
-            --stack-name taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-regional-${{ matrix.region }} \
-            --region ${{ matrix.region }}
-
-          aws cloudformation wait stack-delete-complete \
-            --stack-name taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-regional-${{ matrix.region }} \
-            --region ${{ matrix.region }}
-
-          echo "✅ Failed regional stack cleaned up"
-        fi
 
     - name: deploy (regional-infrastructure)
       id: deploy-regional
@@ -495,27 +432,6 @@ jobs:
       uses: aws-actions/setup-sam@v2
       with:
         use-installer: true
-
-    - name: Cleanup failed branch stack (if exists)
-      run: |
-        STACK_STATUS=$(aws cloudformation describe-stacks \
-          --stack-name ${{ env.STACK_PREFIX }}-${{ matrix.region }} \
-          --region ${{ matrix.region }} \
-          --query 'Stacks[0].StackStatus' \
-          --output text 2>/dev/null || echo "STACK_NOT_FOUND")
-
-        if [ "$STACK_STATUS" = "ROLLBACK_COMPLETE" ] || [ "$STACK_STATUS" = "CREATE_FAILED" ] || [ "$STACK_STATUS" = "DELETE_FAILED" ]; then
-          echo "🗑️ Deleting failed branch stack: ${{ env.STACK_PREFIX }}-${{ matrix.region }}"
-          aws cloudformation delete-stack \
-            --stack-name ${{ env.STACK_PREFIX }}-${{ matrix.region }} \
-            --region ${{ matrix.region }}
-
-          aws cloudformation wait stack-delete-complete \
-            --stack-name ${{ env.STACK_PREFIX }}-${{ matrix.region }} \
-            --region ${{ matrix.region }}
-
-          echo "✅ Failed branch stack cleaned up"
-        fi
 
     - name: Download Lambda packages
       uses: actions/download-artifact@v4
@@ -602,73 +518,6 @@ jobs:
         echo "📱 SMS notification skipped - SNS topic not configured in global infrastructure"
         echo "🚀 TaskManager deployment complete! Branch: ${{ needs.get-branch-name.outputs.branch-name }} Region: ${{ matrix.region }} API: $API_URL Web App: https://$BRANCH_NAME.appcloud.systems Database: taskmanager_${{ needs.get-branch-name.outputs.branch-name }} ✅ Auto-created by EF Both API and Web are fully deployed and running!"
 
-    - name: Verify All Deployments
-      run: |
-        echo "🔍 Final verification of all deployments in ${{ matrix.region }}..."
-
-        # Check global infrastructure (only for us-east-1)
-        if [ "${{ matrix.region }}" = "us-east-1" ]; then
-          echo "Checking global infrastructure..."
-          GLOBAL_STATUS=$(aws cloudformation describe-stacks \
-            --stack-name taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-global-infrastructure \
-            --region us-east-1 \
-            --query 'Stacks[0].StackStatus' \
-            --output text 2>/dev/null || echo "NOT_FOUND")
-
-          if [ "$GLOBAL_STATUS" != "CREATE_COMPLETE" ] && [ "$GLOBAL_STATUS" != "UPDATE_COMPLETE" ]; then
-            echo "❌ Global infrastructure deployment failed: $GLOBAL_STATUS"
-            exit 1
-          fi
-          echo "✅ Global infrastructure: $GLOBAL_STATUS"
-        fi
-
-        # Check regional database
-        echo "Checking regional database..."
-        REGIONAL_DB_STATUS=$(aws cloudformation describe-stacks \
-          --stack-name ${{ env.REGIONAL_VPC_DB_STACK_NAME }} \
-          --region ${{ matrix.region }} \
-          --query 'Stacks[0].StackStatus' \
-          --output text 2>/dev/null || echo "NOT_FOUND")
-
-        if [ "$REGIONAL_DB_STATUS" != "CREATE_COMPLETE" ] && [ "$REGIONAL_DB_STATUS" != "UPDATE_COMPLETE" ]; then
-          echo "❌ Regional database deployment failed: $REGIONAL_DB_STATUS"
-          exit 1
-        fi
-        echo "✅ Regional database: $REGIONAL_DB_STATUS"
-
-        # Check regional infrastructure
-        echo "Checking regional infrastructure..."
-        REGIONAL_STATUS=$(aws cloudformation describe-stacks \
-          --stack-name taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-regional-${{ matrix.region }} \
-          --region ${{ matrix.region }} \
-          --query 'Stacks[0].StackStatus' \
-          --output text 2>/dev/null || echo "NOT_FOUND")
-
-        if [ "$REGIONAL_STATUS" != "CREATE_COMPLETE" ] && [ "$REGIONAL_STATUS" != "UPDATE_COMPLETE" ]; then
-          echo "❌ Regional infrastructure deployment failed: $REGIONAL_STATUS"
-          exit 1
-        fi
-        echo "✅ Regional infrastructure: $REGIONAL_STATUS"
-
-        # Check application deployment
-        BRANCH_NAME=${{ needs.get-branch-name.outputs.branch-name }}
-        STACK_PREFIX="taskmanager-${BRANCH_NAME}"
-
-        echo "Checking application deployment..."
-        APP_STATUS=$(aws cloudformation describe-stacks \
-          --stack-name ${STACK_PREFIX}-${{ matrix.region }} \
-          --region ${{ matrix.region }} \
-          --query 'Stacks[0].StackStatus' \
-          --output text 2>/dev/null || echo "NOT_FOUND")
-
-        if [ "$APP_STATUS" != "CREATE_COMPLETE" ] && [ "$APP_STATUS" != "UPDATE_COMPLETE" ]; then
-          echo "❌ Application deployment failed: $APP_STATUS"
-          exit 1
-        fi
-        echo "✅ Application deployment: $APP_STATUS"
-
-        echo "🎉 All deployments verified successfully in ${{ matrix.region }}!"
-
 
 
 
@@ -745,70 +594,6 @@ jobs:
         parameter-overrides: Environment=${{ needs.get-branch-name.outputs.branch-name }},DomainName=appcloud.systems,HostedZoneId=Z06422172SASV44F5Y8VA,PrimaryRegion=${{ env.AWS_REGION_PRIMARY }},SecondaryRegion=${{ env.AWS_REGION_SECONDARY }},PrimaryWebLoadBalancerDNS=${{ steps.get-lb-details.outputs.primary-web-load-balancer-dns }},PrimaryWebLoadBalancerHostedZoneId=${{ steps.get-lb-details.outputs.primary-web-load-balancer-hosted-zone-id }},SecondaryWebLoadBalancerDNS=${{ steps.get-lb-details.outputs.secondary-web-load-balancer-dns }},SecondaryWebLoadBalancerHostedZoneId=${{ steps.get-lb-details.outputs.secondary-web-load-balancer-hosted-zone-id }}
         no-fail-on-empty-changeset: "1"
         timeout-in-minutes: 10
-
-    - name: Verify DNS Failover Setup
-      run: |
-        echo "🔍 Verifying DNS failover configuration..."
-
-        # Check if global-dns stack exists
-        GLOBAL_DNS_STACK=$(aws cloudformation describe-stacks \
-          --stack-name taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-global-dns \
-          --region us-east-1 \
-          --query 'Stacks[0].StackStatus' \
-          --output text 2>/dev/null || echo "STACK_NOT_FOUND")
-
-        if [ "$GLOBAL_DNS_STACK" = "STACK_NOT_FOUND" ]; then
-          echo "❌ Global DNS stack not found, deploying it now..."
-          # Deploy global-dns stack
-          aws cloudformation deploy \
-            --stack-name taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-global-dns \
-            --template-file infrastructure/global-dns-template.yaml \
-            --parameter-overrides Environment=${{ needs.get-branch-name.outputs.branch-name }} DomainName=appcloud.systems HostedZoneId=Z06422172SASV44F5Y8VA PrimaryRegion=${{ env.AWS_REGION_PRIMARY }} SecondaryRegion=${{ env.AWS_REGION_SECONDARY }} PrimaryWebLoadBalancerDNS=${{ steps.get-lb-details.outputs.primary-web-load-balancer-dns }} PrimaryWebLoadBalancerHostedZoneId=${{ steps.get-lb-details.outputs.primary-web-load-balancer-hosted-zone-id }} SecondaryWebLoadBalancerDNS=${{ steps.get-lb-details.outputs.secondary-web-load-balancer-dns }} SecondaryWebLoadBalancerHostedZoneId=${{ steps.get-lb-details.outputs.secondary-web-load-balancer-hosted-zone-id }} \
-            --region us-east-1 \
-            --no-fail-on-empty-changeset
-          echo "✅ Global DNS stack deployed"
-        fi
-
-        # Check health checks
-        PRIMARY_HC=$(aws route53 get-health-check \
-          --health-check-id $(aws cloudformation describe-stacks \
-            --stack-name taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-global-dns \
-            --region us-east-1 \
-            --query 'Stacks[0].Outputs[?OutputKey==`PrimaryHealthCheckId`].OutputValue' \
-            --output text) \
-          --query 'HealthCheck.HealthCheckConfig.FullyQualifiedDomainName' \
-          --output text 2>/dev/null || echo "NOT_FOUND")
-
-        SECONDARY_HC=$(aws route53 get-health-check \
-          --health-check-id $(aws cloudformation describe-stacks \
-            --stack-name taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-global-dns \
-            --region us-east-1 \
-            --query 'Stacks[0].Outputs[?OutputKey==`SecondaryHealthCheckId`].OutputValue' \
-            --output text) \
-          --query 'HealthCheck.HealthCheckConfig.FullyQualifiedDomainName' \
-          --output text 2>/dev/null || echo "NOT_FOUND")
-
-        if [ "$PRIMARY_HC" != "NOT_FOUND" ] && [ "$SECONDARY_HC" != "NOT_FOUND" ]; then
-          echo "✅ DNS failover health checks configured:"
-          echo "  Primary: $PRIMARY_HC"
-          echo "  Secondary: $SECONDARY_HC"
-        else
-          echo "❌ DNS failover health checks not found"
-          exit 1
-        fi
-
-        # Check DNS records
-        RECORDS=$(aws route53 list-resource-record-sets \
-          --hosted-zone-id Z06422172SASV44F5Y8VA \
-          --query "ResourceRecordSets[?Name=='${{ needs.get-branch-name.outputs.branch-name }}.appcloud.systems.']" \
-          --output text)
-
-        if [ -n "$RECORDS" ]; then
-          echo "✅ DNS failover records configured for ${{ needs.get-branch-name.outputs.branch-name }}.appcloud.systems"
-        else
-          echo "❌ DNS failover records not found"
-          exit 1
-        fi
 
   update-google-oauth:
     name: Generate Google OAuth Update Instructions
