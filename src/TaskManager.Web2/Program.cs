@@ -38,18 +38,6 @@ builder.Services.AddAuthentication().AddGoogle(googleOptions =>
 {
     googleOptions.ClientId = configuration["Authentication:Google:ClientId"];
     googleOptions.ClientSecret = configuration["Authentication:Google:ClientSecret"];
-    googleOptions.Events = new Microsoft.AspNetCore.Authentication.OAuth.OAuthEvents
-    {
-        OnRedirectToAuthorizationEndpoint = context =>
-        {
-            var uri = new UriBuilder(context.RedirectUri);
-            uri.Scheme = context.HttpContext.Request.Scheme;
-            uri.Host = context.HttpContext.Request.Host.ToString();
-            context.RedirectUri = uri.ToString();
-            context.Response.Redirect(context.RedirectUri);
-            return Task.CompletedTask;
-        }
-    };
 });
 
 var app = builder.Build();
