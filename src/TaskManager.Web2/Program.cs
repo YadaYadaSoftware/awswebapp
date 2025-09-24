@@ -133,6 +133,22 @@ forwardedHeadersOptions.KnownProxies.Clear();
 forwardedHeadersOptions.KnownNetworks.Clear();
 app.UseForwardedHeaders(forwardedHeadersOptions);
 
+// Add authentication middleware here to ensure forwarded headers are applied first
+app.UseAuthentication();
+
+// Log forwarded headers for debugging
+app.Use(async (context, next) =>
+{
+    if (context.Request.Path == "/signin-google")
+    {
+        var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
+        logger.LogInformation("Forwarded headers - Proto: {Proto}, Host: {Host}, Path: {Path}",
+            context.Request.Headers["X-Forwarded-Proto"], context.Request.Host, context.Request.Path);
+        logger.LogInformation("Request scheme: {Scheme}, IsHttps: {IsHttps}", context.Request.Scheme, context.Request.IsHttps);
+    }
+    await next();
+});
+
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
