@@ -18,66 +18,6 @@ Parameters:
     Type: String
     Description: Branch name for resource naming
 Resources:
-  AuroraKmsKey:
-    Type: AWS::KMS::Key
-    DeletionPolicy: Retain
-    Properties:
-      Description: Multi-region KMS key for Aurora Global Database encryption
-      KeyUsage: ENCRYPT_DECRYPT
-      KeySpec: SYMMETRIC_DEFAULT
-      MultiRegion: true
-      Enabled: true
-      PendingWindowInDays: 7
-      KeyPolicy:
-        Version: 2012-10-17
-        Statement:
-          - Sid: EnableIAMUserPermissions
-            Effect: Allow
-            Principal:
-              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:root"
-            Action: kms:*
-            Resource: "*"
-          - Sid: AllowRDSService
-            Effect: Allow
-            Principal:
-              Service: rds.amazonaws.com
-            Action:
-              - kms:CreateGrant
-              - kms:DescribeKey
-              - kms:Decrypt
-              - kms:Encrypt
-              - kms:GenerateDataKey
-              - kms:ReEncryptFrom
-              - kms:ReEncryptTo
-              - kms:RetireGrant
-            Resource: "*"
-          - Sid: AllowGitHubActionsUser
-            Effect: Allow
-            Principal:
-              AWS: !Ref GitHubActionsUserArn
-            Action:
-              - kms:CreateKey
-              - kms:DescribeKey
-              - kms:CreateGrant
-              - kms:Decrypt
-              - kms:Encrypt
-              - kms:GenerateDataKey
-              - kms:ReEncryptFrom
-              - kms:ReEncryptTo
-              - kms:RetireGrant
-              - kms:CreateAlias
-              - kms:DeleteAlias
-              - kms:UpdateAlias
-              - kms:ListAliases
-              - kms:ListGrants
-              - kms:RevokeGrant
-            Resource: "*"
-      Tags:
-        - Key: LogicalId
-          Value: AuroraKmsKey
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
-
   AuroraGlobalCluster:
     Type: AWS::RDS::GlobalCluster
     Properties:
@@ -265,9 +205,6 @@ Outputs:
   AuroraGlobalClusterId:
     Description: Aurora Global Database cluster identifier
     Value: !Ref AuroraGlobalCluster
-  AuroraKmsKeyArn:
-    Description: KMS key ARN used for Aurora encryption
-    Value: !GetAtt AuroraKmsKey.Arn
 
   SharedLambdaRoleArn:
     Description: Shared Lambda execution role ARN
