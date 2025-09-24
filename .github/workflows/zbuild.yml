@@ -85,7 +85,7 @@ jobs:
       cancel-in-progress: false
     strategy:
       matrix:
-        region: [us-east-1, us-west-2]
+        region: [us-west-2]
     outputs:
       aurora-kms-key-arn: ${{ steps.deploy-kms-replica.outputs.AuroraKmsKeyReplicaArn }}
     steps:
