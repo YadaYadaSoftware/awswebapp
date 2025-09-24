@@ -24,144 +24,6 @@ jobs:
         BRANCH_NAME=${GITHUB_REF#refs/heads/}
         echo "branch-name=$BRANCH_NAME" >> $GITHUB_OUTPUT
 
-  deploy-kms-primary:
-    name: Deploy KMS Primary Key
-    needs: [get-branch-name]
-    runs-on: ubuntu-latest
-    concurrency:
-      group: deploy-kms-primary-${{ needs.get-branch-name.outputs.branch-name }}
-      cancel-in-progress: false
-    outputs:
-      aurora-kms-key-arn: ${{ steps.deploy-kms.outputs.AuroraKmsKeyArn }}
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: us-east-1
-
-    - name: Get GitHub Actions User ARN from IAM Setup Stack
-      id: get-github-user
-      run: |
-        echo "🔍 Retrieving GitHub Actions User ARN from IAM setup stack in us-east-1..."
-
-        # Get the user ARN from the IAM setup stack export
-        GITHUB_USER_ARN=$(aws cloudformation list-exports \
-          --region us-east-1 \
-          --query "Exports[?Name=='TaskManager-GitHubActionsUserArn'].Value" \
-          --output text)
-
-        if [ -z "$GITHUB_USER_ARN" ] || [ "$GITHUB_USER_ARN" = "None" ]; then
-          echo "❌ ERROR: Could not retrieve GitHub Actions User ARN from IAM setup stack"
-          echo "Please ensure the github-actions-iam-setup stack is deployed in us-east-1"
-          exit 1
-        fi
-
-        echo "✅ Retrieved GitHub Actions User ARN: $GITHUB_USER_ARN"
-        echo "github-actions-user-arn=$GITHUB_USER_ARN" >> $GITHUB_OUTPUT
-
-    - name: deploy (kms-template)
-      id: deploy-kms
-      uses: aws-actions/aws-cloudformation-github-deploy@v1
-      with:
-        name: taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-kms-primary
-        template: infrastructure/kms-template.yaml
-        parameter-overrides: GitHubActionsUserArn=${{ steps.get-github-user.outputs.github-actions-user-arn }},BranchName=${{ needs.get-branch-name.outputs.branch-name }}
-        no-fail-on-empty-changeset: "1"
-        timeout-in-minutes: 10
-
-  deploy-kms-replicas:
-    name: Deploy KMS Key Replicas
-    needs: [deploy-kms-primary, get-branch-name]
-    runs-on: ubuntu-latest
-    concurrency:
-      group: deploy-kms-replicas-${{ matrix.region }}-${{ needs.get-branch-name.outputs.branch-name }}
-      cancel-in-progress: false
-    strategy:
-      matrix:
-        region: [us-west-2]
-    outputs:
-      aurora-kms-key-arn: ${{ steps.deploy-kms-replica.outputs.AuroraKmsKeyReplicaArn }}
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: ${{ matrix.region }}
-
-    - name: Get GitHub Actions User ARN from IAM Setup Stack
-      id: get-github-user
-      run: |
-        echo "🔍 Retrieving GitHub Actions User ARN from IAM setup stack in us-east-1..."
-
-        # Get the user ARN from the IAM setup stack export
-        GITHUB_USER_ARN=$(aws cloudformation list-exports \
-          --region us-east-1 \
-          --query "Exports[?Name=='TaskManager-GitHubActionsUserArn'].Value" \
-          --output text)
-
-        if [ -z "$GITHUB_USER_ARN" ] || [ "$GITHUB_USER_ARN" = "None" ]; then
-          echo "❌ ERROR: Could not retrieve GitHub Actions User ARN from IAM setup stack"
-          echo "Please ensure the github-actions-iam-setup stack is deployed in us-east-1"
-          exit 1
-        fi
-
-        echo "✅ Retrieved GitHub Actions User ARN: $GITHUB_USER_ARN"
-        echo "github-actions-user-arn=$GITHUB_USER_ARN" >> $GITHUB_OUTPUT
-
-    - name: deploy (kms-template)
-      id: deploy-kms-replica
-      uses: aws-actions/aws-cloudformation-github-deploy@v1
-      with:
-        name: taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-regional-kms-replica
-        template: infrastructure/kms-template.yaml
-        parameter-overrides: KmsKeyArn=${{ needs.deploy-kms-primary.outputs.aurora-kms-key-arn }},GitHubActionsUserArn=${{ steps.get-github-user.outputs.github-actions-user-arn }},BranchName=${{ needs.get-branch-name.outputs.branch-name }}
-        no-fail-on-empty-changeset: "1"
-        timeout-in-minutes: 10
-
-  deploy-regional-vpc:
-    name: Deploy Regional VPC
-    needs: [get-branch-name]
-    runs-on: ubuntu-latest
-    concurrency:
-      group: deploy-regional-vpc-${{ matrix.region }}-${{ needs.get-branch-name.outputs.branch-name }}
-      cancel-in-progress: false
-    strategy:
-      matrix:
-        region: [us-east-1, us-west-2]
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: ${{ matrix.region }}
-
-    - name: deploy (regional-containers-vpc)
-      uses: aws-actions/aws-cloudformation-github-deploy@v1
-      with:
-        name: taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-regional-containers-vpc
-        template: infrastructure/regional-containers-vpc.yaml
-        parameter-overrides: BranchName=${{ needs.get-branch-name.outputs.branch-name }},LogRetentionDays=7
-        no-fail-on-empty-changeset: "1"
-        timeout-in-minutes: 10
   build:
     name: Build and Test Applications
     runs-on: ubuntu-latest
@@ -724,30 +586,25 @@ jobs:
         echo "S3 bucket contents:"
         aws s3 ls s3://taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-templates-bucket-${{ matrix.region }}/ --region ${{ matrix.region }} | grep -E "(api-lambda-deployment|mysql-layer)"
 
-    - name: deploy (api-template)
-      id: deploy-api
-      uses: aws-actions/aws-cloudformation-github-deploy@v1
-      with:
-        name: ${{ env.STACK_PREFIX }}-api
-        template: src/TaskManager.Api/api-template.yaml
-        parameter-overrides: Environment=${{ needs.get-branch-name.outputs.branch-name }},ApiCodeBucket=taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-templates-bucket-${{ matrix.region }},SharedLambdaRoleArn=${{ needs.deploy-global.outputs.shared-lambda-role-arn }},DatabaseHost=${{ needs.deploy-regional-db.outputs.db-host }},DatabaseUsername=${{ needs.deploy-regional-db.outputs.db-username }},DatabaseEngine=${{ needs.deploy-regional-db.outputs.db-engine }},DatabasePort=${{ needs.deploy-regional-db.outputs.db-port }},DatabaseName=${{ needs.deploy-regional-db.outputs.db-name }},DatabaseClusterArn=${{ needs.deploy-regional-db.outputs.db-cluster-arn }},LambdaSecurityGroupId=${{ steps.get-vpc-outputs.outputs.lambda-sg }},PrivateSubnet1Id=${{ steps.get-vpc-outputs.outputs.private-subnet-1 }},PrivateSubnet2Id=${{ steps.get-vpc-outputs.outputs.private-subnet-2 }}
-        capabilities: "CAPABILITY_IAM,CAPABILITY_AUTO_EXPAND"
-        no-fail-on-empty-changeset: "1"
-      timeout-minutes: 15
+    - name: Deploy API and Web Applications
+      run: |
+        # Deploy API Lambda function
+        aws cloudformation deploy \
+          --stack-name taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-api \
+          --template-file src/TaskManager.Api/api-template.yaml \
+          --parameter-overrides Environment=${{ needs.get-branch-name.outputs.branch-name }},ApiCodeBucket=taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-templates-bucket-${{ matrix.region }},SharedLambdaRoleArn=${{ steps.deploy.outputs.SharedLambdaRoleArn }},DatabaseHost=${{ steps.deploy.outputs.DatabaseHost }},DatabaseUsername=${{ steps.deploy.outputs.DatabaseUsername }},DatabaseEngine=${{ steps.deploy.outputs.DatabaseEngine }},DatabasePort=${{ steps.deploy.outputs.DatabasePort }},DatabaseName=${{ steps.deploy.outputs.DatabaseName }},DatabaseClusterArn=${{ steps.deploy.outputs.DatabaseClusterArn }},LambdaSecurityGroupId=${{ steps.deploy.outputs.LambdaSecurityGroupId }},PrivateSubnet1Id=${{ steps.deploy.outputs.PrivateSubnet1Id }},PrivateSubnet2Id=${{ steps.deploy.outputs.PrivateSubnet2Id }} \
+          --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND \
+          --no-fail-on-empty-changeset \
+          --timeout-in-minutes 15
 
-    - name: deploy (web-template)
-      id: deploy-web
-      uses: aws-actions/aws-cloudformation-github-deploy@v1
-      with:
-        name: ${{ env.STACK_PREFIX }}-web
-        template: src/TaskManager.Web2/web-template.yaml
-        parameter-overrides: Environment=${{ needs.get-branch-name.outputs.branch-name }},WebContainerImage=${{ env.CONTAINER_IMAGE }},DeploymentToken=${{ github.sha }},DomainName=appcloud.systems,HostedZoneId=Z06422172SASV44F5Y8VA,SharedLambdaRoleArn=${{ needs.deploy-global.outputs.shared-lambda-role-arn }},VPCId=${{ steps.get-vpc-outputs.outputs.vpc-id }},ALBSecurityGroupId=${{ steps.get-vpc-outputs.outputs.alb-sg }},ECSTaskSecurityGroupId=${{ steps.get-vpc-outputs.outputs.ecs-sg }},PublicSubnet1Id=${{ steps.get-vpc-outputs.outputs.public-subnet-1 }},PublicSubnet2Id=${{ steps.get-vpc-outputs.outputs.public-subnet-2 }},PrivateSubnet1Id=${{ steps.get-vpc-outputs.outputs.private-subnet-1 }},PrivateSubnet2Id=${{ steps.get-vpc-outputs.outputs.private-subnet-2 }},ECSClusterName=${{ steps.deploy-regional.outputs.ECSClusterName }},GoogleOAuthSecretArn=${{ steps.deploy-regional.outputs.GoogleOAuthSecretArn }},DatabaseHost=${{ needs.deploy-regional-db.outputs.db-host }},DatabaseUsername=${{ needs.deploy-regional-db.outputs.db-username }},DatabaseEngine=${{ needs.deploy-regional-db.outputs.db-engine }},DatabasePort=${{ needs.deploy-regional-db.outputs.db-port }},DatabaseName=${{ needs.deploy-regional-db.outputs.db-name }},DatabaseClusterArn=${{ needs.deploy-regional-db.outputs.db-cluster-arn }},DatabasePasswordSecretArn=${{ needs.deploy-regional-db.outputs.db-password-secret-arn }}
-        capabilities: "CAPABILITY_IAM"
-        no-fail-on-empty-changeset: "1"
-      timeout-minutes: 15
-
-    # Database setup removed - now handled automatically by Entity Framework
-    # EF will create the database and run migrations when the API first starts
+        # Deploy Web Application
+        aws cloudformation deploy \
+          --stack-name taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-web \
+          --template-file src/TaskManager.Web2/web-template.yaml \
+          --parameter-overrides Environment=${{ needs.get-branch-name.outputs.branch-name }},WebContainerImage=${{ env.CONTAINER_IMAGE }},DeploymentToken=${{ github.sha }},DomainName=appcloud.systems,HostedZoneId=Z06422172SASV44F5Y8VA,SharedLambdaRoleArn=${{ steps.deploy.outputs.SharedLambdaRoleArn }},VPCId=${{ steps.deploy.outputs.VPCId }},ALBSecurityGroupId=${{ steps.deploy.outputs.ALBSecurityGroupId }},ECSTaskSecurityGroupId=${{ steps.deploy.outputs.ECSTaskSecurityGroupId }},PublicSubnet1Id=${{ steps.deploy.outputs.PublicSubnet1Id }},PublicSubnet2Id=${{ steps.deploy.outputs.PublicSubnet2Id }},PrivateSubnet1Id=${{ steps.deploy.outputs.PrivateSubnet1Id }},PrivateSubnet2Id=${{ steps.deploy.outputs.PrivateSubnet2Id }},ECSClusterName=${{ steps.deploy.outputs.ECSClusterName }},GoogleOAuthSecretArn=${{ steps.deploy.outputs.GoogleOAuthSecretArn }},DatabaseHost=${{ steps.deploy.outputs.DatabaseHost }},DatabaseUsername=${{ steps.deploy.outputs.DatabaseUsername }},DatabaseEngine=${{ steps.deploy.outputs.DatabaseEngine }},DatabasePort=${{ steps.deploy.outputs.DatabasePort }},DatabaseName=${{ steps.deploy.outputs.DatabaseName }},DatabaseClusterArn=${{ steps.deploy.outputs.DatabaseClusterArn }},DatabasePasswordSecretArn=${{ steps.deploy.outputs.DatabasePasswordSecretArn }} \
+          --capabilities CAPABILITY_IAM \
+          --no-fail-on-empty-changeset \
+          --timeout-in-minutes 15
 
     - name: Get deployment outputs
       id: get-endpoints
@@ -755,7 +612,11 @@ jobs:
         echo "Getting deployment outputs from stack outputs..."
 
         # Get API endpoint from API stack outputs
-        API_URL="${{ steps.deploy-api.outputs.ApiEndpoint }}"
+        API_URL=$(aws cloudformation describe-stacks \
+          --stack-name taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-api \
+          --region ${{ matrix.region }} \
+          --query 'Stacks[0].Outputs[?OutputKey==`ApiEndpoint`].OutputValue' \
+          --output text)
 
         if [ -z "$API_URL" ]; then
           echo "❌ API endpoint not found in stack outputs"
@@ -764,7 +625,11 @@ jobs:
         echo "✅ API endpoint: $API_URL"
 
         # Get Web endpoint from Web stack outputs
-        WEB_URL="${{ steps.deploy-web.outputs.WebLoadBalancerDNS }}"
+        WEB_URL=$(aws cloudformation describe-stacks \
+          --stack-name taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-web \
+          --region ${{ matrix.region }} \
+          --query 'Stacks[0].Outputs[?OutputKey==`WebLoadBalancerDNS`].OutputValue' \
+          --output text)
 
         if [ -z "$WEB_URL" ]; then
           echo "⚠️ Web endpoint not found in stack outputs"
@@ -777,8 +642,8 @@ jobs:
         API_GATEWAY_ID=$(echo $API_URL | sed 's|https://||' | sed 's|\.execute-api.*||')
 
         echo "🚀 TaskManager (${{ needs.get-branch-name.outputs.branch-name }}) deployed successfully in ${{ matrix.region }}!"
-        echo "📋 API Stack: ${{ env.STACK_PREFIX }}-api ✅ Endpoint: $API_URL"
-        echo "📋 Web Stack: ${{ env.STACK_PREFIX }}-web ✅ Load Balancer: $WEB_URL"
+        echo "📋 API Stack: taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-api ✅ Endpoint: $API_URL"
+        echo "📋 Web Stack: taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-web ✅ Load Balancer: $WEB_URL"
         echo "💾 Database: taskmanager_${{ needs.get-branch-name.outputs.branch-name }} ✅ Auto-created by EF"
 
         # Set outputs for other jobs
@@ -791,6 +656,81 @@ jobs:
         # Note: SMS notification disabled as SNS topic is not defined in global template
         echo "📱 SMS notification skipped - SNS topic not configured in global infrastructure"
         echo "🚀 TaskManager deployment complete! Branch: ${{ needs.get-branch-name.outputs.branch-name }} Region: ${{ matrix.region }} API: $API_URL Web App: https://$BRANCH_NAME.appcloud.systems Database: taskmanager_${{ needs.get-branch-name.outputs.branch-name }} ✅ Auto-created by EF Both API and Web are fully deployed and running!"
+
+
+  deploy-global-dns:
+    name: Deploy Global DNS Failover
+    runs-on: ubuntu-latest
+    needs: [deploy-infrastructure, get-branch-name]
+    if: needs.deploy-infrastructure.result == 'success'
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: us-east-1
+
+    - name: Upload Global DNS template to S3
+      run: |
+        echo "Uploading global DNS template to S3..."
+        aws s3 cp infrastructure/global-dns-template.yaml s3://taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-templates-bucket-${{ env.AWS_REGION_PRIMARY }}/ --region ${{ env.AWS_REGION_PRIMARY }}
+
+    - name: Get Load Balancer Details
+      id: get-lb-details
+      run: |
+        BRANCH_NAME=${{ needs.get-branch-name.outputs.branch-name }}
+
+        # Get primary load balancer details
+        PRIMARY_DNS=$(aws cloudformation describe-stacks \
+          --stack-name taskmanager-${BRANCH_NAME}-web \
+          --region ${{ env.AWS_REGION_PRIMARY }} \
+          --query 'Stacks[0].Outputs[?OutputKey==`WebLoadBalancerDNS`].OutputValue' \
+          --output text)
+
+        PRIMARY_HZ=$(aws cloudformation describe-stacks \
+          --stack-name taskmanager-${BRANCH_NAME}-web \
+          --region ${{ env.AWS_REGION_PRIMARY }} \
+          --query 'Stacks[0].Outputs[?OutputKey==`WebLoadBalancerHostedZoneId`].OutputValue' \
+          --output text)
+
+        # Get secondary load balancer details
+        SECONDARY_DNS=$(aws cloudformation describe-stacks \
+          --stack-name taskmanager-${BRANCH_NAME}-web \
+          --region ${{ env.AWS_REGION_SECONDARY }} \
+          --query 'Stacks[0].Outputs[?OutputKey==`WebLoadBalancerDNS`].OutputValue' \
+          --output text)
+
+        SECONDARY_HZ=$(aws cloudformation describe-stacks \
+          --stack-name taskmanager-${BRANCH_NAME}-web \
+          --region ${{ env.AWS_REGION_SECONDARY }} \
+          --query 'Stacks[0].Outputs[?OutputKey==`WebLoadBalancerHostedZoneId`].OutputValue' \
+          --output text)
+
+        echo "Primary DNS: $PRIMARY_DNS"
+        echo "Primary HZ: $PRIMARY_HZ"
+        echo "Secondary DNS: $SECONDARY_DNS"
+        echo "Secondary HZ: $SECONDARY_HZ"
+
+        echo "primary-web-load-balancer-dns=$PRIMARY_DNS" >> $GITHUB_OUTPUT
+        echo "primary-web-load-balancer-hosted-zone-id=$PRIMARY_HZ" >> $GITHUB_OUTPUT
+        echo "secondary-web-load-balancer-dns=$SECONDARY_DNS" >> $GITHUB_OUTPUT
+        echo "secondary-web-load-balancer-hosted-zone-id=$SECONDARY_HZ" >> $GITHUB_OUTPUT
+
+    - name: deploy (global-dns-template)
+      uses: aws-actions/aws-cloudformation-github-deploy@v1
+      with:
+        name: taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-global-dns
+        template: infrastructure/global-dns-template.yaml
+        parameter-overrides: Environment=${{ needs.get-branch-name.outputs.branch-name }},DomainName=appcloud.systems,HostedZoneId=Z06422172SASV44F5Y8VA,PrimaryRegion=${{ env.AWS_REGION_PRIMARY }},SecondaryRegion=${{ env.AWS_REGION_SECONDARY }},PrimaryWebLoadBalancerDNS=${{ steps.get-lb-details.outputs.primary-web-load-balancer-dns }},PrimaryWebLoadBalancerHostedZoneId=${{ steps.get-lb-details.outputs.primary-web-load-balancer-hosted-zone-id }},SecondaryWebLoadBalancerDNS=${{ steps.get-lb-details.outputs.secondary-web-load-balancer-dns }},SecondaryWebLoadBalancerHostedZoneId=${{ steps.get-lb-details.outputs.secondary-web-load-balancer-hosted-zone-id }}
+        no-fail-on-empty-changeset: "1"
+        timeout-in-minutes: 10
 
 
 

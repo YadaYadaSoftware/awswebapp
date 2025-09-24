@@ -1,0 +1,233 @@
+---
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "TaskManager Master Infrastructure Template - Includes all regional components"
+
+Parameters:
+  # Common parameters
+  TemplateBucket:
+    Type: String
+    Description: S3 bucket name containing the CloudFormation templates
+
+  GitHubActionsUserArn:
+    Type: String
+    Description: ARN of the GitHub Actions IAM user
+
+  BranchName:
+    Type: String
+    Description: Branch name for resource naming
+
+  DatabasePassword:
+    Type: String
+    NoEcho: true
+    MinLength: 8
+    Description: Password for the Aurora MySQL database
+
+  EngineVersion:
+    Type: String
+    Description: Aurora MySQL engine version
+
+  # Region-specific parameters
+  IsPrimaryRegion:
+    Type: String
+    AllowedValues: ["true", "false"]
+    Description: Whether this region hosts the primary cluster
+
+  # Parameters for secondary regions
+  KmsKeyArn:
+    Type: String
+    Description: ARN of the primary KMS key (for secondary regions)
+    Default: ""
+
+  AuroraGlobalClusterId:
+    Type: String
+    Description: ID of the Aurora global cluster (for secondary regions)
+    Default: ""
+
+  # Google OAuth parameters
+  GoogleOAuthClientId:
+    Type: String
+    Description: Google OAuth Client ID
+    NoEcho: true
+
+  GoogleOAuthClientSecret:
+    Type: String
+    Description: Google OAuth Client Secret
+    NoEcho: true
+
+Conditions:
+  IsPrimary: !Equals [!Ref IsPrimaryRegion, "true"]
+  IsSecondary: !Equals [!Ref IsPrimaryRegion, "false"]
+  HasKmsKeyArn: !Not [!Equals [!Ref KmsKeyArn, ""]]
+  HasGlobalClusterId: !Not [!Equals [!Ref AuroraGlobalClusterId, ""]]
+
+Resources:
+  # KMS Key (Primary or Replica)
+  KmsStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucket}.s3.${AWS::Region}.amazonaws.com/kms-template.yaml"
+      Parameters:
+        GitHubActionsUserArn: !Ref GitHubActionsUserArn
+        BranchName: !Ref BranchName
+        KmsKeyArn: !If [HasKmsKeyArn, !Ref KmsKeyArn, !Ref "AWS::NoValue"]
+
+  # Global Infrastructure (only in primary region)
+  GlobalStack:
+    Type: AWS::CloudFormation::Stack
+    Condition: IsPrimary
+    DependsOn: KmsStack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucket}.s3.${AWS::Region}.amazonaws.com/global-template.yaml"
+      Parameters:
+        DatabasePassword: !Ref DatabasePassword
+        EngineVersion: !Ref EngineVersion
+        GitHubActionsUserArn: !Ref GitHubActionsUserArn
+        BranchName: !Ref BranchName
+      Capabilities:
+        - CAPABILITY_NAMED_IAM
+
+  # Regional VPC
+  VpcStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucket}.s3.${AWS::Region}.amazonaws.com/regional-containers-vpc.yaml"
+      Parameters:
+        BranchName: !Ref BranchName
+        LogRetentionDays: 7
+
+  # Regional Database
+  DatabaseStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: [KmsStack, GlobalStack, VpcStack]
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucket}.s3.${AWS::Region}.amazonaws.com/regional-db.yaml"
+      Parameters:
+        DatabasePassword: !Ref DatabasePassword
+        EngineVersion: !Ref EngineVersion
+        AuroraGlobalClusterId:
+          !If [
+            HasGlobalClusterId,
+            !Ref AuroraGlobalClusterId,
+            !GetAtt GlobalStack.Outputs.AuroraGlobalClusterId,
+          ]
+        AuroraKmsKeyArn: !GetAtt KmsStack.Outputs.AuroraKmsKeyArn
+        IsPrimaryRegion: !Ref IsPrimaryRegion
+        GitHubActionsUserArn: !Ref GitHubActionsUserArn
+        BranchName: !Ref BranchName
+        VPCId: !GetAtt VpcStack.Outputs.VPCId
+        PrivateSubnet1Id: !GetAtt VpcStack.Outputs.PrivateSubnet1Id
+        PrivateSubnet2Id: !GetAtt VpcStack.Outputs.PrivateSubnet2Id
+        RDSSecurityGroupId: !GetAtt VpcStack.Outputs.RDSSecurityGroupId
+        LogRetentionDays: 7
+      Capabilities:
+        - CAPABILITY_NAMED_IAM
+
+  # Regional Infrastructure
+  InfrastructureStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: DatabaseStack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucket}.s3.${AWS::Region}.amazonaws.com/regional-infrastructure.yaml"
+      Parameters:
+        BranchName: !Ref BranchName
+        GoogleOAuthClientId: !Ref GoogleOAuthClientId
+        GoogleOAuthClientSecret: !Ref GoogleOAuthClientSecret
+        ApiGatewayCloudWatchLogsRoleArn:
+          !If [
+            IsPrimary,
+            !GetAtt GlobalStack.Outputs.ApiGatewayCloudWatchLogsRoleArn,
+            !Ref "AWS::NoValue",
+          ]
+
+Outputs:
+  # KMS outputs
+  AuroraKmsKeyArn:
+    Description: ARN of the KMS key
+    Value: !GetAtt KmsStack.Outputs.AuroraKmsKeyArn
+
+  # Global outputs (only for primary region)
+  AuroraGlobalClusterId:
+    Description: ID of the Aurora global cluster
+    Value:
+      !If [
+        IsPrimary,
+        !GetAtt GlobalStack.Outputs.AuroraGlobalClusterId,
+        !Ref "AWS::NoValue",
+      ]
+    Condition: IsPrimary
+
+  ApiGatewayCloudWatchLogsRoleArn:
+    Description: ARN of the API Gateway CloudWatch Logs role
+    Value:
+      !If [
+        IsPrimary,
+        !GetAtt GlobalStack.Outputs.ApiGatewayCloudWatchLogsRoleArn,
+        !Ref "AWS::NoValue",
+      ]
+    Condition: IsPrimary
+
+  VpcFlowLogsRoleArn:
+    Description: ARN of the VPC Flow Logs role
+    Value:
+      !If [
+        IsPrimary,
+        !GetAtt GlobalStack.Outputs.VpcFlowLogsRoleArn,
+        !Ref "AWS::NoValue",
+      ]
+    Condition: IsPrimary
+
+  SharedLambdaRoleArn:
+    Description: ARN of the shared Lambda role
+    Value:
+      !If [
+        IsPrimary,
+        !GetAtt GlobalStack.Outputs.SharedLambdaRoleArn,
+        !Ref "AWS::NoValue",
+      ]
+    Condition: IsPrimary
+
+  # Database outputs
+  DatabaseEndpoint:
+    Description: Aurora MySQL cluster endpoint
+    Value: !GetAtt DatabaseStack.Outputs.DatabaseEndpoint
+
+  DatabaseReaderEndpoint:
+    Description: Aurora MySQL reader endpoint
+    Value: !GetAtt DatabaseStack.Outputs.DatabaseReaderEndpoint
+
+  DatabaseUsername:
+    Description: Database username
+    Value: !GetAtt DatabaseStack.Outputs.DatabaseUsername
+
+  DatabaseEngine:
+    Description: Database engine
+    Value: !GetAtt DatabaseStack.Outputs.DatabaseEngine
+
+  DatabaseHost:
+    Description: Database host endpoint
+    Value: !GetAtt DatabaseStack.Outputs.DatabaseHost
+
+  DatabasePort:
+    Description: Database port
+    Value: !GetAtt DatabaseStack.Outputs.DatabasePort
+
+  DatabaseName:
+    Description: Database name
+    Value: !GetAtt DatabaseStack.Outputs.DatabaseName
+
+  DatabaseClusterArn:
+    Description: Database cluster ARN
+    Value: !GetAtt DatabaseStack.Outputs.DatabaseClusterArn
+
+  DatabasePasswordSecretArn:
+    Description: Database password secret ARN
+    Value: !GetAtt DatabaseStack.Outputs.DatabasePasswordSecretArn
+
+  # Infrastructure outputs
+  ECSClusterName:
+    Description: ECS cluster name
+    Value: !GetAtt InfrastructureStack.Outputs.ECSClusterName
+
+  GoogleOAuthSecretArn:
+    Description: ARN of the Google OAuth secrets
+    Value: !GetAtt InfrastructureStack.Outputs.GoogleOAuthSecretArn
