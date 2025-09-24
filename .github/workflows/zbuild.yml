@@ -122,20 +122,47 @@ jobs:
 
 
 
-  deploy-global:
-    name: Deploy Global Infrastructure
+  deploy-infrastructure:
+    name: Deploy Infrastructure
     runs-on: ubuntu-latest
-    needs: [deploy-kms-replicas, deploy-regional-vpc, get-branch-name]
+    needs: [build, get-branch-name]
     concurrency:
-      group: deploy-global-${{ needs.get-branch-name.outputs.branch-name }}
+      group: deploy-infrastructure-${{ matrix.region }}-${{ needs.get-branch-name.outputs.branch-name }}
       cancel-in-progress: false
+    strategy:
+      matrix:
+        region: [us-east-1, us-west-2]
+        include:
+          - region: us-east-1
+            is_primary: "true"
+          - region: us-west-2
+            is_primary: "false"
+      max-parallel: 1
     outputs:
-      shared-lambda-role-arn: ${{ steps.deploy-global.outputs.SharedLambdaRoleArn }}
-      aurora-global-cluster-id: ${{ steps.deploy-global.outputs.AuroraGlobalClusterId }}
-      vpc-flow-logs-role-arn: ${{ steps.deploy-global.outputs.VPCFlowLogsRoleArn }}
-      api-gateway-cloudwatch-logs-role-arn: ${{ steps.deploy-global.outputs.ApiGatewayCloudWatchLogsRoleArn }}
-      github-actions-user-arn: ${{ steps.get-github-user.outputs.github-actions-user-arn }}
-
+      aurora-kms-key-arn: ${{ steps.deploy-master.outputs.AuroraKmsKeyArn }}
+      aurora-global-cluster-id: ${{ steps.deploy-master.outputs.AuroraGlobalClusterId }}
+      api-gateway-cloudwatch-logs-role-arn: ${{ steps.deploy-master.outputs.ApiGatewayCloudWatchLogsRoleArn }}
+      vpc-flow-logs-role-arn: ${{ steps.deploy-master.outputs.VpcFlowLogsRoleArn }}
+      shared-lambda-role-arn: ${{ steps.deploy-master.outputs.SharedLambdaRoleArn }}
+      database-endpoint: ${{ steps.deploy-master.outputs.DatabaseEndpoint }}
+      database-reader-endpoint: ${{ steps.deploy-master.outputs.DatabaseReaderEndpoint }}
+      database-username: ${{ steps.deploy-master.outputs.DatabaseUsername }}
+      database-engine: ${{ steps.deploy-master.outputs.DatabaseEngine }}
+      database-host: ${{ steps.deploy-master.outputs.DatabaseHost }}
+      database-port: ${{ steps.deploy-master.outputs.DatabasePort }}
+      database-name: ${{ steps.deploy-master.outputs.DatabaseName }}
+      database-cluster-arn: ${{ steps.deploy-master.outputs.DatabaseClusterArn }}
+      database-password-secret-arn: ${{ steps.deploy-master.outputs.DatabasePasswordSecretArn }}
+      ecs-cluster-name: ${{ steps.deploy-master.outputs.ECSClusterName }}
+      google-oauth-secret-arn: ${{ steps.deploy-master.outputs.GoogleOAuthSecretArn }}
+      vpc-id: ${{ steps.deploy-master.outputs.VpcId }}
+      private-subnet-1-id: ${{ steps.deploy-master.outputs.PrivateSubnet1Id }}
+      private-subnet-2-id: ${{ steps.deploy-master.outputs.PrivateSubnet2Id }}
+      public-subnet-1-id: ${{ steps.deploy-master.outputs.PublicSubnet1Id }}
+      public-subnet-2-id: ${{ steps.deploy-master.outputs.PublicSubnet2Id }}
+      lambda-security-group-id: ${{ steps.deploy-master.outputs.LambdaSecurityGroupId }}
+      alb-security-group-id: ${{ steps.deploy-master.outputs.ALBSecurityGroupId }}
+      ecs-task-security-group-id: ${{ steps.deploy-master.outputs.ECSTaskSecurityGroupId }}
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -147,9 +174,9 @@ jobs:
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: us-east-1
+        aws-region: ${{ matrix.region }}
 
-    - name: Get GitHub Actions User ARN from IAM Setup Stack
+    - name: Get GitHub Actions User ARN
       id: get-github-user
       run: |
         echo "🔍 Retrieving GitHub Actions User ARN from IAM setup stack in us-east-1..."
@@ -169,165 +196,33 @@ jobs:
         echo "✅ Retrieved GitHub Actions User ARN: $GITHUB_USER_ARN"
         echo "github-actions-user-arn=$GITHUB_USER_ARN" >> $GITHUB_OUTPUT
 
-    - name: deploy (global-template)
-      id: deploy-global
-      uses: aws-actions/aws-cloudformation-github-deploy@v1
-      with:
-        name: taskmanager-global-infrastructure-${{ needs.get-branch-name.outputs.branch-name }}
-        template: infrastructure/global-template.yaml
-        parameter-overrides: DatabasePassword=${{ secrets.DATABASE_PASSWORD }},EngineVersion=${{ env.ENGINE_VERSION }},GitHubActionsUserArn=${{ steps.get-github-user.outputs.github-actions-user-arn }},BranchName=${{ needs.get-branch-name.outputs.branch-name }}
-        capabilities: "CAPABILITY_NAMED_IAM"
-        no-fail-on-empty-changeset: "1"
-        timeout-in-minutes: 20
-  deploy-regional-db:
-    name: Deploy Regional DB
-    runs-on: ubuntu-latest
-    needs: [deploy-global, deploy-kms-primary, deploy-kms-replicas, get-branch-name]
-    concurrency:
-      group: deploy-regional-db-${{ matrix.region }}-${{ needs.get-branch-name.outputs.branch-name }}
-      cancel-in-progress: false
-    strategy:
-      matrix:
-        region: [us-east-1, us-west-2]  # Primary region first
-        include:
-          - region: us-east-1
-            is_primary: "true"
-          - region: us-west-2
-            is_primary: "false"
-    outputs:
-      db-endpoint: ${{ steps.deploy-regional-db.outputs.DatabaseEndpoint }}
-      db-reader-endpoint: ${{ steps.deploy-regional-db.outputs.DatabaseReaderEndpoint }}
-      db-username: ${{ steps.deploy-regional-db.outputs.DatabaseUsername }}
-      db-engine: ${{ steps.deploy-regional-db.outputs.DatabaseEngine }}
-      db-host: ${{ steps.deploy-regional-db.outputs.DatabaseHost }}
-      db-port: ${{ steps.deploy-regional-db.outputs.DatabasePort }}
-      db-name: ${{ steps.deploy-regional-db.outputs.DatabaseName }}
-      db-cluster-arn: ${{ steps.deploy-regional-db.outputs.DatabaseClusterArn }}
-      db-password-secret-arn: ${{ steps.deploy-regional-db.outputs.DatabasePasswordSecretArn }}
-
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: ${{ matrix.region }}
-
-    - name: Get VPC Stack Outputs
-      id: get-vpc-outputs
+    - name: Upload templates to S3
       run: |
-        echo "Getting VPC stack outputs..."
-        STACK_NAME="taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-regional-containers-vpc"
-        VPC_ID=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`VPCId`].OutputValue' --output text)
-        PRIVATE_SUBNET_1=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`PrivateSubnet1Id`].OutputValue' --output text)
-        PRIVATE_SUBNET_2=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`PrivateSubnet2Id`].OutputValue' --output text)
-        RDS_SG=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`RDSSecurityGroupId`].OutputValue' --output text)
-
-        echo "VPC_ID: $VPC_ID"
-        echo "PRIVATE_SUBNET_1: $PRIVATE_SUBNET_1"
-        echo "PRIVATE_SUBNET_2: $PRIVATE_SUBNET_2"
-        echo "RDS_SG: $RDS_SG"
-
-        echo "vpc-id=$VPC_ID" >> $GITHUB_OUTPUT
-        echo "private-subnet-1=$PRIVATE_SUBNET_1" >> $GITHUB_OUTPUT
-        echo "private-subnet-2=$PRIVATE_SUBNET_2" >> $GITHUB_OUTPUT
-        echo "rds-sg=$RDS_SG" >> $GITHUB_OUTPUT
-
-    - name: Upload regional templates to S3
-      run: |
-        echo "Uploading regional templates to S3..."
+        echo "Uploading templates to S3..."
+        aws s3 cp infrastructure/kms-template.yaml s3://taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-templates-bucket-${{ matrix.region }}/ --region ${{ matrix.region }}
+        aws s3 cp infrastructure/global-template.yaml s3://taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-templates-bucket-${{ matrix.region }}/ --region ${{ matrix.region }}
+        aws s3 cp infrastructure/regional-containers-vpc.yaml s3://taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-templates-bucket-${{ matrix.region }}/ --region ${{ matrix.region }}
         aws s3 cp infrastructure/regional-db.yaml s3://taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-templates-bucket-${{ matrix.region }}/ --region ${{ matrix.region }}
+        aws s3 cp infrastructure/regional-infrastructure.yaml s3://taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-templates-bucket-${{ matrix.region }}/ --region ${{ matrix.region }}
 
-    - name: Set regional stack names
+    - name: Get primary region outputs for secondary
+      id: get-primary-outputs
+      if: matrix.is_primary == 'false'
       run: |
-        echo "REGIONAL_DB_STACK_NAME=taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-regional-db" >> $GITHUB_ENV
+        echo "Getting outputs from primary region stack..."
+        PRIMARY_STACK_NAME="taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-infrastructure-us-east-1"
+        KMS_KEY_ARN=$(aws cloudformation describe-stacks --stack-name $PRIMARY_STACK_NAME --region us-east-1 --query 'Stacks[0].Outputs[?OutputKey==`AuroraKmsKeyArn`].OutputValue' --output text)
+        GLOBAL_CLUSTER_ID=$(aws cloudformation describe-stacks --stack-name $PRIMARY_STACK_NAME --region us-east-1 --query 'Stacks[0].Outputs[?OutputKey==`AuroraGlobalClusterId`].OutputValue' --output text)
+        echo "kms-key-arn=$KMS_KEY_ARN" >> $GITHUB_OUTPUT
+        echo "global-cluster-id=$GLOBAL_CLUSTER_ID" >> $GITHUB_OUTPUT
 
-    - name: Determine Aurora KMS Key ARN
-      id: determine-kms-arn
-      run: |
-        if [ "${{ matrix.region }}" = "us-east-1" ]; then
-          AURORA_KMS_KEY_ARN="${{ needs.deploy-kms-primary.outputs.aurora-kms-key-arn }}"
-        else
-          AURORA_KMS_KEY_ARN="${{ needs.deploy-kms-replicas.outputs.aurora-kms-key-arn }}"
-        fi
-        echo "🔑 Aurora KMS Key ARN for ${{ matrix.region }}: $AURORA_KMS_KEY_ARN"
-        echo "aurora-kms-key-arn=$AURORA_KMS_KEY_ARN" >> $GITHUB_OUTPUT
-
-    - name: Validate Regional DB Parameters
-      run: |
-        echo "🔍 Validating parameters for regional-db deployment..."
-
-        # Check job outputs
-        if [ -z "${{ needs.get-branch-name.outputs.branch-name }}" ]; then
-          echo "❌ ERROR: BranchName is empty"
-          exit 1
-        fi
-
-        if [ -z "${{ secrets.DATABASE_PASSWORD }}" ]; then
-          echo "❌ ERROR: DatabasePassword is empty"
-          exit 1
-        fi
-
-        if [ -z "${{ env.ENGINE_VERSION }}" ]; then
-          echo "❌ ERROR: EngineVersion is empty"
-          exit 1
-        fi
-
-        if [ -z "${{ needs.deploy-global.outputs.aurora-global-cluster-id }}" ]; then
-          echo "❌ ERROR: AuroraGlobalClusterId is empty"
-          exit 1
-        fi
-
-        if [ -z "${{ steps.determine-kms-arn.outputs.aurora-kms-key-arn }}" ]; then
-          echo "❌ ERROR: AuroraKmsKeyArn is empty"
-          exit 1
-        fi
-
-        if [ -z "${{ matrix.is_primary }}" ]; then
-          echo "❌ ERROR: IsPrimaryRegion is empty"
-          exit 1
-        fi
-
-        if [ -z "${{ needs.deploy-global.outputs.github-actions-user-arn }}" ]; then
-          echo "❌ ERROR: GitHubActionsUserArn is empty"
-          exit 1
-        fi
-
-        # Check VPC outputs
-        if [ -z "${{ steps.get-vpc-outputs.outputs.vpc-id }}" ]; then
-          echo "❌ ERROR: VPCId is empty"
-          exit 1
-        fi
-
-        if [ -z "${{ steps.get-vpc-outputs.outputs.private-subnet-1 }}" ]; then
-          echo "❌ ERROR: PrivateSubnet1Id is empty"
-          exit 1
-        fi
-
-        if [ -z "${{ steps.get-vpc-outputs.outputs.private-subnet-2 }}" ]; then
-          echo "❌ ERROR: PrivateSubnet2Id is empty"
-          exit 1
-        fi
-
-        if [ -z "${{ steps.get-vpc-outputs.outputs.rds-sg }}" ]; then
-          echo "❌ ERROR: RDSSecurityGroupId is empty"
-          exit 1
-        fi
-
-        echo "✅ All parameters are present and valid"
-
-    - name: deploy (regional-db)
-      id: deploy-regional-db
+    - name: Deploy master template
+      id: deploy-master
       uses: aws-actions/aws-cloudformation-github-deploy@v1
       with:
-        name: ${{ env.REGIONAL_DB_STACK_NAME }}
-        template: infrastructure/regional-db.yaml
-        parameter-overrides: BranchName=${{ needs.get-branch-name.outputs.branch-name }},DatabasePassword=${{ secrets.DATABASE_PASSWORD }},EngineVersion=${{ env.ENGINE_VERSION }},AuroraGlobalClusterId=${{ needs.deploy-global.outputs.aurora-global-cluster-id }},AuroraKmsKeyArn=${{ steps.determine-kms-arn.outputs.aurora-kms-key-arn }},IsPrimaryRegion=${{ matrix.is_primary }},GitHubActionsUserArn=${{ needs.deploy-global.outputs.github-actions-user-arn }},VPCId=${{ steps.get-vpc-outputs.outputs.vpc-id }},PrivateSubnet1Id=${{ steps.get-vpc-outputs.outputs.private-subnet-1 }},PrivateSubnet2Id=${{ steps.get-vpc-outputs.outputs.private-subnet-2 }},RDSSecurityGroupId=${{ steps.get-vpc-outputs.outputs.rds-sg }},LogRetentionDays=7
+        name: taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-infrastructure-${{ matrix.region }}
+        template: infrastructure/master-template.yaml
+        parameter-overrides: TemplateBucket=taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-templates-bucket-${{ matrix.region }},GitHubActionsUserArn=${{ steps.get-github-user.outputs.github-actions-user-arn }},BranchName=${{ needs.get-branch-name.outputs.branch-name }},DatabasePassword=${{ secrets.DATABASE_PASSWORD }},EngineVersion=${{ env.ENGINE_VERSION }},IsPrimaryRegion=${{ matrix.is_primary }},KmsKeyArn=${{ steps.get-primary-outputs.outputs.kms-key-arn }},AuroraGlobalClusterId=${{ steps.get-primary-outputs.outputs.global-cluster-id }},GoogleOAuthClientId=${{ secrets.GOOGLE_CLIENT_ID }},GoogleOAuthClientSecret=${{ secrets.GOOGLE_CLIENT_SECRET }}
         capabilities: "CAPABILITY_NAMED_IAM"
         no-fail-on-empty-changeset: "1"
         timeout-in-minutes: 30
@@ -335,7 +230,7 @@ jobs:
   deploy-regional:
     name: Deploy Regional Stack
     runs-on: ubuntu-latest
-    needs: [build, deploy-regional-db, deploy-kms-primary, deploy-kms-replicas, get-branch-name,deploy-global]
+    needs: [build, deploy-infrastructure, get-branch-name]
     concurrency:
       group: deploy-regional-${{ matrix.region }}-${{ needs.get-branch-name.outputs.branch-name }}
       cancel-in-progress: false
@@ -381,13 +276,13 @@ jobs:
         echo "Verifying S3 uploads..."
         aws s3 ls s3://taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-templates-bucket-${{ matrix.region }}/ --region ${{ matrix.region }}
 
-    - name: Get VPC Stack Outputs
-      id: get-vpc-outputs
+    - name: Get Infrastructure Stack Outputs
+      id: get-infrastructure-outputs
       run: |
-        echo "Getting VPC stack outputs..."
-        STACK_NAME="taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-regional-containers-vpc"
+        echo "Getting infrastructure stack outputs..."
+        STACK_NAME="taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-infrastructure-${{ matrix.region }}"
 
-        VPC_ID=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`VPCId`].OutputValue' --output text)
+        VPC_ID=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`VpcId`].OutputValue' --output text)
         PRIVATE_SUBNET_1=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`PrivateSubnet1Id`].OutputValue' --output text)
         PRIVATE_SUBNET_2=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`PrivateSubnet2Id`].OutputValue' --output text)
         PUBLIC_SUBNET_1=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`PublicSubnet1Id`].OutputValue' --output text)
@@ -395,6 +290,19 @@ jobs:
         LAMBDA_SG=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`LambdaSecurityGroupId`].OutputValue' --output text)
         ALB_SG=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`ALBSecurityGroupId`].OutputValue' --output text)
         ECS_SG=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`ECSTaskSecurityGroupId`].OutputValue' --output text)
+
+        # Get additional outputs
+        SHARED_LAMBDA_ROLE_ARN=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`SharedLambdaRoleArn`].OutputValue' --output text)
+        DATABASE_HOST=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`DatabaseHost`].OutputValue' --output text)
+        DATABASE_USERNAME=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`DatabaseUsername`].OutputValue' --output text)
+        DATABASE_ENGINE=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`DatabaseEngine`].OutputValue' --output text)
+        DATABASE_PORT=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`DatabasePort`].OutputValue' --output text)
+        DATABASE_NAME=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`DatabaseName`].OutputValue' --output text)
+        DATABASE_CLUSTER_ARN=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`DatabaseClusterArn`].OutputValue' --output text)
+        DATABASE_PASSWORD_SECRET_ARN=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`DatabasePasswordSecretArn`].OutputValue' --output text)
+        ECS_CLUSTER_NAME=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`ECSClusterName`].OutputValue' --output text)
+        GOOGLE_OAUTH_SECRET_ARN=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`GoogleOAuthSecretArn`].OutputValue' --output text)
+        API_GATEWAY_CLOUDWATCH_LOGS_ROLE_ARN=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`ApiGatewayCloudWatchLogsRoleArn`].OutputValue' --output text)
 
         echo "VPC_ID: $VPC_ID"
         echo "PRIVATE_SUBNET_1: $PRIVATE_SUBNET_1"
@@ -456,6 +364,17 @@ jobs:
         echo "lambda-sg=$LAMBDA_SG" >> $GITHUB_OUTPUT
         echo "alb-sg=$ALB_SG" >> $GITHUB_OUTPUT
         echo "ecs-sg=$ECS_SG" >> $GITHUB_OUTPUT
+        echo "shared-lambda-role-arn=$SHARED_LAMBDA_ROLE_ARN" >> $GITHUB_OUTPUT
+        echo "database-host=$DATABASE_HOST" >> $GITHUB_OUTPUT
+        echo "database-username=$DATABASE_USERNAME" >> $GITHUB_OUTPUT
+        echo "database-engine=$DATABASE_ENGINE" >> $GITHUB_OUTPUT
+        echo "database-port=$DATABASE_PORT" >> $GITHUB_OUTPUT
+        echo "database-name=$DATABASE_NAME" >> $GITHUB_OUTPUT
+        echo "database-cluster-arn=$DATABASE_CLUSTER_ARN" >> $GITHUB_OUTPUT
+        echo "database-password-secret-arn=$DATABASE_PASSWORD_SECRET_ARN" >> $GITHUB_OUTPUT
+        echo "ecs-cluster-name=$ECS_CLUSTER_NAME" >> $GITHUB_OUTPUT
+        echo "google-oauth-secret-arn=$GOOGLE_OAUTH_SECRET_ARN" >> $GITHUB_OUTPUT
+        echo "api-gateway-cloudwatch-logs-role-arn=$API_GATEWAY_CLOUDWATCH_LOGS_ROLE_ARN" >> $GITHUB_OUTPUT
 
     - name: Validate Parameter Values
       run: |
@@ -476,23 +395,13 @@ jobs:
           exit 1
         fi
                                                  
-        if [ -z "${{ needs.deploy-global.outputs.api-gateway-cloudwatch-logs-role-arn }}" ]; then
+        if [ -z "${{ steps.get-infrastructure-outputs.outputs.api-gateway-cloudwatch-logs-role-arn }}" ]; then
           echo "❌ ERROR: ApiGatewayCloudWatchLogsRoleArn is empty"
           exit 1
         fi
 
         echo "✅ All parameters are valid, proceeding with deployment..."
 
-    - name: deploy (regional-infrastructure)
-      id: deploy-regional
-      uses: aws-actions/aws-cloudformation-github-deploy@v1
-      with:
-        name: taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-regional-infrastructure
-        template: infrastructure/regional-infrastructure.yaml
-        parameter-overrides: BranchName=${{ needs.get-branch-name.outputs.branch-name }},GoogleOAuthClientId=${{ secrets.GOOGLE_CLIENT_ID }},GoogleOAuthClientSecret=${{ secrets.GOOGLE_CLIENT_SECRET }},ApiGatewayCloudWatchLogsRoleArn=${{ needs.deploy-global.outputs.api-gateway-cloudwatch-logs-role-arn }}
-        capabilities: "CAPABILITY_NAMED_IAM"
-        no-fail-on-empty-changeset: "1"
-        timeout-in-minutes: 20
     - name: Get AWS Account ID
       id: account-id
       run: |
@@ -592,7 +501,7 @@ jobs:
         aws cloudformation deploy \
           --stack-name taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-api \
           --template-file src/TaskManager.Api/api-template.yaml \
-          --parameter-overrides Environment=${{ needs.get-branch-name.outputs.branch-name }},ApiCodeBucket=taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-templates-bucket-${{ matrix.region }},SharedLambdaRoleArn=${{ steps.deploy.outputs.SharedLambdaRoleArn }},DatabaseHost=${{ steps.deploy.outputs.DatabaseHost }},DatabaseUsername=${{ steps.deploy.outputs.DatabaseUsername }},DatabaseEngine=${{ steps.deploy.outputs.DatabaseEngine }},DatabasePort=${{ steps.deploy.outputs.DatabasePort }},DatabaseName=${{ steps.deploy.outputs.DatabaseName }},DatabaseClusterArn=${{ steps.deploy.outputs.DatabaseClusterArn }},LambdaSecurityGroupId=${{ steps.deploy.outputs.LambdaSecurityGroupId }},PrivateSubnet1Id=${{ steps.deploy.outputs.PrivateSubnet1Id }},PrivateSubnet2Id=${{ steps.deploy.outputs.PrivateSubnet2Id }} \
+          --parameter-overrides Environment=${{ needs.get-branch-name.outputs.branch-name }},ApiCodeBucket=taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-templates-bucket-${{ matrix.region }},SharedLambdaRoleArn=${{ steps.get-infrastructure-outputs.outputs.shared-lambda-role-arn }},DatabaseHost=${{ steps.get-infrastructure-outputs.outputs.database-host }},DatabaseUsername=${{ steps.get-infrastructure-outputs.outputs.database-username }},DatabaseEngine=${{ steps.get-infrastructure-outputs.outputs.database-engine }},DatabasePort=${{ steps.get-infrastructure-outputs.outputs.database-port }},DatabaseName=${{ steps.get-infrastructure-outputs.outputs.database-name }},DatabaseClusterArn=${{ steps.get-infrastructure-outputs.outputs.database-cluster-arn }},LambdaSecurityGroupId=${{ steps.get-infrastructure-outputs.outputs.lambda-security-group-id }},PrivateSubnet1Id=${{ steps.get-infrastructure-outputs.outputs.private-subnet-1-id }},PrivateSubnet2Id=${{ steps.get-infrastructure-outputs.outputs.private-subnet-2-id }} \
           --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND \
           --no-fail-on-empty-changeset \
           --timeout-in-minutes 15
@@ -601,7 +510,7 @@ jobs:
         aws cloudformation deploy \
           --stack-name taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-web \
           --template-file src/TaskManager.Web2/web-template.yaml \
-          --parameter-overrides Environment=${{ needs.get-branch-name.outputs.branch-name }},WebContainerImage=${{ env.CONTAINER_IMAGE }},DeploymentToken=${{ github.sha }},DomainName=appcloud.systems,HostedZoneId=Z06422172SASV44F5Y8VA,SharedLambdaRoleArn=${{ steps.deploy.outputs.SharedLambdaRoleArn }},VPCId=${{ steps.deploy.outputs.VPCId }},ALBSecurityGroupId=${{ steps.deploy.outputs.ALBSecurityGroupId }},ECSTaskSecurityGroupId=${{ steps.deploy.outputs.ECSTaskSecurityGroupId }},PublicSubnet1Id=${{ steps.deploy.outputs.PublicSubnet1Id }},PublicSubnet2Id=${{ steps.deploy.outputs.PublicSubnet2Id }},PrivateSubnet1Id=${{ steps.deploy.outputs.PrivateSubnet1Id }},PrivateSubnet2Id=${{ steps.deploy.outputs.PrivateSubnet2Id }},ECSClusterName=${{ steps.deploy.outputs.ECSClusterName }},GoogleOAuthSecretArn=${{ steps.deploy.outputs.GoogleOAuthSecretArn }},DatabaseHost=${{ steps.deploy.outputs.DatabaseHost }},DatabaseUsername=${{ steps.deploy.outputs.DatabaseUsername }},DatabaseEngine=${{ steps.deploy.outputs.DatabaseEngine }},DatabasePort=${{ steps.deploy.outputs.DatabasePort }},DatabaseName=${{ steps.deploy.outputs.DatabaseName }},DatabaseClusterArn=${{ steps.deploy.outputs.DatabaseClusterArn }},DatabasePasswordSecretArn=${{ steps.deploy.outputs.DatabasePasswordSecretArn }} \
+          --parameter-overrides Environment=${{ needs.get-branch-name.outputs.branch-name }},WebContainerImage=${{ env.CONTAINER_IMAGE }},DeploymentToken=${{ github.sha }},DomainName=appcloud.systems,HostedZoneId=Z06422172SASV44F5Y8VA,SharedLambdaRoleArn=${{ steps.get-infrastructure-outputs.outputs.shared-lambda-role-arn }},VPCId=${{ steps.get-infrastructure-outputs.outputs.vpc-id }},ALBSecurityGroupId=${{ steps.get-infrastructure-outputs.outputs.alb-security-group-id }},ECSTaskSecurityGroupId=${{ steps.get-infrastructure-outputs.outputs.ecs-task-security-group-id }},PublicSubnet1Id=${{ steps.get-infrastructure-outputs.outputs.public-subnet-1-id }},PublicSubnet2Id=${{ steps.get-infrastructure-outputs.outputs.public-subnet-2-id }},PrivateSubnet1Id=${{ steps.get-infrastructure-outputs.outputs.private-subnet-1-id }},PrivateSubnet2Id=${{ steps.get-infrastructure-outputs.outputs.private-subnet-2-id }},ECSClusterName=${{ steps.get-infrastructure-outputs.outputs.ecs-cluster-name }},GoogleOAuthSecretArn=${{ steps.get-infrastructure-outputs.outputs.google-oauth-secret-arn }},DatabaseHost=${{ steps.get-infrastructure-outputs.outputs.database-host }},DatabaseUsername=${{ steps.get-infrastructure-outputs.outputs.database-username }},DatabaseEngine=${{ steps.get-infrastructure-outputs.outputs.database-engine }},DatabasePort=${{ steps.get-infrastructure-outputs.outputs.database-port }},DatabaseName=${{ steps.get-infrastructure-outputs.outputs.database-name }},DatabaseClusterArn=${{ steps.get-infrastructure-outputs.outputs.database-cluster-arn }},DatabasePasswordSecretArn=${{ steps.get-infrastructure-outputs.outputs.database-password-secret-arn }} \
           --capabilities CAPABILITY_IAM \
           --no-fail-on-empty-changeset \
           --timeout-in-minutes 15
