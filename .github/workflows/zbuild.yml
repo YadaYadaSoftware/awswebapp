@@ -559,7 +559,6 @@ jobs:
       run: |
         echo "🔍 Debug: Parameter values being passed to CloudFormation:"
         echo "DatabasePassword: [REDACTED]"
-        echo "SharedLambdaRoleArn: ${{ needs.deploy-global.outputs.shared-lambda-role-arn }}"
         echo "AuroraGlobalClusterId: ${{ needs.deploy-global.outputs.aurora-global-cluster-id }}"
         echo "AuroraKmsKeyArn: ${{ steps.determine-kms-arn.outputs.aurora-kms-key-arn }}"
         echo "DatabaseHost: ${{ needs.deploy-regional-db.outputs.db-host }}"
@@ -568,10 +567,6 @@ jobs:
         echo "DatabasePasswordSecretArn: ${{ needs.deploy-regional-db.outputs.db-password-secret-arn }}"
 
         # Validate that job outputs are not empty
-        if [ -z "${{ needs.deploy-global.outputs.shared-lambda-role-arn }}" ]; then
-          echo "❌ ERROR: SharedLambdaRoleArn is empty"
-          exit 1
-        fi
 
         if [ -z "${{ needs.deploy-global.outputs.aurora-global-cluster-id }}" ]; then
           echo "❌ ERROR: AuroraGlobalClusterId is empty"
@@ -601,7 +596,7 @@ jobs:
       with:
         name: taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-regional-infrastructure
         template: infrastructure/regional-infrastructure.yaml
-        parameter-overrides: BranchName=${{ needs.get-branch-name.outputs.branch-name }},DatabasePassword=${{ secrets.DATABASE_PASSWORD }},SharedLambdaRoleArn=${{ needs.deploy-global.outputs.shared-lambda-role-arn }},AuroraGlobalClusterId=${{ needs.deploy-global.outputs.aurora-global-cluster-id }},AuroraKmsKeyArn=${{ steps.determine-kms-arn.outputs.aurora-kms-key-arn }},EngineVersion=${{ env.ENGINE_VERSION }},VPCId=${{ steps.get-vpc-outputs.outputs.vpc-id }},PrivateSubnet1Id=${{ steps.get-vpc-outputs.outputs.private-subnet-1 }},PrivateSubnet2Id=${{ steps.get-vpc-outputs.outputs.private-subnet-2 }},PublicSubnet1Id=${{ steps.get-vpc-outputs.outputs.public-subnet-1 }},PublicSubnet2Id=${{ steps.get-vpc-outputs.outputs.public-subnet-2 }},LambdaSecurityGroupId=${{ steps.get-vpc-outputs.outputs.lambda-sg }},RDSSecurityGroupId=${{ steps.get-vpc-outputs.outputs.rds-sg }},ALBSecurityGroupId=${{ steps.get-vpc-outputs.outputs.alb-sg }},ECSTaskSecurityGroupId=${{ steps.get-vpc-outputs.outputs.ecs-sg }},DatabaseEndpoint=${{ needs.deploy-regional-db.outputs.db-endpoint }},DatabaseReaderEndpoint=${{ needs.deploy-regional-db.outputs.db-reader-endpoint }},GoogleOAuthClientId=${{ secrets.GOOGLE_CLIENT_ID }},GoogleOAuthClientSecret=${{ secrets.GOOGLE_CLIENT_SECRET }},ApiGatewayCloudWatchLogsRoleArn=${{ needs.deploy-global.outputs.api-gateway-cloudwatch-logs-role-arn }}
+        parameter-overrides: BranchName=${{ needs.get-branch-name.outputs.branch-name }},DatabasePassword=${{ secrets.DATABASE_PASSWORD }},AuroraGlobalClusterId=${{ needs.deploy-global.outputs.aurora-global-cluster-id }},AuroraKmsKeyArn=${{ steps.determine-kms-arn.outputs.aurora-kms-key-arn }},EngineVersion=${{ env.ENGINE_VERSION }},VPCId=${{ steps.get-vpc-outputs.outputs.vpc-id }},PrivateSubnet1Id=${{ steps.get-vpc-outputs.outputs.private-subnet-1 }},PrivateSubnet2Id=${{ steps.get-vpc-outputs.outputs.private-subnet-2 }},PublicSubnet1Id=${{ steps.get-vpc-outputs.outputs.public-subnet-1 }},PublicSubnet2Id=${{ steps.get-vpc-outputs.outputs.public-subnet-2 }},LambdaSecurityGroupId=${{ steps.get-vpc-outputs.outputs.lambda-sg }},RDSSecurityGroupId=${{ steps.get-vpc-outputs.outputs.rds-sg }},ALBSecurityGroupId=${{ steps.get-vpc-outputs.outputs.alb-sg }},ECSTaskSecurityGroupId=${{ steps.get-vpc-outputs.outputs.ecs-sg }},DatabaseEndpoint=${{ needs.deploy-regional-db.outputs.db-endpoint }},DatabaseReaderEndpoint=${{ needs.deploy-regional-db.outputs.db-reader-endpoint }},GoogleOAuthClientId=${{ secrets.GOOGLE_CLIENT_ID }},GoogleOAuthClientSecret=${{ secrets.GOOGLE_CLIENT_SECRET }},ApiGatewayCloudWatchLogsRoleArn=${{ needs.deploy-global.outputs.api-gateway-cloudwatch-logs-role-arn }}
         capabilities: "CAPABILITY_NAMED_IAM"
         no-fail-on-empty-changeset: "1"
         timeout-in-minutes: 20

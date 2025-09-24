@@ -66,10 +66,6 @@ Parameters:
     Type: String
     Description: "Database reader endpoint from regional-vpc-db stack"
 
-  SharedLambdaRoleArn:
-    Type: String
-    Description: "ARN of the shared Lambda role from global stack"
-
   GoogleOAuthClientId:
     Type: String
     Description: "Google OAuth Client ID"
