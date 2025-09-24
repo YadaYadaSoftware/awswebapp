@@ -139,25 +139,11 @@ jobs:
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: us-east-1
 
-    - name: Get GitHub Actions User ARN
+    - name: Set GitHub Actions User ARN
       id: get-github-user
       run: |
-        echo "🔍 Retrieving GitHub Actions User ARN from IAM setup stack..."
-
-        # Get the user ARN from the IAM setup stack export
-        GITHUB_USER_ARN=$(aws cloudformation list-exports \
-          --region us-east-1 \
-          --query "Exports[?Name=='TaskManager-GitHubActionsUserArn'].Value" \
-          --output text)
-
-        if [ -z "$GITHUB_USER_ARN" ] || [ "$GITHUB_USER_ARN" = "None" ]; then
-          echo "❌ ERROR: Could not retrieve GitHub Actions User ARN from IAM setup stack"
-          echo "Please ensure the github-actions-iam-setup stack is deployed in us-east-1"
-          exit 1
-        fi
-
-        echo "✅ Retrieved GitHub Actions User ARN: $GITHUB_USER_ARN"
-        echo "github-actions-user-arn=$GITHUB_USER_ARN" >> $GITHUB_OUTPUT
+        echo "Using hardcoded GitHub Actions User ARN"
+        echo "github-actions-user-arn=arn:aws:iam::991795635857:user/taskmanager-github-actions" >> $GITHUB_OUTPUT
 
     - name: Get AWS Account ID
       id: account-id
