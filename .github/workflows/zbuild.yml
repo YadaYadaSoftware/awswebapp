@@ -519,6 +519,82 @@ jobs:
         echo "Verifying S3 uploads..."
         aws s3 ls s3://taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-templates-bucket-${{ matrix.region }}/ --region ${{ matrix.region }}
 
+    - name: Get VPC Stack Outputs
+      id: get-vpc-outputs
+      run: |
+        echo "Getting VPC stack outputs..."
+        STACK_NAME="taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-regional-containers-vpc"
+
+        VPC_ID=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`VPCId`].OutputValue' --output text)
+        PRIVATE_SUBNET_1=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`PrivateSubnet1Id`].OutputValue' --output text)
+        PRIVATE_SUBNET_2=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`PrivateSubnet2Id`].OutputValue' --output text)
+        PUBLIC_SUBNET_1=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`PublicSubnet1Id`].OutputValue' --output text)
+        PUBLIC_SUBNET_2=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`PublicSubnet2Id`].OutputValue' --output text)
+        LAMBDA_SG=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`LambdaSecurityGroupId`].OutputValue' --output text)
+        ALB_SG=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`ALBSecurityGroupId`].OutputValue' --output text)
+        ECS_SG=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`ECSTaskSecurityGroupId`].OutputValue' --output text)
+
+        echo "VPC_ID: $VPC_ID"
+        echo "PRIVATE_SUBNET_1: $PRIVATE_SUBNET_1"
+        echo "PRIVATE_SUBNET_2: $PRIVATE_SUBNET_2"
+        echo "PUBLIC_SUBNET_1: $PUBLIC_SUBNET_1"
+        echo "PUBLIC_SUBNET_2: $PUBLIC_SUBNET_2"
+        echo "LAMBDA_SG: $LAMBDA_SG"
+        echo "ALB_SG: $ALB_SG"
+        echo "ECS_SG: $ECS_SG"
+
+        # Validate that all outputs are retrieved
+        if [ -z "$VPC_ID" ] || [ "$VPC_ID" = "None" ]; then
+          echo "❌ ERROR: VPCId not found in stack outputs"
+          exit 1
+        fi
+
+        if [ -z "$PRIVATE_SUBNET_1" ] || [ "$PRIVATE_SUBNET_1" = "None" ]; then
+          echo "❌ ERROR: PrivateSubnet1Id not found in stack outputs"
+          exit 1
+        fi
+
+        if [ -z "$PRIVATE_SUBNET_2" ] || [ "$PRIVATE_SUBNET_2" = "None" ]; then
+          echo "❌ ERROR: PrivateSubnet2Id not found in stack outputs"
+          exit 1
+        fi
+
+        if [ -z "$PUBLIC_SUBNET_1" ] || [ "$PUBLIC_SUBNET_1" = "None" ]; then
+          echo "❌ ERROR: PublicSubnet1Id not found in stack outputs"
+          exit 1
+        fi
+
+        if [ -z "$PUBLIC_SUBNET_2" ] || [ "$PUBLIC_SUBNET_2" = "None" ]; then
+          echo "❌ ERROR: PublicSubnet2Id not found in stack outputs"
+          exit 1
+        fi
+
+        if [ -z "$LAMBDA_SG" ] || [ "$LAMBDA_SG" = "None" ]; then
+          echo "❌ ERROR: LambdaSecurityGroupId not found in stack outputs"
+          exit 1
+        fi
+
+        if [ -z "$ALB_SG" ] || [ "$ALB_SG" = "None" ]; then
+          echo "❌ ERROR: ALBSecurityGroupId not found in stack outputs"
+          exit 1
+        fi
+
+        if [ -z "$ECS_SG" ] || [ "$ECS_SG" = "None" ]; then
+          echo "❌ ERROR: ECSTaskSecurityGroupId not found in stack outputs"
+          exit 1
+        fi
+
+        echo "✅ All VPC outputs retrieved successfully"
+
+        echo "vpc-id=$VPC_ID" >> $GITHUB_OUTPUT
+        echo "private-subnet-1=$PRIVATE_SUBNET_1" >> $GITHUB_OUTPUT
+        echo "private-subnet-2=$PRIVATE_SUBNET_2" >> $GITHUB_OUTPUT
+        echo "public-subnet-1=$PUBLIC_SUBNET_1" >> $GITHUB_OUTPUT
+        echo "public-subnet-2=$PUBLIC_SUBNET_2" >> $GITHUB_OUTPUT
+        echo "lambda-sg=$LAMBDA_SG" >> $GITHUB_OUTPUT
+        echo "alb-sg=$ALB_SG" >> $GITHUB_OUTPUT
+        echo "ecs-sg=$ECS_SG" >> $GITHUB_OUTPUT
+
     - name: Validate Parameter Values
       run: |
         echo "🔍 Validating parameters for regional-infrastructure deployment..."
