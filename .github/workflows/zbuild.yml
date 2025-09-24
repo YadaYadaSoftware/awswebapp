@@ -24,12 +24,12 @@ jobs:
         BRANCH_NAME=${GITHUB_REF#refs/heads/}
         echo "branch-name=$BRANCH_NAME" >> $GITHUB_OUTPUT
 
-  deploy-kms:
-    name: Deploy KMS Keys
-    runs-on: ubuntu-latest
+  deploy-regional-vpc:
+    name: Deploy Regional VPC
     needs: [get-branch-name]
+    runs-on: ubuntu-latest
     concurrency:
-      group: deploy-kms-${{ matrix.region }}-${{ needs.get-branch-name.outputs.branch-name }}
+      group: deploy-regional-vpc-${{ matrix.region }}-${{ needs.get-branch-name.outputs.branch-name }}
       cancel-in-progress: false
     strategy:
       max-parallel: 1
@@ -41,7 +41,7 @@ jobs:
           - region: us-west-2
             is_primary: "false"
     outputs:
-      aurora-kms-key-arn: ${{ steps.deploy-kms.outputs.AuroraKmsKeyArn }}
+      aurora-kms-key-arn: ${{ steps.deploy-vpc.outputs.AuroraKmsKeyArn }}
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -75,54 +75,18 @@ jobs:
         echo "✅ Retrieved GitHub Actions User ARN: $GITHUB_USER_ARN"
         echo "github-actions-user-arn=$GITHUB_USER_ARN" >> $GITHUB_OUTPUT
 
-    - name: deploy (kms-template)
-      id: deploy-kms
-      uses: aws-actions/aws-cloudformation-github-deploy@v1
-      with:
-        name: taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-kms-${{ matrix.region }}
-        template: infrastructure/kms-template.yaml
-        parameter-overrides: |
-          IsPrimaryRegion=${{ matrix.is_primary }}
-          ${{ matrix.is_primary == 'false' && format('PrimaryKeyArn={0}', needs.deploy-kms.outputs['us-east-1'].aurora-kms-key-arn) || '' }}
-          GitHubActionsUserArn=${{ steps.get-github-user.outputs.github-actions-user-arn }}
-          BranchName=${{ needs.get-branch-name.outputs.branch-name }}
-        no-fail-on-empty-changeset: "1"
-        timeout-in-minutes: 10
-
-  deploy-regional-vpc:
-    name: Deploy Regional VPC
-    needs: [get-branch-name]
-    runs-on: ubuntu-latest
-    concurrency:
-      group: deploy-regional-vpc-${{ matrix.region }}-${{ needs.get-branch-name.outputs.branch-name }}
-      cancel-in-progress: false
-    strategy:
-      matrix:
-        region: [us-east-1, us-west-2]  # Primary region first
-        include:
-          - region: us-east-1
-            is_primary: "true"
-          - region: us-west-2
-            is_primary: "false"
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: ${{ matrix.region }}
-
     - name: deploy (regional-containers-vpc)
+      id: deploy-vpc
       uses: aws-actions/aws-cloudformation-github-deploy@v1
       with:
         name: taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-regional-containers-vpc
         template: infrastructure/regional-containers-vpc.yaml
-        parameter-overrides: BranchName=${{ needs.get-branch-name.outputs.branch-name }},LogRetentionDays=7
+        parameter-overrides: |
+          BranchName=${{ needs.get-branch-name.outputs.branch-name }}
+          LogRetentionDays=7
+          IsPrimaryRegion=${{ matrix.is_primary }}
+          ${{ matrix.is_primary == 'false' && format('PrimaryKeyArn={0}', needs.deploy-regional-vpc.outputs['us-east-1'].aurora-kms-key-arn) || '' }}
+          GitHubActionsUserArn=${{ steps.get-github-user.outputs.github-actions-user-arn }}
         no-fail-on-empty-changeset: "1"
         timeout-in-minutes: 10
   build:
@@ -226,7 +190,7 @@ jobs:
   deploy-global:
     name: Deploy Global Infrastructure
     runs-on: ubuntu-latest
-    needs: [deploy-kms, deploy-regional-vpc, get-branch-name]
+    needs: [deploy-regional-vpc, get-branch-name]
     concurrency:
       group: deploy-global-${{ needs.get-branch-name.outputs.branch-name }}
       cancel-in-progress: false
@@ -360,7 +324,7 @@ jobs:
           DatabasePassword=${{ secrets.DATABASE_PASSWORD }}
           EngineVersion=${{ env.ENGINE_VERSION }}
           AuroraGlobalClusterId=${{ needs.deploy-global.outputs.aurora-global-cluster-id }}
-          AuroraKmsKeyArn=${{ matrix.region == 'us-east-1' && needs.deploy-kms.outputs['us-east-1'].aurora-kms-key-arn || needs.deploy-kms.outputs['us-west-2'].aurora-kms-key-arn }}
+          AuroraKmsKeyArn=${{ matrix.region == 'us-east-1' && needs.deploy-regional-vpc.outputs['us-east-1'].aurora-kms-key-arn || needs.deploy-regional-vpc.outputs['us-west-2'].aurora-kms-key-arn }}
           IsPrimaryRegion=${{ matrix.is_primary }}
           GitHubActionsUserArn=${{ needs.deploy-global.outputs.github-actions-user-arn }}
           VPCId=${{ steps.get-vpc-outputs.outputs.vpc-id }}
@@ -491,7 +455,7 @@ jobs:
           DatabasePassword=${{ secrets.DATABASE_PASSWORD }}
           SharedLambdaRoleArn=${{ needs.deploy-global.outputs.shared-lambda-role-arn }}
           AuroraGlobalClusterId=${{ needs.deploy-global.outputs.aurora-global-cluster-id }}
-          AuroraKmsKeyArn=${{ matrix.region == 'us-east-1' && needs.deploy-kms.outputs['us-east-1'].aurora-kms-key-arn || needs.deploy-kms.outputs['us-west-2'].aurora-kms-key-arn }}
+          AuroraKmsKeyArn=${{ matrix.region == 'us-east-1' && needs.deploy-regional-vpc.outputs['us-east-1'].aurora-kms-key-arn || needs.deploy-regional-vpc.outputs['us-west-2'].aurora-kms-key-arn }}
           EngineVersion=${{ env.ENGINE_VERSION }}
           VPCId=${{ steps.get-vpc-outputs.outputs.vpc-id }}
           PrivateSubnet1Id=${{ steps.get-vpc-outputs.outputs.private-subnet-1 }}
