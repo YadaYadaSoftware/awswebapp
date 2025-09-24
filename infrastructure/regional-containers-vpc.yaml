@@ -11,8 +11,8 @@ Parameters:
     Default: 7
     Description: Number of days to retain CloudWatch logs
   IsPrimaryRegion:
-    Type: Stringi
-    AllowedValues: ["true", "false"]
+   Type: String
+   AllowedValues: ["true", "false"]
     Description: Whether this region is the primary region for the multi-region key
   PrimaryKeyArn:
     Type: String
