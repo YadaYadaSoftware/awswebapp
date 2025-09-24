@@ -16,15 +16,8 @@ var builder = WebApplication.CreateBuilder(args);
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
 {
-    // Use SQL Server in development, MySQL in production
-    if (builder.Environment.IsDevelopment())
-    {
-        options.UseSqlServer(connectionString);
-    }
-    else
-    {
-        options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString));
-    }
+    // Use MySQL for both development and production
+    options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString));
 });
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 builder.Services.AddDefaultIdentity<IdentityUser>(options => options.SignIn.RequireConfirmedAccount = true)
