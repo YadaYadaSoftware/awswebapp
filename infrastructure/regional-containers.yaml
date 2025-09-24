@@ -24,5 +24,3 @@ Resources:
           Value: "Container Registry"
         - Key: Stack
           Value: !Ref "AWS::StackName"
-
-Outputs:
