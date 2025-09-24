@@ -317,15 +317,14 @@ jobs:
         capabilities: "CAPABILITY_NAMED_IAM"
         no-fail-on-empty-changeset: "1"
         timeout-in-minutes: 20
-  deploy-regional-vpc-db:
-    name: Deploy Regional VPC and DB
+  deploy-regional-db:
+    name: Deploy Regional DB
     runs-on: ubuntu-latest
     needs: [deploy-global, deploy-kms-primary, deploy-kms-replicas, get-branch-name]
     concurrency:
-      group: deploy-regional-vpc-db-${{ matrix.region }}-${{ needs.get-branch-name.outputs.branch-name }}
+      group: deploy-regional-db-${{ matrix.region }}-${{ needs.get-branch-name.outputs.branch-name }}
       cancel-in-progress: false
     strategy:
-      max-parallel: 1
       matrix:
         region: [us-east-1, us-west-2]  # Primary region first
         include:
@@ -474,7 +473,7 @@ jobs:
   deploy-regional:
     name: Deploy Regional Stack
     runs-on: ubuntu-latest
-    needs: [build, deploy-regional-vpc-db, deploy-kms-primary, deploy-kms-replicas, get-branch-name]
+    needs: [build, deploy-regional-db, deploy-kms-primary, deploy-kms-replicas, get-branch-name]
     concurrency:
       group: deploy-regional-${{ matrix.region }}-${{ needs.get-branch-name.outputs.branch-name }}
       cancel-in-progress: false
@@ -563,10 +562,10 @@ jobs:
         echo "SharedLambdaRoleArn: ${{ needs.deploy-global.outputs.shared-lambda-role-arn }}"
         echo "AuroraGlobalClusterId: ${{ needs.deploy-global.outputs.aurora-global-cluster-id }}"
         echo "AuroraKmsKeyArn: ${{ steps.determine-kms-arn.outputs.aurora-kms-key-arn }}"
-        echo "DatabaseHost: ${{ needs.deploy-regional-vpc-db.outputs.db-host }}"
-        echo "DatabaseUsername: ${{ needs.deploy-regional-vpc-db.outputs.db-username }}"
-        echo "DatabaseName: ${{ needs.deploy-regional-vpc-db.outputs.db-name }}"
-        echo "DatabasePasswordSecretArn: ${{ needs.deploy-regional-vpc-db.outputs.db-password-secret-arn }}"
+        echo "DatabaseHost: ${{ needs.deploy-regional-db.outputs.db-host }}"
+        echo "DatabaseUsername: ${{ needs.deploy-regional-db.outputs.db-username }}"
+        echo "DatabaseName: ${{ needs.deploy-regional-db.outputs.db-name }}"
+        echo "DatabasePasswordSecretArn: ${{ needs.deploy-regional-db.outputs.db-password-secret-arn }}"
 
         # Validate that job outputs are not empty
         if [ -z "${{ needs.deploy-global.outputs.shared-lambda-role-arn }}" ]; then
@@ -584,12 +583,12 @@ jobs:
           exit 1
         fi
 
-        if [ -z "${{ needs.deploy-regional-vpc-db.outputs.db-host }}" ]; then
+        if [ -z "${{ needs.deploy-regional-db.outputs.db-host }}" ]; then
           echo "❌ ERROR: DatabaseHost is empty"
           exit 1
         fi
 
-        if [ -z "${{ needs.deploy-regional-vpc-db.outputs.db-password-secret-arn }}" ]; then
+        if [ -z "${{ needs.deploy-regional-db.outputs.db-password-secret-arn }}" ]; then
           echo "❌ ERROR: DatabasePasswordSecretArn is empty"
           exit 1
         fi
@@ -602,7 +601,7 @@ jobs:
       with:
         name: taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-regional-infrastructure
         template: infrastructure/regional-infrastructure.yaml
-        parameter-overrides: BranchName=${{ needs.get-branch-name.outputs.branch-name }},DatabasePassword=${{ secrets.DATABASE_PASSWORD }},SharedLambdaRoleArn=${{ needs.deploy-global.outputs.shared-lambda-role-arn }},AuroraGlobalClusterId=${{ needs.deploy-global.outputs.aurora-global-cluster-id }},AuroraKmsKeyArn=${{ steps.determine-kms-arn.outputs.aurora-kms-key-arn }},EngineVersion=${{ env.ENGINE_VERSION }},VPCId=${{ steps.get-vpc-outputs.outputs.vpc-id }},PrivateSubnet1Id=${{ steps.get-vpc-outputs.outputs.private-subnet-1 }},PrivateSubnet2Id=${{ steps.get-vpc-outputs.outputs.private-subnet-2 }},PublicSubnet1Id=${{ steps.get-vpc-outputs.outputs.public-subnet-1 }},PublicSubnet2Id=${{ steps.get-vpc-outputs.outputs.public-subnet-2 }},LambdaSecurityGroupId=${{ steps.get-vpc-outputs.outputs.lambda-sg }},RDSSecurityGroupId=${{ steps.get-vpc-outputs.outputs.rds-sg }},ALBSecurityGroupId=${{ steps.get-vpc-outputs.outputs.alb-sg }},ECSTaskSecurityGroupId=${{ steps.get-vpc-outputs.outputs.ecs-sg }},DatabaseEndpoint=${{ needs.deploy-regional-vpc-db.outputs.db-endpoint }},DatabaseReaderEndpoint=${{ needs.deploy-regional-vpc-db.outputs.db-reader-endpoint }},GoogleOAuthClientId=${{ secrets.GOOGLE_CLIENT_ID }},GoogleOAuthClientSecret=${{ secrets.GOOGLE_CLIENT_SECRET }},ApiGatewayCloudWatchLogsRoleArn=${{ needs.deploy-global.outputs.api-gateway-cloudwatch-logs-role-arn }}
+        parameter-overrides: BranchName=${{ needs.get-branch-name.outputs.branch-name }},DatabasePassword=${{ secrets.DATABASE_PASSWORD }},SharedLambdaRoleArn=${{ needs.deploy-global.outputs.shared-lambda-role-arn }},AuroraGlobalClusterId=${{ needs.deploy-global.outputs.aurora-global-cluster-id }},AuroraKmsKeyArn=${{ steps.determine-kms-arn.outputs.aurora-kms-key-arn }},EngineVersion=${{ env.ENGINE_VERSION }},VPCId=${{ steps.get-vpc-outputs.outputs.vpc-id }},PrivateSubnet1Id=${{ steps.get-vpc-outputs.outputs.private-subnet-1 }},PrivateSubnet2Id=${{ steps.get-vpc-outputs.outputs.private-subnet-2 }},PublicSubnet1Id=${{ steps.get-vpc-outputs.outputs.public-subnet-1 }},PublicSubnet2Id=${{ steps.get-vpc-outputs.outputs.public-subnet-2 }},LambdaSecurityGroupId=${{ steps.get-vpc-outputs.outputs.lambda-sg }},RDSSecurityGroupId=${{ steps.get-vpc-outputs.outputs.rds-sg }},ALBSecurityGroupId=${{ steps.get-vpc-outputs.outputs.alb-sg }},ECSTaskSecurityGroupId=${{ steps.get-vpc-outputs.outputs.ecs-sg }},DatabaseEndpoint=${{ needs.deploy-regional-db.outputs.db-endpoint }},DatabaseReaderEndpoint=${{ needs.deploy-regional-db.outputs.db-reader-endpoint }},GoogleOAuthClientId=${{ secrets.GOOGLE_CLIENT_ID }},GoogleOAuthClientSecret=${{ secrets.GOOGLE_CLIENT_SECRET }},ApiGatewayCloudWatchLogsRoleArn=${{ needs.deploy-global.outputs.api-gateway-cloudwatch-logs-role-arn }}
         capabilities: "CAPABILITY_NAMED_IAM"
         no-fail-on-empty-changeset: "1"
         timeout-in-minutes: 20
@@ -705,7 +704,7 @@ jobs:
       with:
         name: ${{ env.STACK_PREFIX }}-api
         template: src/TaskManager.Api/api-template.yaml
-        parameter-overrides: Environment=${{ needs.get-branch-name.outputs.branch-name }},ApiCodeBucket=taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-templates-bucket-${{ matrix.region }},SharedLambdaRoleArn=${{ needs.deploy-global.outputs.shared-lambda-role-arn }},DatabaseHost=${{ needs.deploy-regional-vpc-db.outputs.db-host }},DatabaseUsername=${{ needs.deploy-regional-vpc-db.outputs.db-username }},DatabaseEngine=${{ needs.deploy-regional-vpc-db.outputs.db-engine }},DatabasePort=${{ needs.deploy-regional-vpc-db.outputs.db-port }},DatabaseName=${{ needs.deploy-regional-vpc-db.outputs.db-name }},DatabaseClusterArn=${{ needs.deploy-regional-vpc-db.outputs.db-cluster-arn }},DatabasePasswordSecretArn=${{ needs.deploy-regional-vpc-db.outputs.db-password-secret-arn }},LambdaSecurityGroupId=${{ steps.get-vpc-outputs.outputs.lambda-sg }},PrivateSubnet1Id=${{ steps.get-vpc-outputs.outputs.private-subnet-1 }},PrivateSubnet2Id=${{ steps.get-vpc-outputs.outputs.private-subnet-2 }}
+        parameter-overrides: Environment=${{ needs.get-branch-name.outputs.branch-name }},ApiCodeBucket=taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-templates-bucket-${{ matrix.region }},SharedLambdaRoleArn=${{ needs.deploy-global.outputs.shared-lambda-role-arn }},DatabaseHost=${{ needs.deploy-regional-db.outputs.db-host }},DatabaseUsername=${{ needs.deploy-regional-db.outputs.db-username }},DatabaseEngine=${{ needs.deploy-regional-db.outputs.db-engine }},DatabasePort=${{ needs.deploy-regional-db.outputs.db-port }},DatabaseName=${{ needs.deploy-regional-db.outputs.db-name }},DatabaseClusterArn=${{ needs.deploy-regional-db.outputs.db-cluster-arn }},DatabasePasswordSecretArn=${{ needs.deploy-regional-db.outputs.db-password-secret-arn }},LambdaSecurityGroupId=${{ steps.get-vpc-outputs.outputs.lambda-sg }},PrivateSubnet1Id=${{ steps.get-vpc-outputs.outputs.private-subnet-1 }},PrivateSubnet2Id=${{ steps.get-vpc-outputs.outputs.private-subnet-2 }}
         capabilities: "CAPABILITY_IAM"
         no-fail-on-empty-changeset: "1"
       timeout-minutes: 15
@@ -716,7 +715,7 @@ jobs:
       with:
         name: ${{ env.STACK_PREFIX }}-web
         template: src/TaskManager.Web2/web-template.yaml
-        parameter-overrides: Environment=${{ needs.get-branch-name.outputs.branch-name }},WebContainerImage=${{ env.CONTAINER_IMAGE }},DeploymentToken=${{ github.sha }},DomainName=appcloud.systems,HostedZoneId=Z06422172SASV44F5Y8VA,SharedLambdaRoleArn=${{ needs.deploy-global.outputs.shared-lambda-role-arn }},VPCId=${{ steps.get-vpc-outputs.outputs.vpc-id }},ALBSecurityGroupId=${{ steps.get-vpc-outputs.outputs.alb-sg }},ECSTaskSecurityGroupId=${{ steps.get-vpc-outputs.outputs.ecs-sg }},PublicSubnet1Id=${{ steps.get-vpc-outputs.outputs.public-subnet-1 }},PublicSubnet2Id=${{ steps.get-vpc-outputs.outputs.public-subnet-2 }},PrivateSubnet1Id=${{ steps.get-vpc-outputs.outputs.private-subnet-1 }},PrivateSubnet2Id=${{ steps.get-vpc-outputs.outputs.private-subnet-2 }},ECSClusterName=${{ steps.deploy-regional.outputs.ECSClusterName }},GoogleOAuthSecretArn=${{ steps.deploy-regional.outputs.GoogleOAuthSecretArn }},DatabaseHost=${{ needs.deploy-regional-vpc-db.outputs.db-host }},DatabaseUsername=${{ needs.deploy-regional-vpc-db.outputs.db-username }},DatabaseEngine=${{ needs.deploy-regional-vpc-db.outputs.db-engine }},DatabasePort=${{ needs.deploy-regional-vpc-db.outputs.db-port }},DatabaseName=${{ needs.deploy-regional-vpc-db.outputs.db-name }},DatabaseClusterArn=${{ needs.deploy-regional-vpc-db.outputs.db-cluster-arn }},DatabasePasswordSecretArn=${{ needs.deploy-regional-vpc-db.outputs.db-password-secret-arn }}
+        parameter-overrides: Environment=${{ needs.get-branch-name.outputs.branch-name }},WebContainerImage=${{ env.CONTAINER_IMAGE }},DeploymentToken=${{ github.sha }},DomainName=appcloud.systems,HostedZoneId=Z06422172SASV44F5Y8VA,SharedLambdaRoleArn=${{ needs.deploy-global.outputs.shared-lambda-role-arn }},VPCId=${{ steps.get-vpc-outputs.outputs.vpc-id }},ALBSecurityGroupId=${{ steps.get-vpc-outputs.outputs.alb-sg }},ECSTaskSecurityGroupId=${{ steps.get-vpc-outputs.outputs.ecs-sg }},PublicSubnet1Id=${{ steps.get-vpc-outputs.outputs.public-subnet-1 }},PublicSubnet2Id=${{ steps.get-vpc-outputs.outputs.public-subnet-2 }},PrivateSubnet1Id=${{ steps.get-vpc-outputs.outputs.private-subnet-1 }},PrivateSubnet2Id=${{ steps.get-vpc-outputs.outputs.private-subnet-2 }},ECSClusterName=${{ steps.deploy-regional.outputs.ECSClusterName }},GoogleOAuthSecretArn=${{ steps.deploy-regional.outputs.GoogleOAuthSecretArn }},DatabaseHost=${{ needs.deploy-regional-db.outputs.db-host }},DatabaseUsername=${{ needs.deploy-regional-db.outputs.db-username }},DatabaseEngine=${{ needs.deploy-regional-db.outputs.db-engine }},DatabasePort=${{ needs.deploy-regional-db.outputs.db-port }},DatabaseName=${{ needs.deploy-regional-db.outputs.db-name }},DatabaseClusterArn=${{ needs.deploy-regional-db.outputs.db-cluster-arn }},DatabasePasswordSecretArn=${{ needs.deploy-regional-db.outputs.db-password-secret-arn }}
         capabilities: "CAPABILITY_IAM"
         no-fail-on-empty-changeset: "1"
       timeout-minutes: 15
