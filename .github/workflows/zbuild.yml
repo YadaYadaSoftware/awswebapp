@@ -85,7 +85,7 @@ jobs:
           BranchName=${{ needs.get-branch-name.outputs.branch-name }}
           LogRetentionDays=7
           IsPrimaryRegion=${{ matrix.is_primary }}
-          ${{ matrix.is_primary == 'false' && format('PrimaryKeyArn={0}', needs.deploy-regional-vpc.outputs['us-east-1'].aurora-kms-key-arn) || '' }}
+          ${{ matrix.is_primary == 'false' && format('PrimaryKeyArn={0}', needs.deploy-regional-vpc.outputs['us-east-1'].aurora-kms-key-arn) || 'PrimaryKeyArn=' }}
           GitHubActionsUserArn=${{ steps.get-github-user.outputs.github-actions-user-arn }}
         no-fail-on-empty-changeset: "1"
         timeout-in-minutes: 10
