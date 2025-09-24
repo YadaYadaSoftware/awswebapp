@@ -165,16 +165,6 @@ jobs:
         ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
         echo "account-id=$ACCOUNT_ID" >> $GITHUB_OUTPUT
 
-    - name: Deploy regional containers
-      id: deploy-containers
-      uses: aws-actions/aws-cloudformation-github-deploy@v1
-      with:
-        name: taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-regional-containers-us-east-1
-        template: infrastructure/regional-containers.yaml
-        parameter-overrides: BranchName=${{ needs.get-branch-name.outputs.branch-name }}
-        no-fail-on-empty-changeset: "1"
-        timeout-in-minutes: 10
-
     - name: Upload global template to S3
       run: |
         BUCKET_NAME="cf-templates-${{ steps.account-id.outputs.account-id }}-us-east-1"
@@ -257,16 +247,6 @@ jobs:
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: ${{ matrix.region }}
 
-    - name: Deploy regional containers
-      id: deploy-containers
-      uses: aws-actions/aws-cloudformation-github-deploy@v1
-      with:
-        name: taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-regional-containers-${{ matrix.region }}
-        template: infrastructure/regional-containers.yaml
-        parameter-overrides: BranchName=${{ needs.get-branch-name.outputs.branch-name }}
-        no-fail-on-empty-changeset: "1"
-        timeout-in-minutes: 10
-
     - name: Upload templates to S3
       run: |
         BUCKET_NAME="cf-templates-${{ steps.account-id.outputs.account-id }}-${{ matrix.region }}"
@@ -302,7 +282,7 @@ jobs:
 
         # Construct ECR repository URI
         ACCOUNT_ID=${{ steps.account-id.outputs.account-id }}
-        ECR_REPO="${ACCOUNT_ID}.dkr.ecr.${{ matrix.region }}.amazonaws.com/taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-web-${{ matrix.region }}"
+        ECR_REPO="${ACCOUNT_ID}.dkr.ecr.${{ matrix.region }}.amazonaws.com/ecr-${ACCOUNT_ID}-${{ matrix.region }}"
 
         echo "🎯 ECR repository: $ECR_REPO"
         echo "🏷️ Version tag: $IMAGE_TAG"

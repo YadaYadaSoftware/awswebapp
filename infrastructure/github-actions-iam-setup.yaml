@@ -11,10 +11,14 @@ Parameters:
     Type: String
     Description: "Name of the S3 bucket for CloudFormation templates (must already exist or be created separately)"
 
+Conditions:
+  IsUsEast1: !Equals [!Ref "AWS::Region", "us-east-1"]
+
 Resources:
   # IAM User for GitHub Actions
   GitHubActionsUser:
     Type: AWS::IAM::User
+    Condition: IsUsEast1
     Properties:
       UserName: !Ref UserName
       Tags:
@@ -30,6 +34,7 @@ Resources:
   # Custom IAM Policy with specific permissions
   TaskManagerDeploymentPolicy:
     Type: AWS::IAM::Policy
+    Condition: IsUsEast1
     Properties:
       PolicyName: "TaskManagerDeploymentPolicy"
       PolicyDocument:
@@ -149,12 +154,14 @@ Resources:
   # Access Key for GitHub Actions
   GitHubActionsAccessKey:
     Type: AWS::IAM::AccessKey
+    Condition: IsUsEast1
     Properties:
       UserName: !Ref GitHubActionsUser
 
   # S3 Bucket Policy for CloudFormation Access (bucket must exist)
   TemplatesBucketPolicy:
     Type: AWS::S3::BucketPolicy
+    Condition: IsUsEast1
     Properties:
       Bucket: !Ref TemplatesBucketName
       PolicyDocument:
@@ -177,30 +184,57 @@ Resources:
               - !Sub "arn:aws:s3:::${TemplatesBucketName}"
               - !Sub "arn:aws:s3:::${TemplatesBucketName}/*"
 
+  # ECR Repository for Web Application
+  WebECRRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Sub "ecr-${AWS::AccountId}-${AWS::Region}"
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      ImageTagMutability: "MUTABLE"
+      Tags:
+        - Key: LogicalId
+          Value: WebECRRepository
+        - Key: Name
+          Value: "TaskManager-Web-ECR"
+        - Key: Purpose
+          Value: "Container Registry"
+        - Key: Stack
+          Value: !Ref "AWS::StackName"
+
 Outputs:
   UserName:
     Description: "IAM User name for GitHub Actions"
     Value: !Ref GitHubActionsUser
+    Condition: IsUsEast1
 
   AccessKeyId:
     Description: "Access Key ID for GitHub Actions (add to GitHub secrets)"
     Value: !Ref GitHubActionsAccessKey
+    Condition: IsUsEast1
 
   SecretAccessKey:
     Description: "Secret Access Key for GitHub Actions (add to GitHub secrets)"
     Value: !GetAtt GitHubActionsAccessKey.SecretAccessKey
+    Condition: IsUsEast1
 
   UserArn:
     Description: "IAM User ARN"
     Value: !GetAtt GitHubActionsUser.Arn
+    Condition: IsUsEast1
 
   PolicyArn:
     Description: "Custom policy ARN"
     Value: !Ref TaskManagerDeploymentPolicy
+    Condition: IsUsEast1
 
   TemplatesBucketName:
     Description: "S3 bucket name for CloudFormation templates"
     Value: !Ref TemplatesBucketName
+
+  WebECRRepositoryName:
+    Description: "ECR repository name for web application"
+    Value: !Ref WebECRRepository
 
   SetupInstructions:
     Description: "Instructions for GitHub Secrets setup"
@@ -219,3 +253,4 @@ Outputs:
       - Server-side encryption (SSE-S3 or SSE-KMS)
       - Public access blocked
       - Appropriate bucket policies for CloudFormation and GitHub Actions access
+    Condition: IsUsEast1
