@@ -83,8 +83,6 @@ Resources:
         EngineVersion: !Ref EngineVersion
         GitHubActionsUserArn: !Ref GitHubActionsUserArn
         BranchName: !Ref BranchName
-      Capabilities:
-        - CAPABILITY_NAMED_IAM
 
   # Regional VPC
   VpcStack:
@@ -119,8 +117,6 @@ Resources:
         PrivateSubnet2Id: !GetAtt VpcStack.Outputs.PrivateSubnet2Id
         RDSSecurityGroupId: !GetAtt VpcStack.Outputs.RDSSecurityGroupId
         LogRetentionDays: 7
-      Capabilities:
-        - CAPABILITY_NAMED_IAM
 
   # Regional Infrastructure
   InfrastructureStack:
