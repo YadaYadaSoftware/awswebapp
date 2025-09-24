@@ -397,6 +397,69 @@ jobs:
         echo "🔑 Aurora KMS Key ARN for ${{ matrix.region }}: $AURORA_KMS_KEY_ARN"
         echo "aurora-kms-key-arn=$AURORA_KMS_KEY_ARN" >> $GITHUB_OUTPUT
 
+    - name: Validate Regional DB Parameters
+      run: |
+        echo "🔍 Validating parameters for regional-db deployment..."
+
+        # Check job outputs
+        if [ -z "${{ needs.get-branch-name.outputs.branch-name }}" ]; then
+          echo "❌ ERROR: BranchName is empty"
+          exit 1
+        fi
+
+        if [ -z "${{ secrets.DATABASE_PASSWORD }}" ]; then
+          echo "❌ ERROR: DatabasePassword is empty"
+          exit 1
+        fi
+
+        if [ -z "${{ env.ENGINE_VERSION }}" ]; then
+          echo "❌ ERROR: EngineVersion is empty"
+          exit 1
+        fi
+
+        if [ -z "${{ needs.deploy-global.outputs.aurora-global-cluster-id }}" ]; then
+          echo "❌ ERROR: AuroraGlobalClusterId is empty"
+          exit 1
+        fi
+
+        if [ -z "${{ steps.determine-kms-arn.outputs.aurora-kms-key-arn }}" ]; then
+          echo "❌ ERROR: AuroraKmsKeyArn is empty"
+          exit 1
+        fi
+
+        if [ -z "${{ matrix.is_primary }}" ]; then
+          echo "❌ ERROR: IsPrimaryRegion is empty"
+          exit 1
+        fi
+
+        if [ -z "${{ needs.deploy-global.outputs.github-actions-user-arn }}" ]; then
+          echo "❌ ERROR: GitHubActionsUserArn is empty"
+          exit 1
+        fi
+
+        # Check VPC outputs
+        if [ -z "${{ steps.get-vpc-outputs.outputs.vpc-id }}" ]; then
+          echo "❌ ERROR: VPCId is empty"
+          exit 1
+        fi
+
+        if [ -z "${{ steps.get-vpc-outputs.outputs.private-subnet-1 }}" ]; then
+          echo "❌ ERROR: PrivateSubnet1Id is empty"
+          exit 1
+        fi
+
+        if [ -z "${{ steps.get-vpc-outputs.outputs.private-subnet-2 }}" ]; then
+          echo "❌ ERROR: PrivateSubnet2Id is empty"
+          exit 1
+        fi
+
+        if [ -z "${{ steps.get-vpc-outputs.outputs.rds-sg }}" ]; then
+          echo "❌ ERROR: RDSSecurityGroupId is empty"
+          exit 1
+        fi
+
+        echo "✅ All parameters are present and valid"
+
     - name: deploy (regional-db)
       id: deploy-regional-db
       uses: aws-actions/aws-cloudformation-github-deploy@v1
