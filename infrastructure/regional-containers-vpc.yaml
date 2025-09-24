@@ -359,6 +359,7 @@ Resources:
       ResourceId: !Ref TaskManagerVPC
       ResourceType: VPC
       TrafficType: ALL
+      DeliverLogsPermissionArn: !Sub arn:aws:iam::${AWS::AccountId}:role/TaskManager-VPCFlowLogs-Role-${BranchName}
       LogDestinationType: cloud-watch-logs
       LogGroupName: !Ref VPCFlowLogsLogGroup
       Tags:
