@@ -253,6 +253,7 @@ jobs:
       id: account-id
       run: |
         ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+        echo "AWS Account ID: $ACCOUNT_ID"
         echo "account-id=$ACCOUNT_ID" >> $GITHUB_OUTPUT
 
     - name: Build and Push Web Container Image
