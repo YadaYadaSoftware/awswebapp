@@ -16,9 +16,16 @@ Parameters:
     Description: ARN of the primary KMS key to create a replica from (optional)
     Default: ""
 
+  IsPrimaryRegion:
+    Type: String
+    AllowedValues: ["true", "false"]
+    Default: "false"
+    Description: Whether this region hosts the primary cluster
+
 Conditions:
   IsPrimaryKey: !Equals [!Ref KmsKeyArn, ""]
   IsReplicaKey: !Not [!Equals [!Ref KmsKeyArn, ""]]
+  IsPrimary: !Equals [!Ref IsPrimaryRegion, "true"]
 
 Resources:
   AuroraKmsKey:
@@ -123,6 +130,147 @@ Resources:
               - kms:DescribeKey
               - kms:CreateGrant
               - kms:Decrypt
+  SharedLambdaExecutionRole:
+    Condition: IsPrimary
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub TaskManager-Shared-Lambda-Role-${BranchName}
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+                - ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+      Policies:
+        - PolicyName: SecretsManagerAccess
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                  - secretsmanager:DescribeSecret
+                Resource:
+                  - !Sub arn:aws:secretsmanager:*:${AWS::AccountId}:secret:taskmanager/database/regional/*
+        - PolicyName: CloudWatchLogs
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  - !Sub arn:aws:logs:*:${AWS::AccountId}:*
+        - PolicyName: RDSAccess
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - rds:CreateDBCluster
+                  - rds:ModifyDBCluster
+                  - rds:DeleteDBCluster
+                  - rds:DescribeDBClusters
+                  - rds:DescribeDBInstances
+                  - rds:DescribeGlobalClusters
+                  - rds:ModifyGlobalCluster
+                  - rds:DeleteGlobalCluster
+                  - rds-data:ExecuteStatement
+                  - rds-data:BatchExecuteStatement
+                Resource:
+                  - !Sub arn:aws:rds:*:${AWS::AccountId}:cluster:taskmanager-*
+                  - !Sub arn:aws:rds::${AWS::AccountId}:global-cluster:taskmanager-global-cluster
+        - PolicyName: KMSAccess
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - kms:CreateKey
+                  - kms:DescribeKey
+                  - kms:CreateGrant
+                  - kms:Decrypt
+                  - kms:Encrypt
+                  - kms:GenerateDataKey
+                  - kms:ReEncryptFrom
+                  - kms:ReEncryptTo
+                  - kms:RetireGrant
+                  - kms:CreateAlias
+                  - kms:DeleteAlias
+                  - kms:UpdateAlias
+                  - kms:ListAliases
+                  - kms:ListGrants
+                  - kms:RevokeGrant
+                  - kms:ReplicateKey
+                  - kms:DisableKey
+                  - kms:ScheduleKeyDeletion
+                Resource: "*"
+        - PolicyName: SSMParameterAccess
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                  - ssm:GetParameters
+                Resource:
+                  - "arn:aws:ssm:*:*:parameter/aws/service/ami-amazon-linux-latest/*"
+        - PolicyName: ECRAccess
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ecr:GetAuthorizationToken
+                  - ecr:BatchCheckLayerAvailability
+                  - ecr:GetDownloadUrlForLayer
+                  - ecr:BatchGetImage
+                Resource: "*"
+      Tags:
+        - Key: LogicalId
+          Value: SharedLambdaExecutionRole
+        - Key: Stack
+          Value: !Ref "AWS::StackName"
+
+  ApiGatewayCloudWatchLogsRole:
+    Condition: IsPrimary
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub TaskManager-ApiGateway-CloudWatchLogs-Role-${BranchName}
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: apigateway.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: ApiGatewayCloudWatchLogsPolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                  - logs:DescribeLogGroups
+                  - logs:DescribeLogStreams
+                  - logs:FilterLogEvents
+                  - logs:GetLogEvents
+                Resource: "*"
+      Tags:
+        - Key: LogicalId
+          Value: ApiGatewayCloudWatchLogsRole
+        - Key: Stack
+          Value: !Ref "AWS::StackName"
               - kms:Encrypt
               - kms:GenerateDataKey
               - kms:ReEncryptFrom
@@ -150,3 +298,13 @@ Outputs:
         !GetAtt AuroraKmsKey.Arn,
         !GetAtt AuroraKmsKeyReplica.Arn,
       ]
+
+  SharedLambdaRoleArn:
+    Condition: IsPrimary
+    Description: Shared Lambda execution role ARN
+    Value: !GetAtt SharedLambdaExecutionRole.Arn
+
+  ApiGatewayCloudWatchLogsRoleArn:
+    Condition: IsPrimary
+    Description: API Gateway CloudWatch Logs role ARN
+    Value: !GetAtt ApiGatewayCloudWatchLogsRole.Arn
