@@ -151,15 +151,6 @@ jobs:
         ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
         echo "AWS Account ID: $ACCOUNT_ID"
         echo "account-id=$ACCOUNT_ID" >> $GITHUB_OUTPUT
-
-    - name: Upload global template to S3
-      run: |
-        BUCKET_NAME="cf-templates-${{ steps.account-id.outputs.account-id }}-us-east-1"
-        BRANCH_NAME="${{ needs.get-branch-name.outputs.branch-name }}"
-        echo "BUCKET_NAME=$BUCKET_NAME" >> $GITHUB_ENV
-
-        echo "Uploading global template to S3 bucket: $BUCKET_NAME"
-        aws s3 cp infrastructure/global-template.yaml s3://$BUCKET_NAME/$BRANCH_NAME/ --region us-east-1
   deploy-infrastructure:
     name: Deploy Infrastructure
     runs-on: ubuntu-latest
@@ -231,7 +222,6 @@ jobs:
 
         echo "Uploading templates to S3 bucket: $BUCKET_NAME"
         aws s3 cp infrastructure/kms-template.yaml s3://$BUCKET_NAME/$BRANCH_NAME/ --region ${{ matrix.region }}
-        aws s3 cp infrastructure/global-template.yaml s3://$BUCKET_NAME/$BRANCH_NAME/ --region ${{ matrix.region }}
         aws s3 cp infrastructure/regional-vpc.yaml s3://$BUCKET_NAME/$BRANCH_NAME/ --region ${{ matrix.region }}
         aws s3 cp infrastructure/regional-db.yaml s3://$BUCKET_NAME/$BRANCH_NAME/ --region ${{ matrix.region }}
         aws s3 cp infrastructure/regional-infrastructure.yaml s3://$BUCKET_NAME/$BRANCH_NAME/ --region ${{ matrix.region }}
