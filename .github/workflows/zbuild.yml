@@ -509,31 +509,6 @@ jobs:
       run: |
         echo "🔑 GitHub Actions User ARN: ${{ needs.deploy-global.outputs.github-actions-user-arn }}"
 
-    - name: Get VPC Stack Outputs
-      id: get-vpc-outputs
-      run: |
-        echo "Getting VPC stack outputs..."
-        STACK_NAME="taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-regional-containers-vpc"
-        VPC_ID=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`VPCId`].OutputValue' --output text)
-        PRIVATE_SUBNET_1=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`PrivateSubnet1Id`].OutputValue' --output text)
-        PRIVATE_SUBNET_2=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`PrivateSubnet2Id`].OutputValue' --output text)
-        PUBLIC_SUBNET_1=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`PublicSubnet1Id`].OutputValue' --output text)
-        PUBLIC_SUBNET_2=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`PublicSubnet2Id`].OutputValue' --output text)
-        LAMBDA_SG=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`LambdaSecurityGroupId`].OutputValue' --output text)
-        ALB_SG=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`ALBSecurityGroupId`].OutputValue' --output text)
-        ECS_SG=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`ECSTaskSecurityGroupId`].OutputValue' --output text)
-        RDS_SG=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`RDSSecurityGroupId`].OutputValue' --output text)
-
-        echo "vpc-id=$VPC_ID" >> $GITHUB_OUTPUT
-        echo "private-subnet-1=$PRIVATE_SUBNET_1" >> $GITHUB_OUTPUT
-        echo "private-subnet-2=$PRIVATE_SUBNET_2" >> $GITHUB_OUTPUT
-        echo "public-subnet-1=$PUBLIC_SUBNET_1" >> $GITHUB_OUTPUT
-        echo "public-subnet-2=$PUBLIC_SUBNET_2" >> $GITHUB_OUTPUT
-        echo "lambda-sg=$LAMBDA_SG" >> $GITHUB_OUTPUT
-        echo "alb-sg=$ALB_SG" >> $GITHUB_OUTPUT
-        echo "ecs-sg=$ECS_SG" >> $GITHUB_OUTPUT
-        echo "rds-sg=$RDS_SG" >> $GITHUB_OUTPUT
-
     - name: Upload templates and regional layers to S3
       run: |
         # Upload infrastructure templates to S3
@@ -544,51 +519,31 @@ jobs:
         echo "Verifying S3 uploads..."
         aws s3 ls s3://taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-templates-bucket-${{ matrix.region }}/ --region ${{ matrix.region }}
 
-    - name: Determine Aurora KMS Key ARN
-      id: determine-kms-arn
-      run: |
-        if [ "${{ matrix.region }}" = "us-east-1" ]; then
-          AURORA_KMS_KEY_ARN="${{ needs.deploy-kms-primary.outputs.aurora-kms-key-arn }}"
-        else
-          AURORA_KMS_KEY_ARN="${{ needs.deploy-kms-replicas.outputs.aurora-kms-key-arn }}"
-        fi
-        echo "🔑 Aurora KMS Key ARN for ${{ matrix.region }}: $AURORA_KMS_KEY_ARN"
-        echo "aurora-kms-key-arn=$AURORA_KMS_KEY_ARN" >> $GITHUB_OUTPUT
-
     - name: Validate Parameter Values
       run: |
-        echo "🔍 Debug: Parameter values being passed to CloudFormation:"
-        echo "DatabasePassword: [REDACTED]"
-        echo "AuroraGlobalClusterId: ${{ needs.deploy-global.outputs.aurora-global-cluster-id }}"
-        echo "AuroraKmsKeyArn: ${{ steps.determine-kms-arn.outputs.aurora-kms-key-arn }}"
-        echo "DatabaseHost: ${{ needs.deploy-regional-db.outputs.db-host }}"
-        echo "DatabaseUsername: ${{ needs.deploy-regional-db.outputs.db-username }}"
-        echo "DatabaseName: ${{ needs.deploy-regional-db.outputs.db-name }}"
-        echo "DatabasePasswordSecretArn: ${{ needs.deploy-regional-db.outputs.db-password-secret-arn }}"
+        echo "🔍 Validating parameters for regional-infrastructure deployment..."
 
-        # Validate that job outputs are not empty
-
-        if [ -z "${{ needs.deploy-global.outputs.aurora-global-cluster-id }}" ]; then
-          echo "❌ ERROR: AuroraGlobalClusterId is empty"
+        if [ -z "${{ needs.get-branch-name.outputs.branch-name }}" ]; then
+          echo "❌ ERROR: BranchName is empty"
           exit 1
         fi
 
-        if [ -z "${{ steps.determine-kms-arn.outputs.aurora-kms-key-arn }}" ]; then
-          echo "❌ ERROR: AuroraKmsKeyArn is empty"
+        if [ -z "${{ secrets.GOOGLE_CLIENT_ID }}" ]; then
+          echo "❌ ERROR: GoogleOAuthClientId is empty"
           exit 1
         fi
 
-        if [ -z "${{ needs.deploy-regional-db.outputs.db-host }}" ]; then
-          echo "❌ ERROR: DatabaseHost is empty"
+        if [ -z "${{ secrets.GOOGLE_CLIENT_SECRET }}" ]; then
+          echo "❌ ERROR: GoogleOAuthClientSecret is empty"
           exit 1
         fi
 
-        if [ -z "${{ needs.deploy-regional-db.outputs.db-password-secret-arn }}" ]; then
-          echo "❌ ERROR: DatabasePasswordSecretArn is empty"
+        if [ -z "${{ needs.deploy-global.outputs.api-gateway-cloudwatch-logs-role-arn }}" ]; then
+          echo "❌ ERROR: ApiGatewayCloudWatchLogsRoleArn is empty"
           exit 1
         fi
 
-        echo "✅ All parameter values are present, proceeding with deployment..."
+        echo "✅ All parameters are valid, proceeding with deployment..."
 
     - name: deploy (regional-infrastructure)
       id: deploy-regional
@@ -596,7 +551,7 @@ jobs:
       with:
         name: taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-regional-infrastructure
         template: infrastructure/regional-infrastructure.yaml
-        parameter-overrides: BranchName=${{ needs.get-branch-name.outputs.branch-name }},DatabasePassword=${{ secrets.DATABASE_PASSWORD }},AuroraGlobalClusterId=${{ needs.deploy-global.outputs.aurora-global-cluster-id }},AuroraKmsKeyArn=${{ steps.determine-kms-arn.outputs.aurora-kms-key-arn }},EngineVersion=${{ env.ENGINE_VERSION }},VPCId=${{ steps.get-vpc-outputs.outputs.vpc-id }},PrivateSubnet1Id=${{ steps.get-vpc-outputs.outputs.private-subnet-1 }},PrivateSubnet2Id=${{ steps.get-vpc-outputs.outputs.private-subnet-2 }},PublicSubnet1Id=${{ steps.get-vpc-outputs.outputs.public-subnet-1 }},PublicSubnet2Id=${{ steps.get-vpc-outputs.outputs.public-subnet-2 }},LambdaSecurityGroupId=${{ steps.get-vpc-outputs.outputs.lambda-sg }},RDSSecurityGroupId=${{ steps.get-vpc-outputs.outputs.rds-sg }},ALBSecurityGroupId=${{ steps.get-vpc-outputs.outputs.alb-sg }},ECSTaskSecurityGroupId=${{ steps.get-vpc-outputs.outputs.ecs-sg }},DatabaseEndpoint=${{ needs.deploy-regional-db.outputs.db-endpoint }},DatabaseReaderEndpoint=${{ needs.deploy-regional-db.outputs.db-reader-endpoint }},GoogleOAuthClientId=${{ secrets.GOOGLE_CLIENT_ID }},GoogleOAuthClientSecret=${{ secrets.GOOGLE_CLIENT_SECRET }},ApiGatewayCloudWatchLogsRoleArn=${{ needs.deploy-global.outputs.api-gateway-cloudwatch-logs-role-arn }}
+        parameter-overrides: BranchName=${{ needs.get-branch-name.outputs.branch-name }},GoogleOAuthClientId=${{ secrets.GOOGLE_CLIENT_ID }},GoogleOAuthClientSecret=${{ secrets.GOOGLE_CLIENT_SECRET }},ApiGatewayCloudWatchLogsRoleArn=${{ needs.deploy-global.outputs.api-gateway-cloudwatch-logs-role-arn }}
         capabilities: "CAPABILITY_NAMED_IAM"
         no-fail-on-empty-changeset: "1"
         timeout-in-minutes: 20

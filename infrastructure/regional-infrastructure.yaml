@@ -3,69 +3,6 @@ AWSTemplateFormatVersion: "2010-09-09"
 Description: "TaskManager Regional Infrastructure - VPC, RDS, ECS"
 
 Parameters:
-  DatabasePassword:
-    Type: String
-    NoEcho: true
-    MinLength: 8
-    Description: "Password for the Aurora MySQL database"
-
-  EngineVersion:
-    Type: String
-    Description: "Aurora MySQL engine version for the regional cluster"
-
-  AuroraGlobalClusterId:
-    Type: String
-    Description: "ID of the Aurora global cluster from global stack"
-
-  AuroraKmsKeyArn:
-    Type: String
-    Description: "ARN of the KMS key used by the Aurora global cluster"
-
-  # Parameters from regional-vpc-db.yaml outputs
-  VPCId:
-    Type: String
-    Description: "VPC ID from regional-vpc-db stack"
-
-  PrivateSubnet1Id:
-    Type: String
-    Description: "Private subnet 1 ID from regional-vpc-db stack"
-
-  PrivateSubnet2Id:
-    Type: String
-    Description: "Private subnet 2 ID from regional-vpc-db stack"
-
-  PublicSubnet1Id:
-    Type: String
-    Description: "Public subnet 1 ID from regional-vpc-db stack"
-
-  PublicSubnet2Id:
-    Type: String
-    Description: "Public subnet 2 ID from regional-vpc-db stack"
-
-  LambdaSecurityGroupId:
-    Type: String
-    Description: "Lambda security group ID from regional-vpc-db stack"
-
-  RDSSecurityGroupId:
-    Type: String
-    Description: "RDS security group ID from regional-vpc-db stack"
-
-  ALBSecurityGroupId:
-    Type: String
-    Description: "ALB security group ID from regional-vpc-db stack"
-
-  ECSTaskSecurityGroupId:
-    Type: String
-    Description: "ECS task security group ID from regional-vpc-db stack"
-
-  DatabaseEndpoint:
-    Type: String
-    Description: "Database endpoint from regional-vpc-db stack"
-
-  DatabaseReaderEndpoint:
-    Type: String
-    Description: "Database reader endpoint from regional-vpc-db stack"
-
   GoogleOAuthClientId:
     Type: String
     Description: "Google OAuth Client ID"
