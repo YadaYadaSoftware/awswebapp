@@ -35,14 +35,17 @@ Parameters:
   # Parameters for global infrastructure outputs
   AuroraGlobalClusterId:
     Type: String
+    Default: ""
     Description: ID of the Aurora global cluster
 
   ApiGatewayCloudWatchLogsRoleArn:
     Type: String
+    Default: ""
     Description: ARN of the API Gateway CloudWatch Logs role
 
   SharedLambdaRoleArn:
     Type: String
+    Default: ""
     Description: ARN of the shared Lambda role
 
   # Parameters for secondary regions

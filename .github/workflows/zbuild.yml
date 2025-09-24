@@ -126,6 +126,8 @@ jobs:
     name: Deploy Global Infrastructure
     runs-on: ubuntu-latest
     needs: [build, get-branch-name]
+    outputs:
+      github-actions-user-arn: ${{ steps.get-github-user.outputs.github-actions-user-arn }}
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -292,8 +294,12 @@ jobs:
         PRIMARY_STACK_NAME="taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-us-east-1"
         KMS_KEY_ARN=$(aws cloudformation describe-stacks --stack-name $PRIMARY_STACK_NAME --region us-east-1 --query 'Stacks[0].Outputs[?OutputKey==`AuroraKmsKeyArn`].OutputValue' --output text)
         GLOBAL_CLUSTER_ID=$(aws cloudformation describe-stacks --stack-name $PRIMARY_STACK_NAME --region us-east-1 --query 'Stacks[0].Outputs[?OutputKey==`AuroraGlobalClusterId`].OutputValue' --output text)
+        API_GATEWAY_ROLE_ARN=$(aws cloudformation describe-stacks --stack-name $PRIMARY_STACK_NAME --region us-east-1 --query 'Stacks[0].Outputs[?OutputKey==`ApiGatewayCloudWatchLogsRoleArn`].OutputValue' --output text)
+        SHARED_LAMBDA_ROLE_ARN=$(aws cloudformation describe-stacks --stack-name $PRIMARY_STACK_NAME --region us-east-1 --query 'Stacks[0].Outputs[?OutputKey==`SharedLambdaRoleArn`].OutputValue' --output text)
         echo "kms-key-arn=$KMS_KEY_ARN" >> $GITHUB_OUTPUT
         echo "global-cluster-id=$GLOBAL_CLUSTER_ID" >> $GITHUB_OUTPUT
+        echo "api-gateway-role-arn=$API_GATEWAY_ROLE_ARN" >> $GITHUB_OUTPUT
+        echo "shared-lambda-role-arn=$SHARED_LAMBDA_ROLE_ARN" >> $GITHUB_OUTPUT
 
     - name: Deploy master template
       id: deploy-master
@@ -301,7 +307,7 @@ jobs:
       with:
         name: taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-${{ matrix.region }}
         template: infrastructure/master-template.yaml
-        parameter-overrides: TemplateBucket=${{ env.BUCKET_NAME }},GitHubActionsUserArn=${{ needs.deploy-global-infrastructure.outputs.github-actions-user-arn }},BranchName=${{ needs.get-branch-name.outputs.branch-name }},DatabasePassword=${{ secrets.DATABASE_PASSWORD }},EngineVersion=${{ env.ENGINE_VERSION }},IsPrimaryRegion=${{ matrix.is_primary }},AuroraGlobalClusterId=${{ needs.deploy-global-infrastructure.outputs.aurora-global-cluster-id }},ApiGatewayCloudWatchLogsRoleArn=${{ needs.deploy-global-infrastructure.outputs.api-gateway-cloudwatch-logs-role-arn }},SharedLambdaRoleArn=${{ needs.deploy-global-infrastructure.outputs.shared-lambda-role-arn }},KmsKeyArn=${{ steps.get-primary-outputs.outputs.kms-key-arn }},GoogleOAuthClientId=${{ secrets.GOOGLE_CLIENT_ID }},GoogleOAuthClientSecret=${{ secrets.GOOGLE_CLIENT_SECRET }},ApiCodeBucket=${{ env.BUCKET_NAME }},ApiCodeKey=${{ needs.get-branch-name.outputs.branch-name }}/api-lambda-deployment.zip,WebContainerImage=${{ env.CONTAINER_IMAGE }},DeploymentToken=${{ github.sha }},DomainName=appcloud.systems,HostedZoneId=Z06422172SASV44F5Y8VA
+        parameter-overrides: TemplateBucket=${{ env.BUCKET_NAME }},GitHubActionsUserArn=${{ needs.deploy-global-infrastructure.outputs.github-actions-user-arn }},BranchName=${{ needs.get-branch-name.outputs.branch-name }},DatabasePassword=${{ secrets.DATABASE_PASSWORD }},EngineVersion=${{ env.ENGINE_VERSION }},IsPrimaryRegion=${{ matrix.is_primary }},AuroraGlobalClusterId=${{ steps.get-primary-outputs.outputs.global-cluster-id }},ApiGatewayCloudWatchLogsRoleArn=${{ steps.get-primary-outputs.outputs.api-gateway-role-arn }},SharedLambdaRoleArn=${{ steps.get-primary-outputs.outputs.shared-lambda-role-arn }},KmsKeyArn=${{ steps.get-primary-outputs.outputs.kms-key-arn }},GoogleOAuthClientId=${{ secrets.GOOGLE_CLIENT_ID }},GoogleOAuthClientSecret=${{ secrets.GOOGLE_CLIENT_SECRET }},ApiCodeBucket=${{ env.BUCKET_NAME }},ApiCodeKey=${{ needs.get-branch-name.outputs.branch-name }}/api-lambda-deployment.zip,WebContainerImage=${{ env.CONTAINER_IMAGE }},DeploymentToken=${{ github.sha }},DomainName=appcloud.systems,HostedZoneId=Z06422172SASV44F5Y8VA
         capabilities: "CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND"
         no-fail-on-empty-changeset: "1"
         timeout-in-minutes: 30
