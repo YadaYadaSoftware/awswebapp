@@ -160,23 +160,6 @@ jobs:
 
         echo "Uploading global template to S3 bucket: $BUCKET_NAME"
         aws s3 cp infrastructure/global-template.yaml s3://$BUCKET_NAME/$BRANCH_NAME/ --region us-east-1
-
-    - name: Deploy global infrastructure
-      id: deploy-global
-      uses: aws-actions/aws-cloudformation-github-deploy@v1
-      with:
-        name: taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-global-infrastructure
-        template: infrastructure/global-template.yaml
-        parameter-overrides: DatabasePassword=${{ secrets.DATABASE_PASSWORD }},EngineVersion=${{ env.ENGINE_VERSION }},GitHubActionsUserArn=${{ steps.get-github-user.outputs.github-actions-user-arn }},BranchName=${{ needs.get-branch-name.outputs.branch-name }}
-        capabilities: "CAPABILITY_NAMED_IAM"
-        no-fail-on-empty-changeset: "1"
-        timeout-in-minutes: 20
-    outputs:
-       aurora-global-cluster-id: ${{ steps.deploy-global.outputs.AuroraGlobalClusterId }}
-       api-gateway-cloudwatch-logs-role-arn: ${{ steps.deploy-global.outputs.ApiGatewayCloudWatchLogsRoleArn }}
-       shared-lambda-role-arn: ${{ steps.deploy-global.outputs.SharedLambdaRoleArn }}
-       github-actions-user-arn: ${{ steps.get-github-user.outputs.github-actions-user-arn }}
-
   deploy-infrastructure:
     name: Deploy Infrastructure
     runs-on: ubuntu-latest
