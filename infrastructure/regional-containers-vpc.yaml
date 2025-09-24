@@ -10,23 +10,6 @@ Parameters:
     Type: Number
     Default: 7
     Description: Number of days to retain CloudWatch logs
-  IsPrimaryRegion:
-    Type: String
-    AllowedValues: ["true", "false"]
-    Default: "false"
-    Description: Whether this region is the primary region for the multi-region key
-  PrimaryKeyArn:
-    Type: String
-    Description: ARN of the primary multi-region KMS key (required for secondary regions)
-    Default: "arn:aws:kms:us-east-1:123456789012:key/12345678-1234-1234-1234-123456789012"
-  GitHubActionsUserArn:
-    Type: String
-    Default: "arn:aws:iam::123456789012:user/github-actions"
-    Description: ARN of the GitHub Actions IAM user
-
-Conditions:
-  IsPrimary: !Equals [!Ref IsPrimaryRegion, "true"]
-  IsSecondary: !Equals [!Ref IsPrimaryRegion, "false"]
 
 Resources:
   RegionalArtifactsBucket:
@@ -364,125 +347,6 @@ Resources:
         - Key: Stack
           Value: !Ref "AWS::StackName"
 
-  AuroraKmsKey:
-    Type: AWS::KMS::Key
-    Condition: IsPrimary
-    DeletionPolicy: Retain
-    Properties:
-      Description: Multi-region KMS key for Aurora Global Database encryption
-      KeyUsage: ENCRYPT_DECRYPT
-      KeySpec: SYMMETRIC_DEFAULT
-      MultiRegion: true
-      Enabled: true
-      PendingWindowInDays: 7
-      KeyPolicy:
-        Version: 2012-10-17
-        Statement:
-          - Sid: EnableIAMUserPermissions
-            Effect: Allow
-            Principal:
-              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:root"
-            Action: kms:*
-            Resource: "*"
-          - Sid: AllowRDSService
-            Effect: Allow
-            Principal:
-              Service: rds.amazonaws.com
-            Action:
-              - kms:CreateGrant
-              - kms:DescribeKey
-              - kms:Decrypt
-              - kms:Encrypt
-              - kms:GenerateDataKey
-              - kms:ReEncryptFrom
-              - kms:ReEncryptTo
-              - kms:RetireGrant
-            Resource: "*"
-          - Sid: AllowGitHubActionsUser
-            Effect: Allow
-            Principal:
-              AWS: !Ref GitHubActionsUserArn
-            Action:
-              - kms:CreateKey
-              - kms:DescribeKey
-              - kms:CreateGrant
-              - kms:Decrypt
-              - kms:Encrypt
-              - kms:GenerateDataKey
-              - kms:ReEncryptFrom
-              - kms:ReEncryptTo
-              - kms:RetireGrant
-              - kms:CreateAlias
-              - kms:DeleteAlias
-              - kms:UpdateAlias
-              - kms:ListAliases
-              - kms:ListGrants
-              - kms:RevokeGrant
-            Resource: "*"
-      Tags:
-        - Key: LogicalId
-          Value: AuroraKmsKey
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
-
-  AuroraKmsKeyReplica:
-    Type: AWS::KMS::ReplicaKey
-    Condition: IsSecondary
-    DeletionPolicy: Retain
-    Properties:
-      PrimaryKeyArn:
-        !If [IsPrimary, !GetAtt AuroraKmsKey.Arn, !Ref PrimaryKeyArn]
-      Description: Replica of multi-region Aurora KMS key
-      KeyPolicy:
-        Version: 2012-10-17
-        Statement:
-          - Sid: EnableIAMUserPermissions
-            Effect: Allow
-            Principal:
-              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:root"
-            Action: kms:*
-            Resource: "*"
-          - Sid: AllowRDSService
-            Effect: Allow
-            Principal:
-              Service: rds.amazonaws.com
-            Action:
-              - kms:CreateGrant
-              - kms:DescribeKey
-              - kms:Decrypt
-              - kms:Encrypt
-              - kms:GenerateDataKey
-              - kms:ReEncryptFrom
-              - kms:ReEncryptTo
-              - kms:RetireGrant
-            Resource: "*"
-          - Sid: AllowGitHubActionsUser
-            Effect: Allow
-            Principal:
-              AWS: !Ref GitHubActionsUserArn
-            Action:
-              - kms:CreateKey
-              - kms:DescribeKey
-              - kms:CreateGrant
-              - kms:Decrypt
-              - kms:Encrypt
-              - kms:GenerateDataKey
-              - kms:ReEncryptFrom
-              - kms:ReEncryptTo
-              - kms:RetireGrant
-              - kms:CreateAlias
-              - kms:DeleteAlias
-              - kms:UpdateAlias
-              - kms:ListAliases
-              - kms:ListGrants
-              - kms:RevokeGrant
-            Resource: "*"
-      Tags:
-        - Key: LogicalId
-          Value: AuroraKmsKeyReplica
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
-
 Outputs:
   VPCId:
     Description: VPC ID for regional database
@@ -519,8 +383,3 @@ Outputs:
   RDSSecurityGroupId:
     Description: Security group for RDS access
     Value: !Ref RDSSecurityGroup
-
-  AuroraKmsKeyArn:
-    Description: ARN of the KMS key (primary or replica) for this region
-    Value:
-      !If [IsPrimary, !GetAtt AuroraKmsKey.Arn, !GetAtt AuroraKmsKeyReplica.Arn]
