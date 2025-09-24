@@ -574,7 +574,7 @@ jobs:
 
         # Construct ECR repository URI
         ACCOUNT_ID=${{ steps.account-id.outputs.account-id }}
-        ECR_REPO="${ACCOUNT_ID}.dkr.ecr.${{ matrix.region }}.amazonaws.com/taskmanager-web-${{ needs.get-branch-name.outputs.branch-name }}-${{ matrix.region }}"
+        ECR_REPO="${ACCOUNT_ID}.dkr.ecr.${{ matrix.region }}.amazonaws.com/taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-web-${{ matrix.region }}"
 
         echo "🎯 ECR repository: $ECR_REPO"
         echo "🏷️ Version tag: $IMAGE_TAG"
