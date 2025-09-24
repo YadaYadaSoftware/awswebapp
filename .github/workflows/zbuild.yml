@@ -189,10 +189,9 @@ jobs:
         no-fail-on-empty-changeset: "1"
         timeout-in-minutes: 20
     outputs:
-      aurora-global-cluster-id: ${{ steps.deploy-global.outputs.AuroraGlobalClusterId }}
-      api-gateway-cloudwatch-logs-role-arn: ${{ steps.deploy-global.outputs.ApiGatewayCloudWatchLogsRoleArn }}
-      vpc-flow-logs-role-arn: ${{ steps.deploy-global.outputs.VpcFlowLogsRoleArn }}
-      shared-lambda-role-arn: ${{ steps.deploy-global.outputs.SharedLambdaRoleArn }}
+       aurora-global-cluster-id: ${{ steps.deploy-global.outputs.AuroraGlobalClusterId }}
+       api-gateway-cloudwatch-logs-role-arn: ${{ steps.deploy-global.outputs.ApiGatewayCloudWatchLogsRoleArn }}
+       shared-lambda-role-arn: ${{ steps.deploy-global.outputs.SharedLambdaRoleArn }}
 
   deploy-infrastructure:
     name: Deploy Infrastructure
@@ -214,7 +213,6 @@ jobs:
       aurora-kms-key-arn: ${{ steps.deploy-master.outputs.AuroraKmsKeyArn }}
       aurora-global-cluster-id: ${{ steps.deploy-master.outputs.AuroraGlobalClusterId }}
       api-gateway-cloudwatch-logs-role-arn: ${{ steps.deploy-master.outputs.ApiGatewayCloudWatchLogsRoleArn }}
-      vpc-flow-logs-role-arn: ${{ steps.deploy-master.outputs.VpcFlowLogsRoleArn }}
       shared-lambda-role-arn: ${{ steps.deploy-master.outputs.SharedLambdaRoleArn }}
       database-endpoint: ${{ steps.deploy-master.outputs.DatabaseEndpoint }}
       database-reader-endpoint: ${{ steps.deploy-master.outputs.DatabaseReaderEndpoint }}
@@ -308,7 +306,7 @@ jobs:
       with:
         name: taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-${{ matrix.region }}
         template: infrastructure/master-template.yaml
-        parameter-overrides: TemplateBucket=${{ env.BUCKET_NAME }},GitHubActionsUserArn=${{ steps.get-github-user.outputs.github-actions-user-arn }},BranchName=${{ needs.get-branch-name.outputs.branch-name }},DatabasePassword=${{ secrets.DATABASE_PASSWORD }},EngineVersion=${{ env.ENGINE_VERSION }},IsPrimaryRegion=${{ matrix.is_primary }},AuroraGlobalClusterId=${{ needs.deploy-global-infrastructure.outputs.aurora-global-cluster-id }},ApiGatewayCloudWatchLogsRoleArn=${{ needs.deploy-global-infrastructure.outputs.api-gateway-cloudwatch-logs-role-arn }},VpcFlowLogsRoleArn=${{ needs.deploy-global-infrastructure.outputs.vpc-flow-logs-role-arn }},SharedLambdaRoleArn=${{ needs.deploy-global-infrastructure.outputs.shared-lambda-role-arn }},KmsKeyArn=${{ steps.get-primary-outputs.outputs.kms-key-arn }},GoogleOAuthClientId=${{ secrets.GOOGLE_CLIENT_ID }},GoogleOAuthClientSecret=${{ secrets.GOOGLE_CLIENT_SECRET }}
+        parameter-overrides: TemplateBucket=${{ env.BUCKET_NAME }},GitHubActionsUserArn=${{ steps.get-github-user.outputs.github-actions-user-arn }},BranchName=${{ needs.get-branch-name.outputs.branch-name }},DatabasePassword=${{ secrets.DATABASE_PASSWORD }},EngineVersion=${{ env.ENGINE_VERSION }},IsPrimaryRegion=${{ matrix.is_primary }},AuroraGlobalClusterId=${{ needs.deploy-global-infrastructure.outputs.aurora-global-cluster-id }},ApiGatewayCloudWatchLogsRoleArn=${{ needs.deploy-global-infrastructure.outputs.api-gateway-cloudwatch-logs-role-arn }},SharedLambdaRoleArn=${{ needs.deploy-global-infrastructure.outputs.shared-lambda-role-arn }},KmsKeyArn=${{ steps.get-primary-outputs.outputs.kms-key-arn }},GoogleOAuthClientId=${{ secrets.GOOGLE_CLIENT_ID }},GoogleOAuthClientSecret=${{ secrets.GOOGLE_CLIENT_SECRET }}
         capabilities: "CAPABILITY_NAMED_IAM"
         no-fail-on-empty-changeset: "1"
         timeout-in-minutes: 30

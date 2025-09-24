@@ -41,10 +41,6 @@ Parameters:
     Type: String
     Description: ARN of the API Gateway CloudWatch Logs role
 
-  VpcFlowLogsRoleArn:
-    Type: String
-    Description: ARN of the VPC Flow Logs role
-
   SharedLambdaRoleArn:
     Type: String
     Description: ARN of the shared Lambda role
@@ -139,10 +135,6 @@ Outputs:
     Description: ARN of the API Gateway CloudWatch Logs role
     Value: !Ref ApiGatewayCloudWatchLogsRoleArn
 
-  VpcFlowLogsRoleArn:
-    Description: ARN of the VPC Flow Logs role
-    Value: !Ref VpcFlowLogsRoleArn
-
   SharedLambdaRoleArn:
     Description: ARN of the shared Lambda role
     Value: !Ref SharedLambdaRoleArn
@@ -216,6 +208,10 @@ Outputs:
   ECSTaskSecurityGroupId:
     Description: ECS task security group ID
     Value: !GetAtt VpcStack.Outputs.ECSTaskSecurityGroupId
+
+  VpcFlowLogsRoleArn:
+    Description: VPC Flow Logs role ARN
+    Value: !GetAtt VpcStack.Outputs.VpcFlowLogsRoleArn
 
   # Infrastructure outputs
   ECSClusterName:

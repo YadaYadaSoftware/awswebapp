@@ -139,36 +139,6 @@ Resources:
         - Key: Stack
           Value: !Ref "AWS::StackName"
 
-  VPCFlowLogsRole:
-    Type: AWS::IAM::Role
-    Properties:
-      RoleName: !Sub TaskManager-VPCFlowLogs-Role-${BranchName}
-      AssumeRolePolicyDocument:
-        Version: 2012-10-17
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: vpc-flow-logs.amazonaws.com
-            Action: sts:AssumeRole
-      Policies:
-        - PolicyName: VPCFlowLogsPolicy
-          PolicyDocument:
-            Version: 2012-10-17
-            Statement:
-              - Effect: Allow
-                Action:
-                  - logs:CreateLogGroup
-                  - logs:CreateLogStream
-                  - logs:PutLogEvents
-                  - logs:DescribeLogGroups
-                  - logs:DescribeLogStreams
-                Resource: "*"
-      Tags:
-        - Key: LogicalId
-          Value: VPCFlowLogsRole
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
-
   ApiGatewayCloudWatchLogsRole:
     Type: AWS::IAM::Role
     Properties:
@@ -209,10 +179,6 @@ Outputs:
   SharedLambdaRoleArn:
     Description: Shared Lambda execution role ARN
     Value: !GetAtt SharedLambdaExecutionRole.Arn
-
-  VPCFlowLogsRoleArn:
-    Description: VPC Flow Logs role ARN
-    Value: !GetAtt VPCFlowLogsRole.Arn
 
   ApiGatewayCloudWatchLogsRoleArn:
     Description: API Gateway CloudWatch Logs role ARN
