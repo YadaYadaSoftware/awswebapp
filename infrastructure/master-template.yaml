@@ -174,7 +174,7 @@ Resources:
   # Regional Web
   WebStack:
     Type: AWS::CloudFormation::Stack
-    DependsOn: [InfrastructureStack, DatabaseStack, ApiStack]
+    DependsOn: [InfrastructureStack, DatabaseStack]
     Properties:
       TemplateURL: !Sub "https://${TemplateBucket}.s3.${AWS::Region}.amazonaws.com/web-template.yaml"
       Parameters:
