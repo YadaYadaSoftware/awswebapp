@@ -473,7 +473,7 @@ jobs:
   deploy-regional:
     name: Deploy Regional Stack
     runs-on: ubuntu-latest
-    needs: [build, deploy-regional-db, deploy-kms-primary, deploy-kms-replicas, get-branch-name]
+    needs: [build, deploy-regional-db, deploy-kms-primary, deploy-kms-replicas, get-branch-name,deploy-global]
     concurrency:
       group: deploy-regional-${{ matrix.region }}-${{ needs.get-branch-name.outputs.branch-name }}
       cancel-in-progress: false
@@ -537,7 +537,7 @@ jobs:
           echo "❌ ERROR: GoogleOAuthClientSecret is empty"
           exit 1
         fi
-
+                                                 
         if [ -z "${{ needs.deploy-global.outputs.api-gateway-cloudwatch-logs-role-arn }}" ]; then
           echo "❌ ERROR: ApiGatewayCloudWatchLogsRoleArn is empty"
           exit 1
