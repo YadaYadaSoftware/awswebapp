@@ -159,6 +159,12 @@ jobs:
         echo "✅ Retrieved GitHub Actions User ARN: $GITHUB_USER_ARN"
         echo "github-actions-user-arn=$GITHUB_USER_ARN" >> $GITHUB_OUTPUT
 
+    - name: Get AWS Account ID
+      id: account-id
+      run: |
+        ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+        echo "account-id=$ACCOUNT_ID" >> $GITHUB_OUTPUT
+
     - name: Deploy regional containers
       id: deploy-containers
       uses: aws-actions/aws-cloudformation-github-deploy@v1
@@ -171,12 +177,12 @@ jobs:
 
     - name: Upload global template to S3
       run: |
-        echo "Getting templates bucket from containers stack..."
-        BUCKET_NAME=$(aws cloudformation describe-stacks --stack-name taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-regional-containers-us-east-1 --region us-east-1 --query 'Stacks[0].Outputs[?OutputKey==`TemplatesBucket`].OutputValue' --output text)
+        BUCKET_NAME="cf-templates-${{ steps.account-id.outputs.account-id }}-us-east-1"
+        BRANCH_NAME="${{ needs.get-branch-name.outputs.branch-name }}"
         echo "BUCKET_NAME=$BUCKET_NAME" >> $GITHUB_ENV
 
         echo "Uploading global template to S3 bucket: $BUCKET_NAME"
-        aws s3 cp infrastructure/global-template.yaml s3://$BUCKET_NAME/ --region us-east-1
+        aws s3 cp infrastructure/global-template.yaml s3://$BUCKET_NAME/$BRANCH_NAME/ --region us-east-1
 
     - name: Deploy global infrastructure
       id: deploy-global
@@ -263,19 +269,19 @@ jobs:
 
     - name: Upload templates to S3
       run: |
-        echo "Getting templates bucket from containers stack..."
-        BUCKET_NAME=$(aws cloudformation describe-stacks --stack-name taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-regional-containers-${{ matrix.region }} --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`TemplatesBucket`].OutputValue' --output text)
+        BUCKET_NAME="cf-templates-${{ steps.account-id.outputs.account-id }}-${{ matrix.region }}"
+        BRANCH_NAME="${{ needs.get-branch-name.outputs.branch-name }}"
         echo "BUCKET_NAME=$BUCKET_NAME" >> $GITHUB_ENV
 
         echo "Uploading templates to S3 bucket: $BUCKET_NAME"
-        aws s3 cp infrastructure/kms-template.yaml s3://$BUCKET_NAME/ --region ${{ matrix.region }}
-        aws s3 cp infrastructure/global-template.yaml s3://$BUCKET_NAME/ --region ${{ matrix.region }}
-        aws s3 cp infrastructure/regional-vpc.yaml s3://$BUCKET_NAME/ --region ${{ matrix.region }}
-        aws s3 cp infrastructure/regional-db.yaml s3://$BUCKET_NAME/ --region ${{ matrix.region }}
-        aws s3 cp infrastructure/regional-infrastructure.yaml s3://$BUCKET_NAME/ --region ${{ matrix.region }}
-        aws s3 cp infrastructure/master-template.yaml s3://$BUCKET_NAME/ --region ${{ matrix.region }}
-        aws s3 cp src/TaskManager.Api/api-template.yaml s3://$BUCKET_NAME/ --region ${{ matrix.region }}
-        aws s3 cp src/TaskManager.Web2/web-template.yaml s3://$BUCKET_NAME/ --region ${{ matrix.region }}
+        aws s3 cp infrastructure/kms-template.yaml s3://$BUCKET_NAME/$BRANCH_NAME/ --region ${{ matrix.region }}
+        aws s3 cp infrastructure/global-template.yaml s3://$BUCKET_NAME/$BRANCH_NAME/ --region ${{ matrix.region }}
+        aws s3 cp infrastructure/regional-vpc.yaml s3://$BUCKET_NAME/$BRANCH_NAME/ --region ${{ matrix.region }}
+        aws s3 cp infrastructure/regional-db.yaml s3://$BUCKET_NAME/$BRANCH_NAME/ --region ${{ matrix.region }}
+        aws s3 cp infrastructure/regional-infrastructure.yaml s3://$BUCKET_NAME/$BRANCH_NAME/ --region ${{ matrix.region }}
+        aws s3 cp infrastructure/master-template.yaml s3://$BUCKET_NAME/$BRANCH_NAME/ --region ${{ matrix.region }}
+        aws s3 cp src/TaskManager.Api/api-template.yaml s3://$BUCKET_NAME/$BRANCH_NAME/ --region ${{ matrix.region }}
+        aws s3 cp src/TaskManager.Web2/web-template.yaml s3://$BUCKET_NAME/$BRANCH_NAME/ --region ${{ matrix.region }}
 
     - name: Get AWS Account ID
       id: account-id
@@ -379,11 +385,19 @@ jobs:
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: us-east-1
 
+    - name: Get AWS Account ID
+      id: account-id
+      run: |
+        ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+        echo "account-id=$ACCOUNT_ID" >> $GITHUB_OUTPUT
+
     - name: Upload Global DNS template to S3
       run: |
-        echo "Uploading global DNS template to S3..."
-        aws s3 cp infrastructure/global-dns-template.yaml s3://taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-templates-bucket-${{ env.AWS_REGION_PRIMARY }}/ --region ${{ env.AWS_REGION_PRIMARY }}
-        aws s3 cp infrastructure/master-template.yaml s3://taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-templates-bucket-${{ env.AWS_REGION_PRIMARY }}/ --region ${{ env.AWS_REGION_PRIMARY }}
+        BUCKET_NAME="cf-templates-${{ steps.account-id.outputs.account-id }}-${{ env.AWS_REGION_PRIMARY }}"
+        BRANCH_NAME="${{ needs.get-branch-name.outputs.branch-name }}"
+        echo "Uploading global DNS template to S3 bucket: $BUCKET_NAME"
+        aws s3 cp infrastructure/global-dns-template.yaml s3://$BUCKET_NAME/$BRANCH_NAME/ --region ${{ env.AWS_REGION_PRIMARY }}
+        aws s3 cp infrastructure/master-template.yaml s3://$BUCKET_NAME/$BRANCH_NAME/ --region ${{ env.AWS_REGION_PRIMARY }}
 
     - name: Get Load Balancer Details
       id: get-lb-details
