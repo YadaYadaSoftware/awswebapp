@@ -1,6 +1,6 @@
 ---
 AWSTemplateFormatVersion: "2010-09-09"
-Description: "TaskManager Master Infrastructure Template - Includes all regional components"
+Description: "TaskManager Master Infrastructure Template - Includes all regional components and applications"
 
 Parameters:
   # Common parameters
@@ -62,6 +62,35 @@ Parameters:
     Description: Google OAuth Client Secret
     NoEcho: true
 
+  # API parameters
+  ApiCodeBucket:
+    Type: String
+    Description: "S3 bucket name for API Lambda deployment package"
+
+  ApiCodeKey:
+    Type: String
+    Default: "api-lambda-deployment.zip"
+    Description: "S3 key for API Lambda deployment package"
+
+  # Web parameters
+  WebContainerImage:
+    Type: String
+    Description: "Container image URI for the web application"
+
+  DeploymentToken:
+    Type: String
+    Default: "default"
+    Description: "Deployment token to force task definition updates"
+
+  DomainName:
+    Type: String
+    Default: "appcloud.systems"
+    Description: "Domain name for SSL certificate"
+
+  HostedZoneId:
+    Type: String
+    Description: "Route 53 hosted zone ID for the domain"
+
 Conditions:
   IsPrimary: !Equals [!Ref IsPrimaryRegion, "true"]
   IsSecondary: !Equals [!Ref IsPrimaryRegion, "false"]
@@ -119,6 +148,59 @@ Resources:
         GoogleOAuthClientId: !Ref GoogleOAuthClientId
         GoogleOAuthClientSecret: !Ref GoogleOAuthClientSecret
         ApiGatewayCloudWatchLogsRoleArn: !Ref ApiGatewayCloudWatchLogsRoleArn
+
+  # Regional API
+  ApiStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: [InfrastructureStack, DatabaseStack]
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucket}.s3.${AWS::Region}.amazonaws.com/api-template.yaml"
+      Parameters:
+        Environment: !Ref BranchName
+        ApiCodeBucket: !Ref ApiCodeBucket
+        ApiCodeKey: !Ref ApiCodeKey
+        SharedLambdaRoleArn: !Ref SharedLambdaRoleArn
+        DatabaseHost: !GetAtt DatabaseStack.Outputs.DatabaseHost
+        DatabaseUsername: !GetAtt DatabaseStack.Outputs.DatabaseUsername
+        DatabaseEngine: !GetAtt DatabaseStack.Outputs.DatabaseEngine
+        DatabasePort: !GetAtt DatabaseStack.Outputs.DatabasePort
+        DatabaseName: !GetAtt DatabaseStack.Outputs.DatabaseName
+        DatabaseClusterArn: !GetAtt DatabaseStack.Outputs.DatabaseClusterArn
+        LambdaSecurityGroupId: !GetAtt VpcStack.Outputs.LambdaSecurityGroupId
+        PrivateSubnet1Id: !GetAtt VpcStack.Outputs.PrivateSubnet1Id
+        PrivateSubnet2Id: !GetAtt VpcStack.Outputs.PrivateSubnet2Id
+        LogRetentionDays: 7
+
+  # Regional Web
+  WebStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: [InfrastructureStack, DatabaseStack, ApiStack]
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucket}.s3.${AWS::Region}.amazonaws.com/web-template.yaml"
+      Parameters:
+        Environment: !Ref BranchName
+        WebContainerImage: !Ref WebContainerImage
+        DeploymentToken: !Ref DeploymentToken
+        DomainName: !Ref DomainName
+        HostedZoneId: !Ref HostedZoneId
+        SharedLambdaRoleArn: !Ref SharedLambdaRoleArn
+        VPCId: !GetAtt VpcStack.Outputs.VPCId
+        ALBSecurityGroupId: !GetAtt VpcStack.Outputs.ALBSecurityGroupId
+        ECSTaskSecurityGroupId: !GetAtt VpcStack.Outputs.ECSTaskSecurityGroupId
+        PublicSubnet1Id: !GetAtt VpcStack.Outputs.PublicSubnet1Id
+        PublicSubnet2Id: !GetAtt VpcStack.Outputs.PublicSubnet2Id
+        PrivateSubnet1Id: !GetAtt VpcStack.Outputs.PrivateSubnet1Id
+        PrivateSubnet2Id: !GetAtt VpcStack.Outputs.PrivateSubnet2Id
+        ECSClusterName: !GetAtt InfrastructureStack.Outputs.ECSClusterName
+        GoogleOAuthSecretArn: !GetAtt InfrastructureStack.Outputs.GoogleOAuthSecretArn
+        DatabaseHost: !GetAtt DatabaseStack.Outputs.DatabaseHost
+        DatabaseUsername: !GetAtt DatabaseStack.Outputs.DatabaseUsername
+        DatabaseEngine: !GetAtt DatabaseStack.Outputs.DatabaseEngine
+        DatabasePort: !GetAtt DatabaseStack.Outputs.DatabasePort
+        DatabaseName: !GetAtt DatabaseStack.Outputs.DatabaseName
+        DatabaseClusterArn: !GetAtt DatabaseStack.Outputs.DatabaseClusterArn
+        DatabasePasswordSecretArn: !GetAtt DatabaseStack.Outputs.DatabasePasswordSecretArn
+        LogRetentionDays: 7
 
 Outputs:
   # KMS outputs
@@ -221,3 +303,33 @@ Outputs:
   GoogleOAuthSecretArn:
     Description: ARN of the Google OAuth secrets
     Value: !GetAtt InfrastructureStack.Outputs.GoogleOAuthSecretArn
+
+  # API outputs
+  ApiEndpoint:
+    Description: "API Gateway endpoint URL"
+    Value: !GetAtt ApiStack.Outputs.ApiEndpoint
+
+  ApiLambdaFunctionName:
+    Description: "API Lambda function name"
+    Value: !GetAtt ApiStack.Outputs.ApiLambdaFunctionName
+
+  # Web outputs
+  WebEndpoint:
+    Description: "Web application endpoint URL"
+    Value: !GetAtt WebStack.Outputs.WebEndpoint
+
+  WebLoadBalancerDNS:
+    Description: "Web Load Balancer DNS name"
+    Value: !GetAtt WebStack.Outputs.WebLoadBalancerDNS
+
+  WebLoadBalancerHostedZoneId:
+    Description: "Web Load Balancer hosted zone ID"
+    Value: !GetAtt WebStack.Outputs.WebLoadBalancerHostedZoneId
+
+  WebTaskDefinition:
+    Description: "Web ECS task definition"
+    Value: !GetAtt WebStack.Outputs.WebTaskDefinition
+
+  WebServiceName:
+    Description: "Web ECS service name"
+    Value: !GetAtt WebStack.Outputs.WebServiceName
