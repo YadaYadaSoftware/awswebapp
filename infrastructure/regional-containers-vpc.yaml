@@ -13,6 +13,7 @@ Parameters:
   IsPrimaryRegion:
     Type: String
     AllowedValues: ["true", "false"]
+    Default: "false"
     Description: Whether this region is the primary region for the multi-region key
   PrimaryKeyArn:
     Type: String
@@ -20,6 +21,7 @@ Parameters:
     Default: ""
   GitHubActionsUserArn:
     Type: String
+    Default: "arn:aws:iam::123456789012:user/github-actions"
     Description: ARN of the GitHub Actions IAM user
 
 Conditions:
