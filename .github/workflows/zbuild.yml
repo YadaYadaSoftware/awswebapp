@@ -57,7 +57,7 @@ jobs:
       with:
         name: taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-regional-containers-vpc
         template: infrastructure/regional-containers-vpc.yaml
-        parameter-overrides: BranchName=${{ needs.get-branch-name.outputs.branch-name }},VPCFlowLogsRoleArn=${{ needs.deploy-global.outputs.vpc-flow-logs-role-arn }},LogRetentionDays=7
+        parameter-overrides: BranchName=${{ needs.get-branch-name.outputs.branch-name }},LogRetentionDays=7
         no-fail-on-empty-changeset: "1"
         timeout-in-minutes: 10
   build:

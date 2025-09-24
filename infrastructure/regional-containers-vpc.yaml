@@ -6,9 +6,6 @@ Parameters:
   BranchName:
     Type: String
     Description: "Branch name for resource naming"
-  VPCFlowLogsRoleArn:
-    Type: String
-    Description: ARN of the VPC Flow Logs IAM role from global stack
   LogRetentionDays:
     Type: Number
     Default: 7
@@ -362,7 +359,6 @@ Resources:
       ResourceId: !Ref TaskManagerVPC
       ResourceType: VPC
       TrafficType: ALL
-      DeliverLogsPermissionArn: !Ref VPCFlowLogsRoleArn
       LogDestinationType: cloud-watch-logs
       LogGroupName: !Ref VPCFlowLogsLogGroup
       Tags:
