@@ -427,6 +427,7 @@ Resources:
 
   AuroraKmsKeyReplica:
     Type: AWS::KMS::ReplicaKey
+    Condition: IsSecondary
     DeletionPolicy: Retain
     Properties:
       PrimaryKeyArn:
