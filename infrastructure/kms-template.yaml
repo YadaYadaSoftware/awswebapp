@@ -11,9 +11,19 @@ Parameters:
     Type: String
     Description: Branch name for resource naming
 
+  KmsKeyArn:
+    Type: String
+    Description: ARN of the primary KMS key to create a replica from (optional)
+    Default: ""
+
+Conditions:
+  IsPrimaryKey: !Equals [!Ref KmsKeyArn, ""]
+  IsReplicaKey: !Not [!Equals [!Ref KmsKeyArn, ""]]
+
 Resources:
   AuroraKmsKey:
     Type: AWS::KMS::Key
+    Condition: IsPrimaryKey
     DeletionPolicy: Retain
     Properties:
       Description: !Sub "Multi-region KMS key for Aurora Global Database encryption - ${BranchName}"
@@ -72,7 +82,71 @@ Resources:
         - Key: Stack
           Value: !Ref "AWS::StackName"
 
+  AuroraKmsKeyReplica:
+    Type: AWS::KMS::ReplicaKey
+    Condition: IsReplicaKey
+    DeletionPolicy: Retain
+    Properties:
+      Description: !Sub "KMS key replica for Aurora Global Database encryption - ${BranchName}"
+      PrimaryKeyArn: !Ref KmsKeyArn
+      Enabled: true
+      PendingWindowInDays: 7
+      KeyPolicy:
+        Version: 2012-10-17
+        Statement:
+          - Sid: EnableIAMUserPermissions
+            Effect: Allow
+            Principal:
+              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:root"
+            Action: kms:*
+            Resource: "*"
+          - Sid: AllowRDSService
+            Effect: Allow
+            Principal:
+              Service: rds.amazonaws.com
+            Action:
+              - kms:CreateGrant
+              - kms:DescribeKey
+              - kms:Decrypt
+              - kms:Encrypt
+              - kms:GenerateDataKey
+              - kms:ReEncryptFrom
+              - kms:ReEncryptTo
+              - kms:RetireGrant
+            Resource: "*"
+          - Sid: AllowGitHubActionsUser
+            Effect: Allow
+            Principal:
+              AWS: !Ref GitHubActionsUserArn
+            Action:
+              - kms:CreateKey
+              - kms:DescribeKey
+              - kms:CreateGrant
+              - kms:Decrypt
+              - kms:Encrypt
+              - kms:GenerateDataKey
+              - kms:ReEncryptFrom
+              - kms:ReEncryptTo
+              - kms:RetireGrant
+              - kms:CreateAlias
+              - kms:DeleteAlias
+              - kms:UpdateAlias
+              - kms:ListAliases
+              - kms:ListGrants
+              - kms:RevokeGrant
+            Resource: "*"
+      Tags:
+        - Key: LogicalId
+          Value: AuroraKmsKeyReplica
+        - Key: Stack
+          Value: !Ref "AWS::StackName"
+
 Outputs:
   AuroraKmsKeyArn:
-    Description: ARN of the primary KMS key
-    Value: !GetAtt AuroraKmsKey.Arn
+    Description: ARN of the KMS key (primary or replica)
+    Value:
+      !If [
+        IsPrimaryKey,
+        !GetAtt AuroraKmsKey.Arn,
+        !GetAtt AuroraKmsKeyReplica.Arn,
+      ]

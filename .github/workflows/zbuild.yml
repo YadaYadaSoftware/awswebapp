@@ -121,13 +121,13 @@ jobs:
         echo "✅ Retrieved GitHub Actions User ARN: $GITHUB_USER_ARN"
         echo "github-actions-user-arn=$GITHUB_USER_ARN" >> $GITHUB_OUTPUT
 
-    - name: deploy (regional-kms-replica)
+    - name: deploy (kms-template)
       id: deploy-kms-replica
       uses: aws-actions/aws-cloudformation-github-deploy@v1
       with:
         name: taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-regional-kms-replica
-        template: infrastructure/regional-kms-replica.yaml
-        parameter-overrides: PrimaryKeyArn=${{ needs.deploy-kms-primary.outputs.aurora-kms-key-arn }},GitHubActionsUserArn=${{ steps.get-github-user.outputs.github-actions-user-arn }},BranchName=${{ needs.get-branch-name.outputs.branch-name }}
+        template: infrastructure/kms-template.yaml
+        parameter-overrides: KmsKeyArn=${{ needs.deploy-kms-primary.outputs.aurora-kms-key-arn }},GitHubActionsUserArn=${{ steps.get-github-user.outputs.github-actions-user-arn }},BranchName=${{ needs.get-branch-name.outputs.branch-name }}
         no-fail-on-empty-changeset: "1"
         timeout-in-minutes: 10
 
