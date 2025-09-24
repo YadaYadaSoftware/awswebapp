@@ -20,21 +20,102 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString));
 });
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
-builder.Services.AddDefaultIdentity<IdentityUser>(options => options.SignIn.RequireConfirmedAccount = true)
-    .AddEntityFrameworkStores<ApplicationDbContext>();
+builder.Services.AddDefaultIdentity<IdentityUser>(options =>
+{
+    options.SignIn.RequireConfirmedAccount = true;
+})
+.AddEntityFrameworkStores<ApplicationDbContext>();
+
+builder.Services.ConfigureApplicationCookie(options =>
+{
+    options.Events.OnRedirectToLogin = context =>
+    {
+        var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
+        logger.LogInformation("Redirecting to login from {Path}", context.Request.Path);
+        return Task.CompletedTask;
+    };
+
+    options.Events.OnSignedIn = context =>
+    {
+        var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
+        logger.LogInformation("User signed in: {UserName}", context.Principal?.Identity?.Name ?? "Unknown");
+        return Task.CompletedTask;
+    };
+
+    options.Events.OnSigningIn = context =>
+    {
+        var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
+        logger.LogInformation("User signing in: {UserName}", context.Principal?.Identity?.Name ?? "Unknown");
+        return Task.CompletedTask;
+    };
+
+    options.Events.OnSigningOut = context =>
+    {
+        var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
+        logger.LogInformation("User signing out: {UserName}", context.HttpContext.User?.Identity?.Name ?? "Unknown");
+        return Task.CompletedTask;
+    };
+});
 builder.Services.AddRazorPages();
 builder.Services.AddServerSideBlazor();
 builder.Services.AddScoped<AuthenticationStateProvider, RevalidatingIdentityAuthenticationStateProvider<IdentityUser>>();
 builder.Services.AddSingleton<WeatherForecastService>();
 builder.Services.AddHealthChecks();
-var configuration = builder.Configuration;
 builder.Services.AddAuthentication().AddGoogle(googleOptions =>
 {
-    googleOptions.ClientId = configuration["Authentication:Google:ClientId"];
-    googleOptions.ClientSecret = configuration["Authentication:Google:ClientSecret"];
+    googleOptions.ClientId = builder.Configuration["Authentication:Google:ClientId"];
+    googleOptions.ClientSecret = builder.Configuration["Authentication:Google:ClientSecret"];
+
+    googleOptions.Events.OnCreatingTicket = async context =>
+    {
+        var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
+        logger.LogInformation("Google OAuth creating ticket for user: {User}", context.Identity?.Name ?? "Unknown");
+
+        try
+        {
+            // Test database connectivity
+            var dbContext = context.HttpContext.RequestServices.GetRequiredService<ApplicationDbContext>();
+            var canConnect = await dbContext.Database.CanConnectAsync();
+            logger.LogInformation("Database connectivity check: {CanConnect}", canConnect);
+
+            if (!canConnect)
+            {
+                logger.LogError("Database is not accessible during OAuth callback");
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error during database connectivity check in OAuth");
+        }
+
+        await Task.CompletedTask;
+    };
+
+    googleOptions.Events.OnRemoteFailure = context =>
+    {
+        var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
+        logger.LogError(context.Failure, "Google OAuth remote failure");
+        return Task.CompletedTask;
+    };
+
+    googleOptions.Events.OnTicketReceived = context =>
+    {
+        var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
+        logger.LogInformation("Google OAuth ticket received");
+        return Task.CompletedTask;
+    };
 });
 
 var app = builder.Build();
+
+// Log Google OAuth configuration status
+using var scope = app.Services.CreateScope();
+var scopedLogger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+var scopedConfig = scope.ServiceProvider.GetRequiredService<IConfiguration>();
+var clientId = scopedConfig["Authentication:Google:ClientId"];
+var clientSecret = scopedConfig["Authentication:Google:ClientSecret"];
+scopedLogger.LogInformation("Google OAuth ClientId configured: {Configured}", !string.IsNullOrEmpty(clientId));
+scopedLogger.LogInformation("Google OAuth ClientSecret configured: {Configured}", !string.IsNullOrEmpty(clientSecret));
 
 // Apply database migrations on startup in production
 if (!app.Environment.IsDevelopment())
