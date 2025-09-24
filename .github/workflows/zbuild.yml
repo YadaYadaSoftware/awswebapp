@@ -192,6 +192,7 @@ jobs:
        aurora-global-cluster-id: ${{ steps.deploy-global.outputs.AuroraGlobalClusterId }}
        api-gateway-cloudwatch-logs-role-arn: ${{ steps.deploy-global.outputs.ApiGatewayCloudWatchLogsRoleArn }}
        shared-lambda-role-arn: ${{ steps.deploy-global.outputs.SharedLambdaRoleArn }}
+       github-actions-user-arn: ${{ steps.get-github-user.outputs.github-actions-user-arn }}
 
   deploy-infrastructure:
     name: Deploy Infrastructure
@@ -249,26 +250,6 @@ jobs:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: ${{ matrix.region }}
-
-    - name: Get GitHub Actions User ARN
-      id: get-github-user
-      run: |
-        echo "🔍 Retrieving GitHub Actions User ARN from IAM setup stack in us-east-1..."
-
-        # Get the user ARN from the IAM setup stack export
-        GITHUB_USER_ARN=$(aws cloudformation list-exports \
-          --region us-east-1 \
-          --query "Exports[?Name=='TaskManager-GitHubActionsUserArn'].Value" \
-          --output text)
-
-        if [ -z "$GITHUB_USER_ARN" ] || [ "$GITHUB_USER_ARN" = "None" ]; then
-          echo "❌ ERROR: Could not retrieve GitHub Actions User ARN from IAM setup stack"
-          echo "Please ensure the github-actions-iam-setup stack is deployed in us-east-1"
-          exit 1
-        fi
-
-        echo "✅ Retrieved GitHub Actions User ARN: $GITHUB_USER_ARN"
-        echo "github-actions-user-arn=$GITHUB_USER_ARN" >> $GITHUB_OUTPUT
 
     - name: Deploy regional containers
       id: deploy-containers
@@ -374,7 +355,7 @@ jobs:
       with:
         name: taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-${{ matrix.region }}
         template: infrastructure/master-template.yaml
-        parameter-overrides: TemplateBucket=${{ env.BUCKET_NAME }},GitHubActionsUserArn=${{ steps.get-github-user.outputs.github-actions-user-arn }},BranchName=${{ needs.get-branch-name.outputs.branch-name }},DatabasePassword=${{ secrets.DATABASE_PASSWORD }},EngineVersion=${{ env.ENGINE_VERSION }},IsPrimaryRegion=${{ matrix.is_primary }},AuroraGlobalClusterId=${{ needs.deploy-global-infrastructure.outputs.aurora-global-cluster-id }},ApiGatewayCloudWatchLogsRoleArn=${{ needs.deploy-global-infrastructure.outputs.api-gateway-cloudwatch-logs-role-arn }},SharedLambdaRoleArn=${{ needs.deploy-global-infrastructure.outputs.shared-lambda-role-arn }},KmsKeyArn=${{ steps.get-primary-outputs.outputs.kms-key-arn }},GoogleOAuthClientId=${{ secrets.GOOGLE_CLIENT_ID }},GoogleOAuthClientSecret=${{ secrets.GOOGLE_CLIENT_SECRET }},ApiCodeBucket=${{ env.BUCKET_NAME }},ApiCodeKey=api-lambda-deployment.zip,WebContainerImage=${{ env.CONTAINER_IMAGE }},DeploymentToken=${{ github.sha }},DomainName=appcloud.systems,HostedZoneId=Z06422172SASV44F5Y8VA
+        parameter-overrides: TemplateBucket=${{ env.BUCKET_NAME }},GitHubActionsUserArn=${{ needs.deploy-global-infrastructure.outputs.github-actions-user-arn }},BranchName=${{ needs.get-branch-name.outputs.branch-name }},DatabasePassword=${{ secrets.DATABASE_PASSWORD }},EngineVersion=${{ env.ENGINE_VERSION }},IsPrimaryRegion=${{ matrix.is_primary }},AuroraGlobalClusterId=${{ needs.deploy-global-infrastructure.outputs.aurora-global-cluster-id }},ApiGatewayCloudWatchLogsRoleArn=${{ needs.deploy-global-infrastructure.outputs.api-gateway-cloudwatch-logs-role-arn }},SharedLambdaRoleArn=${{ needs.deploy-global-infrastructure.outputs.shared-lambda-role-arn }},KmsKeyArn=${{ steps.get-primary-outputs.outputs.kms-key-arn }},GoogleOAuthClientId=${{ secrets.GOOGLE_CLIENT_ID }},GoogleOAuthClientSecret=${{ secrets.GOOGLE_CLIENT_SECRET }},ApiCodeBucket=${{ env.BUCKET_NAME }},ApiCodeKey=api-lambda-deployment.zip,WebContainerImage=${{ env.CONTAINER_IMAGE }},DeploymentToken=${{ github.sha }},DomainName=appcloud.systems,HostedZoneId=Z06422172SASV44F5Y8VA
         capabilities: "CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND"
         no-fail-on-empty-changeset: "1"
         timeout-in-minutes: 30
