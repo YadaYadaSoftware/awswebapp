@@ -1,6 +1,6 @@
 ---
 AWSTemplateFormatVersion: "2010-09-09"
-Description: "Regional S3 bucket, ECR, VPC, subnets, and security groups setup"
+Description: "Regional VPC, subnets, and security groups setup"
 
 Parameters:
   BranchName:
@@ -12,44 +12,6 @@ Parameters:
     Description: Number of days to retain CloudWatch logs
 
 Resources:
-  RegionalArtifactsBucket:
-    Type: AWS::S3::Bucket
-    Properties:
-      BucketName: !Sub "taskmanager-${BranchName}-templates-bucket-${AWS::Region}"
-      VersioningConfiguration:
-        Status: Enabled
-      PublicAccessBlockConfiguration:
-        BlockPublicAcls: true
-        BlockPublicPolicy: true
-        IgnorePublicAcls: true
-        RestrictPublicBuckets: true
-      Tags:
-        - Key: LogicalId
-          Value: RegionalArtifactsBucket
-        - Key: Name
-          Value: "TaskManager-Templates-Bucket"
-        - Key: Purpose
-          Value: "CloudFormation Templates and Lambda Layers"
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
-
-  WebECRRepository:
-    Type: AWS::ECR::Repository
-    Properties:
-      RepositoryName: !Sub "taskmanager-${BranchName}-web-${AWS::Region}"
-      ImageScanningConfiguration:
-        ScanOnPush: true
-      ImageTagMutability: "MUTABLE"
-      Tags:
-        - Key: LogicalId
-          Value: WebECRRepository
-        - Key: Name
-          Value: "TaskManager-Web-ECR"
-        - Key: Purpose
-          Value: "Container Registry"
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
-
   # VPC and Networking
   TaskManagerVPC:
     Type: AWS::EC2::VPC

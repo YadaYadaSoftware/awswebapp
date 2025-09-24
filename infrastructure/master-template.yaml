@@ -90,7 +90,7 @@ Resources:
   VpcStack:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub "https://${TemplateBucket}.s3.${AWS::Region}.amazonaws.com/regional-containers-vpc.yaml"
+      TemplateURL: !Sub "https://${TemplateBucket}.s3.${AWS::Region}.amazonaws.com/regional-vpc.yaml"
       Parameters:
         BranchName: !Ref BranchName
         LogRetentionDays: 7
