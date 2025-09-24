@@ -72,9 +72,7 @@ jobs:
       with:
         name: taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-kms-primary
         template: infrastructure/kms-template.yaml
-        parameter-overrides: |
-          GitHubActionsUserArn=${{ steps.get-github-user.outputs.github-actions-user-arn }}
-          BranchName=${{ needs.get-branch-name.outputs.branch-name }}
+        parameter-overrides: GitHubActionsUserArn=${{ steps.get-github-user.outputs.github-actions-user-arn }},BranchName=${{ needs.get-branch-name.outputs.branch-name }}
         no-fail-on-empty-changeset: "1"
         timeout-in-minutes: 10
 
