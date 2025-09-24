@@ -32,15 +32,27 @@ Parameters:
     AllowedValues: ["true", "false"]
     Description: Whether this region hosts the primary cluster
 
+  # Parameters for global infrastructure outputs
+  AuroraGlobalClusterId:
+    Type: String
+    Description: ID of the Aurora global cluster
+
+  ApiGatewayCloudWatchLogsRoleArn:
+    Type: String
+    Description: ARN of the API Gateway CloudWatch Logs role
+
+  VpcFlowLogsRoleArn:
+    Type: String
+    Description: ARN of the VPC Flow Logs role
+
+  SharedLambdaRoleArn:
+    Type: String
+    Description: ARN of the shared Lambda role
+
   # Parameters for secondary regions
   KmsKeyArn:
     Type: String
     Description: ARN of the primary KMS key (for secondary regions)
-    Default: ""
-
-  AuroraGlobalClusterId:
-    Type: String
-    Description: ID of the Aurora global cluster (for secondary regions)
     Default: ""
 
   # Google OAuth parameters
@@ -71,19 +83,6 @@ Resources:
         BranchName: !Ref BranchName
         KmsKeyArn: !If [HasKmsKeyArn, !Ref KmsKeyArn, !Ref "AWS::NoValue"]
 
-  # Global Infrastructure (only in primary region)
-  GlobalStack:
-    Type: AWS::CloudFormation::Stack
-    Condition: IsPrimary
-    DependsOn: KmsStack
-    Properties:
-      TemplateURL: !Sub "https://${TemplateBucket}.s3.${AWS::Region}.amazonaws.com/global-template.yaml"
-      Parameters:
-        DatabasePassword: !Ref DatabasePassword
-        EngineVersion: !Ref EngineVersion
-        GitHubActionsUserArn: !Ref GitHubActionsUserArn
-        BranchName: !Ref BranchName
-
   # Regional VPC
   VpcStack:
     Type: AWS::CloudFormation::Stack
@@ -96,18 +95,13 @@ Resources:
   # Regional Database
   DatabaseStack:
     Type: AWS::CloudFormation::Stack
-    DependsOn: [KmsStack, GlobalStack, VpcStack]
+    DependsOn: [KmsStack, VpcStack]
     Properties:
       TemplateURL: !Sub "https://${TemplateBucket}.s3.${AWS::Region}.amazonaws.com/regional-db.yaml"
       Parameters:
         DatabasePassword: !Ref DatabasePassword
         EngineVersion: !Ref EngineVersion
-        AuroraGlobalClusterId:
-          !If [
-            HasGlobalClusterId,
-            !Ref AuroraGlobalClusterId,
-            !GetAtt GlobalStack.Outputs.AuroraGlobalClusterId,
-          ]
+        AuroraGlobalClusterId: !Ref AuroraGlobalClusterId
         AuroraKmsKeyArn: !GetAtt KmsStack.Outputs.AuroraKmsKeyArn
         IsPrimaryRegion: !Ref IsPrimaryRegion
         GitHubActionsUserArn: !Ref GitHubActionsUserArn
@@ -128,12 +122,7 @@ Resources:
         BranchName: !Ref BranchName
         GoogleOAuthClientId: !Ref GoogleOAuthClientId
         GoogleOAuthClientSecret: !Ref GoogleOAuthClientSecret
-        ApiGatewayCloudWatchLogsRoleArn:
-          !If [
-            IsPrimary,
-            !GetAtt GlobalStack.Outputs.ApiGatewayCloudWatchLogsRoleArn,
-            !Ref "AWS::NoValue",
-          ]
+        ApiGatewayCloudWatchLogsRoleArn: !Ref ApiGatewayCloudWatchLogsRoleArn
 
 Outputs:
   # KMS outputs
@@ -141,46 +130,22 @@ Outputs:
     Description: ARN of the KMS key
     Value: !GetAtt KmsStack.Outputs.AuroraKmsKeyArn
 
-  # Global outputs (only for primary region)
+  # Global outputs
   AuroraGlobalClusterId:
     Description: ID of the Aurora global cluster
-    Value:
-      !If [
-        IsPrimary,
-        !GetAtt GlobalStack.Outputs.AuroraGlobalClusterId,
-        !Ref "AWS::NoValue",
-      ]
-    Condition: IsPrimary
+    Value: !Ref AuroraGlobalClusterId
 
   ApiGatewayCloudWatchLogsRoleArn:
     Description: ARN of the API Gateway CloudWatch Logs role
-    Value:
-      !If [
-        IsPrimary,
-        !GetAtt GlobalStack.Outputs.ApiGatewayCloudWatchLogsRoleArn,
-        !Ref "AWS::NoValue",
-      ]
-    Condition: IsPrimary
+    Value: !Ref ApiGatewayCloudWatchLogsRoleArn
 
   VpcFlowLogsRoleArn:
     Description: ARN of the VPC Flow Logs role
-    Value:
-      !If [
-        IsPrimary,
-        !GetAtt GlobalStack.Outputs.VpcFlowLogsRoleArn,
-        !Ref "AWS::NoValue",
-      ]
-    Condition: IsPrimary
+    Value: !Ref VpcFlowLogsRoleArn
 
   SharedLambdaRoleArn:
     Description: ARN of the shared Lambda role
-    Value:
-      !If [
-        IsPrimary,
-        !GetAtt GlobalStack.Outputs.SharedLambdaRoleArn,
-        !Ref "AWS::NoValue",
-      ]
-    Condition: IsPrimary
+    Value: !Ref SharedLambdaRoleArn
 
   # Database outputs
   DatabaseEndpoint:

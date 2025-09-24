@@ -122,10 +122,82 @@ jobs:
 
 
 
+  deploy-global-infrastructure:
+    name: Deploy Global Infrastructure
+    runs-on: ubuntu-latest
+    needs: [build, get-branch-name]
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: us-east-1
+
+    - name: Get GitHub Actions User ARN
+      id: get-github-user
+      run: |
+        echo "🔍 Retrieving GitHub Actions User ARN from IAM setup stack..."
+
+        # Get the user ARN from the IAM setup stack export
+        GITHUB_USER_ARN=$(aws cloudformation list-exports \
+          --region us-east-1 \
+          --query "Exports[?Name=='TaskManager-GitHubActionsUserArn'].Value" \
+          --output text)
+
+        if [ -z "$GITHUB_USER_ARN" ] || [ "$GITHUB_USER_ARN" = "None" ]; then
+          echo "❌ ERROR: Could not retrieve GitHub Actions User ARN from IAM setup stack"
+          echo "Please ensure the github-actions-iam-setup stack is deployed in us-east-1"
+          exit 1
+        fi
+
+        echo "✅ Retrieved GitHub Actions User ARN: $GITHUB_USER_ARN"
+        echo "github-actions-user-arn=$GITHUB_USER_ARN" >> $GITHUB_OUTPUT
+
+    - name: Deploy regional containers
+      id: deploy-containers
+      uses: aws-actions/aws-cloudformation-github-deploy@v1
+      with:
+        name: taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-regional-containers-us-east-1
+        template: infrastructure/regional-containers.yaml
+        parameter-overrides: BranchName=${{ needs.get-branch-name.outputs.branch-name }}
+        no-fail-on-empty-changeset: "1"
+        timeout-in-minutes: 10
+
+    - name: Upload global template to S3
+      run: |
+        echo "Getting templates bucket from containers stack..."
+        BUCKET_NAME=$(aws cloudformation describe-stacks --stack-name taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-regional-containers-us-east-1 --region us-east-1 --query 'Stacks[0].Outputs[?OutputKey==`TemplatesBucket`].OutputValue' --output text)
+        echo "BUCKET_NAME=$BUCKET_NAME" >> $GITHUB_ENV
+
+        echo "Uploading global template to S3 bucket: $BUCKET_NAME"
+        aws s3 cp infrastructure/global-template.yaml s3://$BUCKET_NAME/ --region us-east-1
+
+    - name: Deploy global infrastructure
+      id: deploy-global
+      uses: aws-actions/aws-cloudformation-github-deploy@v1
+      with:
+        name: taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-global-infrastructure
+        template: infrastructure/global-template.yaml
+        parameter-overrides: DatabasePassword=${{ secrets.DATABASE_PASSWORD }},EngineVersion=${{ env.ENGINE_VERSION }},GitHubActionsUserArn=${{ steps.get-github-user.outputs.github-actions-user-arn }},BranchName=${{ needs.get-branch-name.outputs.branch-name }}
+        capabilities: "CAPABILITY_NAMED_IAM"
+        no-fail-on-empty-changeset: "1"
+        timeout-in-minutes: 20
+    outputs:
+      aurora-global-cluster-id: ${{ steps.deploy-global.outputs.AuroraGlobalClusterId }}
+      api-gateway-cloudwatch-logs-role-arn: ${{ steps.deploy-global.outputs.ApiGatewayCloudWatchLogsRoleArn }}
+      vpc-flow-logs-role-arn: ${{ steps.deploy-global.outputs.VpcFlowLogsRoleArn }}
+      shared-lambda-role-arn: ${{ steps.deploy-global.outputs.SharedLambdaRoleArn }}
+
   deploy-infrastructure:
     name: Deploy Infrastructure
     runs-on: ubuntu-latest
-    needs: [build, get-branch-name]
+    needs: [build, get-branch-name, deploy-global-infrastructure]
     concurrency:
       group: deploy-infrastructure-${{ matrix.region }}-${{ needs.get-branch-name.outputs.branch-name }}
       cancel-in-progress: false
@@ -224,7 +296,7 @@ jobs:
       if: matrix.is_primary == 'false'
       run: |
         echo "Getting outputs from primary region stack..."
-        PRIMARY_STACK_NAME="taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-infrastructure-us-east-1"
+        PRIMARY_STACK_NAME="taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-us-east-1"
         KMS_KEY_ARN=$(aws cloudformation describe-stacks --stack-name $PRIMARY_STACK_NAME --region us-east-1 --query 'Stacks[0].Outputs[?OutputKey==`AuroraKmsKeyArn`].OutputValue' --output text)
         GLOBAL_CLUSTER_ID=$(aws cloudformation describe-stacks --stack-name $PRIMARY_STACK_NAME --region us-east-1 --query 'Stacks[0].Outputs[?OutputKey==`AuroraGlobalClusterId`].OutputValue' --output text)
         echo "kms-key-arn=$KMS_KEY_ARN" >> $GITHUB_OUTPUT
@@ -234,9 +306,9 @@ jobs:
       id: deploy-master
       uses: aws-actions/aws-cloudformation-github-deploy@v1
       with:
-        name: taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-infrastructure-${{ matrix.region }}
+        name: taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-${{ matrix.region }}
         template: infrastructure/master-template.yaml
-        parameter-overrides: TemplateBucket=${{ env.BUCKET_NAME }},GitHubActionsUserArn=${{ steps.get-github-user.outputs.github-actions-user-arn }},BranchName=${{ needs.get-branch-name.outputs.branch-name }},DatabasePassword=${{ secrets.DATABASE_PASSWORD }},EngineVersion=${{ env.ENGINE_VERSION }},IsPrimaryRegion=${{ matrix.is_primary }},KmsKeyArn=${{ steps.get-primary-outputs.outputs.kms-key-arn }},AuroraGlobalClusterId=${{ steps.get-primary-outputs.outputs.global-cluster-id }},GoogleOAuthClientId=${{ secrets.GOOGLE_CLIENT_ID }},GoogleOAuthClientSecret=${{ secrets.GOOGLE_CLIENT_SECRET }}
+        parameter-overrides: TemplateBucket=${{ env.BUCKET_NAME }},GitHubActionsUserArn=${{ steps.get-github-user.outputs.github-actions-user-arn }},BranchName=${{ needs.get-branch-name.outputs.branch-name }},DatabasePassword=${{ secrets.DATABASE_PASSWORD }},EngineVersion=${{ env.ENGINE_VERSION }},IsPrimaryRegion=${{ matrix.is_primary }},AuroraGlobalClusterId=${{ needs.deploy-global-infrastructure.outputs.aurora-global-cluster-id }},ApiGatewayCloudWatchLogsRoleArn=${{ needs.deploy-global-infrastructure.outputs.api-gateway-cloudwatch-logs-role-arn }},VpcFlowLogsRoleArn=${{ needs.deploy-global-infrastructure.outputs.vpc-flow-logs-role-arn }},SharedLambdaRoleArn=${{ needs.deploy-global-infrastructure.outputs.shared-lambda-role-arn }},KmsKeyArn=${{ steps.get-primary-outputs.outputs.kms-key-arn }},GoogleOAuthClientId=${{ secrets.GOOGLE_CLIENT_ID }},GoogleOAuthClientSecret=${{ secrets.GOOGLE_CLIENT_SECRET }}
         capabilities: "CAPABILITY_NAMED_IAM"
         no-fail-on-empty-changeset: "1"
         timeout-in-minutes: 30
@@ -298,7 +370,7 @@ jobs:
       id: get-infrastructure-outputs
       run: |
         echo "Getting infrastructure stack outputs..."
-        STACK_NAME="taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-infrastructure-${{ matrix.region }}"
+        STACK_NAME="taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-${{ matrix.region }}"
 
         VPC_ID=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`VpcId`].OutputValue' --output text)
         PRIVATE_SUBNET_1=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`PrivateSubnet1Id`].OutputValue' --output text)
