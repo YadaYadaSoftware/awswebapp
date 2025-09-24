@@ -11,8 +11,8 @@ Parameters:
     Default: 7
     Description: Number of days to retain CloudWatch logs
   IsPrimaryRegion:
-   Type: String
-   AllowedValues: ["true", "false"]
+    Type: String
+    AllowedValues: ["true", "false"]
     Description: Whether this region is the primary region for the multi-region key
   PrimaryKeyArn:
     Type: String
@@ -67,7 +67,6 @@ Resources:
 
   # VPC and Networking
   TaskManagerVPC:
-    DependsOn: VPCFlowLogsLogGroup
     Type: AWS::EC2::VPC
     Properties:
       CidrBlock: 10.0.0.0/16
@@ -84,7 +83,6 @@ Resources:
           Value: !Ref "AWS::StackName"
 
   InternetGateway:
-    DependsOn: VPCFlowLogsLogGroup
     Type: AWS::EC2::InternetGateway
     Properties:
       Tags:
@@ -96,7 +94,6 @@ Resources:
           Value: !Ref "AWS::StackName"
 
   AttachGateway:
-    DependsOn: VPCFlowLogsLogGroup
     Type: AWS::EC2::VPCGatewayAttachment
     Properties:
       VpcId: !Ref TaskManagerVPC
@@ -104,7 +101,6 @@ Resources:
 
   # Public Subnets for NAT Gateway
   PublicSubnet1:
-    DependsOn: VPCFlowLogsLogGroup
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref TaskManagerVPC
@@ -120,7 +116,6 @@ Resources:
           Value: !Ref "AWS::StackName"
 
   PublicSubnet2:
-    DependsOn: VPCFlowLogsLogGroup
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref TaskManagerVPC
@@ -137,7 +132,6 @@ Resources:
 
   # Private Subnets for Lambda and RDS
   PrivateSubnet1:
-    DependsOn: VPCFlowLogsLogGroup
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref TaskManagerVPC
@@ -152,7 +146,6 @@ Resources:
           Value: !Ref "AWS::StackName"
 
   PrivateSubnet2:
-    DependsOn: VPCFlowLogsLogGroup
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref TaskManagerVPC
@@ -168,7 +161,6 @@ Resources:
 
   # NAT Gateway for private subnet internet access
   NATGateway1EIP:
-    DependsOn: VPCFlowLogsLogGroup
     Type: AWS::EC2::EIP
     DependsOn: AttachGateway
     Properties:
@@ -180,7 +172,6 @@ Resources:
           Value: !Ref "AWS::StackName"
 
   NATGateway1:
-    DependsOn: VPCFlowLogsLogGroup
     Type: AWS::EC2::NatGateway
     Properties:
       AllocationId: !GetAtt NATGateway1EIP.AllocationId
@@ -193,7 +184,6 @@ Resources:
 
   # Route Tables
   PublicRouteTable:
-    DependsOn: VPCFlowLogsLogGroup
     Type: AWS::EC2::RouteTable
     Properties:
       VpcId: !Ref TaskManagerVPC
@@ -206,7 +196,6 @@ Resources:
           Value: !Ref "AWS::StackName"
 
   DefaultPublicRoute:
-    DependsOn: VPCFlowLogsLogGroup
     Type: AWS::EC2::Route
     DependsOn: AttachGateway
     Properties:
@@ -215,21 +204,18 @@ Resources:
       GatewayId: !Ref InternetGateway
 
   PublicSubnet1RouteTableAssociation:
-    DependsOn: VPCFlowLogsLogGroup
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
       RouteTableId: !Ref PublicRouteTable
       SubnetId: !Ref PublicSubnet1
 
   PublicSubnet2RouteTableAssociation:
-    DependsOn: VPCFlowLogsLogGroup
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
       RouteTableId: !Ref PublicRouteTable
       SubnetId: !Ref PublicSubnet2
 
   PrivateRouteTable:
-    DependsOn: VPCFlowLogsLogGroup
     Type: AWS::EC2::RouteTable
     Properties:
       VpcId: !Ref TaskManagerVPC
@@ -242,7 +228,6 @@ Resources:
           Value: !Ref "AWS::StackName"
 
   DefaultPrivateRoute:
-    DependsOn: VPCFlowLogsLogGroup
     Type: AWS::EC2::Route
     Properties:
       RouteTableId: !Ref PrivateRouteTable
@@ -250,14 +235,12 @@ Resources:
       NatGatewayId: !Ref NATGateway1
 
   PrivateSubnet1RouteTableAssociation:
-    DependsOn: VPCFlowLogsLogGroup
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
       RouteTableId: !Ref PrivateRouteTable
       SubnetId: !Ref PrivateSubnet1
 
   PrivateSubnet2RouteTableAssociation:
-    DependsOn: VPCFlowLogsLogGroup
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
       RouteTableId: !Ref PrivateRouteTable
@@ -265,7 +248,6 @@ Resources:
 
   # Security Groups
   LambdaSecurityGroup:
-    DependsOn: VPCFlowLogsLogGroup
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Security group for Lambda functions
@@ -282,7 +264,6 @@ Resources:
           Value: !Ref "AWS::StackName"
 
   ECSTaskSecurityGroup:
-    DependsOn: VPCFlowLogsLogGroup
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Security group for ECS tasks
@@ -305,7 +286,6 @@ Resources:
           Value: !Ref "AWS::StackName"
 
   ALBSecurityGroup:
-    DependsOn: VPCFlowLogsLogGroup
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Security group for Application Load Balancer
@@ -333,7 +313,6 @@ Resources:
           Value: !Ref "AWS::StackName"
 
   RDSSecurityGroup:
-    DependsOn: VPCFlowLogsLogGroup
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Security group for Aurora MySQL Serverless
