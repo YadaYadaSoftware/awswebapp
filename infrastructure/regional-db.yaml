@@ -207,6 +207,20 @@ Resources:
         - Key: Stack
           Value: !Ref "AWS::StackName"
 
+  AuroraGlobalCluster:
+    Condition: IsPrimary
+    Type: AWS::RDS::GlobalCluster
+    Properties:
+      GlobalClusterIdentifier: !Sub taskmanager-${BranchName}-global-cluster
+      Engine: aurora-mysql
+      EngineVersion: !Ref EngineVersion
+      DeletionProtection: false
+      StorageEncrypted: true
+      Tags:
+        - Key: LogicalId
+          Value: AuroraGlobalCluster
+        - Key: Stack
+          Value: !Ref "AWS::StackName"
   # Database Password Secret (only password remains sensitive)
   DatabasePasswordSecret:
     Type: AWS::SecretsManager::Secret
@@ -260,3 +274,8 @@ Outputs:
   DatabasePasswordSecretArn:
     Description: Database password secret ARN
     Value: !Ref DatabasePasswordSecret
+
+  AuroraGlobalClusterId:
+    Condition: IsPrimary
+    Description: Aurora Global Database cluster identifier
+    Value: !Ref AuroraGlobalCluster
