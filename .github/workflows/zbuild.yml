@@ -7,8 +7,8 @@ on:
   pull_request:
 
 env:
-  AWS_REGION_SECONDARY: us-west-1
-  AWS_REGION_PRIMARY: us-east-2
+  AWS_REGION_SECONDARY: us-west-2
+  AWS_REGION_PRIMARY: us-east-1
   ENGINE_VERSION: 8.0.mysql_aurora.3.10.0
 
 jobs:
@@ -33,11 +33,11 @@ jobs:
       cancel-in-progress: false
     strategy:
       matrix:
-        region: [us-east-2, us-west-1]  # Primary region first
+        region: [us-east-1, us-west-2]  # Primary region first
         include:
-          - region: us-east-2
+          - region: us-east-1
             is_primary: "true"
-          - region: us-west-1
+          - region: us-west-2
             is_primary: "false"
     steps:
     - name: Checkout code
@@ -226,11 +226,11 @@ jobs:
     strategy:
       max-parallel: 1
       matrix:
-        region: [us-east-2, us-west-1]  # Primary region first
+        region: [us-east-1, us-west-2]  # Primary region first
         include:
-          - region: us-east-2
+          - region: us-east-1
             is_primary: "true"
-          - region: us-west-1
+          - region: us-west-2
             is_primary: "false"
     outputs:
       db-endpoint: ${{ steps.deploy-regional-db.outputs.DatabaseEndpoint }}
@@ -316,11 +316,11 @@ jobs:
       cancel-in-progress: false
     strategy:
       matrix:
-        region: [us-east-2, us-west-1]  # Primary region first
+        region: [us-east-1, us-west-2]  # Primary region first
         include:
-          - region: us-east-2
+          - region: us-east-1
             is_primary: "true"
-          - region: us-west-1
+          - region: us-west-2
             is_primary: "false"
     outputs:
       ecs-cluster-name: ${{ steps.deploy-regional.outputs.ECSClusterName }}
