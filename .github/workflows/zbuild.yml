@@ -127,10 +127,7 @@ jobs:
       with:
         name: taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-regional-kms-replica
         template: infrastructure/regional-kms-replica.yaml
-        parameter-overrides: |
-          PrimaryKeyArn=${{ needs.deploy-kms-primary.outputs.aurora-kms-key-arn }}
-          GitHubActionsUserArn=${{ steps.get-github-user.outputs.github-actions-user-arn }}
-          BranchName=${{ needs.get-branch-name.outputs.branch-name }}
+        parameter-overrides: PrimaryKeyArn=${{ needs.deploy-kms-primary.outputs.aurora-kms-key-arn }},GitHubActionsUserArn=${{ steps.get-github-user.outputs.github-actions-user-arn }},BranchName=${{ needs.get-branch-name.outputs.branch-name }}
         no-fail-on-empty-changeset: "1"
         timeout-in-minutes: 10
 
@@ -162,9 +159,7 @@ jobs:
       with:
         name: taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-regional-containers-vpc
         template: infrastructure/regional-containers-vpc.yaml
-        parameter-overrides: |
-          BranchName=${{ needs.get-branch-name.outputs.branch-name }}
-          LogRetentionDays=7
+        parameter-overrides: BranchName=${{ needs.get-branch-name.outputs.branch-name }},LogRetentionDays=7
         no-fail-on-empty-changeset: "1"
         timeout-in-minutes: 10
   build:
@@ -397,19 +392,7 @@ jobs:
       with:
         name: ${{ env.REGIONAL_DB_STACK_NAME }}
         template: infrastructure/regional-db.yaml
-        parameter-overrides: |
-          BranchName=${{ needs.get-branch-name.outputs.branch-name }}
-          DatabasePassword=${{ secrets.DATABASE_PASSWORD }}
-          EngineVersion=${{ env.ENGINE_VERSION }}
-          AuroraGlobalClusterId=${{ needs.deploy-global.outputs.aurora-global-cluster-id }}
-          AuroraKmsKeyArn=${{ matrix.region == 'us-east-1' && needs.deploy-kms-replicas.outputs['us-east-1'].aurora-kms-key-arn || needs.deploy-kms-replicas.outputs['us-west-2'].aurora-kms-key-arn }}
-          IsPrimaryRegion=${{ matrix.is_primary }}
-          GitHubActionsUserArn=${{ needs.deploy-global.outputs.github-actions-user-arn }}
-          VPCId=${{ steps.get-vpc-outputs.outputs.vpc-id }}
-          PrivateSubnet1Id=${{ steps.get-vpc-outputs.outputs.private-subnet-1 }}
-          PrivateSubnet2Id=${{ steps.get-vpc-outputs.outputs.private-subnet-2 }}
-          RDSSecurityGroupId=${{ steps.get-vpc-outputs.outputs.rds-sg }}
-          LogRetentionDays=7
+        parameter-overrides: BranchName=${{ needs.get-branch-name.outputs.branch-name }},DatabasePassword=${{ secrets.DATABASE_PASSWORD }},EngineVersion=${{ env.ENGINE_VERSION }},AuroraGlobalClusterId=${{ needs.deploy-global.outputs.aurora-global-cluster-id }},AuroraKmsKeyArn=${{ matrix.region == 'us-east-1' && needs.deploy-kms-replicas.outputs['us-east-1'].aurora-kms-key-arn || needs.deploy-kms-replicas.outputs['us-west-2'].aurora-kms-key-arn }},IsPrimaryRegion=${{ matrix.is_primary }},GitHubActionsUserArn=${{ needs.deploy-global.outputs.github-actions-user-arn }},VPCId=${{ steps.get-vpc-outputs.outputs.vpc-id }},PrivateSubnet1Id=${{ steps.get-vpc-outputs.outputs.private-subnet-1 }},PrivateSubnet2Id=${{ steps.get-vpc-outputs.outputs.private-subnet-2 }},RDSSecurityGroupId=${{ steps.get-vpc-outputs.outputs.rds-sg }},LogRetentionDays=7
         capabilities: "CAPABILITY_NAMED_IAM"
         no-fail-on-empty-changeset: "1"
         timeout-in-minutes: 30
