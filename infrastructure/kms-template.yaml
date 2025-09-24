@@ -130,6 +130,24 @@ Resources:
               - kms:DescribeKey
               - kms:CreateGrant
               - kms:Decrypt
+              - kms:Encrypt
+              - kms:GenerateDataKey
+              - kms:ReEncryptFrom
+              - kms:ReEncryptTo
+              - kms:RetireGrant
+              - kms:CreateAlias
+              - kms:DeleteAlias
+              - kms:UpdateAlias
+              - kms:ListAliases
+              - kms:ListGrants
+              - kms:RevokeGrant
+            Resource: "*"
+      Tags:
+        - Key: LogicalId
+          Value: AuroraKmsKeyReplica
+        - Key: Stack
+          Value: !Ref "AWS::StackName"
+
   SharedLambdaExecutionRole:
     Condition: IsPrimary
     Type: AWS::IAM::Role
@@ -271,24 +289,6 @@ Resources:
           Value: ApiGatewayCloudWatchLogsRole
         - Key: Stack
           Value: !Ref "AWS::StackName"
-              - kms:Encrypt
-              - kms:GenerateDataKey
-              - kms:ReEncryptFrom
-              - kms:ReEncryptTo
-              - kms:RetireGrant
-              - kms:CreateAlias
-              - kms:DeleteAlias
-              - kms:UpdateAlias
-              - kms:ListAliases
-              - kms:ListGrants
-              - kms:RevokeGrant
-            Resource: "*"
-      Tags:
-        - Key: LogicalId
-          Value: AuroraKmsKeyReplica
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
-
 Outputs:
   AuroraKmsKeyArn:
     Description: ARN of the KMS key (primary or replica)
