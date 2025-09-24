@@ -234,6 +234,12 @@ jobs:
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: ${{ matrix.region }}
 
+    - name: Get AWS Account ID
+      id: account-id
+      run: |
+        ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+        echo "AWS Account ID: $ACCOUNT_ID"
+        echo "account-id=$ACCOUNT_ID" >> $GITHUB_OUTPUT
     - name: Upload templates to S3
       run: |
         BUCKET_NAME="cf-templates-${{ steps.account-id.outputs.account-id }}-${{ matrix.region }}"
@@ -249,14 +255,6 @@ jobs:
         aws s3 cp infrastructure/master-template.yaml s3://$BUCKET_NAME/$BRANCH_NAME/ --region ${{ matrix.region }}
         aws s3 cp src/TaskManager.Api/api-template.yaml s3://$BUCKET_NAME/$BRANCH_NAME/ --region ${{ matrix.region }}
         aws s3 cp src/TaskManager.Web2/web-template.yaml s3://$BUCKET_NAME/$BRANCH_NAME/ --region ${{ matrix.region }}
-
-    - name: Get AWS Account ID
-      id: account-id
-      run: |
-        ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-        echo "AWS Account ID: $ACCOUNT_ID"
-        echo "account-id=$ACCOUNT_ID" >> $GITHUB_OUTPUT
-
     - name: Build and Push Web Container Image
       env:
         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
