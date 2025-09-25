@@ -38,16 +38,6 @@ Parameters:
     Default: ""
     Description: ID of the Aurora global cluster
 
-  ApiGatewayCloudWatchLogsRoleArn:
-    Type: String
-    Default: ""
-    Description: ARN of the API Gateway CloudWatch Logs role
-
-  SharedLambdaRoleArn:
-    Type: String
-    Default: ""
-    Description: ARN of the shared Lambda role
-
   # Parameters for secondary regions
   KmsKeyArn:
     Type: String
@@ -89,7 +79,6 @@ Conditions:
   IsSecondary: !Equals [!Ref IsPrimaryRegion, "false"]
   HasKmsKeyArn: !Not [!Equals [!Ref KmsKeyArn, ""]]
   HasGlobalClusterId: !Not [!Equals [!Ref AuroraGlobalClusterId, ""]]
-  HasSharedLambdaRoleArn: !Not [!Equals [!Ref SharedLambdaRoleArn, ""]]
 
 Resources:
   # KMS Key (Primary or Replica)
@@ -102,7 +91,6 @@ Resources:
         BranchName: !Ref BranchName
         KmsKeyArn: !If [HasKmsKeyArn, !Ref KmsKeyArn, !Ref "AWS::NoValue"]
         IsPrimaryRegion: !Ref IsPrimaryRegion
-        ApiGatewayCloudWatchLogsRoleArn: !Ref ApiGatewayCloudWatchLogsRoleArn
 
   # Regional VPC
   NetworkingStack:
@@ -143,7 +131,7 @@ Resources:
         BranchName: !Ref BranchName
         GoogleOAuthClientId: !Ref GoogleOAuthClientId
         GoogleOAuthClientSecret: !Ref GoogleOAuthClientSecret
-        ApiGatewayCloudWatchLogsRoleArn: !Ref ApiGatewayCloudWatchLogsRoleArn
+        ApiGatewayCloudWatchLogsRoleArn: !GetAtt SecurityStack.Outputs.ApiGatewayCloudWatchLogsRoleArn
 
   # Regional API
   ApiStack:
@@ -153,12 +141,7 @@ Resources:
       TemplateURL: ./api.template
       Parameters:
         Environment: !Ref BranchName
-        SharedLambdaRoleArn:
-          !If [
-            HasSharedLambdaRoleArn,
-            !Ref SharedLambdaRoleArn,
-            !GetAtt SecurityStack.Outputs.SharedLambdaRoleArn,
-          ]
+        SharedLambdaRoleArn: !GetAtt SecurityStack.Outputs.SharedLambdaRoleArn
         DatabaseHost: !GetAtt DbStack.Outputs.DatabaseHost
         DatabaseUsername: !GetAtt DbStack.Outputs.DatabaseUsername
         DatabaseEngine: !GetAtt DbStack.Outputs.DatabaseEngine
@@ -182,12 +165,7 @@ Resources:
         DeploymentToken: !Ref DeploymentToken
         DomainName: !Ref DomainName
         HostedZoneId: !Ref HostedZoneId
-        SharedLambdaRoleArn:
-          !If [
-            HasSharedLambdaRoleArn,
-            !Ref SharedLambdaRoleArn,
-            !GetAtt SecurityStack.Outputs.SharedLambdaRoleArn,
-          ]
+        SharedLambdaRoleArn: !GetAtt SecurityStack.Outputs.SharedLambdaRoleArn
         VPCId: !GetAtt NetworkingStack.Outputs.VPCId
         ALBSecurityGroupId: !GetAtt NetworkingStack.Outputs.ALBSecurityGroupId
         ECSTaskSecurityGroupId: !GetAtt NetworkingStack.Outputs.ECSTaskSecurityGroupId
@@ -228,7 +206,7 @@ Outputs:
 
   SharedLambdaRoleArn:
     Description: ARN of the shared Lambda role
-    Value: !Ref SharedLambdaRoleArn
+    Value: !GetAtt SecurityStack.Outputs.SharedLambdaRoleArn
 
   # Database outputs
   DatabaseEndpoint:

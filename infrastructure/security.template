@@ -149,10 +149,9 @@ Resources:
           Value: !Ref "AWS::StackName"
 
   SharedLambdaExecutionRole:
-    Condition: IsPrimary
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub TaskManager-Shared-Lambda-Role-${BranchName}
+      RoleName: !Sub TaskManager-Shared-Lambda-Role-${BranchName}-${AWS::Region}
       AssumeRolePolicyDocument:
         Version: 2012-10-17
         Statement:
@@ -305,7 +304,6 @@ Outputs:
       ]
 
   SharedLambdaRoleArn:
-    Condition: IsPrimary
     Description: Shared Lambda execution role ARN
     Value: !GetAtt SharedLambdaExecutionRole.Arn
 
