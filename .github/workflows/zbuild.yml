@@ -221,7 +221,7 @@ jobs:
 
         # Upload the packaged template as master-template.yaml for compatibility
         aws s3 cp packaged-master-template.yaml s3://$BUCKET_NAME/$BRANCH_NAME/master-template.yaml --region ${{ matrix.region }}
-        TEMPLATE_VERSION_ID=$(aws s3api get-object --bucket $BUCKET_NAME --key $BRANCH_NAME/master-template.yaml --query VersionId --output text)
+        TEMPLATE_VERSION_ID=$(aws s3api head-object --bucket $BUCKET_NAME --key $BRANCH_NAME/master-template.yaml --query VersionId --output text)
         echo "TEMPLATE_VERSION_ID=$TEMPLATE_VERSION_ID" >> $GITHUB_ENV
     - name: Build and Push Web Container Image
       env:
@@ -337,7 +337,7 @@ jobs:
         BRANCH_NAME="${{ needs.get-branch-name.outputs.branch-name }}"
         echo "Uploading global DNS template to S3 bucket: $BUCKET_NAME"
         aws s3 cp infrastructure/dns.template s3://$BUCKET_NAME/$BRANCH_NAME/ --region ${{ env.AWS_REGION_PRIMARY }}
-        DNS_TEMPLATE_VERSION_ID=$(aws s3api get-object --bucket $BUCKET_NAME --key $BRANCH_NAME/dns.template --query VersionId --output text)
+        DNS_TEMPLATE_VERSION_ID=$(aws s3api head-object --bucket $BUCKET_NAME --key $BRANCH_NAME/dns.template --query VersionId --output text)
         echo "DNS_TEMPLATE_VERSION_ID=$DNS_TEMPLATE_VERSION_ID" >> $GITHUB_ENV
 
     - name: Get Load Balancer Details
