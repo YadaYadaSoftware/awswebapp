@@ -80,26 +80,13 @@ jobs:
     - name: Test
       run: dotnet test --no-build --verbosity normal --configuration Release
 
-    - name: Publish API for Lambda
-      run: |
-        echo "Publishing API with version: ${{ steps.gitversion.outputs.semVer }}"
-        dotnet publish src/TaskManager.Api/TaskManager.Api.csproj --configuration Release --output ./publish/api --runtime linux-x64 --self-contained false /p:Version=${{ steps.gitversion.outputs.semVer }} /p:AssemblyVersion=${{ steps.gitversion.outputs.assemblySemVer }}
 
     - name: Publish Web for Container
       run: |
         echo "Publishing Web with version: ${{ steps.gitversion.outputs.semVer }}"
         dotnet publish src/TaskManager.Web2/TaskManager.Web2.csproj --configuration Release --output ./publish/web --runtime linux-x64 --self-contained false /p:Version=${{ steps.gitversion.outputs.semVer }} /p:AssemblyVersion=${{ steps.gitversion.outputs.assemblySemVer }}
 
-    - name: Create API Lambda deployment package
-      run: |
-        cd ./publish/api
-        zip -r ../../api-lambda-deployment.zip .
 
-    - name: Upload API Lambda package
-      uses: actions/upload-artifact@v4
-      with:
-        name: api-lambda-package
-        path: api-lambda-deployment.zip
 
     - name: Create MySQL Lambda Layer
       run: |
@@ -203,6 +190,10 @@ jobs:
       with:
         fetch-depth: 0
 
+    - name: Install SAM CLI
+      run: |
+        pip install aws-sam-cli
+
     - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v4
       with:
@@ -216,14 +207,17 @@ jobs:
         ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
         echo "AWS Account ID: $ACCOUNT_ID"
         echo "account-id=$ACCOUNT_ID" >> $GITHUB_OUTPUT
-    - name: Package and upload master template
+
+
+    - name: Build and package master template
       run: |
         BUCKET_NAME="cf-templates-${{ steps.account-id.outputs.account-id }}-${{ matrix.region }}"
         BRANCH_NAME="${{ needs.get-branch-name.outputs.branch-name }}"
         echo "BUCKET_NAME=$BUCKET_NAME" >> $GITHUB_ENV
 
-        echo "Packaging and uploading master template to S3 bucket: $BUCKET_NAME"
-        aws cloudformation package --template-file infrastructure/master-template.yaml --s3-bucket $BUCKET_NAME --s3-prefix $BRANCH_NAME --output-template-file packaged-master-template.yaml --region ${{ matrix.region }}
+        echo "Building and packaging master template to S3 bucket: $BUCKET_NAME"
+        sam build --template infrastructure/master-template.yaml --region ${{ matrix.region }}
+        sam package --template-file .aws-sam/build/template.yaml --s3-bucket $BUCKET_NAME --s3-prefix $BRANCH_NAME --output-template-file packaged-master-template.yaml --region ${{ matrix.region }}
 
         # Upload the packaged template as master-template.yaml for compatibility
         aws s3 cp packaged-master-template.yaml s3://$BUCKET_NAME/$BRANCH_NAME/master-template.yaml --region ${{ matrix.region }}
@@ -272,16 +266,6 @@ jobs:
         CONTAINER_IMAGE=$ECR_REPO:$IMAGE_TAG
         echo "CONTAINER_IMAGE=$CONTAINER_IMAGE" >> $GITHUB_ENV
 
-    - name: Download Lambda packages
-      uses: actions/download-artifact@v4
-      with:
-        name: api-lambda-package
-        path: ./artifacts/
-
-    - name: Upload API Lambda package to S3
-      run: |
-        BRANCH_NAME="${{ needs.get-branch-name.outputs.branch-name }}"
-        aws s3 cp ./artifacts/api-lambda-deployment.zip s3://${{ env.BUCKET_NAME }}/$BRANCH_NAME/api-lambda-deployment.zip --region ${{ matrix.region }}
 
     - name: Get primary region outputs for secondary
       id: get-primary-outputs
@@ -304,7 +288,7 @@ jobs:
       with:
         name: taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-${{ matrix.region }}
         template: packaged-master-template.yaml
-        parameter-overrides: TemplateBucket=${{ env.BUCKET_NAME }},GitHubActionsUserArn=arn:aws:iam::991795635857:user/taskmanager-github-actions,BranchName=${{ needs.get-branch-name.outputs.branch-name }},DatabasePassword=${{ secrets.DATABASE_PASSWORD }},EngineVersion=${{ env.ENGINE_VERSION }},IsPrimaryRegion=${{ matrix.is_primary }},AuroraGlobalClusterId=${{ steps.get-primary-outputs.outputs.global-cluster-id }},ApiGatewayCloudWatchLogsRoleArn=${{ steps.get-primary-outputs.outputs.api-gateway-role-arn }},SharedLambdaRoleArn=${{ steps.get-primary-outputs.outputs.shared-lambda-role-arn }},KmsKeyArn=${{ steps.get-primary-outputs.outputs.kms-key-arn }},GoogleOAuthClientId=${{ secrets.GOOGLE_CLIENT_ID }},GoogleOAuthClientSecret=${{ secrets.GOOGLE_CLIENT_SECRET }},ApiCodeBucket=${{ env.BUCKET_NAME }},ApiCodeKey=${{ needs.get-branch-name.outputs.branch-name }}/api-lambda-deployment.zip,WebContainerImage=${{ env.CONTAINER_IMAGE }},DeploymentToken=${{ github.sha }},DomainName=appcloud.systems,HostedZoneId=Z06422172SASV44F5Y8VA
+        parameter-overrides: TemplateBucket=${{ env.BUCKET_NAME }},GitHubActionsUserArn=arn:aws:iam::991795635857:user/taskmanager-github-actions,BranchName=${{ needs.get-branch-name.outputs.branch-name }},DatabasePassword=${{ secrets.DATABASE_PASSWORD }},EngineVersion=${{ env.ENGINE_VERSION }},IsPrimaryRegion=${{ matrix.is_primary }},AuroraGlobalClusterId=${{ steps.get-primary-outputs.outputs.global-cluster-id }},ApiGatewayCloudWatchLogsRoleArn=${{ steps.get-primary-outputs.outputs.api-gateway-role-arn }},SharedLambdaRoleArn=${{ steps.get-primary-outputs.outputs.shared-lambda-role-arn }},KmsKeyArn=${{ steps.get-primary-outputs.outputs.kms-key-arn }},GoogleOAuthClientId=${{ secrets.GOOGLE_CLIENT_ID }},GoogleOAuthClientSecret=${{ secrets.GOOGLE_CLIENT_SECRET }},WebContainerImage=${{ env.CONTAINER_IMAGE }},DeploymentToken=${{ github.sha }},DomainName=appcloud.systems,HostedZoneId=Z06422172SASV44F5Y8VA
         capabilities: "CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND"
         no-fail-on-empty-changeset: "1"
         timeout-in-minutes: 30

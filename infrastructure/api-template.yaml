@@ -8,15 +8,6 @@ Parameters:
     Default: main
     Description: "Environment name (typically branch name)"
 
-  ApiCodeBucket:
-    Type: String
-    Description: "S3 bucket name for API Lambda deployment package"
-
-  ApiCodeKey:
-    Type: String
-    Description: "S3 key for API Lambda deployment package"
-    Default: "api-lambda-deployment.zip"
-
   SharedLambdaRoleArn:
     Type: String
     Description: "ARN of the shared Lambda execution role"
@@ -143,9 +134,7 @@ Resources:
       - ApiLambdaLogGroup
     Properties:
       FunctionName: !Sub "TaskManagerApi-${Environment}"
-      CodeUri:
-        Bucket: !Ref ApiCodeBucket
-        Key: !Ref ApiCodeKey
+      CodeUri: ./src/TaskManager.Api/
       Handler: >-
         TaskManager.Api::TaskManager.Api.LambdaEntryPoint::FunctionHandlerAsync
       Runtime: dotnet8
