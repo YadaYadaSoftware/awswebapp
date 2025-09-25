@@ -105,7 +105,7 @@ Resources:
         ApiGatewayCloudWatchLogsRoleArn: !Ref ApiGatewayCloudWatchLogsRoleArn
 
   # Regional VPC
-  NetworkStack:
+  NetworkingStack:
     Type: AWS::CloudFormation::Stack
     Properties:
       TemplateURL: ./network.template
