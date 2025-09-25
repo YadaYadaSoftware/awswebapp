@@ -116,14 +116,14 @@ Resources:
   # Regional Database
   DbStack:
     Type: AWS::CloudFormation::Stack
-    DependsOn: [KmsStack, VpcStack]
+    DependsOn: [SecurityStack, VpcStack]
     Properties:
       TemplateURL: ./db.template
       Parameters:
         DatabasePassword: !Ref DatabasePassword
         EngineVersion: !Ref EngineVersion
         AuroraGlobalClusterId: !Ref AuroraGlobalClusterId
-        AuroraKmsKeyArn: !GetAtt KmsStack.Outputs.AuroraKmsKeyArn
+        AuroraKmsKeyArn: !GetAtt SecurityStack.Outputs.AuroraKmsKeyArn
         IsPrimaryRegion: !Ref IsPrimaryRegion
         GitHubActionsUserArn: !Ref GitHubActionsUserArn
         BranchName: !Ref BranchName
@@ -157,7 +157,7 @@ Resources:
           !If [
             HasSharedLambdaRoleArn,
             !Ref SharedLambdaRoleArn,
-            !GetAtt KmsStack.Outputs.SharedLambdaRoleArn,
+            !GetAtt SecurityStack.Outputs.SharedLambdaRoleArn,
           ]
         DatabaseHost: !GetAtt DatabaseStack.Outputs.DatabaseHost
         DatabaseUsername: !GetAtt DatabaseStack.Outputs.DatabaseUsername
@@ -186,7 +186,7 @@ Resources:
           !If [
             HasSharedLambdaRoleArn,
             !Ref SharedLambdaRoleArn,
-            !GetAtt KmsStack.Outputs.SharedLambdaRoleArn,
+            !GetAtt SecurityStack.Outputs.SharedLambdaRoleArn,
           ]
         VPCId: !GetAtt VpcStack.Outputs.VPCId
         ALBSecurityGroupId: !GetAtt VpcStack.Outputs.ALBSecurityGroupId
@@ -210,7 +210,7 @@ Outputs:
   # KMS outputs
   AuroraKmsKeyArn:
     Description: ARN of the KMS key
-    Value: !GetAtt KmsStack.Outputs.AuroraKmsKeyArn
+    Value: !GetAtt SecurityStack.Outputs.AuroraKmsKeyArn
 
   # Global outputs
   AuroraGlobalClusterId:
@@ -224,7 +224,7 @@ Outputs:
 
   ApiGatewayCloudWatchLogsRoleArn:
     Description: ARN of the API Gateway CloudWatch Logs role
-    Value: !GetAtt KmsStack.Outputs.ApiGatewayCloudWatchLogsRoleArn
+    Value: !GetAtt SecurityStack.Outputs.ApiGatewayCloudWatchLogsRoleArn
 
   SharedLambdaRoleArn:
     Description: ARN of the shared Lambda role
