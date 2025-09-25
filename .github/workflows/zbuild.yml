@@ -29,6 +29,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       semVer: ${{ steps.gitversion.outputs.semVer }}
+      customVersion: ${{ steps.custom-version.outputs.custom-version }}
 
     steps:
     - name: Checkout code
@@ -61,6 +62,18 @@ jobs:
       with:
         useConfigFile: true
 
+    - name: Set Custom Version
+      id: custom-version
+      run: |
+        MAJOR=${{ steps.gitversion.outputs.major }}
+        MINOR=${{ steps.gitversion.outputs.minor }}
+        PATCH=${{ steps.gitversion.outputs.patch }}
+        BUILD=${{ steps.gitversion.outputs.buildMetaData }}
+        CUSTOM_VERSION="$MAJOR.$MINOR.$PATCH.$BUILD"
+        echo "custom-version=$CUSTOM_VERSION"
+        echo "custom-version=$CUSTOM_VERSION" >> $GITHUB_OUTPUT
+        echo "Using custom version: $CUSTOM_VERSION"
+
     - name: Cache NuGet packages
       uses: actions/cache@v4
       with:
@@ -74,8 +87,8 @@ jobs:
 
     - name: Build
       run: |
-        echo "Building with version: ${{ steps.gitversion.outputs.semVer }}"
-        dotnet build --no-restore --configuration Release /p:Version=${{ steps.gitversion.outputs.semVer }} /p:AssemblyVersion=${{ steps.gitversion.outputs.assemblySemVer }} /p:FileVersion=${{ steps.gitversion.outputs.assemblySemVer }}
+        echo "Building with version: ${{ steps.custom-version.outputs.custom-version }}"
+        dotnet build --no-restore --configuration Release /p:Version=${{ steps.custom-version.outputs.custom-version }} /p:AssemblyVersion=${{ steps.gitversion.outputs.assemblySemVer }} /p:FileVersion=${{ steps.gitversion.outputs.assemblySemVer }}
 
     - name: Test
       run: dotnet test --no-build --verbosity normal --configuration Release
@@ -83,8 +96,8 @@ jobs:
 
     - name: Publish Web for Container
       run: |
-        echo "Publishing Web with version: ${{ steps.gitversion.outputs.semVer }}"
-        dotnet publish src/TaskManager.Web2/TaskManager.Web2.csproj --configuration Release --output ./publish/web --runtime linux-x64 --self-contained false /p:Version=${{ steps.gitversion.outputs.semVer }} /p:AssemblyVersion=${{ steps.gitversion.outputs.assemblySemVer }}
+        echo "Publishing Web with version: ${{ steps.custom-version.outputs.custom-version }}"
+        dotnet publish src/TaskManager.Web2/TaskManager.Web2.csproj --configuration Release --output ./publish/web --runtime linux-x64 --self-contained false /p:Version=${{ steps.custom-version.outputs.custom-version }} /p:AssemblyVersion=${{ steps.gitversion.outputs.assemblySemVer }}
 
 
 
@@ -178,7 +191,7 @@ jobs:
       run: |
         SRC_CHECKSUM=${{ steps.checksum.outputs.src-checksum }}
         BRANCH_NAME=${{ needs.get-branch-name.outputs.branch-name }}
-        SEMVER_TAG=${{ needs.build.outputs.semVer }}
+        SEMVER_TAG=${{ needs.build.outputs.customVersion }}
 
         # Construct ECR repository URI
         ACCOUNT_ID=${{ steps.account-id.outputs.account-id }}
@@ -206,7 +219,7 @@ jobs:
       run: |
         SRC_CHECKSUM=${{ steps.checksum.outputs.src-checksum }}
         BRANCH_NAME=${{ needs.get-branch-name.outputs.branch-name }}
-        SEMVER_TAG=${{ needs.build.outputs.semVer }}
+        SEMVER_TAG=${{ needs.build.outputs.customVersion }}
         BRANCH_TAG=${BRANCH_NAME:-main}
 
         # Construct ECR repository URI
@@ -219,7 +232,7 @@ jobs:
         echo "🌿 Branch tag: $BRANCH_TAG"
 
         # Build container image from root context
-        docker build -t taskmanager-web:$SRC_CHECKSUM -f src/TaskManager.Web2/Dockerfile . --build-arg VERSION=${{ needs.build.outputs.semVer }} --build-arg ASSEMBLY_VERSION=${{ needs.build.outputs.assemblySemVer }}
+        docker build -t taskmanager-web:$SRC_CHECKSUM -f src/TaskManager.Web2/Dockerfile . --build-arg VERSION=${{ needs.build.outputs.customVersion }} --build-arg ASSEMBLY_VERSION=${{ needs.build.outputs.assemblySemVer }}
 
         # Login to ECR
         aws ecr get-login-password --region ${{ matrix.region }} | docker login --username AWS --password-stdin $ECR_REPO
