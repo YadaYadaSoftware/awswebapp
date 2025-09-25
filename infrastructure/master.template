@@ -233,10 +233,6 @@ Outputs:
         !Ref AuroraGlobalClusterId,
       ]
 
-  ApiGatewayCloudWatchLogsRoleArn:
-    Description: ARN of the API Gateway CloudWatch Logs role
-    Value: !GetAtt SecurityStack.Outputs.ApiGatewayCloudWatchLogsRoleArn
-
   SharedLambdaRoleArn:
     Description: ARN of the shared Lambda role
     Value: !GetAtt SecurityStack.Outputs.SharedLambdaRoleArn
