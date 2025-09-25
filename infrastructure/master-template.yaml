@@ -110,6 +110,7 @@ Resources:
         GitHubActionsUserArn: !Ref GitHubActionsUserArn
         BranchName: !Ref BranchName
         KmsKeyArn: !If [HasKmsKeyArn, !Ref KmsKeyArn, !Ref "AWS::NoValue"]
+        IsPrimaryRegion: !Ref IsPrimaryRegion
 
   # Regional VPC
   VpcStack:
@@ -214,7 +215,12 @@ Outputs:
   # Global outputs
   AuroraGlobalClusterId:
     Description: ID of the Aurora global cluster
-    Value: !Ref AuroraGlobalClusterId
+    Value:
+      !If [
+        IsPrimary,
+        !GetAtt DatabaseStack.Outputs.AuroraGlobalClusterId,
+        !Ref AuroraGlobalClusterId,
+      ]
 
   ApiGatewayCloudWatchLogsRoleArn:
     Description: ARN of the API Gateway CloudWatch Logs role
