@@ -107,7 +107,7 @@ jobs:
         name: mysql-layer-package
         path: mysql-layer.zip
   deploy:
-    name: Deploy Infrastructure
+    name: Deploy to AWS (All Regions)
     runs-on: ubuntu-latest
     needs: [build, get-branch-name]
     concurrency:
