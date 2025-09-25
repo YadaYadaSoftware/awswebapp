@@ -282,13 +282,24 @@ jobs:
         echo "api-gateway-role-arn=$API_GATEWAY_ROLE_ARN" >> $GITHUB_OUTPUT
         echo "shared-lambda-role-arn=$SHARED_LAMBDA_ROLE_ARN" >> $GITHUB_OUTPUT
 
+    - name: Set parameter overrides
+      id: set-params
+      run: |
+        BASE_PARAMS="TemplateBucket=${{ env.BUCKET_NAME }},GitHubActionsUserArn=arn:aws:iam::991795635857:user/taskmanager-github-actions,BranchName=${{ needs.get-branch-name.outputs.branch-name }},DatabasePassword=${{ secrets.DATABASE_PASSWORD }},EngineVersion=${{ env.ENGINE_VERSION }},IsPrimaryRegion=${{ matrix.is_primary }},AuroraGlobalClusterId=${{ steps.get-primary-outputs.outputs.global-cluster-id }},ApiGatewayCloudWatchLogsRoleArn=${{ steps.get-primary-outputs.outputs.api-gateway-role-arn }},KmsKeyArn=${{ steps.get-primary-outputs.outputs.kms-key-arn }},GoogleOAuthClientId=${{ secrets.GOOGLE_CLIENT_ID }},GoogleOAuthClientSecret=${{ secrets.GOOGLE_CLIENT_SECRET }},WebContainerImage=${{ env.CONTAINER_IMAGE }},DeploymentToken=${{ github.sha }},DomainName=appcloud.systems,HostedZoneId=Z06422172SASV44F5Y8VA"
+        if [ "${{ matrix.is_primary }}" = "true" ]; then
+          PARAMS="$BASE_PARAMS"
+        else
+          PARAMS="$BASE_PARAMS,SharedLambdaRoleArn=${{ steps.get-primary-outputs.outputs.shared-lambda-role-arn }}"
+        fi
+        echo "params=$PARAMS" >> $GITHUB_OUTPUT
+
     - name: Deploy master template
       id: deploy-master
       uses: aws-actions/aws-cloudformation-github-deploy@v1
       with:
         name: taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-${{ matrix.region }}
         template: packaged-master-template.yaml
-        parameter-overrides: TemplateBucket=${{ env.BUCKET_NAME }},GitHubActionsUserArn=arn:aws:iam::991795635857:user/taskmanager-github-actions,BranchName=${{ needs.get-branch-name.outputs.branch-name }},DatabasePassword=${{ secrets.DATABASE_PASSWORD }},EngineVersion=${{ env.ENGINE_VERSION }},IsPrimaryRegion=${{ matrix.is_primary }},AuroraGlobalClusterId=${{ steps.get-primary-outputs.outputs.global-cluster-id }},ApiGatewayCloudWatchLogsRoleArn=${{ steps.get-primary-outputs.outputs.api-gateway-role-arn }},SharedLambdaRoleArn=${{ steps.get-primary-outputs.outputs.shared-lambda-role-arn }},KmsKeyArn=${{ steps.get-primary-outputs.outputs.kms-key-arn }},GoogleOAuthClientId=${{ secrets.GOOGLE_CLIENT_ID }},GoogleOAuthClientSecret=${{ secrets.GOOGLE_CLIENT_SECRET }},WebContainerImage=${{ env.CONTAINER_IMAGE }},DeploymentToken=${{ github.sha }},DomainName=appcloud.systems,HostedZoneId=Z06422172SASV44F5Y8VA
+        parameter-overrides: ${{ steps.set-params.outputs.params }}
         capabilities: "CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND"
         no-fail-on-empty-changeset: "1"
         timeout-in-minutes: 30
