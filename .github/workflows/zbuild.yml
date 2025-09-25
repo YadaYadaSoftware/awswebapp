@@ -240,14 +240,21 @@ jobs:
         PRIMARY_STACK_NAME="taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-us-east-1"
         KMS_KEY_ARN=$(aws cloudformation describe-stacks --stack-name $PRIMARY_STACK_NAME --region us-east-1 --query 'Stacks[0].Outputs[?OutputKey==`AuroraKmsKeyArn`].OutputValue' --output text)
         GLOBAL_CLUSTER_ID=$(aws cloudformation describe-stacks --stack-name $PRIMARY_STACK_NAME --region us-east-1 --query 'Stacks[0].Outputs[?OutputKey==`AuroraGlobalClusterId`].OutputValue' --output text)
+        PRIMARY_LB_DNS=$(aws cloudformation describe-stacks --stack-name $PRIMARY_STACK_NAME --region us-east-1 --query 'Stacks[0].Outputs[?OutputKey==`WebLoadBalancerDNS`].OutputValue' --output text)
+        PRIMARY_LB_HZ=$(aws cloudformation describe-stacks --stack-name $PRIMARY_STACK_NAME --region us-east-1 --query 'Stacks[0].Outputs[?OutputKey==`WebLoadBalancerHostedZoneId`].OutputValue' --output text)
         echo "kms-key-arn=$KMS_KEY_ARN" >> $GITHUB_OUTPUT
         echo "global-cluster-id=$GLOBAL_CLUSTER_ID" >> $GITHUB_OUTPUT
+        echo "primary-lb-dns=$PRIMARY_LB_DNS" >> $GITHUB_OUTPUT
+        echo "primary-lb-hz=$PRIMARY_LB_HZ" >> $GITHUB_OUTPUT
 
 
     - name: Set parameter overrides
       id: set-params
       run: |
         BASE_PARAMS="TemplateBucket=${{ env.BUCKET_NAME }},GitHubActionsUserArn=${{ secrets.USER_ARN }},BranchName=${{ needs.get-branch-name.outputs.branch-name }},DatabasePassword=${{ secrets.DATABASE_PASSWORD }},EngineVersion=${{ env.ENGINE_VERSION }},IsPrimaryRegion=${{ matrix.is_primary }},AuroraGlobalClusterId=${{ steps.get-primary-outputs.outputs.global-cluster-id }},KmsKeyArn=${{ steps.get-primary-outputs.outputs.kms-key-arn }},GoogleOAuthClientId=${{ secrets.GOOGLE_CLIENT_ID }},GoogleOAuthClientSecret=${{ secrets.GOOGLE_CLIENT_SECRET }},WebContainerImage=${{ env.CONTAINER_IMAGE }},DeploymentToken=${{ github.sha }},DomainName=appcloud.systems,HostedZoneId=Z06422172SASV44F5Y8VA"
+        if [ "${{ matrix.is_primary }}" = "false" ]; then
+          BASE_PARAMS="$BASE_PARAMS,PrimaryRegion=${{ env.AWS_REGION_PRIMARY }},PrimaryWebLoadBalancerDNS=${{ steps.get-primary-outputs.outputs.primary-lb-dns }},PrimaryWebLoadBalancerHostedZoneId=${{ steps.get-primary-outputs.outputs.primary-lb-hz }}"
+        fi
         PARAMS="$BASE_PARAMS"
         echo "params=$PARAMS" >> $GITHUB_OUTPUT
 
@@ -262,87 +269,4 @@ jobs:
         no-fail-on-empty-changeset: "1"
         timeout-in-minutes: 30
 
-  deploy-global-dns:
-    name: Deploy Global DNS Failover
-    runs-on: ubuntu-latest
-    needs: [deploy-infrastructure, get-branch-name]
-    if: needs.deploy-infrastructure.result == 'success'
-
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: us-east-1
-
-    - name: Get AWS Account ID
-      id: account-id
-      run: |
-        ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-        echo "account-id=$ACCOUNT_ID" >> $GITHUB_OUTPUT
-
-    - name: Upload Global DNS template to S3
-      run: |
-        BUCKET_NAME="cf-templates-${{ steps.account-id.outputs.account-id }}-${{ env.AWS_REGION_PRIMARY }}"
-        BRANCH_NAME="${{ needs.get-branch-name.outputs.branch-name }}"
-        echo "Uploading global DNS template to S3 bucket: $BUCKET_NAME"
-        aws s3 cp infrastructure/dns.template s3://$BUCKET_NAME/$BRANCH_NAME/ --region ${{ env.AWS_REGION_PRIMARY }}
-        DNS_TEMPLATE_VERSION_ID=$(aws s3api head-object --bucket $BUCKET_NAME --key $BRANCH_NAME/dns.template --query VersionId --output text)
-        echo "DNS_TEMPLATE_VERSION_ID=$DNS_TEMPLATE_VERSION_ID" >> $GITHUB_ENV
-
-    - name: Get Load Balancer Details
-      id: get-lb-details
-      run: |
-        BRANCH_NAME=${{ needs.get-branch-name.outputs.branch-name }}
-
-        # Get primary load balancer details
-        PRIMARY_DNS=$(aws cloudformation describe-stacks \
-          --stack-name taskmanager-${BRANCH_NAME}-${{ env.AWS_REGION_PRIMARY }} \
-          --region ${{ env.AWS_REGION_PRIMARY }} \
-          --query 'Stacks[0].Outputs[?OutputKey==`WebLoadBalancerDNS`].OutputValue' \
-          --output text)
-
-        PRIMARY_HZ=$(aws cloudformation describe-stacks \
-          --stack-name taskmanager-${BRANCH_NAME}-${{ env.AWS_REGION_PRIMARY }} \
-          --region ${{ env.AWS_REGION_PRIMARY }} \
-          --query 'Stacks[0].Outputs[?OutputKey==`WebLoadBalancerHostedZoneId`].OutputValue' \
-          --output text)
-
-        # Get secondary load balancer details
-        SECONDARY_DNS=$(aws cloudformation describe-stacks \
-          --stack-name taskmanager-${BRANCH_NAME}-${{ env.AWS_REGION_SECONDARY }} \
-          --region ${{ env.AWS_REGION_SECONDARY }} \
-          --query 'Stacks[0].Outputs[?OutputKey==`WebLoadBalancerDNS`].OutputValue' \
-          --output text)
-
-        SECONDARY_HZ=$(aws cloudformation describe-stacks \
-          --stack-name taskmanager-${BRANCH_NAME}-${{ env.AWS_REGION_SECONDARY }} \
-          --region ${{ env.AWS_REGION_SECONDARY }} \
-          --query 'Stacks[0].Outputs[?OutputKey==`WebLoadBalancerHostedZoneId`].OutputValue' \
-          --output text)
-
-        echo "Primary DNS: $PRIMARY_DNS"
-        echo "Primary HZ: $PRIMARY_HZ"
-        echo "Secondary DNS: $SECONDARY_DNS"
-        echo "Secondary HZ: $SECONDARY_HZ"
-
-        echo "primary-web-load-balancer-dns=$PRIMARY_DNS" >> $GITHUB_OUTPUT
-        echo "primary-web-load-balancer-hosted-zone-id=$PRIMARY_HZ" >> $GITHUB_OUTPUT
-        echo "secondary-web-load-balancer-dns=$SECONDARY_DNS" >> $GITHUB_OUTPUT
-        echo "secondary-web-load-balancer-hosted-zone-id=$SECONDARY_HZ" >> $GITHUB_OUTPUT
-
-    - name: deploy (global-dns-template)
-      uses: aws-actions/aws-cloudformation-github-deploy@v1
-      with:
-        name: taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-global-dns
-        template: https://s3.amazonaws.com/cf-templates-${{ steps.account-id.outputs.account-id }}-${{ env.AWS_REGION_PRIMARY }}/${{ needs.get-branch-name.outputs.branch-name }}/dns.template?versionId=${{ env.DNS_TEMPLATE_VERSION_ID }}
-        parameter-overrides: Environment=${{ needs.get-branch-name.outputs.branch-name }},DomainName=appcloud.systems,HostedZoneId=Z06422172SASV44F5Y8VA,PrimaryRegion=${{ env.AWS_REGION_PRIMARY }},SecondaryRegion=${{ env.AWS_REGION_SECONDARY }},PrimaryWebLoadBalancerDNS=${{ steps.get-lb-details.outputs.primary-web-load-balancer-dns }},PrimaryWebLoadBalancerHostedZoneId=${{ steps.get-lb-details.outputs.primary-web-load-balancer-hosted-zone-id }},SecondaryWebLoadBalancerDNS=${{ steps.get-lb-details.outputs.secondary-web-load-balancer-dns }},SecondaryWebLoadBalancerHostedZoneId=${{ steps.get-lb-details.outputs.secondary-web-load-balancer-hosted-zone-id }}
-        no-fail-on-empty-changeset: "1"
-        timeout-in-minutes: 10
 

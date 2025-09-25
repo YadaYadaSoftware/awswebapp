@@ -74,6 +74,22 @@ Parameters:
     Type: String
     Description: "Route 53 hosted zone ID for the domain"
 
+  # DNS parameters (for secondary region)
+  PrimaryRegion:
+    Type: String
+    Default: ""
+    Description: "Primary region for DNS failover"
+
+  PrimaryWebLoadBalancerDNS:
+    Type: String
+    Default: ""
+    Description: "DNS name of the primary web load balancer"
+
+  PrimaryWebLoadBalancerHostedZoneId:
+    Type: String
+    Default: ""
+    Description: "Hosted zone ID of the primary web load balancer"
+
 Conditions:
   IsPrimary: !Equals [!Ref IsPrimaryRegion, "true"]
   IsSecondary: !Equals [!Ref IsPrimaryRegion, "false"]
@@ -182,6 +198,24 @@ Resources:
         DatabaseClusterArn: !GetAtt DbStack.Outputs.DatabaseClusterArn
         DatabasePasswordSecretArn: !GetAtt DbStack.Outputs.DatabasePasswordSecretArn
         LogRetentionDays: 7
+
+  # Global DNS (only in secondary region)
+  DnsStack:
+    Condition: IsSecondary
+    Type: AWS::CloudFormation::Stack
+    DependsOn: WebStack
+    Properties:
+      TemplateURL: ./dns.template
+      Parameters:
+        Environment: !Ref BranchName
+        DomainName: !Ref DomainName
+        HostedZoneId: !Ref HostedZoneId
+        PrimaryRegion: !Ref PrimaryRegion
+        SecondaryRegion: !Ref "AWS::Region"
+        PrimaryWebLoadBalancerDNS: !Ref PrimaryWebLoadBalancerDNS
+        PrimaryWebLoadBalancerHostedZoneId: !Ref PrimaryWebLoadBalancerHostedZoneId
+        SecondaryWebLoadBalancerDNS: !GetAtt WebStack.Outputs.WebLoadBalancerDNS
+        SecondaryWebLoadBalancerHostedZoneId: !GetAtt WebStack.Outputs.WebLoadBalancerHostedZoneId
 
 Outputs:
   # KMS outputs
@@ -319,3 +353,19 @@ Outputs:
   WebServiceName:
     Description: "Web ECS service name"
     Value: !GetAtt WebStack.Outputs.WebServiceName
+
+  # DNS outputs (only available in secondary region)
+  WebEndpoint:
+    Condition: IsSecondary
+    Description: "Web application endpoint URL"
+    Value: !GetAtt DnsStack.Outputs.WebEndpoint
+
+  PrimaryHealthCheckId:
+    Condition: IsSecondary
+    Description: "Primary health check ID"
+    Value: !GetAtt DnsStack.Outputs.PrimaryHealthCheckId
+
+  SecondaryHealthCheckId:
+    Condition: IsSecondary
+    Description: "Secondary health check ID"
+    Value: !GetAtt DnsStack.Outputs.SecondaryHealthCheckId
