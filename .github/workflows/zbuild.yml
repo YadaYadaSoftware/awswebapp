@@ -216,20 +216,17 @@ jobs:
         ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
         echo "AWS Account ID: $ACCOUNT_ID"
         echo "account-id=$ACCOUNT_ID" >> $GITHUB_OUTPUT
-    - name: Upload templates to S3
+    - name: Package and upload master template
       run: |
         BUCKET_NAME="cf-templates-${{ steps.account-id.outputs.account-id }}-${{ matrix.region }}"
         BRANCH_NAME="${{ needs.get-branch-name.outputs.branch-name }}"
         echo "BUCKET_NAME=$BUCKET_NAME" >> $GITHUB_ENV
 
-        echo "Uploading templates to S3 bucket: $BUCKET_NAME"
-        aws s3 cp infrastructure/kms-template.yaml s3://$BUCKET_NAME/$BRANCH_NAME/ --region ${{ matrix.region }}
-        aws s3 cp infrastructure/regional-vpc.yaml s3://$BUCKET_NAME/$BRANCH_NAME/ --region ${{ matrix.region }}
-        aws s3 cp infrastructure/regional-db.yaml s3://$BUCKET_NAME/$BRANCH_NAME/ --region ${{ matrix.region }}
-        aws s3 cp infrastructure/regional-infrastructure.yaml s3://$BUCKET_NAME/$BRANCH_NAME/ --region ${{ matrix.region }}
-        aws s3 cp infrastructure/master-template.yaml s3://$BUCKET_NAME/$BRANCH_NAME/ --region ${{ matrix.region }}
-        aws s3 cp src/TaskManager.Api/api-template.yaml s3://$BUCKET_NAME/$BRANCH_NAME/ --region ${{ matrix.region }}
-        aws s3 cp src/TaskManager.Web2/web-template.yaml s3://$BUCKET_NAME/$BRANCH_NAME/ --region ${{ matrix.region }}
+        echo "Packaging and uploading master template to S3 bucket: $BUCKET_NAME"
+        aws cloudformation package --template-file infrastructure/master-template.yaml --s3-bucket $BUCKET_NAME --s3-prefix $BRANCH_NAME --output-template-file packaged-master-template.yaml --region ${{ matrix.region }}
+
+        # Upload the packaged template as master-template.yaml for compatibility
+        aws s3 cp packaged-master-template.yaml s3://$BUCKET_NAME/$BRANCH_NAME/master-template.yaml --region ${{ matrix.region }}
     - name: Build and Push Web Container Image
       env:
         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -306,7 +303,7 @@ jobs:
       uses: aws-actions/aws-cloudformation-github-deploy@v1
       with:
         name: taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-${{ matrix.region }}
-        template: infrastructure/master-template.yaml
+        template: packaged-master-template.yaml
         parameter-overrides: TemplateBucket=${{ env.BUCKET_NAME }},GitHubActionsUserArn=arn:aws:iam::991795635857:user/taskmanager-github-actions,BranchName=${{ needs.get-branch-name.outputs.branch-name }},DatabasePassword=${{ secrets.DATABASE_PASSWORD }},EngineVersion=${{ env.ENGINE_VERSION }},IsPrimaryRegion=${{ matrix.is_primary }},AuroraGlobalClusterId=${{ steps.get-primary-outputs.outputs.global-cluster-id }},ApiGatewayCloudWatchLogsRoleArn=${{ steps.get-primary-outputs.outputs.api-gateway-role-arn }},SharedLambdaRoleArn=${{ steps.get-primary-outputs.outputs.shared-lambda-role-arn }},KmsKeyArn=${{ steps.get-primary-outputs.outputs.kms-key-arn }},GoogleOAuthClientId=${{ secrets.GOOGLE_CLIENT_ID }},GoogleOAuthClientSecret=${{ secrets.GOOGLE_CLIENT_SECRET }},ApiCodeBucket=${{ env.BUCKET_NAME }},ApiCodeKey=${{ needs.get-branch-name.outputs.branch-name }}/api-lambda-deployment.zip,WebContainerImage=${{ env.CONTAINER_IMAGE }},DeploymentToken=${{ github.sha }},DomainName=appcloud.systems,HostedZoneId=Z06422172SASV44F5Y8VA
         capabilities: "CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND"
         no-fail-on-empty-changeset: "1"
@@ -343,7 +340,6 @@ jobs:
         BRANCH_NAME="${{ needs.get-branch-name.outputs.branch-name }}"
         echo "Uploading global DNS template to S3 bucket: $BUCKET_NAME"
         aws s3 cp infrastructure/global-dns-template.yaml s3://$BUCKET_NAME/$BRANCH_NAME/ --region ${{ env.AWS_REGION_PRIMARY }}
-        aws s3 cp infrastructure/master-template.yaml s3://$BUCKET_NAME/$BRANCH_NAME/ --region ${{ env.AWS_REGION_PRIMARY }}
 
     - name: Get Load Balancer Details
       id: get-lb-details

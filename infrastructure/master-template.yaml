@@ -105,7 +105,7 @@ Resources:
   KmsStack:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub "https://${TemplateBucket}.s3.${AWS::Region}.amazonaws.com/${BranchName}/kms-template.yaml"
+      TemplateURL: ./kms-template.yaml
       Parameters:
         GitHubActionsUserArn: !Ref GitHubActionsUserArn
         BranchName: !Ref BranchName
@@ -116,7 +116,7 @@ Resources:
   VpcStack:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub "https://${TemplateBucket}.s3.${AWS::Region}.amazonaws.com/${BranchName}/regional-vpc.yaml"
+      TemplateURL: ./regional-vpc.yaml
       Parameters:
         BranchName: !Ref BranchName
         LogRetentionDays: 7
@@ -126,7 +126,7 @@ Resources:
     Type: AWS::CloudFormation::Stack
     DependsOn: [KmsStack, VpcStack]
     Properties:
-      TemplateURL: !Sub "https://${TemplateBucket}.s3.${AWS::Region}.amazonaws.com/${BranchName}/regional-db.yaml"
+      TemplateURL: ./regional-db.yaml
       Parameters:
         DatabasePassword: !Ref DatabasePassword
         EngineVersion: !Ref EngineVersion
@@ -146,7 +146,7 @@ Resources:
     Type: AWS::CloudFormation::Stack
     DependsOn: DatabaseStack
     Properties:
-      TemplateURL: !Sub "https://${TemplateBucket}.s3.${AWS::Region}.amazonaws.com/${BranchName}/regional-infrastructure.yaml"
+      TemplateURL: ./regional-infrastructure.yaml
       Parameters:
         BranchName: !Ref BranchName
         GoogleOAuthClientId: !Ref GoogleOAuthClientId
@@ -158,7 +158,7 @@ Resources:
     Type: AWS::CloudFormation::Stack
     DependsOn: [InfrastructureStack, DatabaseStack]
     Properties:
-      TemplateURL: !Sub "https://${TemplateBucket}.s3.${AWS::Region}.amazonaws.com/${BranchName}/api-template.yaml"
+      TemplateURL: ./api-template.yaml
       Parameters:
         Environment: !Ref BranchName
         ApiCodeBucket: !Ref ApiCodeBucket
@@ -180,7 +180,7 @@ Resources:
     Type: AWS::CloudFormation::Stack
     DependsOn: [InfrastructureStack, DatabaseStack]
     Properties:
-      TemplateURL: !Sub "https://${TemplateBucket}.s3.${AWS::Region}.amazonaws.com/${BranchName}/web-template.yaml"
+      TemplateURL: ./web-template.yaml
       Parameters:
         Environment: !Ref BranchName
         WebContainerImage: !Ref WebContainerImage
