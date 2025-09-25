@@ -22,16 +22,10 @@ Parameters:
     Default: "false"
     Description: Whether this region hosts the primary cluster
 
-  ApiGatewayCloudWatchLogsRoleArn:
-    Type: String
-    Description: ARN of the API Gateway CloudWatch Logs role
-    Default: ""
-
 Conditions:
   IsPrimaryKey: !Equals [!Ref KmsKeyArn, ""]
   IsReplicaKey: !Not [!Equals [!Ref KmsKeyArn, ""]]
   IsPrimary: !Equals [!Ref IsPrimaryRegion, "true"]
-  HasRoleArn: !Not [!Equals [!Ref ApiGatewayCloudWatchLogsRoleArn, ""]]
 
 Resources:
   AuroraKmsKey:
@@ -264,10 +258,9 @@ Resources:
           Value: !Ref "AWS::StackName"
 
   ApiGatewayCloudWatchLogsRole:
-    Condition: IsPrimary
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub TaskManager-ApiGateway-CloudWatchLogs-Role-${BranchName}
+      RoleName: !Sub TaskManager-ApiGateway-CloudWatchLogs-Role-${BranchName}-${AWS::Region}
       AssumeRolePolicyDocument:
         Version: 2012-10-17
         Statement:
@@ -299,12 +292,7 @@ Resources:
   ApiGatewayAccount:
     Type: AWS::ApiGateway::Account
     Properties:
-      CloudWatchRoleArn:
-        !If [
-          HasRoleArn,
-          !Ref ApiGatewayCloudWatchLogsRoleArn,
-          !GetAtt ApiGatewayCloudWatchLogsRole.Arn,
-        ]
+      CloudWatchRoleArn: !GetAtt ApiGatewayCloudWatchLogsRole.Arn
 
 Outputs:
   AuroraKmsKeyArn:
@@ -323,9 +311,4 @@ Outputs:
 
   ApiGatewayCloudWatchLogsRoleArn:
     Description: API Gateway CloudWatch Logs role ARN
-    Value:
-      !If [
-        HasRoleArn,
-        !Ref ApiGatewayCloudWatchLogsRoleArn,
-        !GetAtt ApiGatewayCloudWatchLogsRole.Arn,
-      ]
+    Value: !GetAtt ApiGatewayCloudWatchLogsRole.Arn

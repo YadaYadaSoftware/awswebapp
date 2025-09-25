@@ -113,8 +113,6 @@ jobs:
     name: Deploy Global Infrastructure
     runs-on: ubuntu-latest
     needs: [build, get-branch-name]
-    outputs:
-      github-actions-user-arn: ${{ steps.get-github-user.outputs.github-actions-user-arn }}
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -156,34 +154,6 @@ jobs:
           - region: us-west-2
             is_primary: "false"
       max-parallel: 1
-    outputs:
-      aurora-kms-key-arn: ${{ steps.deploy-master.outputs.AuroraKmsKeyArn }}
-      aurora-global-cluster-id: ${{ steps.deploy-master.outputs.AuroraGlobalClusterId }}
-      api-gateway-cloudwatch-logs-role-arn: ${{ steps.deploy-master.outputs.ApiGatewayCloudWatchLogsRoleArn }}
-      shared-lambda-role-arn: ${{ steps.deploy-master.outputs.SharedLambdaRoleArn }}
-      database-endpoint: ${{ steps.deploy-master.outputs.DatabaseEndpoint }}
-      database-reader-endpoint: ${{ steps.deploy-master.outputs.DatabaseReaderEndpoint }}
-      database-username: ${{ steps.deploy-master.outputs.DatabaseUsername }}
-      database-engine: ${{ steps.deploy-master.outputs.DatabaseEngine }}
-      database-host: ${{ steps.deploy-master.outputs.DatabaseHost }}
-      database-port: ${{ steps.deploy-master.outputs.DatabasePort }}
-      database-name: ${{ steps.deploy-master.outputs.DatabaseName }}
-      database-cluster-arn: ${{ steps.deploy-master.outputs.DatabaseClusterArn }}
-      database-password-secret-arn: ${{ steps.deploy-master.outputs.DatabasePasswordSecretArn }}
-      ecs-cluster-name: ${{ steps.deploy-master.outputs.ECSClusterName }}
-      google-oauth-secret-arn: ${{ steps.deploy-master.outputs.GoogleOAuthSecretArn }}
-      vpc-id: ${{ steps.deploy-master.outputs.VpcId }}
-      private-subnet-1-id: ${{ steps.deploy-master.outputs.PrivateSubnet1Id }}
-      private-subnet-2-id: ${{ steps.deploy-master.outputs.PrivateSubnet2Id }}
-      public-subnet-1-id: ${{ steps.deploy-master.outputs.PublicSubnet1Id }}
-      public-subnet-2-id: ${{ steps.deploy-master.outputs.PublicSubnet2Id }}
-      lambda-security-group-id: ${{ steps.deploy-master.outputs.LambdaSecurityGroupId }}
-      alb-security-group-id: ${{ steps.deploy-master.outputs.ALBSecurityGroupId }}
-      ecs-task-security-group-id: ${{ steps.deploy-master.outputs.ECSTaskSecurityGroupId }}
-      api-endpoint: ${{ steps.deploy-master.outputs.ApiEndpoint }}
-      web-endpoint: ${{ steps.deploy-master.outputs.WebEndpoint }}
-      web-load-balancer-dns: ${{ steps.deploy-master.outputs.WebLoadBalancerDNS }}
-      web-load-balancer-hosted-zone-id: ${{ steps.deploy-master.outputs.WebLoadBalancerHostedZoneId }}
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
