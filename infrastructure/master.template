@@ -96,7 +96,7 @@ Resources:
   KmsStack:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: ./security.yaml
+      TemplateURL: ./security.template
       Parameters:
         GitHubActionsUserArn: !Ref GitHubActionsUserArn
         BranchName: !Ref BranchName
@@ -107,7 +107,7 @@ Resources:
   VpcStack:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: ./regional-vpc.yaml
+      TemplateURL: ./network.template
       Parameters:
         BranchName: !Ref BranchName
         LogRetentionDays: 7
@@ -117,7 +117,7 @@ Resources:
     Type: AWS::CloudFormation::Stack
     DependsOn: [KmsStack, VpcStack]
     Properties:
-      TemplateURL: ./db.yaml
+      TemplateURL: ./db.template
       Parameters:
         DatabasePassword: !Ref DatabasePassword
         EngineVersion: !Ref EngineVersion
@@ -137,7 +137,7 @@ Resources:
     Type: AWS::CloudFormation::Stack
     DependsOn: DatabaseStack
     Properties:
-      TemplateURL: ./regional-infrastructure.yaml
+      TemplateURL: ./infrastructure.template
       Parameters:
         BranchName: !Ref BranchName
         GoogleOAuthClientId: !Ref GoogleOAuthClientId
@@ -149,7 +149,7 @@ Resources:
     Type: AWS::CloudFormation::Stack
     DependsOn: [InfrastructureStack, DatabaseStack]
     Properties:
-      TemplateURL: ./api-template.yaml
+      TemplateURL: ./api.template
       Parameters:
         Environment: !Ref BranchName
         SharedLambdaRoleArn:
@@ -174,7 +174,7 @@ Resources:
     Type: AWS::CloudFormation::Stack
     DependsOn: [InfrastructureStack, DatabaseStack]
     Properties:
-      TemplateURL: ./web-template.yaml
+      TemplateURL: ./web.template
       Parameters:
         Environment: !Ref BranchName
         WebContainerImage: !Ref WebContainerImage

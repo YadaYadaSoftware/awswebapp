@@ -49,5 +49,7 @@
     },
     "editor.suggest.showKeywords": true
   },
-  "redhat.telemetry.enabled": false
-}
+  "redhat.telemetry.enabled": false,
+  "files.associations": {
+    "*.template": "yaml"
+  }}

@@ -216,7 +216,7 @@ jobs:
         echo "BUCKET_NAME=$BUCKET_NAME" >> $GITHUB_ENV
 
         echo "Building and packaging master template to S3 bucket: $BUCKET_NAME"
-        sam build --template infrastructure/master-template.yaml --region ${{ matrix.region }}
+        sam build --template infrastructure/master.template --region ${{ matrix.region }}
         sam package --template-file .aws-sam/build/template.yaml --s3-bucket $BUCKET_NAME --s3-prefix $BRANCH_NAME --output-template-file packaged-master-template.yaml --region ${{ matrix.region }}
 
         # Upload the packaged template as master-template.yaml for compatibility
@@ -334,7 +334,7 @@ jobs:
         BUCKET_NAME="cf-templates-${{ steps.account-id.outputs.account-id }}-${{ env.AWS_REGION_PRIMARY }}"
         BRANCH_NAME="${{ needs.get-branch-name.outputs.branch-name }}"
         echo "Uploading global DNS template to S3 bucket: $BUCKET_NAME"
-        aws s3 cp infrastructure/global-dns-template.yaml s3://$BUCKET_NAME/$BRANCH_NAME/ --region ${{ env.AWS_REGION_PRIMARY }}
+        aws s3 cp infrastructure/dns.template s3://$BUCKET_NAME/$BRANCH_NAME/ --region ${{ env.AWS_REGION_PRIMARY }}
 
     - name: Get Load Balancer Details
       id: get-lb-details
@@ -381,7 +381,7 @@ jobs:
       uses: aws-actions/aws-cloudformation-github-deploy@v1
       with:
         name: taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-global-dns
-        template: infrastructure/global-dns-template.yaml
+        template: infrastructure/dns.template
         parameter-overrides: Environment=${{ needs.get-branch-name.outputs.branch-name }},DomainName=appcloud.systems,HostedZoneId=Z06422172SASV44F5Y8VA,PrimaryRegion=${{ env.AWS_REGION_PRIMARY }},SecondaryRegion=${{ env.AWS_REGION_SECONDARY }},PrimaryWebLoadBalancerDNS=${{ steps.get-lb-details.outputs.primary-web-load-balancer-dns }},PrimaryWebLoadBalancerHostedZoneId=${{ steps.get-lb-details.outputs.primary-web-load-balancer-hosted-zone-id }},SecondaryWebLoadBalancerDNS=${{ steps.get-lb-details.outputs.secondary-web-load-balancer-dns }},SecondaryWebLoadBalancerHostedZoneId=${{ steps.get-lb-details.outputs.secondary-web-load-balancer-hosted-zone-id }}
         no-fail-on-empty-changeset: "1"
         timeout-in-minutes: 10
