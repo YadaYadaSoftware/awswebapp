@@ -102,6 +102,7 @@ Resources:
         BranchName: !Ref BranchName
         KmsKeyArn: !If [HasKmsKeyArn, !Ref KmsKeyArn, !Ref "AWS::NoValue"]
         IsPrimaryRegion: !Ref IsPrimaryRegion
+        ApiGatewayCloudWatchLogsRoleArn: !Ref ApiGatewayCloudWatchLogsRoleArn
 
   # Regional VPC
   VpcStack:
@@ -223,7 +224,7 @@ Outputs:
 
   ApiGatewayCloudWatchLogsRoleArn:
     Description: ARN of the API Gateway CloudWatch Logs role
-    Value: !Ref ApiGatewayCloudWatchLogsRoleArn
+    Value: !GetAtt KmsStack.Outputs.ApiGatewayCloudWatchLogsRoleArn
 
   SharedLambdaRoleArn:
     Description: ARN of the shared Lambda role

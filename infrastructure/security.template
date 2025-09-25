@@ -22,10 +22,16 @@ Parameters:
     Default: "false"
     Description: Whether this region hosts the primary cluster
 
+  ApiGatewayCloudWatchLogsRoleArn:
+    Type: String
+    Description: ARN of the API Gateway CloudWatch Logs role
+    Default: ""
+
 Conditions:
   IsPrimaryKey: !Equals [!Ref KmsKeyArn, ""]
   IsReplicaKey: !Not [!Equals [!Ref KmsKeyArn, ""]]
   IsPrimary: !Equals [!Ref IsPrimaryRegion, "true"]
+  HasRoleArn: !Not [!Equals [!Ref ApiGatewayCloudWatchLogsRoleArn, ""]]
 
 Resources:
   AuroraKmsKey:
@@ -289,6 +295,17 @@ Resources:
           Value: ApiGatewayCloudWatchLogsRole
         - Key: Stack
           Value: !Ref "AWS::StackName"
+
+  ApiGatewayAccount:
+    Type: AWS::ApiGateway::Account
+    Properties:
+      CloudWatchRoleArn:
+        !If [
+          HasRoleArn,
+          !Ref ApiGatewayCloudWatchLogsRoleArn,
+          !GetAtt ApiGatewayCloudWatchLogsRole.Arn,
+        ]
+
 Outputs:
   AuroraKmsKeyArn:
     Description: ARN of the KMS key (primary or replica)
@@ -305,6 +322,10 @@ Outputs:
     Value: !GetAtt SharedLambdaExecutionRole.Arn
 
   ApiGatewayCloudWatchLogsRoleArn:
-    Condition: IsPrimary
     Description: API Gateway CloudWatch Logs role ARN
-    Value: !GetAtt ApiGatewayCloudWatchLogsRole.Arn
+    Value:
+      !If [
+        HasRoleArn,
+        !Ref ApiGatewayCloudWatchLogsRoleArn,
+        !GetAtt ApiGatewayCloudWatchLogsRole.Arn,
+      ]
