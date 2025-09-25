@@ -89,13 +89,14 @@ Conditions:
   IsSecondary: !Equals [!Ref IsPrimaryRegion, "false"]
   HasKmsKeyArn: !Not [!Equals [!Ref KmsKeyArn, ""]]
   HasGlobalClusterId: !Not [!Equals [!Ref AuroraGlobalClusterId, ""]]
+  HasSharedLambdaRoleArn: !Not [!Equals [!Ref SharedLambdaRoleArn, ""]]
 
 Resources:
   # KMS Key (Primary or Replica)
   KmsStack:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: ./kms-template.yaml
+      TemplateURL: ./security.yaml
       Parameters:
         GitHubActionsUserArn: !Ref GitHubActionsUserArn
         BranchName: !Ref BranchName
@@ -151,7 +152,12 @@ Resources:
       TemplateURL: ./api-template.yaml
       Parameters:
         Environment: !Ref BranchName
-        SharedLambdaRoleArn: !Ref SharedLambdaRoleArn
+        SharedLambdaRoleArn:
+          !If [
+            HasSharedLambdaRoleArn,
+            !Ref SharedLambdaRoleArn,
+            !GetAtt KmsStack.Outputs.SharedLambdaRoleArn,
+          ]
         DatabaseHost: !GetAtt DatabaseStack.Outputs.DatabaseHost
         DatabaseUsername: !GetAtt DatabaseStack.Outputs.DatabaseUsername
         DatabaseEngine: !GetAtt DatabaseStack.Outputs.DatabaseEngine
@@ -175,7 +181,12 @@ Resources:
         DeploymentToken: !Ref DeploymentToken
         DomainName: !Ref DomainName
         HostedZoneId: !Ref HostedZoneId
-        SharedLambdaRoleArn: !Ref SharedLambdaRoleArn
+        SharedLambdaRoleArn:
+          !If [
+            HasSharedLambdaRoleArn,
+            !Ref SharedLambdaRoleArn,
+            !GetAtt KmsStack.Outputs.SharedLambdaRoleArn,
+          ]
         VPCId: !GetAtt VpcStack.Outputs.VPCId
         ALBSecurityGroupId: !GetAtt VpcStack.Outputs.ALBSecurityGroupId
         ECSTaskSecurityGroupId: !GetAtt VpcStack.Outputs.ECSTaskSecurityGroupId
