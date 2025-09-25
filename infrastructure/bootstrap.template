@@ -183,35 +183,42 @@ Resources:
             Resource:
               - !Sub "arn:aws:s3:::${TemplatesBucketName}"
               - !Sub "arn:aws:s3:::${TemplatesBucketName}/*"
-
-  # ECR Repository for Web Application
-  WebECRRepository:
-    Type: AWS::ECR::Repository
-    Properties:
-      RepositoryName: !Sub "ecr-${AWS::AccountId}-${AWS::Region}"
-      ImageScanningConfiguration:
-        ScanOnPush: true
-      ImageTagMutability: "MUTABLE"
-      LifecycleConfiguration:
-        LifecycleConfigurationRules:
-          - RulePriority: 1
-            Description: "Delete untagged images older than 3 days"
-            Selection:
-              TagStatus: "untagged"
-              CountType: "sinceImagePushed"
-              CountUnit: "days"
-              CountNumber: 3
-            Action:
-              Type: "expire"
-      Tags:
-        - Key: LogicalId
-          Value: WebECRRepository
-        - Key: Name
-          Value: "TaskManager-Web-ECR"
-        - Key: Purpose
-          Value: "Container Registry"
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
+# ECR Repository for Web Application
+WebECRRepository:
+  Type: AWS::ECR::Repository
+  Properties:
+    RepositoryName: !Sub "ecr-${AWS::AccountId}-${AWS::Region}"
+    ImageScanningConfiguration:
+      ScanOnPush: true
+    ImageTagMutability: "MUTABLE"
+    LifecyclePolicy:
+      LifecyclePolicyText: !Sub |
+        {
+          "rules": [
+            {
+              "rulePriority": 1,
+              "description": "Delete untagged images older than 3 days",
+              "selection": {
+                "tagStatus": "untagged",
+                "countType": "sinceImagePushed",
+                "countUnit": "days",
+                "countNumber": 3
+              },
+              "action": {
+                "type": "expire"
+              }
+            }
+          ]
+        }
+    Tags:
+      - Key: LogicalId
+        Value: WebECRRepository
+      - Key: Name
+        Value: "TaskManager-Web-ECR"
+      - Key: Purpose
+        Value: "Container Registry"
+      - Key: Stack
+        Value: !Ref "AWS::StackName"
 
   # API Gateway CloudWatch Logs Role
   ApiGatewayCloudWatchLogsRole:
