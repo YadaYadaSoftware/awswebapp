@@ -126,12 +126,6 @@ jobs:
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: us-east-1
 
-    - name: Set GitHub Actions User ARN
-      id: get-github-user
-      run: |
-        echo "Using hardcoded GitHub Actions User ARN"
-        echo "github-actions-user-arn=arn:aws:iam::991795635857:user/taskmanager-github-actions" >> $GITHUB_OUTPUT
-
     - name: Get AWS Account ID
       id: account-id
       run: |
@@ -257,7 +251,7 @@ jobs:
     - name: Set parameter overrides
       id: set-params
       run: |
-        BASE_PARAMS="TemplateBucket=${{ env.BUCKET_NAME }},GitHubActionsUserArn=arn:aws:iam::991795635857:user/taskmanager-github-actions,BranchName=${{ needs.get-branch-name.outputs.branch-name }},DatabasePassword=${{ secrets.DATABASE_PASSWORD }},EngineVersion=${{ env.ENGINE_VERSION }},IsPrimaryRegion=${{ matrix.is_primary }},AuroraGlobalClusterId=${{ steps.get-primary-outputs.outputs.global-cluster-id }},ApiGatewayCloudWatchLogsRoleArn=${{ steps.get-primary-outputs.outputs.api-gateway-role-arn }},KmsKeyArn=${{ steps.get-primary-outputs.outputs.kms-key-arn }},GoogleOAuthClientId=${{ secrets.GOOGLE_CLIENT_ID }},GoogleOAuthClientSecret=${{ secrets.GOOGLE_CLIENT_SECRET }},WebContainerImage=${{ env.CONTAINER_IMAGE }},DeploymentToken=${{ github.sha }},DomainName=appcloud.systems,HostedZoneId=Z06422172SASV44F5Y8VA"
+        BASE_PARAMS="TemplateBucket=${{ env.BUCKET_NAME }},GitHubActionsUserArn=${{ secrets.USER_ARN }},BranchName=${{ needs.get-branch-name.outputs.branch-name }},DatabasePassword=${{ secrets.DATABASE_PASSWORD }},EngineVersion=${{ env.ENGINE_VERSION }},IsPrimaryRegion=${{ matrix.is_primary }},AuroraGlobalClusterId=${{ steps.get-primary-outputs.outputs.global-cluster-id }},ApiGatewayCloudWatchLogsRoleArn=${{ steps.get-primary-outputs.outputs.api-gateway-role-arn }},KmsKeyArn=${{ steps.get-primary-outputs.outputs.kms-key-arn }},GoogleOAuthClientId=${{ secrets.GOOGLE_CLIENT_ID }},GoogleOAuthClientSecret=${{ secrets.GOOGLE_CLIENT_SECRET }},WebContainerImage=${{ env.CONTAINER_IMAGE }},DeploymentToken=${{ github.sha }},DomainName=appcloud.systems,HostedZoneId=Z06422172SASV44F5Y8VA"
         if [ "${{ matrix.is_primary }}" = "true" ]; then
           PARAMS="$BASE_PARAMS"
         else
