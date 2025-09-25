@@ -148,7 +148,7 @@ Resources:
       - AuroraSlowQueryLogGroup
     Type: AWS::RDS::DBCluster
     Properties:
-      GlobalClusterIdentifier: !Ref AuroraGlobalClusterId
+      GlobalClusterIdentifier: !If [IsPrimary, !Sub taskmanager-${BranchName}-global-cluster, !Ref AuroraGlobalClusterId]
       DBClusterIdentifier: !Sub "taskmanager-${BranchName}-aurora-cluster-${AWS::Region}"
       Engine: aurora-mysql
       EngineVersion: !Ref EngineVersion
