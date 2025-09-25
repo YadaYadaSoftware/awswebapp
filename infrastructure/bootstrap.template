@@ -192,6 +192,17 @@ Resources:
       ImageScanningConfiguration:
         ScanOnPush: true
       ImageTagMutability: "MUTABLE"
+      LifecycleConfiguration:
+        LifecycleConfigurationRules:
+          - RulePriority: 1
+            Description: "Delete untagged images older than 3 days"
+            Selection:
+              TagStatus: "untagged"
+              CountType: "sinceImagePushed"
+              CountUnit: "days"
+              CountNumber: 3
+            Action:
+              Type: "expire"
       Tags:
         - Key: LogicalId
           Value: WebECRRepository
