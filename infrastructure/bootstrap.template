@@ -198,9 +198,9 @@ Resources:
             "rules": [
               {
                 "rulePriority": 1,
-                "description": "Expire images older than 3 days",
+                "description": "Expire untagged images older than 3 days",
                 "selection": {
-                  "tagStatus": "any",
+                  "tagStatus": "untagged",
                   "countType": "sinceImagePushed",
                   "countUnit": "days",
                   "countNumber": 3
