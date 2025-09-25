@@ -1,5 +1,6 @@
 mode: ContinuousDelivery
 increment: Inherit
+next-version: 1.0.0
 branches:
   main:
     regex: ^main$
