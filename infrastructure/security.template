@@ -259,7 +259,7 @@ Resources:
   ApiGatewayCloudWatchLogsRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub TaskManager-ApiGateway-CloudWatchLogs-Role-${BranchName}-${AWS::Region}
+      RoleName: !Sub TM-Api-Logs-Role-${BranchName}-${AWS::Region}
       AssumeRolePolicyDocument:
         Version: 2012-10-17
         Statement:
