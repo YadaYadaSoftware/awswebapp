@@ -191,7 +191,26 @@ Resources:
       RepositoryName: !Sub "ecr-${AWS::AccountId}-${AWS::Region}"
       ImageScanningConfiguration:
         ScanOnPush: true
-      ImageTagMutability: "MUTABLE"
+      ImageTagMutability: MUTABLE
+      LifecyclePolicy:
+        LifecyclePolicyText: |
+          {
+            "rules": [
+              {
+                "rulePriority": 1,
+                "description": "Expire images older than 3 days",
+                "selection": {
+                  "tagStatus": "any",
+                  "countType": "sinceImagePushed",
+                  "countUnit": "days",
+                  "countNumber": 3
+                },
+                "action": {
+                  "type": "expire"
+                }
+              }
+            ]
+          }
       Tags:
         - Key: LogicalId
           Value: WebECRRepository
