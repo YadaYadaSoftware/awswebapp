@@ -161,15 +161,52 @@ jobs:
         aws s3 cp packaged-master-template.yaml s3://$BUCKET_NAME/$BRANCH_NAME/master-template.yaml --region ${{ matrix.region }}
         TEMPLATE_VERSION_ID=$(aws s3api head-object --bucket $BUCKET_NAME --key $BRANCH_NAME/master-template.yaml --query VersionId --output text)
         echo "TEMPLATE_VERSION_ID=$TEMPLATE_VERSION_ID" >> $GITHUB_ENV
-    - name: Build and Push Web Container Image
+    - name: Calculate Source Checksum
+      id: checksum
+      run: |
+        # Calculate SHA256 checksum of all files in src/ directory
+        SRC_CHECKSUM=$(find src -type f -exec sha256sum {} \; | sort | sha256sum | cut -d' ' -f1)
+        echo "📋 Source checksum: $SRC_CHECKSUM"
+        echo "src-checksum=$SRC_CHECKSUM" >> $GITHUB_OUTPUT
+
+    - name: Check if Web Container Image Exists
+      id: check-image
       env:
         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
         AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         AWS_DEFAULT_REGION: ${{ matrix.region }}
       run: |
-        # Use GitVersion for unique image tagging
+        SRC_CHECKSUM=${{ steps.checksum.outputs.src-checksum }}
         BRANCH_NAME=${{ needs.get-branch-name.outputs.branch-name }}
-        IMAGE_TAG=${{ needs.build.outputs.semVer }}
+        SEMVER_TAG=${{ needs.build.outputs.semVer }}
+
+        # Construct ECR repository URI
+        ACCOUNT_ID=${{ steps.account-id.outputs.account-id }}
+        ECR_REPO="${ACCOUNT_ID}.dkr.ecr.${{ matrix.region }}.amazonaws.com/ecr-${ACCOUNT_ID}-${{ matrix.region }}"
+
+        echo "🎯 ECR repository: $ECR_REPO"
+        echo "📋 Checksum tag: $SRC_CHECKSUM"
+        echo "🏷️ SemVer tag: $SEMVER_TAG"
+
+        # Check if image with checksum tag already exists
+        if aws ecr describe-images --repository-name ecr-${ACCOUNT_ID}-${{ matrix.region }} --image-ids imageTag=$SRC_CHECKSUM --region ${{ matrix.region }} >/dev/null 2>&1; then
+          echo "✅ Image $ECR_REPO:$SRC_CHECKSUM already exists, reusing"
+          echo "image-exists=true" >> $GITHUB_OUTPUT
+        else
+          echo "❌ Image $ECR_REPO:$SRC_CHECKSUM does not exist, will build"
+          echo "image-exists=false" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Build and Push Web Container Image
+      if: steps.check-image.outputs.image-exists == 'false'
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        AWS_DEFAULT_REGION: ${{ matrix.region }}
+      run: |
+        SRC_CHECKSUM=${{ steps.checksum.outputs.src-checksum }}
+        BRANCH_NAME=${{ needs.get-branch-name.outputs.branch-name }}
+        SEMVER_TAG=${{ needs.build.outputs.semVer }}
         BRANCH_TAG=${BRANCH_NAME:-main}
 
         # Construct ECR repository URI
@@ -177,33 +214,44 @@ jobs:
         ECR_REPO="${ACCOUNT_ID}.dkr.ecr.${{ matrix.region }}.amazonaws.com/ecr-${ACCOUNT_ID}-${{ matrix.region }}"
 
         echo "🎯 ECR repository: $ECR_REPO"
-        echo "🏷️ Version tag: $IMAGE_TAG"
+        echo "📋 Checksum tag: $SRC_CHECKSUM"
+        echo "🏷️ SemVer tag: $SEMVER_TAG"
         echo "🌿 Branch tag: $BRANCH_TAG"
 
         # Build container image from root context
-        docker build -t taskmanager-web:$IMAGE_TAG -f src/TaskManager.Web2/Dockerfile . --build-arg VERSION=${{ needs.build.outputs.semVer }} --build-arg ASSEMBLY_VERSION=${{ needs.build.outputs.assemblySemVer }}
+        docker build -t taskmanager-web:$SRC_CHECKSUM -f src/TaskManager.Web2/Dockerfile . --build-arg VERSION=${{ needs.build.outputs.semVer }} --build-arg ASSEMBLY_VERSION=${{ needs.build.outputs.assemblySemVer }}
 
         # Login to ECR
         aws ecr get-login-password --region ${{ matrix.region }} | docker login --username AWS --password-stdin $ECR_REPO
 
-        # Tag and push versioned image
-        docker tag taskmanager-web:$IMAGE_TAG $ECR_REPO:$IMAGE_TAG
-        docker push $ECR_REPO:$IMAGE_TAG
-        echo "✅ Pushed versioned image: $ECR_REPO:$IMAGE_TAG"
+        # Tag and push checksum-tagged image
+        docker tag taskmanager-web:$SRC_CHECKSUM $ECR_REPO:$SRC_CHECKSUM
+        docker push $ECR_REPO:$SRC_CHECKSUM
+        echo "✅ Pushed checksum image: $ECR_REPO:$SRC_CHECKSUM"
+
+        # Also tag and push with SemVer for reference
+        docker tag taskmanager-web:$SRC_CHECKSUM $ECR_REPO:$SEMVER_TAG
+        docker push $ECR_REPO:$SEMVER_TAG
+        echo "✅ Pushed SemVer image: $ECR_REPO:$SEMVER_TAG"
 
         # Tag and push branch-specific image (for easy reference)
-        docker tag taskmanager-web:$IMAGE_TAG $ECR_REPO:$BRANCH_TAG
+        docker tag taskmanager-web:$SRC_CHECKSUM $ECR_REPO:$BRANCH_TAG
         docker push $ECR_REPO:$BRANCH_TAG
         echo "✅ Pushed branch image: $ECR_REPO:$BRANCH_TAG"
 
         # Also tag as latest for main branch
         if [ "$BRANCH_NAME" = "main" ]; then
-          docker tag taskmanager-web:$IMAGE_TAG $ECR_REPO:latest
+          docker tag taskmanager-web:$SRC_CHECKSUM $ECR_REPO:latest
           docker push $ECR_REPO:latest
           echo "✅ Pushed latest image: $ECR_REPO:latest"
         fi
 
-        CONTAINER_IMAGE=$ECR_REPO:$IMAGE_TAG
+    - name: Set Container Image Variable
+      run: |
+        SRC_CHECKSUM=${{ steps.checksum.outputs.src-checksum }}
+        ACCOUNT_ID=${{ steps.account-id.outputs.account-id }}
+        ECR_REPO="${ACCOUNT_ID}.dkr.ecr.${{ matrix.region }}.amazonaws.com/ecr-${ACCOUNT_ID}-${{ matrix.region }}"
+        CONTAINER_IMAGE=$ECR_REPO:$SRC_CHECKSUM
         echo "CONTAINER_IMAGE=$CONTAINER_IMAGE" >> $GITHUB_ENV
 
     - name: Get primary region outputs for secondary
