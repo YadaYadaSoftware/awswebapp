@@ -134,7 +134,7 @@ Resources:
       - ApiLambdaLogGroup
     Properties:
       FunctionName: !Sub "TaskManagerApi-${Environment}"
-      CodeUri: ./src/TaskManager.Api/
+      CodeUri: ../src/TaskManager.Api/
       Handler: >-
         TaskManager.Api::TaskManager.Api.LambdaEntryPoint::FunctionHandlerAsync
       Runtime: dotnet8
