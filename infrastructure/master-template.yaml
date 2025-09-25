@@ -117,7 +117,7 @@ Resources:
     Type: AWS::CloudFormation::Stack
     DependsOn: [KmsStack, VpcStack]
     Properties:
-      TemplateURL: ./regional-db.yaml
+      TemplateURL: ./db.yaml
       Parameters:
         DatabasePassword: !Ref DatabasePassword
         EngineVersion: !Ref EngineVersion
