@@ -13,10 +13,6 @@ Parameters:
     Description: "Google OAuth Client Secret"
     NoEcho: true
 
-  ApiGatewayCloudWatchLogsRoleArn:
-    Type: String
-    Description: "ARN of the API Gateway CloudWatch Logs role from global stack"
-
   BranchName:
     Type: String
     Description: Branch name for resource naming
@@ -57,11 +53,6 @@ Resources:
           Value: "Google OAuth Configuration"
         - Key: Stack
           Value: !Ref "AWS::StackName"
-
-  ApiGatewayAccount:
-    Type: AWS::ApiGateway::Account
-    Properties:
-      CloudWatchRoleArn: !Ref ApiGatewayCloudWatchLogsRoleArn
 
 Outputs:
   ECSClusterName:

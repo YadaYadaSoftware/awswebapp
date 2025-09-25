@@ -131,7 +131,6 @@ Resources:
         BranchName: !Ref BranchName
         GoogleOAuthClientId: !Ref GoogleOAuthClientId
         GoogleOAuthClientSecret: !Ref GoogleOAuthClientSecret
-        ApiGatewayCloudWatchLogsRoleArn: !GetAtt SecurityStack.Outputs.ApiGatewayCloudWatchLogsRoleArn
 
   # Regional API
   ApiStack:

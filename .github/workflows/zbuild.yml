@@ -243,6 +243,7 @@ jobs:
         echo "kms-key-arn=$KMS_KEY_ARN" >> $GITHUB_OUTPUT
         echo "global-cluster-id=$GLOBAL_CLUSTER_ID" >> $GITHUB_OUTPUT
 
+
     - name: Set parameter overrides
       id: set-params
       run: |

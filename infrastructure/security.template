@@ -256,43 +256,6 @@ Resources:
         - Key: Stack
           Value: !Ref "AWS::StackName"
 
-  ApiGatewayCloudWatchLogsRole:
-    Type: AWS::IAM::Role
-    Properties:
-      RoleName: !Sub TM-Api-Logs-Role-${BranchName}-${AWS::Region}
-      AssumeRolePolicyDocument:
-        Version: 2012-10-17
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: apigateway.amazonaws.com
-            Action: sts:AssumeRole
-      Policies:
-        - PolicyName: ApiGatewayCloudWatchLogsPolicy
-          PolicyDocument:
-            Version: 2012-10-17
-            Statement:
-              - Effect: Allow
-                Action:
-                  - logs:CreateLogGroup
-                  - logs:CreateLogStream
-                  - logs:PutLogEvents
-                  - logs:DescribeLogGroups
-                  - logs:DescribeLogStreams
-                  - logs:FilterLogEvents
-                  - logs:GetLogEvents
-                Resource: "*"
-      Tags:
-        - Key: LogicalId
-          Value: ApiGatewayCloudWatchLogsRole
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
-
-  ApiGatewayAccount:
-    Type: AWS::ApiGateway::Account
-    Properties:
-      CloudWatchRoleArn: !GetAtt ApiGatewayCloudWatchLogsRole.Arn
-
 Outputs:
   AuroraKmsKeyArn:
     Description: ARN of the KMS key (primary or replica)
@@ -306,7 +269,3 @@ Outputs:
   SharedLambdaRoleArn:
     Description: Shared Lambda execution role ARN
     Value: !GetAtt SharedLambdaExecutionRole.Arn
-
-  ApiGatewayCloudWatchLogsRoleArn:
-    Description: API Gateway CloudWatch Logs role ARN
-    Value: !GetAtt ApiGatewayCloudWatchLogsRole.Arn

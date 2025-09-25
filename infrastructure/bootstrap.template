@@ -202,6 +202,45 @@ Resources:
         - Key: Stack
           Value: !Ref "AWS::StackName"
 
+  # API Gateway CloudWatch Logs Role
+  ApiGatewayCloudWatchLogsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub TM-Api-Logs-Role-${AWS::Region}
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: apigateway.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: ApiGatewayCloudWatchLogsPolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                  - logs:DescribeLogGroups
+                  - logs:DescribeLogStreams
+                  - logs:FilterLogEvents
+                  - logs:GetLogEvents
+                Resource: "*"
+      Tags:
+        - Key: LogicalId
+          Value: ApiGatewayCloudWatchLogsRole
+        - Key: Stack
+          Value: !Ref "AWS::StackName"
+
+  # API Gateway Account Configuration
+  ApiGatewayAccount:
+    Type: AWS::ApiGateway::Account
+    Properties:
+      CloudWatchRoleArn: !GetAtt ApiGatewayCloudWatchLogsRole.Arn
+
 Outputs:
   UserName:
     Description: "IAM User name for GitHub Actions"
@@ -235,6 +274,10 @@ Outputs:
   WebECRRepositoryName:
     Description: "ECR repository name for web application"
     Value: !Ref WebECRRepository
+
+  ApiGatewayCloudWatchLogsRoleArn:
+    Description: "API Gateway CloudWatch Logs role ARN"
+    Value: !GetAtt ApiGatewayCloudWatchLogsRole.Arn
 
   SetupInstructions:
     Description: "Instructions for GitHub Secrets setup"
