@@ -76,6 +76,7 @@ Conditions:
   IsPrimary: !Equals [!Ref IsPrimaryRegion, "true"]
   IsNotPrimary: !Equals [!Ref IsPrimaryRegion, "false"]
   EnableGlobal: !Equals [!Ref EnableGlobalCluster, "true"]
+  ShouldCreateGlobalCluster: !And [IsPrimary, EnableGlobal]
 
 Resources:
   # Aurora DB Subnet Group
@@ -226,7 +227,7 @@ Resources:
           Value: !Ref "AWS::StackName"
 
   AuroraGlobalCluster:
-    Condition: !And [IsPrimary, EnableGlobal]
+    Condition: ShouldCreateGlobalCluster
     Type: AWS::RDS::GlobalCluster
     Properties:
       GlobalClusterIdentifier: !Sub taskmanager-${BranchName}-global-cluster
@@ -294,6 +295,6 @@ Outputs:
     Value: !Ref DatabasePasswordSecret
 
   AuroraGlobalClusterId:
-    Condition: !And [IsPrimary, EnableGlobal]
+    Condition: ShouldCreateGlobalCluster
     Description: Aurora Global Database cluster identifier
     Value: !Ref AuroraGlobalCluster
