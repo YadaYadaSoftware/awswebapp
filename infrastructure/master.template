@@ -26,6 +26,22 @@ Parameters:
     Type: String
     Description: Aurora MySQL engine version
 
+  MinCapacity:
+    Type: Number
+    Default: 0.5
+    Description: Minimum Aurora Serverless v2 capacity (ACUs)
+
+  MaxCapacity:
+    Type: Number
+    Default: 4
+    Description: Maximum Aurora Serverless v2 capacity (ACUs)
+
+  EnableGlobalCluster:
+    Type: String
+    AllowedValues: ["true", "false"]
+    Default: "true"
+    Description: Whether to enable Aurora global cluster
+
   # Region-specific parameters
   IsPrimaryRegion:
     Type: String
@@ -135,6 +151,9 @@ Resources:
         PrivateSubnet1Id: !GetAtt NetworkingStack.Outputs.PrivateSubnet1Id
         PrivateSubnet2Id: !GetAtt NetworkingStack.Outputs.PrivateSubnet2Id
         RDSSecurityGroupId: !GetAtt NetworkingStack.Outputs.RDSSecurityGroupId
+        MinCapacity: !Ref MinCapacity
+        MaxCapacity: !Ref MaxCapacity
+        EnableGlobalCluster: !Ref EnableGlobalCluster
         LogRetentionDays: 7
 
   # Regional Infrastructure
