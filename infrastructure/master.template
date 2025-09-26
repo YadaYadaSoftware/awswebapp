@@ -111,7 +111,7 @@ Conditions:
    IsSecondary: !Equals [!Ref IsPrimaryRegion, "false"]
    HasKmsKeyArn: !Not [!Equals [!Ref KmsKeyArn, ""]]
    HasGlobalClusterId: !Not [!Equals [!Ref AuroraGlobalClusterId, ""]]
-   ShouldCreateGlobalCluster: !And [IsPrimary, !Equals [!Ref EnableGlobalCluster, "true"]]
+   ShouldCreateGlobalCluster: !And [!Equals [!Ref IsPrimaryRegion, "true"], !Equals [!Ref EnableGlobalCluster, "true"]]
 
 Resources:
   # KMS Key (Primary or Replica)
