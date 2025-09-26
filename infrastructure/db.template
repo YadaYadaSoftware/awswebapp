@@ -171,7 +171,15 @@ Resources:
     Type: AWS::RDS::DBCluster
     Properties:
       GlobalClusterIdentifier:
-        !If [IsPrimary, !Ref AuroraGlobalCluster, !Ref AuroraGlobalClusterId]
+        !If [
+          IsPrimary,
+          !If [
+            ShouldCreateGlobalCluster,
+            !Ref AuroraGlobalCluster,
+            !Ref "AWS::NoValue",
+          ],
+          !Ref AuroraGlobalClusterId,
+        ]
       DBClusterIdentifier: !Sub "taskmanager-${BranchName}-aurora-cluster-${AWS::Region}"
       Engine: aurora-mysql
       EngineVersion: !Ref EngineVersion
