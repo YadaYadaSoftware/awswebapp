@@ -107,10 +107,11 @@ Parameters:
     Description: "Hosted zone ID of the primary web load balancer"
 
 Conditions:
-  IsPrimary: !Equals [!Ref IsPrimaryRegion, "true"]
-  IsSecondary: !Equals [!Ref IsPrimaryRegion, "false"]
-  HasKmsKeyArn: !Not [!Equals [!Ref KmsKeyArn, ""]]
-  HasGlobalClusterId: !Not [!Equals [!Ref AuroraGlobalClusterId, ""]]
+   IsPrimary: !Equals [!Ref IsPrimaryRegion, "true"]
+   IsSecondary: !Equals [!Ref IsPrimaryRegion, "false"]
+   HasKmsKeyArn: !Not [!Equals [!Ref KmsKeyArn, ""]]
+   HasGlobalClusterId: !Not [!Equals [!Ref AuroraGlobalClusterId, ""]]
+   ShouldCreateGlobalCluster: !And [IsPrimary, !Equals [!Ref EnableGlobalCluster, "true"]]
 
 Resources:
   # KMS Key (Primary or Replica)
@@ -244,13 +245,9 @@ Outputs:
 
   # Global outputs
   AuroraGlobalClusterId:
+    Condition: ShouldCreateGlobalCluster
     Description: ID of the Aurora global cluster
-    Value:
-      !If [
-        IsPrimary,
-        !GetAtt DbStack.Outputs.AuroraGlobalClusterId,
-        !Ref AuroraGlobalClusterId,
-      ]
+    Value: !GetAtt DbStack.Outputs.AuroraGlobalClusterId
 
   SharedLambdaRoleArn:
     Description: ARN of the shared Lambda role
