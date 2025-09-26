@@ -76,7 +76,11 @@ Conditions:
   IsPrimary: !Equals [!Ref IsPrimaryRegion, "true"]
   IsNotPrimary: !Equals [!Ref IsPrimaryRegion, "false"]
   EnableGlobal: !Equals [!Ref EnableGlobalCluster, "true"]
-  ShouldCreateGlobalCluster: !And [IsPrimary, EnableGlobal]
+  ShouldCreateGlobalCluster:
+    !And [
+      !Equals [!Ref IsPrimaryRegion, "true"],
+      !Equals [!Ref EnableGlobalCluster, "true"],
+    ]
 
 Resources:
   # Aurora DB Subnet Group
