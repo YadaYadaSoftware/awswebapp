@@ -37,11 +37,18 @@ Parameters:
 
   SecondaryWebLoadBalancerDNS:
     Type: String
-    Description: "DNS name of the secondary web load balancer"
+    Default: ""
+    Description: "DNS name of the secondary web load balancer (optional for single region)"
 
   SecondaryWebLoadBalancerHostedZoneId:
     Type: String
-    Description: "Hosted zone ID of the secondary web load balancer"
+    Default: ""
+    Description: "Hosted zone ID of the secondary web load balancer (optional for single region)"
+
+Conditions:
+  HasSecondaryLoadBalancer:
+    !Not [!Equals [!Ref SecondaryWebLoadBalancerDNS, ""]]
+  IsSingleRegion: !Equals [!Ref SecondaryWebLoadBalancerDNS, ""]
 
 Resources:
   # Health Check for Primary ALB
@@ -63,8 +70,9 @@ Resources:
         - Key: Purpose
           Value: Primary-Web-Failover
 
-  # Health Check for Secondary ALB
+  # Health Check for Secondary ALB (only when secondary load balancer is provided)
   SecondaryHealthCheck:
+    Condition: HasSecondaryLoadBalancer
     Type: AWS::Route53::HealthCheck
     Properties:
       HealthCheckConfig:
@@ -82,8 +90,21 @@ Resources:
         - Key: Purpose
           Value: Secondary-Web-Failover
 
-  # Primary Failover Record
-  PrimaryDNSRecord:
+  # Primary DNS Record for single region (simple record)
+  PrimaryDNSRecordSingle:
+    Condition: IsSingleRegion
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Sub "${Environment}.${DomainName}"
+      Type: A
+      AliasTarget:
+        DNSName: !Ref PrimaryWebLoadBalancerDNS
+        HostedZoneId: !Ref PrimaryWebLoadBalancerHostedZoneId
+
+  # Primary DNS Record for multi-region (failover record)
+  PrimaryDNSRecordFailover:
+    Condition: HasSecondaryLoadBalancer
     Type: AWS::Route53::RecordSet
     Properties:
       HostedZoneId: !Ref HostedZoneId
@@ -96,8 +117,9 @@ Resources:
         HostedZoneId: !Ref PrimaryWebLoadBalancerHostedZoneId
       HealthCheckId: !Ref PrimaryHealthCheck
 
-  # Secondary Failover Record
+  # Secondary Failover Record (only when secondary load balancer is provided)
   SecondaryDNSRecord:
+    Condition: HasSecondaryLoadBalancer
     Type: AWS::Route53::RecordSet
     Properties:
       HostedZoneId: !Ref HostedZoneId
@@ -120,5 +142,6 @@ Outputs:
     Value: !Ref PrimaryHealthCheck
 
   SecondaryHealthCheckId:
+    Condition: HasSecondaryLoadBalancer
     Description: "Secondary health check ID"
     Value: !Ref SecondaryHealthCheck
