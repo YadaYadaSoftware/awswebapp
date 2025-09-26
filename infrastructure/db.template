@@ -27,6 +27,12 @@ Parameters:
     Default: "false"
     Description: Whether this region hosts the primary cluster
 
+  EnableGlobalCluster:
+    Type: String
+    AllowedValues: ["true", "false"]
+    Default: "true"
+    Description: Whether to enable Aurora global cluster (for multi-region deployments)
+
   GitHubActionsUserArn:
     Type: String
     Description: ARN of the GitHub Actions IAM user from IAM setup stack
@@ -56,9 +62,20 @@ Parameters:
     Default: 7
     Description: Number of days to retain CloudWatch logs
 
+  MinCapacity:
+    Type: Number
+    Default: 0.5
+    Description: Minimum Aurora Serverless v2 capacity (ACUs)
+
+  MaxCapacity:
+    Type: Number
+    Default: 4
+    Description: Maximum Aurora Serverless v2 capacity (ACUs)
+
 Conditions:
   IsPrimary: !Equals [!Ref IsPrimaryRegion, "true"]
   IsNotPrimary: !Equals [!Ref IsPrimaryRegion, "false"]
+  EnableGlobal: !Equals [!Ref EnableGlobalCluster, "true"]
 
 Resources:
   # Aurora DB Subnet Group
@@ -168,8 +185,8 @@ Resources:
       KmsKeyId: !Ref AuroraKmsKeyArn
       DeletionProtection: false
       ServerlessV2ScalingConfiguration:
-        MinCapacity: 0.5
-        MaxCapacity: 4
+        MinCapacity: !Ref MinCapacity
+        MaxCapacity: !Ref MaxCapacity
       EnableCloudwatchLogsExports:
         - audit
         - error
@@ -209,7 +226,7 @@ Resources:
           Value: !Ref "AWS::StackName"
 
   AuroraGlobalCluster:
-    Condition: IsPrimary
+    Condition: !And [IsPrimary, EnableGlobal]
     Type: AWS::RDS::GlobalCluster
     Properties:
       GlobalClusterIdentifier: !Sub taskmanager-${BranchName}-global-cluster
@@ -277,6 +294,6 @@ Outputs:
     Value: !Ref DatabasePasswordSecret
 
   AuroraGlobalClusterId:
-    Condition: IsPrimary
+    Condition: !And [IsPrimary, EnableGlobal]
     Description: Aurora Global Database cluster identifier
     Value: !Ref AuroraGlobalCluster
