@@ -138,11 +138,13 @@ jobs:
       max-parallel: 1
     steps:
     - name: Checkout code
+      if: matrix.deploy
       uses: actions/checkout@v4
       with:
         fetch-depth: 0
 
     - name: Calculate Source Checksum
+      if: matrix.deploy
       id: checksum
       run: |
         # Calculate SHA256 checksum of all files in src/ directory
@@ -151,10 +153,12 @@ jobs:
         echo "src-checksum=$SRC_CHECKSUM" >> $GITHUB_OUTPUT
 
     - name: Install SAM CLI
+      if: matrix.deploy
       run: |
         pip install aws-sam-cli
 
     - name: Configure AWS credentials
+      if: matrix.deploy
       uses: aws-actions/configure-aws-credentials@v4
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -162,6 +166,7 @@ jobs:
         aws-region: ${{ matrix.region }}
 
     - name: Get AWS Account ID
+      if: matrix.deploy
       id: account-id
       run: |
         ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
@@ -274,7 +279,7 @@ jobs:
 
     - name: Get primary region outputs for secondary
       id: get-primary-outputs
-      if: matrix.is_primary == 'false'
+      if: matrix.is_primary == 'false' && matrix.deploy
       run: |
         echo "Getting outputs from primary region stack..."
         PRIMARY_STACK_NAME="taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-us-east-1"
@@ -320,5 +325,3 @@ jobs:
         capabilities: "CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND"
         no-fail-on-empty-changeset: "1"
         timeout-in-minutes: 30
-
-
