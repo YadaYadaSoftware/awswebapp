@@ -298,8 +298,12 @@ jobs:
       if: matrix.deploy
       run: |
         BRANCH_NAME="${{ needs.get-branch-name.outputs.branch-name }}"
-        if [[ " app beta alpha " == *" $BRANCH_NAME "* ]]; then
-          MIN_CAP=0.5
+        if [[ " app beta " == *" $BRANCH_NAME "* ]]; then
+          if [ "$BRANCH_NAME" = "app" ]; then
+            MIN_CAP=0.5
+          else
+            MIN_CAP=0
+          fi
           MAX_CAP=4
           ENABLE_GLOBAL=true
         else
