@@ -64,12 +64,12 @@ Parameters:
 
   MinCapacity:
     Type: Number
-    Default: 0.5
+    Default: 0
     Description: Minimum Aurora Serverless v2 capacity (ACUs)
 
   MaxCapacity:
     Type: Number
-    Default: 4
+    Default: 1
     Description: Maximum Aurora Serverless v2 capacity (ACUs)
 
 Conditions:

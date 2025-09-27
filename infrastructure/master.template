@@ -28,12 +28,10 @@ Parameters:
 
   MinCapacity:
     Type: Number
-    Default: 0.5
     Description: Minimum Aurora Serverless v2 capacity (ACUs)
 
   MaxCapacity:
     Type: Number
-    Default: 4
     Description: Maximum Aurora Serverless v2 capacity (ACUs)
 
   EnableGlobalCluster:
