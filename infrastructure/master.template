@@ -112,6 +112,11 @@ Conditions:
   HasKmsKeyArn: !Not [!Equals [!Ref KmsKeyArn, ""]]
   HasGlobalClusterId: !Not [!Equals [!Ref AuroraGlobalClusterId, ""]]
   IsSingleRegion: !Equals [!Ref EnableGlobalCluster, "false"]
+  IsPrimarySingleRegion:
+    !And [
+      !Equals [!Ref IsPrimaryRegion, "true"],
+      !Equals [!Ref EnableGlobalCluster, "false"],
+    ]
   ShouldCreateGlobalCluster:
     !And [
       !Equals [!Ref IsPrimaryRegion, "true"],
@@ -226,7 +231,7 @@ Resources:
 
   # DNS for primary region (simple record for single region)
   PrimaryDnsStack:
-    Condition: IsPrimary
+    Condition: IsPrimarySingleRegion
     Type: AWS::CloudFormation::Stack
     DependsOn: WebStack
     Properties:
@@ -388,9 +393,9 @@ Outputs:
     Description: "Web ECS service name"
     Value: !GetAtt WebStack.Outputs.WebServiceName
 
-  # DNS outputs for primary region
+  # DNS outputs for primary region (single region only)
   PrimaryWebEndpoint:
-    Condition: IsPrimary
+    Condition: IsPrimarySingleRegion
     Description: "Web application endpoint URL"
     Value: !GetAtt PrimaryDnsStack.Outputs.WebEndpoint
 
@@ -401,7 +406,7 @@ Outputs:
     Value: !GetAtt SecondaryDnsStack.Outputs.WebEndpoint
 
   PrimaryHealthCheckId:
-    Condition: IsPrimary
+    Condition: IsPrimarySingleRegion
     Description: "Primary health check ID"
     Value: !GetAtt PrimaryDnsStack.Outputs.PrimaryHealthCheckId
 
