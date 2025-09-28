@@ -119,11 +119,8 @@ var clientSecret = scopedConfig["Authentication:Google:ClientSecret"];
 scopedLogger.LogInformation("Google OAuth ClientId configured: {Configured}", !string.IsNullOrEmpty(clientId));
 scopedLogger.LogInformation("Google OAuth ClientSecret configured: {Configured}", !string.IsNullOrEmpty(clientSecret));
 
-// Apply database migrations on startup in production
-if (!app.Environment.IsDevelopment())
-{
-    await ApplyDatabaseMigrations(app);
-}
+// Apply database migrations on startup
+await ApplyDatabaseMigrations(app);
 
 // Configure forwarded headers for ALB
 var forwardedHeadersOptions = new ForwardedHeadersOptions
