@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using Pomelo.EntityFrameworkCore.MySql;
 using TaskManager.Web2.Areas.Identity;
 using TaskManager.Web2.Data;
+using TaskManager.Web2.Services;
 using static Microsoft.Extensions.DependencyInjection.GoogleExtensions;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -60,6 +61,7 @@ builder.Services.AddRazorPages();
 builder.Services.AddServerSideBlazor();
 builder.Services.AddScoped<AuthenticationStateProvider, RevalidatingIdentityAuthenticationStateProvider<IdentityUser>>();
 builder.Services.AddSingleton<WeatherForecastService>();
+builder.Services.AddScoped<JwtTokenService>();
 builder.Services.AddHealthChecks();
 builder.Services.AddAuthentication().AddGoogle(googleOptions =>
 {
