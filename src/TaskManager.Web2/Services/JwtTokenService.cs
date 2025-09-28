@@ -28,13 +28,6 @@ public class JwtTokenService
             new Claim(ClaimTypes.Email, user.Email ?? "")
         };
 
-        // Add roles if any
-        var roles = await _userManager.GetRolesAsync(user);
-        foreach (var role in roles)
-        {
-            claims.Add(new Claim(ClaimTypes.Role, role));
-        }
-
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"] ?? throw new InvalidOperationException("JWT Key not configured")));
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 

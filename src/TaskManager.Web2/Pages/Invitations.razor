@@ -1,0 +1,92 @@
+@page "/invitations"
+@attribute [Authorize]
+@using TaskManager.Shared.Models
+@using Microsoft.AspNetCore.Identity
+@using TaskManager.Web2.Services
+@inject IHttpClientFactory HttpClientFactory
+@inject JwtTokenService JwtTokenService
+@inject UserManager<IdentityUser> UserManager
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>Invitations</PageTitle>
+
+<h1>Pending Invitations</h1>
+
+@if (invitations == null)
+{
+    <p><em>Loading...</em></p>
+}
+else if (!invitations.Any())
+{
+    <p>No pending invitations.</p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Email</th>
+                <th>Invited By</th>
+                <th>Invited At</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var invitation in invitations)
+            {
+                <tr>
+                    <td>@invitation.Email</td>
+                    <td>@invitation.InvitedByName</td>
+                    <td>@invitation.InvitedAt.ToShortDateString()</td>
+                    <td>
+                        <button class="btn btn-danger" @onclick="() => RevokeInvitation(invitation.Email)">Revoke</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<InvitationDto>? invitations;
+    private string? token;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        if (user.Identity?.IsAuthenticated == true)
+        {
+            var identityUser = await UserManager.GetUserAsync(user);
+            if (identityUser != null)
+            {
+                token = await JwtTokenService.GenerateTokenAsync(identityUser);
+                await LoadInvitations();
+            }
+        }
+    }
+
+    private async Task LoadInvitations()
+    {
+        if (string.IsNullOrEmpty(token)) return;
+        var client = HttpClientFactory.CreateClient("ApiClient");
+        client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        var response = await client.GetAsync("api/invitation/pending");
+        if (response.IsSuccessStatusCode)
+        {
+            invitations = await response.Content.ReadFromJsonAsync<List<InvitationDto>>();
+        }
+    }
+
+    private async Task RevokeInvitation(string email)
+    {
+        if (string.IsNullOrEmpty(token)) return;
+        var client = HttpClientFactory.CreateClient("ApiClient");
+        client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        var response = await client.DeleteAsync($"api/invitation/revoke/{email}");
+        if (response.IsSuccessStatusCode)
+        {
+            await LoadInvitations(); // Refresh the list
+        }
+    }
+}
