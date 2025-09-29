@@ -51,5 +51,11 @@
                 "/Views": "${workspaceFolder}/Views"
             }
         }
-    ]
-}
+    ],
+    "compounds": [
+            {
+                "name": "Debug All",
+                "configurations": ["Launch TaskManager.Web2 (Local API)", "Launch TaskManager.Web2 (AWS API)"]
+            }
+        ]
+    }
