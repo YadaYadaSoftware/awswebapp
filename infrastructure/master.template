@@ -267,7 +267,10 @@ Outputs:
   # KMS outputs
   AuroraKmsKeyArn:
     Description: ARN of the KMS key
-    Value: !GetAtt SecurityStack.Outputs.AuroraKmsKeyArn
+    Value:
+      !ImportValue {
+        Fn::Sub: "taskmanager-${BranchName}-AuroraKmsKeyArn-${AWS::Region}",
+      }
     Export:
       Name: !Sub "taskmanager-dev-AuroraKmsKeyArn-${AWS::Region}"
       Condition: IsDevBranch
@@ -276,14 +279,20 @@ Outputs:
   AuroraGlobalClusterId:
     Condition: ShouldCreateGlobalCluster
     Description: ID of the Aurora global cluster
-    Value: !GetAtt DbStack.Outputs.AuroraGlobalClusterId
+    Value:
+      !ImportValue {
+        Fn::Sub: "taskmanager-${BranchName}-AuroraGlobalClusterId",
+      }
     Export:
       Name: !Sub "taskmanager-dev-AuroraGlobalClusterId"
       Condition: IsDevBranch
 
   SharedLambdaRoleArn:
     Description: ARN of the shared Lambda role
-    Value: !GetAtt SecurityStack.Outputs.SharedLambdaRoleArn
+    Value:
+      !ImportValue {
+        Fn::Sub: "taskmanager-${BranchName}-SharedLambdaRoleArn-${AWS::Region}",
+      }
     Export:
       Name: !Sub "taskmanager-dev-SharedLambdaRoleArn-${AWS::Region}"
       Condition: IsDevBranch
@@ -434,11 +443,17 @@ Outputs:
   # API outputs
   ApiEndpoint:
     Description: "API Gateway endpoint URL"
-    Value: !GetAtt ApiStack.Outputs.ApiEndpoint
+    Value:
+      !ImportValue {
+        Fn::Sub: "taskmanager-${BranchName}-ApiEndpoint-${AWS::Region}",
+      }
 
   ApiLambdaFunctionName:
     Description: "API Lambda function name"
-    Value: !GetAtt ApiStack.Outputs.ApiLambdaFunctionName
+    Value:
+      !ImportValue {
+        Fn::Sub: "taskmanager-${BranchName}-ApiLambdaFunctionName-${AWS::Region}",
+      }
 
   # Web outputs
   WebEndpoint:
@@ -465,25 +480,40 @@ Outputs:
   PrimaryWebEndpoint:
     Condition: IsPrimarySingleRegion
     Description: "Web application endpoint URL"
-    Value: !GetAtt PrimaryDnsStack.Outputs.WebEndpoint
+    Value:
+      !ImportValue {
+        Fn::Sub: "taskmanager-${BranchName}-WebEndpoint-${AWS::Region}",
+      }
 
   # DNS outputs for secondary region (failover setup)
   SecondaryWebEndpoint:
     Condition: IsSecondary
     Description: "Web application endpoint URL"
-    Value: !GetAtt SecondaryDnsStack.Outputs.WebEndpoint
+    Value:
+      !ImportValue {
+        Fn::Sub: "taskmanager-${BranchName}-WebEndpoint-${AWS::Region}",
+      }
 
   PrimaryHealthCheckId:
     Condition: IsPrimarySingleRegion
     Description: "Primary health check ID"
-    Value: !GetAtt PrimaryDnsStack.Outputs.PrimaryHealthCheckId
+    Value:
+      !ImportValue {
+        Fn::Sub: "taskmanager-${BranchName}-PrimaryHealthCheckId-${AWS::Region}",
+      }
 
   PrimaryHealthCheckIdSecondary:
     Condition: IsSecondary
     Description: "Primary health check ID"
-    Value: !GetAtt SecondaryDnsStack.Outputs.PrimaryHealthCheckId
+    Value:
+      !ImportValue {
+        Fn::Sub: "taskmanager-${BranchName}-PrimaryHealthCheckId-${AWS::Region}",
+      }
 
   SecondaryHealthCheckId:
     Condition: IsSecondary
     Description: "Secondary health check ID"
-    Value: !GetAtt SecondaryDnsStack.Outputs.SecondaryHealthCheckId
+    Value:
+      !ImportValue {
+        Fn::Sub: "taskmanager-${BranchName}-SecondaryHealthCheckId-${AWS::Region}",
+      }

@@ -1,26 +1,26 @@
 ## Brief overview
-Project-specific guidelines for CloudFormation infrastructure architecture, emphasizing parameter-based stack composition over export/import mechanisms.
+Project-specific guidelines for CloudFormation infrastructure architecture, fully embracing Export/ImportValue for maximum reusability and interconnected infrastructure.
 
 ## CloudFormation stack communication
-- **Prefer stack outputs passed as parameters** to subsequent stacks over `Export` or `Fn::ImportValue`
-- Use **branch-specific export names** (e.g., `taskmanager-dev-ResourceName-${AWS::Region}`) when using `Export`/`Fn::ImportValue` to avoid namespace conflicts
-- For feature branch deployments sharing dev infrastructure, `Export`/`Fn::ImportValue` is allowed with proper naming conventions
-- This approach provides better control over stack dependencies and deployment ordering
+- **All CloudFormation outputs MUST be exported** using `Export` with branch and region-specific names
+- **All CloudFormation references MUST use `Fn::ImportValue`** instead of `!GetAtt` or parameters
+- Use **branch and region-specific export names** (e.g., `taskmanager-${BranchName}-ResourceName-${AWS::Region}`) to avoid namespace conflicts
+- This approach creates a fully interconnected infrastructure with implicit dependencies and maximum reusability
 
 ## Infrastructure deployment pattern
-- Deploy infrastructure stacks in sequence, passing outputs as parameters to dependent stacks
-- Use GitHub Actions job outputs to transfer values between deployment steps
-- Prefer explicit parameter passing over implicit cross-stack references
-- This pattern supports branch-based deployments without export name collisions
+- Deploy infrastructure stacks with full Export/ImportValue integration
+- Feature branches share dev infrastructure through imports
+- All cross-stack references use Fn::ImportValue for clean, implicit dependencies
+- This pattern enables seamless resource sharing across branches and regions
 
 ## Stack output usage
-- Design CloudFormation templates to accept all required values as parameters
-- Use stack outputs for visibility and integration with external systems
-- Avoid creating inter-stack dependencies through exports
-- Keep infrastructure modular and independently deployable
+- All outputs are exported for potential reuse by other stacks
+- Use Fn::ImportValue for all inter-stack references
+- Embrace inter-stack dependencies through exports for better infrastructure cohesion
+- Infrastructure is highly interconnected and reusable
 
 ## Deployment workflow
-- Infrastructure stacks deploy first, producing outputs
-- Application stacks consume infrastructure outputs as parameters
-- No cross-stack references within CloudFormation templates
-- All dependencies managed through deployment pipeline orchestration
+- Infrastructure stacks export all outputs for cross-stack availability
+- Application stacks import required infrastructure resources
+- Full Export/ImportValue usage within and across CloudFormation templates
+- Dependencies managed through CloudFormation's native import/export mechanism

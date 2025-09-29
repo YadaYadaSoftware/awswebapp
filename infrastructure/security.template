@@ -265,7 +265,11 @@ Outputs:
         !GetAtt AuroraKmsKey.Arn,
         !GetAtt AuroraKmsKeyReplica.Arn,
       ]
+    Export:
+      Name: !Sub "taskmanager-${BranchName}-AuroraKmsKeyArn-${AWS::Region}"
 
   SharedLambdaRoleArn:
     Description: Shared Lambda execution role ARN
     Value: !GetAtt SharedLambdaExecutionRole.Arn
+    Export:
+      Name: !Sub "taskmanager-${BranchName}-SharedLambdaRoleArn-${AWS::Region}"

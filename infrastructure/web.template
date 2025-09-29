@@ -334,19 +334,29 @@ Outputs:
   WebEndpoint:
     Description: "Web application endpoint URL"
     Value: !Sub "https://${Environment}.${DomainName}"
+    Export:
+      Name: !Sub "taskmanager-${Environment}-WebEndpoint-${AWS::Region}"
 
   WebLoadBalancerDNS:
     Description: "Web Load Balancer DNS name"
     Value: !GetAtt WebLoadBalancer.DNSName
+    Export:
+      Name: !Sub "taskmanager-${Environment}-WebLoadBalancerDNS-${AWS::Region}"
 
   WebLoadBalancerHostedZoneId:
     Description: "Web Load Balancer hosted zone ID"
     Value: !FindInMap [RegionMap, !Ref AWS::Region, ALBHostedZoneId]
+    Export:
+      Name: !Sub "taskmanager-${Environment}-WebLoadBalancerHostedZoneId-${AWS::Region}"
 
   WebTaskDefinition:
     Description: "Web ECS task definition"
     Value: !Ref WebTaskDefinition
+    Export:
+      Name: !Sub "taskmanager-${Environment}-WebTaskDefinition-${AWS::Region}"
 
   WebServiceName:
     Description: "Web ECS service name"
     Value: !Ref WebService
+    Export:
+      Name: !Sub "taskmanager-${Environment}-WebServiceName-${AWS::Region}"

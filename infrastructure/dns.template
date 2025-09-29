@@ -136,12 +136,18 @@ Outputs:
   WebEndpoint:
     Description: "Web application endpoint URL"
     Value: !Sub "https://${Environment}.${DomainName}"
+    Export:
+      Name: !Sub "taskmanager-${Environment}-WebEndpoint-${SecondaryRegion}"
 
   PrimaryHealthCheckId:
     Description: "Primary health check ID"
     Value: !Ref PrimaryHealthCheck
+    Export:
+      Name: !Sub "taskmanager-${Environment}-PrimaryHealthCheckId-${SecondaryRegion}"
 
   SecondaryHealthCheckId:
     Condition: HasSecondaryLoadBalancer
     Description: "Secondary health check ID"
     Value: !Ref SecondaryHealthCheck
+    Export:
+      Name: !Sub "taskmanager-${Environment}-SecondaryHealthCheckId-${SecondaryRegion}"

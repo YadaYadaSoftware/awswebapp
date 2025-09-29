@@ -269,44 +269,66 @@ Outputs:
   AuroraClusterId:
     Description: Aurora Regional Cluster ID
     Value: !Ref AuroraCluster
+    Export:
+      Name: !Sub "taskmanager-${BranchName}-AuroraClusterId-${AWS::Region}"
 
   DatabaseEndpoint:
     Description: Aurora MySQL cluster endpoint
     Value: !GetAtt AuroraCluster.Endpoint.Address
+    Export:
+      Name: !Sub "taskmanager-${BranchName}-DatabaseEndpoint-${AWS::Region}"
 
   DatabaseReaderEndpoint:
     Description: Aurora MySQL reader endpoint
     Value: !GetAtt AuroraCluster.ReadEndpoint.Address
+    Export:
+      Name: !Sub "taskmanager-${BranchName}-DatabaseReaderEndpoint-${AWS::Region}"
 
   DatabaseUsername:
     Description: Database username
     Value: "taskmanager_admin"
+    Export:
+      Name: !Sub "taskmanager-${BranchName}-DatabaseUsername-${AWS::Region}"
 
   DatabaseEngine:
     Description: Database engine
     Value: "aurora-mysql"
+    Export:
+      Name: !Sub "taskmanager-${BranchName}-DatabaseEngine-${AWS::Region}"
 
   DatabaseHost:
     Description: Database host endpoint
     Value: !GetAtt AuroraCluster.Endpoint.Address
+    Export:
+      Name: !Sub "taskmanager-${BranchName}-DatabaseHost-${AWS::Region}"
 
   DatabasePort:
     Description: Database port
     Value: !GetAtt AuroraCluster.Endpoint.Port
+    Export:
+      Name: !Sub "taskmanager-${BranchName}-DatabasePort-${AWS::Region}"
 
   DatabaseName:
     Description: Database name
     Value: "taskmanager"
+    Export:
+      Name: !Sub "taskmanager-${BranchName}-DatabaseName-${AWS::Region}"
 
   DatabaseClusterArn:
     Description: Database cluster ARN
     Value: !Ref AuroraCluster
+    Export:
+      Name: !Sub "taskmanager-${BranchName}-DatabaseClusterArn-${AWS::Region}"
 
   DatabasePasswordSecretArn:
     Description: Database password secret ARN
     Value: !Ref DatabasePasswordSecret
+    Export:
+      Name: !Sub "taskmanager-${BranchName}-DatabasePasswordSecretArn-${AWS::Region}"
 
   AuroraGlobalClusterId:
     Condition: ShouldCreateGlobalCluster
     Description: Aurora Global Database cluster identifier
     Value: !Ref AuroraGlobalCluster
+    Export:
+      Name: !Sub "taskmanager-${BranchName}-AuroraGlobalClusterId"

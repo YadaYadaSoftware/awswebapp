@@ -345,39 +345,59 @@ Outputs:
   VPCId:
     Description: VPC ID for regional database
     Value: !Ref TaskManagerVPC
+    Export:
+      Name: !Sub "taskmanager-${BranchName}-VPCId-${AWS::Region}"
 
   PrivateSubnet1Id:
     Description: Private subnet 1 ID
     Value: !Ref PrivateSubnet1
+    Export:
+      Name: !Sub "taskmanager-${BranchName}-PrivateSubnet1Id-${AWS::Region}"
 
   PrivateSubnet2Id:
     Description: Private subnet 2 ID
     Value: !Ref PrivateSubnet2
+    Export:
+      Name: !Sub "taskmanager-${BranchName}-PrivateSubnet2Id-${AWS::Region}"
 
   PublicSubnet1Id:
     Description: Public subnet 1 ID
     Value: !Ref PublicSubnet1
+    Export:
+      Name: !Sub "taskmanager-${BranchName}-PublicSubnet1Id-${AWS::Region}"
 
   PublicSubnet2Id:
     Description: Public subnet 2 ID
     Value: !Ref PublicSubnet2
+    Export:
+      Name: !Sub "taskmanager-${BranchName}-PublicSubnet2Id-${AWS::Region}"
 
   LambdaSecurityGroupId:
     Description: Security group for Lambda functions
     Value: !Ref LambdaSecurityGroup
+    Export:
+      Name: !Sub "taskmanager-${BranchName}-LambdaSecurityGroupId-${AWS::Region}"
 
   ALBSecurityGroupId:
     Description: Security group for Application Load Balancer
     Value: !Ref ALBSecurityGroup
+    Export:
+      Name: !Sub "taskmanager-${BranchName}-ALBSecurityGroupId-${AWS::Region}"
 
   ECSTaskSecurityGroupId:
     Description: Security group for ECS tasks
     Value: !Ref ECSTaskSecurityGroup
+    Export:
+      Name: !Sub "taskmanager-${BranchName}-ECSTaskSecurityGroupId-${AWS::Region}"
 
   RDSSecurityGroupId:
     Description: Security group for RDS access
     Value: !Ref RDSSecurityGroup
+    Export:
+      Name: !Sub "taskmanager-${BranchName}-RDSSecurityGroupId-${AWS::Region}"
 
   VpcFlowLogsRoleArn:
     Description: VPC Flow Logs role ARN
     Value: !GetAtt VPCFlowLogsRole.Arn
+    Export:
+      Name: !Sub "taskmanager-${BranchName}-VpcFlowLogsRoleArn-${AWS::Region}"

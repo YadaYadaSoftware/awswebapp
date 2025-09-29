@@ -58,7 +58,11 @@ Outputs:
   ECSClusterName:
     Description: "ECS cluster name"
     Value: !GetAtt ECSCluster.Arn
+    Export:
+      Name: !Sub "taskmanager-${BranchName}-ECSClusterName-${AWS::Region}"
 
   GoogleOAuthSecretArn:
     Description: "ARN of the Google OAuth secrets"
     Value: !Ref GoogleOAuthSecrets
+    Export:
+      Name: !Sub "taskmanager-${BranchName}-GoogleOAuthSecretArn-${AWS::Region}"
