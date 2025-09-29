@@ -14,6 +14,7 @@
     <PackageReference Include="Amazon.Lambda.Annotations" Version="1.7.0" />
     <PackageReference Include="Amazon.Lambda.AspNetCoreServer" Version="8.1.0" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.10" />
+    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="8.0.10" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="8.0.10" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
     <PackageReference Include="Microsoft.AspNetCore.HttpOverrides" Version="2.3.5" />

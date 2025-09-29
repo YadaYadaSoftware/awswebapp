@@ -70,29 +70,6 @@ namespace TaskManager.Migrations.Migrations
                 .Annotation("MySql:CharSet", "utf8mb4");
 
             migrationBuilder.CreateTable(
-                name: "Users",
-                columns: table => new
-                {
-                    Id = table.Column<Guid>(type: "char(36)", nullable: false, collation: "ascii_general_ci"),
-                    Email = table.Column<string>(type: "varchar(255)", maxLength: 255, nullable: false)
-                        .Annotation("MySql:CharSet", "utf8mb4"),
-                    FirstName = table.Column<string>(type: "varchar(100)", maxLength: 100, nullable: false)
-                        .Annotation("MySql:CharSet", "utf8mb4"),
-                    LastName = table.Column<string>(type: "varchar(100)", maxLength: 100, nullable: false)
-                        .Annotation("MySql:CharSet", "utf8mb4"),
-                    GoogleId = table.Column<string>(type: "varchar(255)", maxLength: 255, nullable: true)
-                        .Annotation("MySql:CharSet", "utf8mb4"),
-                    CreatedAt = table.Column<DateTime>(type: "datetime(6)", nullable: false),
-                    UpdatedAt = table.Column<DateTime>(type: "datetime(6)", nullable: false),
-                    IsActive = table.Column<bool>(type: "tinyint(1)", nullable: false, defaultValue: true)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_Users", x => x.Id);
-                })
-                .Annotation("MySql:CharSet", "utf8mb4");
-
-            migrationBuilder.CreateTable(
                 name: "AspNetRoleClaims",
                 columns: table => new
                 {
@@ -226,7 +203,8 @@ namespace TaskManager.Migrations.Migrations
                     Id = table.Column<Guid>(type: "char(36)", nullable: false, collation: "ascii_general_ci"),
                     Email = table.Column<string>(type: "varchar(255)", maxLength: 255, nullable: false)
                         .Annotation("MySql:CharSet", "utf8mb4"),
-                    InvitedByUserId = table.Column<Guid>(type: "char(36)", nullable: false, collation: "ascii_general_ci"),
+                    InvitedByUserId = table.Column<string>(type: "varchar(255)", nullable: false)
+                        .Annotation("MySql:CharSet", "utf8mb4"),
                     InvitedAt = table.Column<DateTime>(type: "datetime(6)", nullable: false),
                     AcceptedAt = table.Column<DateTime>(type: "datetime(6)", nullable: true),
                     IsAccepted = table.Column<bool>(type: "tinyint(1)", nullable: false),
@@ -236,9 +214,9 @@ namespace TaskManager.Migrations.Migrations
                 {
                     table.PrimaryKey("PK_Invitations", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_Invitations_Users_InvitedByUserId",
+                        name: "FK_Invitations_AspNetUsers_InvitedByUserId",
                         column: x => x.InvitedByUserId,
-                        principalTable: "Users",
+                        principalTable: "AspNetUsers",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                 })
@@ -253,7 +231,8 @@ namespace TaskManager.Migrations.Migrations
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     Description = table.Column<string>(type: "varchar(500)", maxLength: 500, nullable: true)
                         .Annotation("MySql:CharSet", "utf8mb4"),
-                    OwnerId = table.Column<Guid>(type: "char(36)", nullable: false, collation: "ascii_general_ci"),
+                    OwnerId = table.Column<string>(type: "varchar(255)", nullable: false)
+                        .Annotation("MySql:CharSet", "utf8mb4"),
                     CreatedAt = table.Column<DateTime>(type: "datetime(6)", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime(6)", nullable: false),
                     IsActive = table.Column<bool>(type: "tinyint(1)", nullable: false, defaultValue: true)
@@ -262,9 +241,9 @@ namespace TaskManager.Migrations.Migrations
                 {
                     table.PrimaryKey("PK_Projects", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_Projects_Users_OwnerId",
+                        name: "FK_Projects_AspNetUsers_OwnerId",
                         column: x => x.OwnerId,
-                        principalTable: "Users",
+                        principalTable: "AspNetUsers",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                 })
@@ -275,7 +254,8 @@ namespace TaskManager.Migrations.Migrations
                 columns: table => new
                 {
                     ProjectId = table.Column<Guid>(type: "char(36)", nullable: false, collation: "ascii_general_ci"),
-                    UserId = table.Column<Guid>(type: "char(36)", nullable: false, collation: "ascii_general_ci"),
+                    UserId = table.Column<string>(type: "varchar(255)", nullable: false)
+                        .Annotation("MySql:CharSet", "utf8mb4"),
                     Role = table.Column<int>(type: "int", nullable: false),
                     JoinedAt = table.Column<DateTime>(type: "datetime(6)", nullable: false)
                 },
@@ -283,15 +263,15 @@ namespace TaskManager.Migrations.Migrations
                 {
                     table.PrimaryKey("PK_ProjectMembers", x => new { x.ProjectId, x.UserId });
                     table.ForeignKey(
-                        name: "FK_ProjectMembers_Projects_ProjectId",
-                        column: x => x.ProjectId,
-                        principalTable: "Projects",
+                        name: "FK_ProjectMembers_AspNetUsers_UserId",
+                        column: x => x.UserId,
+                        principalTable: "AspNetUsers",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                     table.ForeignKey(
-                        name: "FK_ProjectMembers_Users_UserId",
-                        column: x => x.UserId,
-                        principalTable: "Users",
+                        name: "FK_ProjectMembers_Projects_ProjectId",
+                        column: x => x.ProjectId,
+                        principalTable: "Projects",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                 })
@@ -307,7 +287,8 @@ namespace TaskManager.Migrations.Migrations
                     Description = table.Column<string>(type: "varchar(1000)", maxLength: 1000, nullable: true)
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     ProjectId = table.Column<Guid>(type: "char(36)", nullable: false, collation: "ascii_general_ci"),
-                    AssignedToId = table.Column<Guid>(type: "char(36)", nullable: true, collation: "ascii_general_ci"),
+                    AssignedToId = table.Column<string>(type: "varchar(255)", nullable: true)
+                        .Annotation("MySql:CharSet", "utf8mb4"),
                     Status = table.Column<string>(type: "varchar(255)", nullable: false, defaultValue: "Todo")
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     Priority = table.Column<string>(type: "longtext", nullable: false, defaultValue: "Medium")
@@ -320,17 +301,17 @@ namespace TaskManager.Migrations.Migrations
                 {
                     table.PrimaryKey("PK_Tasks", x => x.Id);
                     table.ForeignKey(
+                        name: "FK_Tasks_AspNetUsers_AssignedToId",
+                        column: x => x.AssignedToId,
+                        principalTable: "AspNetUsers",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.SetNull);
+                    table.ForeignKey(
                         name: "FK_Tasks_Projects_ProjectId",
                         column: x => x.ProjectId,
                         principalTable: "Projects",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
-                    table.ForeignKey(
-                        name: "FK_Tasks_Users_AssignedToId",
-                        column: x => x.AssignedToId,
-                        principalTable: "Users",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.SetNull);
                 })
                 .Annotation("MySql:CharSet", "utf8mb4");
 
@@ -426,18 +407,6 @@ namespace TaskManager.Migrations.Migrations
                 name: "IX_Tasks_Status",
                 table: "Tasks",
                 column: "Status");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_Users_Email",
-                table: "Users",
-                column: "Email",
-                unique: true);
-
-            migrationBuilder.CreateIndex(
-                name: "IX_Users_GoogleId",
-                table: "Users",
-                column: "GoogleId",
-                unique: true);
         }
 
         /// <inheritdoc />
@@ -471,13 +440,10 @@ namespace TaskManager.Migrations.Migrations
                 name: "AspNetRoles");
 
             migrationBuilder.DropTable(
-                name: "AspNetUsers");
-
-            migrationBuilder.DropTable(
                 name: "Projects");
 
             migrationBuilder.DropTable(
-                name: "Users");
+                name: "AspNetUsers");
         }
     }
 }

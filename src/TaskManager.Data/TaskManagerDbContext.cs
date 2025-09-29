@@ -11,7 +11,6 @@ public class TaskManagerDbContext : IdentityDbContext<IdentityUser>
     {
     }
 
-    public DbSet<User> Users { get; set; }
     public DbSet<Project> Projects { get; set; }
     public DbSet<Entities.Task> Tasks { get; set; }
     public DbSet<ProjectMember> ProjectMembers { get; set; }
@@ -41,21 +40,21 @@ public class TaskManagerDbContext : IdentityDbContext<IdentityUser>
 
     private static void ConfigureUserRelationships(ModelBuilder modelBuilder)
     {
-        modelBuilder.Entity<User>()
-            .HasMany(u => u.OwnedProjects)
-            .WithOne(p => p.Owner)
+        modelBuilder.Entity<Project>()
+            .HasOne<IdentityUser>(p => p.Owner)
+            .WithMany()
             .HasForeignKey(p => p.OwnerId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        modelBuilder.Entity<User>()
-            .HasMany(u => u.AssignedTasks)
-            .WithOne(t => t.AssignedTo)
+        modelBuilder.Entity<Entities.Task>()
+            .HasOne<IdentityUser>(t => t.AssignedTo)
+            .WithMany()
             .HasForeignKey(t => t.AssignedToId)
             .OnDelete(DeleteBehavior.SetNull);
 
-        modelBuilder.Entity<User>()
-            .HasMany(u => u.ProjectMemberships)
-            .WithOne(pm => pm.User)
+        modelBuilder.Entity<ProjectMember>()
+            .HasOne<IdentityUser>(pm => pm.User)
+            .WithMany()
             .HasForeignKey(pm => pm.UserId)
             .OnDelete(DeleteBehavior.Cascade);
     }
@@ -96,14 +95,6 @@ public class TaskManagerDbContext : IdentityDbContext<IdentityUser>
 
     private static void ConfigureIndexes(ModelBuilder modelBuilder)
     {
-        // User indexes
-        modelBuilder.Entity<User>()
-            .HasIndex(u => u.Email)
-            .IsUnique();
-
-        modelBuilder.Entity<User>()
-            .HasIndex(u => u.GoogleId)
-            .IsUnique();
 
         // Project indexes
         modelBuilder.Entity<Project>()
@@ -159,7 +150,7 @@ public class TaskManagerDbContext : IdentityDbContext<IdentityUser>
     private void UpdateTimestamps()
     {
         var entries = ChangeTracker.Entries()
-            .Where(e => e.Entity is User || e.Entity is Project || e.Entity is Entities.Task || e.Entity is ProjectMember || e.Entity is Invitation)
+            .Where(e => e.Entity is Project || e.Entity is Entities.Task || e.Entity is ProjectMember || e.Entity is Invitation)
             .Where(e => e.State == EntityState.Added || e.State == EntityState.Modified);
 
         foreach (var entry in entries)
@@ -169,13 +160,7 @@ public class TaskManagerDbContext : IdentityDbContext<IdentityUser>
             if (entry.State == EntityState.Added)
             {
                 // Generate Id if not set
-                if (entry.Entity is User user)
-                {
-                    if (user.Id == Guid.Empty) user.Id = Guid.NewGuid();
-                    user.CreatedAt = now;
-                    user.UpdatedAt = now;
-                }
-                else if (entry.Entity is Project project)
+                if (entry.Entity is Project project)
                 {
                     if (project.Id == Guid.Empty) project.Id = Guid.NewGuid();
                     project.CreatedAt = now;
@@ -200,11 +185,7 @@ public class TaskManagerDbContext : IdentityDbContext<IdentityUser>
             }
             else if (entry.State == EntityState.Modified)
             {
-                if (entry.Entity is User user)
-                {
-                    user.UpdatedAt = now;
-                }
-                else if (entry.Entity is Project project)
+                if (entry.Entity is Project project)
                 {
                     project.UpdatedAt = now;
                 }

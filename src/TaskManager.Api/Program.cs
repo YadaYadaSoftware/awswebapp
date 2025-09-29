@@ -3,6 +3,7 @@ using Amazon.Lambda.AspNetCoreServer;
 using Amazon.Lambda.Core;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Pomelo.EntityFrameworkCore.MySql;
 using TaskManager.Api.Services;
@@ -50,10 +51,15 @@ public class Program
                 mysqlOptions.EnableRetryOnFailure(3);
             });
         });
-        
+
+        // Add ASP.NET Identity
+        services.AddIdentity<IdentityUser, IdentityRole>()
+            .AddEntityFrameworkStores<TaskManagerDbContext>()
+            .AddDefaultTokenProviders();
+
         // Add migration service
         services.AddScoped<IDatabaseMigrationService, DatabaseMigrationService>();
-        
+
         // Add invitation service
         services.AddScoped<IInvitationService, InvitationService>();
 

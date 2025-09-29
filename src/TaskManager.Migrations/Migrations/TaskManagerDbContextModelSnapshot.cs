@@ -235,8 +235,9 @@ namespace TaskManager.Migrations.Migrations
                     b.Property<DateTime>("InvitedAt")
                         .HasColumnType("datetime(6)");
 
-                    b.Property<Guid>("InvitedByUserId")
-                        .HasColumnType("char(36)");
+                    b.Property<string>("InvitedByUserId")
+                        .IsRequired()
+                        .HasColumnType("varchar(255)");
 
                     b.Property<bool>("IsAccepted")
                         .HasColumnType("tinyint(1)");
@@ -279,8 +280,9 @@ namespace TaskManager.Migrations.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("varchar(100)");
 
-                    b.Property<Guid>("OwnerId")
-                        .HasColumnType("char(36)");
+                    b.Property<string>("OwnerId")
+                        .IsRequired()
+                        .HasColumnType("varchar(255)");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("datetime(6)");
@@ -299,8 +301,8 @@ namespace TaskManager.Migrations.Migrations
                     b.Property<Guid>("ProjectId")
                         .HasColumnType("char(36)");
 
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("char(36)");
+                    b.Property<string>("UserId")
+                        .HasColumnType("varchar(255)");
 
                     b.Property<DateTime>("JoinedAt")
                         .HasColumnType("datetime(6)");
@@ -323,8 +325,8 @@ namespace TaskManager.Migrations.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("char(36)");
 
-                    b.Property<Guid?>("AssignedToId")
-                        .HasColumnType("char(36)");
+                    b.Property<string>("AssignedToId")
+                        .HasColumnType("varchar(255)");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime(6)");
@@ -370,53 +372,6 @@ namespace TaskManager.Migrations.Migrations
                     b.HasIndex("Status");
 
                     b.ToTable("Tasks", (string)null);
-                });
-
-            modelBuilder.Entity("TaskManager.Data.Entities.User", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("char(36)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("Email")
-                        .IsRequired()
-                        .HasMaxLength(255)
-                        .HasColumnType("varchar(255)");
-
-                    b.Property<string>("FirstName")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("varchar(100)");
-
-                    b.Property<string>("GoogleId")
-                        .HasMaxLength(255)
-                        .HasColumnType("varchar(255)");
-
-                    b.Property<bool>("IsActive")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("tinyint(1)")
-                        .HasDefaultValue(true);
-
-                    b.Property<string>("LastName")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("varchar(100)");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Email")
-                        .IsUnique();
-
-                    b.HasIndex("GoogleId")
-                        .IsUnique();
-
-                    b.ToTable("Users", (string)null);
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>
@@ -472,7 +427,7 @@ namespace TaskManager.Migrations.Migrations
 
             modelBuilder.Entity("TaskManager.Data.Entities.Invitation", b =>
                 {
-                    b.HasOne("TaskManager.Data.Entities.User", "InvitedByUser")
+                    b.HasOne("Microsoft.AspNetCore.Identity.IdentityUser", "InvitedByUser")
                         .WithMany()
                         .HasForeignKey("InvitedByUserId")
                         .OnDelete(DeleteBehavior.Restrict)
@@ -483,8 +438,8 @@ namespace TaskManager.Migrations.Migrations
 
             modelBuilder.Entity("TaskManager.Data.Entities.Project", b =>
                 {
-                    b.HasOne("TaskManager.Data.Entities.User", "Owner")
-                        .WithMany("OwnedProjects")
+                    b.HasOne("Microsoft.AspNetCore.Identity.IdentityUser", "Owner")
+                        .WithMany()
                         .HasForeignKey("OwnerId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
@@ -500,8 +455,8 @@ namespace TaskManager.Migrations.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("TaskManager.Data.Entities.User", "User")
-                        .WithMany("ProjectMemberships")
+                    b.HasOne("Microsoft.AspNetCore.Identity.IdentityUser", "User")
+                        .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -513,8 +468,8 @@ namespace TaskManager.Migrations.Migrations
 
             modelBuilder.Entity("TaskManager.Data.Entities.Task", b =>
                 {
-                    b.HasOne("TaskManager.Data.Entities.User", "AssignedTo")
-                        .WithMany("AssignedTasks")
+                    b.HasOne("Microsoft.AspNetCore.Identity.IdentityUser", "AssignedTo")
+                        .WithMany()
                         .HasForeignKey("AssignedToId")
                         .OnDelete(DeleteBehavior.SetNull);
 
@@ -534,15 +489,6 @@ namespace TaskManager.Migrations.Migrations
                     b.Navigation("Members");
 
                     b.Navigation("Tasks");
-                });
-
-            modelBuilder.Entity("TaskManager.Data.Entities.User", b =>
-                {
-                    b.Navigation("AssignedTasks");
-
-                    b.Navigation("OwnedProjects");
-
-                    b.Navigation("ProjectMemberships");
                 });
 #pragma warning restore 612, 618
         }
