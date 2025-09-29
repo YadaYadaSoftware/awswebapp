@@ -191,7 +191,6 @@ Resources:
   # Regional API
   ApiStack:
     Type: AWS::CloudFormation::Stack
-    DependsOn: !If [IsFullDeployment, [InfrastructureStack, DbStack], []]
     Properties:
       TemplateURL: ./api.template
       Parameters:
@@ -279,8 +278,7 @@ Resources:
   # Regional Web
   WebStack:
     Type: AWS::CloudFormation::Stack
-    DependsOn:
-      !If [IsFullDeployment, [InfrastructureStack, DbStack], [ApiStack]]
+    DependsOn: ApiStack
     Properties:
       TemplateURL: ./web.template
       Parameters:
