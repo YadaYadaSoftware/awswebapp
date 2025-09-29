@@ -493,63 +493,120 @@ Outputs:
   # Database outputs
   DatabaseEndpoint:
     Description: Aurora MySQL cluster endpoint
-    Value: !GetAtt DbStack.Outputs.DatabaseEndpoint
+    Value:
+      !If [
+        IsFullDeployment,
+        !GetAtt DbStack.Outputs.DatabaseEndpoint,
+        !ImportValue {
+          Fn::Sub: "taskmanager-dev-DatabaseEndpoint-${AWS::Region}",
+        },
+      ]
     Export:
       Name: !Sub "taskmanager-dev-DatabaseEndpoint-${AWS::Region}"
       Condition: IsDevBranch
 
   DatabaseReaderEndpoint:
     Description: Aurora MySQL reader endpoint
-    Value: !GetAtt DbStack.Outputs.DatabaseReaderEndpoint
+    Value:
+      !If [
+        IsFullDeployment,
+        !GetAtt DbStack.Outputs.DatabaseReaderEndpoint,
+        !ImportValue {
+          Fn::Sub: "taskmanager-dev-DatabaseReaderEndpoint-${AWS::Region}",
+        },
+      ]
     Export:
       Name: !Sub "taskmanager-dev-DatabaseReaderEndpoint-${AWS::Region}"
       Condition: IsDevBranch
 
   DatabaseUsername:
     Description: Database username
-    Value: !GetAtt DbStack.Outputs.DatabaseUsername
+    Value:
+      !If [
+        IsFullDeployment,
+        !GetAtt DbStack.Outputs.DatabaseUsername,
+        !ImportValue {
+          Fn::Sub: "taskmanager-dev-DatabaseUsername-${AWS::Region}",
+        },
+      ]
     Export:
       Name: !Sub "taskmanager-dev-DatabaseUsername-${AWS::Region}"
       Condition: IsDevBranch
 
   DatabaseEngine:
     Description: Database engine
-    Value: !GetAtt DbStack.Outputs.DatabaseEngine
+    Value:
+      !If [
+        IsFullDeployment,
+        !GetAtt DbStack.Outputs.DatabaseEngine,
+        !ImportValue {
+          Fn::Sub: "taskmanager-dev-DatabaseEngine-${AWS::Region}",
+        },
+      ]
     Export:
       Name: !Sub "taskmanager-dev-DatabaseEngine-${AWS::Region}"
       Condition: IsDevBranch
 
   DatabaseHost:
     Description: Database host endpoint
-    Value: !GetAtt DbStack.Outputs.DatabaseHost
+    Value:
+      !If [
+        IsFullDeployment,
+        !GetAtt DbStack.Outputs.DatabaseHost,
+        !ImportValue { Fn::Sub: "taskmanager-dev-DatabaseHost-${AWS::Region}" },
+      ]
     Export:
       Name: !Sub "taskmanager-dev-DatabaseHost-${AWS::Region}"
       Condition: IsDevBranch
 
   DatabasePort:
     Description: Database port
-    Value: !GetAtt DbStack.Outputs.DatabasePort
+    Value:
+      !If [
+        IsFullDeployment,
+        !GetAtt DbStack.Outputs.DatabasePort,
+        !ImportValue { Fn::Sub: "taskmanager-dev-DatabasePort-${AWS::Region}" },
+      ]
     Export:
       Name: !Sub "taskmanager-dev-DatabasePort-${AWS::Region}"
       Condition: IsDevBranch
 
   DatabaseName:
     Description: Database name
-    Value: !GetAtt DbStack.Outputs.DatabaseName
+    Value:
+      !If [
+        IsFullDeployment,
+        !GetAtt DbStack.Outputs.DatabaseName,
+        !ImportValue { Fn::Sub: "taskmanager-dev-DatabaseName-${AWS::Region}" },
+      ]
     Export:
       Name: !Sub "taskmanager-dev-DatabaseName-${AWS::Region}"
       Condition: IsDevBranch
 
   DatabaseClusterArn:
     Description: Database cluster ARN
-    Value: !GetAtt DbStack.Outputs.DatabaseClusterArn
+    Value:
+      !If [
+        IsFullDeployment,
+        !GetAtt DbStack.Outputs.DatabaseClusterArn,
+        !ImportValue {
+          Fn::Sub: "taskmanager-dev-DatabaseClusterArn-${AWS::Region}",
+        },
+      ]
     Export:
       Name: !Sub "taskmanager-dev-DatabaseClusterArn-${AWS::Region}"
       Condition: IsDevBranch
 
   DatabasePasswordSecretArn:
     Description: Database password secret ARN
-    Value: !GetAtt DbStack.Outputs.DatabasePasswordSecretArn
+    Value:
+      !If [
+        IsFullDeployment,
+        !GetAtt DbStack.Outputs.DatabasePasswordSecretArn,
+        !ImportValue {
+          Fn::Sub: "taskmanager-dev-DatabasePasswordSecretArn-${AWS::Region}",
+        },
+      ]
     Export:
       Name: !Sub "taskmanager-dev-DatabasePasswordSecretArn-${AWS::Region}"
       Condition: IsDevBranch
@@ -557,63 +614,124 @@ Outputs:
   # VPC outputs
   VpcId:
     Description: VPC ID
-    Value: !GetAtt NetworkingStack.Outputs.VPCId
+    Value:
+      !If [
+        IsFullDeployment,
+        !GetAtt NetworkingStack.Outputs.VPCId,
+        !ImportValue { Fn::Sub: "taskmanager-dev-VpcId-${AWS::Region}" },
+      ]
     Export:
       Name: !Sub "taskmanager-dev-VpcId-${AWS::Region}"
       Condition: IsDevBranch
 
   PrivateSubnet1Id:
     Description: Private subnet 1 ID
-    Value: !GetAtt NetworkingStack.Outputs.PrivateSubnet1Id
+    Value:
+      !If [
+        IsFullDeployment,
+        !GetAtt NetworkingStack.Outputs.PrivateSubnet1Id,
+        !ImportValue {
+          Fn::Sub: "taskmanager-dev-PrivateSubnet1Id-${AWS::Region}",
+        },
+      ]
     Export:
       Name: !Sub "taskmanager-dev-PrivateSubnet1Id-${AWS::Region}"
       Condition: IsDevBranch
 
   PrivateSubnet2Id:
     Description: Private subnet 2 ID
-    Value: !GetAtt NetworkingStack.Outputs.PrivateSubnet2Id
+    Value:
+      !If [
+        IsFullDeployment,
+        !GetAtt NetworkingStack.Outputs.PrivateSubnet2Id,
+        !ImportValue {
+          Fn::Sub: "taskmanager-dev-PrivateSubnet2Id-${AWS::Region}",
+        },
+      ]
     Export:
       Name: !Sub "taskmanager-dev-PrivateSubnet2Id-${AWS::Region}"
       Condition: IsDevBranch
 
   PublicSubnet1Id:
     Description: Public subnet 1 ID
-    Value: !GetAtt NetworkingStack.Outputs.PublicSubnet1Id
+    Value:
+      !If [
+        IsFullDeployment,
+        !GetAtt NetworkingStack.Outputs.PublicSubnet1Id,
+        !ImportValue {
+          Fn::Sub: "taskmanager-dev-PublicSubnet1Id-${AWS::Region}",
+        },
+      ]
     Export:
       Name: !Sub "taskmanager-dev-PublicSubnet1Id-${AWS::Region}"
       Condition: IsDevBranch
 
   PublicSubnet2Id:
     Description: Public subnet 2 ID
-    Value: !GetAtt NetworkingStack.Outputs.PublicSubnet2Id
+    Value:
+      !If [
+        IsFullDeployment,
+        !GetAtt NetworkingStack.Outputs.PublicSubnet2Id,
+        !ImportValue {
+          Fn::Sub: "taskmanager-dev-PublicSubnet2Id-${AWS::Region}",
+        },
+      ]
     Export:
       Name: !Sub "taskmanager-dev-PublicSubnet2Id-${AWS::Region}"
       Condition: IsDevBranch
 
   LambdaSecurityGroupId:
     Description: Lambda security group ID
-    Value: !GetAtt NetworkingStack.Outputs.LambdaSecurityGroupId
+    Value:
+      !If [
+        IsFullDeployment,
+        !GetAtt NetworkingStack.Outputs.LambdaSecurityGroupId,
+        !ImportValue {
+          Fn::Sub: "taskmanager-dev-LambdaSecurityGroupId-${AWS::Region}",
+        },
+      ]
     Export:
       Name: !Sub "taskmanager-dev-LambdaSecurityGroupId-${AWS::Region}"
       Condition: IsDevBranch
 
   ALBSecurityGroupId:
     Description: ALB security group ID
-    Value: !GetAtt NetworkingStack.Outputs.ALBSecurityGroupId
+    Value:
+      !If [
+        IsFullDeployment,
+        !GetAtt NetworkingStack.Outputs.ALBSecurityGroupId,
+        !ImportValue {
+          Fn::Sub: "taskmanager-dev-ALBSecurityGroupId-${AWS::Region}",
+        },
+      ]
     Export:
       Name: !Sub "taskmanager-dev-ALBSecurityGroupId-${AWS::Region}"
       Condition: IsDevBranch
 
   ECSTaskSecurityGroupId:
     Description: ECS task security group ID
-    Value: !GetAtt NetworkingStack.Outputs.ECSTaskSecurityGroupId
+    Value:
+      !If [
+        IsFullDeployment,
+        !GetAtt NetworkingStack.Outputs.ECSTaskSecurityGroupId,
+        !ImportValue {
+          Fn::Sub: "taskmanager-dev-ECSTaskSecurityGroupId-${AWS::Region}",
+        },
+      ]
     Export:
       Name: !Sub "taskmanager-dev-ECSTaskSecurityGroupId-${AWS::Region}"
       Condition: IsDevBranch
 
   VpcFlowLogsRoleArn:
     Description: VPC Flow Logs role ARN
-    Value: !GetAtt NetworkingStack.Outputs.VpcFlowLogsRoleArn
+    Value:
+      !If [
+        IsFullDeployment,
+        !GetAtt NetworkingStack.Outputs.VpcFlowLogsRoleArn,
+        !ImportValue {
+          Fn::Sub: "taskmanager-dev-VpcFlowLogsRoleArn-${AWS::Region}",
+        },
+      ]
     Export:
       Name: !Sub "taskmanager-dev-VpcFlowLogsRoleArn-${AWS::Region}"
       Condition: IsDevBranch
@@ -621,14 +739,28 @@ Outputs:
   # Infrastructure outputs
   ECSClusterName:
     Description: ECS cluster name
-    Value: !GetAtt InfrastructureStack.Outputs.ECSClusterName
+    Value:
+      !If [
+        IsFullDeployment,
+        !GetAtt InfrastructureStack.Outputs.ECSClusterName,
+        !ImportValue {
+          Fn::Sub: "taskmanager-dev-ECSClusterName-${AWS::Region}",
+        },
+      ]
     Export:
       Name: !Sub "taskmanager-dev-ECSClusterName-${AWS::Region}"
       Condition: IsDevBranch
 
   GoogleOAuthSecretArn:
     Description: ARN of the Google OAuth secrets
-    Value: !GetAtt InfrastructureStack.Outputs.GoogleOAuthSecretArn
+    Value:
+      !If [
+        IsFullDeployment,
+        !GetAtt InfrastructureStack.Outputs.GoogleOAuthSecretArn,
+        !ImportValue {
+          Fn::Sub: "taskmanager-dev-GoogleOAuthSecretArn-${AWS::Region}",
+        },
+      ]
     Export:
       Name: !Sub "taskmanager-dev-GoogleOAuthSecretArn-${AWS::Region}"
       Condition: IsDevBranch
