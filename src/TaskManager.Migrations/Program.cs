@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Pomelo.EntityFrameworkCore.MySql;
 using TaskManager.Data;
 
 namespace TaskManager.Migrations;
@@ -34,7 +35,7 @@ public class Program
                 var connectionString = context.Configuration.GetConnectionString("DefaultConnection");
                 
                 services.AddDbContext<TaskManagerDbContext>(options =>
-                    options.UseSqlServer(connectionString));
+                    options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString)));
                 
                 services.AddLogging();
             });

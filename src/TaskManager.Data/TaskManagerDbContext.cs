@@ -1,9 +1,11 @@
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using TaskManager.Data.Entities;
 
 namespace TaskManager.Data;
 
-public class TaskManagerDbContext : DbContext
+public class TaskManagerDbContext : IdentityDbContext<IdentityUser>
 {
     public TaskManagerDbContext(DbContextOptions<TaskManagerDbContext> options) : base(options)
     {
