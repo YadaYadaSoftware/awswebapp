@@ -50,12 +50,29 @@
             "sourceFileMap": {
                 "/Views": "${workspaceFolder}/Views"
             }
+        },
+        {
+            "name": "Launch TaskManager.Api",
+            "type": "coreclr",
+            "request": "launch",
+            "preLaunchTask": "build",
+            "program": "${workspaceFolder}/src/TaskManager.Api/bin/Debug/net8.0/TaskManager.Api.dll",
+            "args": [],
+            "cwd": "${workspaceFolder}/src/TaskManager.Api",
+            "stopAtEntry": false,
+            "env": {
+                "ASPNETCORE_ENVIRONMENT": "Development",
+                "ASPNETCORE_URLS": "http://localhost:5001"
+            },
+            "sourceFileMap": {
+                "/Views": "${workspaceFolder}/Views"
+            }
         }
     ],
     "compounds": [
-            {
-                "name": "Debug All",
-                "configurations": ["Launch TaskManager.Web2 (Local API)", "Launch TaskManager.Web2 (AWS API)"]
-            }
-        ]
-    }
+        {
+            "name": "Launch Both (Web and API)",
+            "configurations": ["Launch TaskManager.Web2 (Local API)", "Launch TaskManager.Api"]
+        }
+    ]
+}
