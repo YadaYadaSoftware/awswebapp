@@ -168,16 +168,19 @@ echo "Use these with your preferred database client through a bastion host"
 
 ### **Local Development Setup**
 ```bash
-# Install PostgreSQL locally
-# Windows: Download from postgresql.org
-# macOS: brew install postgresql
-# Linux: sudo apt-get install postgresql
+# Install MySQL locally
+# Windows: Download from mysql.com
+# macOS: brew install mysql
+# Linux: sudo apt-get install mysql-server
 
 # Create local development database
-createdb taskmanager_dev
+mysql -u root -p -e "CREATE DATABASE taskmanager_dev;"
 
-# Run migrations locally
-dotnet run --project src/TaskManager.Migrations
+# Start the API application - migrations are applied automatically
+dotnet run --project src/TaskManager.Api
+
+# Or start the Web application - migrations are applied automatically
+dotnet run --project src/TaskManager.Web2
 ```
 
 ## Security Best Practices
