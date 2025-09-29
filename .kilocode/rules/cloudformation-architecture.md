@@ -2,10 +2,10 @@
 Project-specific guidelines for CloudFormation infrastructure architecture, emphasizing parameter-based stack composition over export/import mechanisms.
 
 ## CloudFormation stack communication
-- **Never use `Export` or `Fn::ImportValue`** in CloudFormation templates
-- Use **stack outputs passed as parameters** to subsequent stacks instead
+- **Prefer stack outputs passed as parameters** to subsequent stacks over `Export` or `Fn::ImportValue`
+- Use **branch-specific export names** (e.g., `taskmanager-dev-ResourceName-${AWS::Region}`) when using `Export`/`Fn::ImportValue` to avoid namespace conflicts
+- For feature branch deployments sharing dev infrastructure, `Export`/`Fn::ImportValue` is allowed with proper naming conventions
 - This approach provides better control over stack dependencies and deployment ordering
-- Avoids the global namespace conflicts that can occur with exports across accounts/regions
 
 ## Infrastructure deployment pattern
 - Deploy infrastructure stacks in sequence, passing outputs as parameters to dependent stacks

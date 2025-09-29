@@ -174,19 +174,30 @@ jobs:
         echo "account-id=$ACCOUNT_ID" >> $GITHUB_OUTPUT
 
 
-    - name: Build and package master template
+    - name: Determine template file
+      if: matrix.deploy
+      run: |
+        BRANCH_NAME="${{ needs.get-branch-name.outputs.branch-name }}"
+        if [[ " dev app beta alpha " == *" $BRANCH_NAME "* ]]; then
+          TEMPLATE_FILE="master.template"
+        else
+          TEMPLATE_FILE="feature.template"
+        fi
+        echo "TEMPLATE_FILE=$TEMPLATE_FILE" >> $GITHUB_ENV
+
+    - name: Build and package template
       if: matrix.deploy
       run: |
         BUCKET_NAME="cf-templates-${{ steps.account-id.outputs.account-id }}-${{ matrix.region }}"
         BRANCH_NAME="${{ needs.get-branch-name.outputs.branch-name }}"
         echo "BUCKET_NAME=$BUCKET_NAME" >> $GITHUB_ENV
 
-        echo "Building and packaging master template to S3 bucket: $BUCKET_NAME"
-        sam build --template infrastructure/master.template --region ${{ matrix.region }}
-        sam package --template-file .aws-sam/build/template.yaml --s3-bucket $BUCKET_NAME --s3-prefix $BRANCH_NAME --output-template-file packaged-master-template.yaml --region ${{ matrix.region }}
+        echo "Building and packaging ${{ env.TEMPLATE_FILE }} to S3 bucket: $BUCKET_NAME"
+        sam build --template infrastructure/${{ env.TEMPLATE_FILE }} --region ${{ matrix.region }}
+        sam package --template-file .aws-sam/build/template.yaml --s3-bucket $BUCKET_NAME --s3-prefix $BRANCH_NAME --output-template-file packaged-template.yaml --region ${{ matrix.region }}
 
         # Upload the packaged template as master-template.yaml for compatibility
-        aws s3 cp packaged-master-template.yaml s3://$BUCKET_NAME/$BRANCH_NAME/master-template.yaml --region ${{ matrix.region }}
+        aws s3 cp packaged-template.yaml s3://$BUCKET_NAME/$BRANCH_NAME/master-template.yaml --region ${{ matrix.region }}
         TEMPLATE_VERSION_ID=$(aws s3api head-object --bucket $BUCKET_NAME --key $BRANCH_NAME/master-template.yaml --query VersionId --output text)
         echo "TEMPLATE_VERSION_ID=$TEMPLATE_VERSION_ID" >> $GITHUB_ENV
 

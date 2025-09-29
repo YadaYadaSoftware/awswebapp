@@ -1,0 +1,286 @@
+---
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "TaskManager Feature Branch Template - Deploys ApiStack and WebStack using shared dev infrastructure"
+
+Parameters:
+  # Common parameters
+  TemplateBucket:
+    Type: String
+    Description: S3 bucket name containing the CloudFormation templates
+
+  GitHubActionsUserArn:
+    Type: String
+    Description: ARN of the GitHub Actions IAM user
+
+  BranchName:
+    Type: String
+    Description: Branch name for resource naming
+
+  DatabasePassword:
+    Type: String
+    NoEcho: true
+    MinLength: 8
+    Description: Password for the Aurora MySQL database
+
+  EngineVersion:
+    Type: String
+    Description: Aurora MySQL engine version
+
+  MinCapacity:
+    Type: Number
+    Description: Minimum Aurora Serverless v2 capacity (ACUs)
+
+  MaxCapacity:
+    Type: Number
+    Description: Maximum Aurora Serverless v2 capacity (ACUs)
+
+  EnableGlobalCluster:
+    Type: String
+    AllowedValues: ["true", "false"]
+    Default: "true"
+    Description: Whether to enable Aurora global cluster
+
+  # Region-specific parameters
+  IsPrimaryRegion:
+    Type: String
+    AllowedValues: ["true", "false"]
+    Description: Whether this region hosts the primary cluster
+
+  # Parameters for global infrastructure outputs
+  AuroraGlobalClusterId:
+    Type: String
+    Default: ""
+    Description: ID of the Aurora global cluster
+
+  # Parameters for secondary regions
+  KmsKeyArn:
+    Type: String
+    Description: ARN of the primary KMS key (for secondary regions)
+    Default: ""
+
+  # Google OAuth parameters
+  GoogleOAuthClientId:
+    Type: String
+    Description: Google OAuth Client ID
+    NoEcho: true
+
+  GoogleOAuthClientSecret:
+    Type: String
+    Description: Google OAuth Client Secret
+    NoEcho: true
+
+  # Web parameters
+  WebContainerImage:
+    Type: String
+    Description: "Container image URI for the web application"
+
+  DeploymentToken:
+    Type: String
+    Default: "default"
+    Description: "Deployment token to force task definition updates"
+
+  DomainName:
+    Type: String
+    Default: "appcloud.systems"
+    Description: "Domain name for SSL certificate"
+
+  HostedZoneId:
+    Type: String
+    Description: "Route 53 hosted zone ID for the domain"
+
+  # DNS parameters (for secondary region)
+  PrimaryRegion:
+    Type: String
+    Default: ""
+    Description: "Primary region for DNS failover"
+
+  PrimaryWebLoadBalancerDNS:
+    Type: String
+    Default: ""
+    Description: "DNS name of the primary web load balancer"
+
+  PrimaryWebLoadBalancerHostedZoneId:
+    Type: String
+    Default: ""
+    Description: "Hosted zone ID of the primary web load balancer"
+
+Conditions:
+  IsPrimary: !Equals [!Ref IsPrimaryRegion, "true"]
+  IsSecondary: !Equals [!Ref IsPrimaryRegion, "false"]
+  HasKmsKeyArn: !Not [!Equals [!Ref KmsKeyArn, ""]]
+  HasGlobalClusterId: !Not [!Equals [!Ref AuroraGlobalClusterId, ""]]
+  IsSingleRegion: !Equals [!Ref EnableGlobalCluster, "false"]
+  IsPrimarySingleRegion:
+    !And [
+      !Equals [!Ref IsPrimaryRegion, "true"],
+      !Equals [!Ref EnableGlobalCluster, "false"],
+    ]
+
+Resources:
+  # Regional API
+  ApiStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: ./api.template
+      Parameters:
+        Environment: !Ref BranchName
+        SharedLambdaRoleArn: !ImportValue
+          Fn::Sub: "taskmanager-dev-SharedLambdaRoleArn-${AWS::Region}"
+        DatabaseHost: !ImportValue
+          Fn::Sub: "taskmanager-dev-DatabaseHost-${AWS::Region}"
+        DatabaseUsername: !ImportValue
+          Fn::Sub: "taskmanager-dev-DatabaseUsername-${AWS::Region}"
+        DatabaseEngine: !ImportValue
+          Fn::Sub: "taskmanager-dev-DatabaseEngine-${AWS::Region}"
+        DatabasePort: !ImportValue
+          Fn::Sub: "taskmanager-dev-DatabasePort-${AWS::Region}"
+        DatabaseName: !Sub "taskmanager_${BranchName}"
+        DatabaseClusterArn: !ImportValue
+          Fn::Sub: "taskmanager-dev-DatabaseClusterArn-${AWS::Region}"
+        LambdaSecurityGroupId: !ImportValue
+          Fn::Sub: "taskmanager-dev-LambdaSecurityGroupId-${AWS::Region}"
+        PrivateSubnet1Id: !ImportValue
+          Fn::Sub: "taskmanager-dev-PrivateSubnet1Id-${AWS::Region}"
+        PrivateSubnet2Id: !ImportValue
+          Fn::Sub: "taskmanager-dev-PrivateSubnet2Id-${AWS::Region}"
+        LogRetentionDays: 7
+
+  # Regional Web
+  WebStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: ApiStack
+    Properties:
+      TemplateURL: ./web.template
+      Parameters:
+        Environment: !Ref BranchName
+        WebContainerImage: !Ref WebContainerImage
+        DeploymentToken: !Ref DeploymentToken
+        DomainName: !Ref DomainName
+        HostedZoneId: !Ref HostedZoneId
+        SharedLambdaRoleArn: !ImportValue
+          Fn::Sub: "taskmanager-dev-SharedLambdaRoleArn-${AWS::Region}"
+        VPCId: !ImportValue
+          Fn::Sub: "taskmanager-dev-VpcId-${AWS::Region}"
+        ALBSecurityGroupId: !ImportValue
+          Fn::Sub: "taskmanager-dev-ALBSecurityGroupId-${AWS::Region}"
+        ECSTaskSecurityGroupId: !ImportValue
+          Fn::Sub: "taskmanager-dev-ECSTaskSecurityGroupId-${AWS::Region}"
+        PublicSubnet1Id: !ImportValue
+          Fn::Sub: "taskmanager-dev-PublicSubnet1Id-${AWS::Region}"
+        PublicSubnet2Id: !ImportValue
+          Fn::Sub: "taskmanager-dev-PublicSubnet2Id-${AWS::Region}"
+        PrivateSubnet1Id: !ImportValue
+          Fn::Sub: "taskmanager-dev-PrivateSubnet1Id-${AWS::Region}"
+        PrivateSubnet2Id: !ImportValue
+          Fn::Sub: "taskmanager-dev-PrivateSubnet2Id-${AWS::Region}"
+        ECSClusterName: !ImportValue
+          Fn::Sub: "taskmanager-dev-ECSClusterName-${AWS::Region}"
+        GoogleOAuthSecretArn: !ImportValue
+          Fn::Sub: "taskmanager-dev-GoogleOAuthSecretArn-${AWS::Region}"
+        DatabaseHost: !ImportValue
+          Fn::Sub: "taskmanager-dev-DatabaseHost-${AWS::Region}"
+        DatabaseUsername: !ImportValue
+          Fn::Sub: "taskmanager-dev-DatabaseUsername-${AWS::Region}"
+        DatabaseEngine: !ImportValue
+          Fn::Sub: "taskmanager-dev-DatabaseEngine-${AWS::Region}"
+        DatabasePort: !ImportValue
+          Fn::Sub: "taskmanager-dev-DatabasePort-${AWS::Region}"
+        DatabaseName: !Sub "taskmanager_${BranchName}"
+        DatabaseClusterArn: !ImportValue
+          Fn::Sub: "taskmanager-dev-DatabaseClusterArn-${AWS::Region}"
+        DatabasePasswordSecretArn: !ImportValue
+          Fn::Sub: "taskmanager-dev-DatabasePasswordSecretArn-${AWS::Region}"
+        LogRetentionDays: 7
+
+  # DNS for primary region (simple record for single region)
+  PrimaryDnsStack:
+    Condition: IsPrimarySingleRegion
+    Type: AWS::CloudFormation::Stack
+    DependsOn: WebStack
+    Properties:
+      TemplateURL: ./dns.template
+      Parameters:
+        Environment: !Ref BranchName
+        DomainName: !Ref DomainName
+        HostedZoneId: !Ref HostedZoneId
+        PrimaryRegion: !Ref "AWS::Region"
+        PrimaryWebLoadBalancerDNS: !GetAtt WebStack.Outputs.WebLoadBalancerDNS
+        PrimaryWebLoadBalancerHostedZoneId: !GetAtt WebStack.Outputs.WebLoadBalancerHostedZoneId
+        SecondaryWebLoadBalancerDNS: !Ref "AWS::NoValue"
+        SecondaryWebLoadBalancerHostedZoneId: !Ref "AWS::NoValue"
+
+  # Global DNS (only in secondary region - failover setup)
+  SecondaryDnsStack:
+    Condition: IsSecondary
+    Type: AWS::CloudFormation::Stack
+    DependsOn: WebStack
+    Properties:
+      TemplateURL: ./dns.template
+      Parameters:
+        Environment: !Ref BranchName
+        DomainName: !Ref DomainName
+        HostedZoneId: !Ref HostedZoneId
+        PrimaryRegion: !Ref PrimaryRegion
+        SecondaryRegion: !Ref "AWS::Region"
+        PrimaryWebLoadBalancerDNS: !Ref PrimaryWebLoadBalancerDNS
+        PrimaryWebLoadBalancerHostedZoneId: !Ref PrimaryWebLoadBalancerHostedZoneId
+        SecondaryWebLoadBalancerDNS: !GetAtt WebStack.Outputs.WebLoadBalancerDNS
+        SecondaryWebLoadBalancerHostedZoneId: !GetAtt WebStack.Outputs.WebLoadBalancerHostedZoneId
+
+Outputs:
+  # API outputs
+  ApiEndpoint:
+    Description: "API Gateway endpoint URL"
+    Value: !GetAtt ApiStack.Outputs.ApiEndpoint
+
+  ApiLambdaFunctionName:
+    Description: "API Lambda function name"
+    Value: !GetAtt ApiStack.Outputs.ApiLambdaFunctionName
+
+  # Web outputs
+  WebEndpoint:
+    Description: "Web application endpoint URL"
+    Value: !GetAtt WebStack.Outputs.WebEndpoint
+
+  WebLoadBalancerDNS:
+    Description: "Web Load Balancer DNS name"
+    Value: !GetAtt WebStack.Outputs.WebLoadBalancerDNS
+
+  WebLoadBalancerHostedZoneId:
+    Description: "Web Load Balancer hosted zone ID"
+    Value: !GetAtt WebStack.Outputs.WebLoadBalancerHostedZoneId
+
+  WebTaskDefinition:
+    Description: "Web ECS task definition"
+    Value: !GetAtt WebStack.Outputs.WebTaskDefinition
+
+  WebServiceName:
+    Description: "Web ECS service name"
+    Value: !GetAtt WebStack.Outputs.WebServiceName
+
+  # DNS outputs for primary region (single region only)
+  PrimaryWebEndpoint:
+    Condition: IsPrimarySingleRegion
+    Description: "Web application endpoint URL"
+    Value: !GetAtt PrimaryDnsStack.Outputs.WebEndpoint
+
+  # DNS outputs for secondary region (failover setup)
+  SecondaryWebEndpoint:
+    Condition: IsSecondary
+    Description: "Web application endpoint URL"
+    Value: !GetAtt SecondaryDnsStack.Outputs.WebEndpoint
+
+  PrimaryHealthCheckId:
+    Condition: IsPrimarySingleRegion
+    Description: "Primary health check ID"
+    Value: !GetAtt PrimaryDnsStack.Outputs.PrimaryHealthCheckId
+
+  PrimaryHealthCheckIdSecondary:
+    Condition: IsSecondary
+    Description: "Primary health check ID"
+    Value: !GetAtt SecondaryDnsStack.Outputs.PrimaryHealthCheckId
+
+  SecondaryHealthCheckId:
+    Condition: IsSecondary
+    Description: "Secondary health check ID"
+    Value: !GetAtt SecondaryDnsStack.Outputs.SecondaryHealthCheckId
