@@ -225,7 +225,6 @@ Resources:
   ApiGatewayCloudWatchLogsRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub TM-Api-Logs-Role-${AWS::Region}
       AssumeRolePolicyDocument:
         Version: 2012-10-17
         Statement:

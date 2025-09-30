@@ -286,7 +286,6 @@ Resources:
   VPCFlowLogsRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub TaskManager-VPCFlowLogs-Role-${BranchName}-${AWS::Region}
       AssumeRolePolicyDocument:
         Version: 2012-10-17
         Statement:
