@@ -316,7 +316,6 @@ Resources:
   VPCFlowLogsLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub "/aws/vpc/flowlogs/TaskManager-${BranchName}-VPC-${AWS::Region}"
       RetentionInDays: !Ref LogRetentionDays
       Tags:
         - Key: LogicalId
