@@ -326,10 +326,10 @@ jobs:
       run: |
         echo "Getting outputs from primary region stack..."
         PRIMARY_STACK_NAME="taskmanager-${{ needs.get-branch-name.outputs.branch-name }}"
-        KMS_KEY_ARN=$(aws cloudformation describe-stacks --stack-name $PRIMARY_STACK_NAME --region $(AWS_REGION_PRIMARY) --query 'Stacks[0].Outputs[?OutputKey==`AuroraKmsKeyArn`].OutputValue' --output text)
-        GLOBAL_CLUSTER_ID=$(aws cloudformation describe-stacks --stack-name $PRIMARY_STACK_NAME --region $(AWS_REGION_PRIMARY) --query 'Stacks[0].Outputs[?OutputKey==`AuroraGlobalClusterId`].OutputValue' --output text)
-        PRIMARY_LB_DNS=$(aws cloudformation describe-stacks --stack-name $PRIMARY_STACK_NAME --region $(AWS_REGION_PRIMARY) --query 'Stacks[0].Outputs[?OutputKey==`WebLoadBalancerDNS`].OutputValue' --output text)
-        PRIMARY_LB_HZ=$(aws cloudformation describe-stacks --stack-name $PRIMARY_STACK_NAME --region $(AWS_REGION_PRIMARY) --query 'Stacks[0].Outputs[?OutputKey==`WebLoadBalancerHostedZoneId`].OutputValue' --output text)
+        KMS_KEY_ARN=$(aws cloudformation describe-stacks --stack-name $PRIMARY_STACK_NAME --region $AWS_REGION_PRIMARY --query 'Stacks[0].Outputs[?OutputKey==`AuroraKmsKeyArn`].OutputValue' --output text)
+        GLOBAL_CLUSTER_ID=$(aws cloudformation describe-stacks --stack-name $PRIMARY_STACK_NAME --region $AWS_REGION_PRIMARY --query 'Stacks[0].Outputs[?OutputKey==`AuroraGlobalClusterId`].OutputValue' --output text)
+        PRIMARY_LB_DNS=$(aws cloudformation describe-stacks --stack-name $PRIMARY_STACK_NAME --region $AWS_REGION_PRIMARY --query 'Stacks[0].Outputs[?OutputKey==`WebLoadBalancerDNS`].OutputValue' --output text)
+        PRIMARY_LB_HZ=$(aws cloudformation describe-stacks --stack-name $PRIMARY_STACK_NAME --region $AWS_REGION_PRIMARY --query 'Stacks[0].Outputs[?OutputKey==`WebLoadBalancerHostedZoneId`].OutputValue' --output text)
         echo "kms-key-arn=$KMS_KEY_ARN" >> $GITHUB_OUTPUT
         echo "global-cluster-id=$GLOBAL_CLUSTER_ID" >> $GITHUB_OUTPUT
         echo "primary-lb-dns=$PRIMARY_LB_DNS" >> $GITHUB_OUTPUT
