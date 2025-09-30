@@ -173,11 +173,21 @@ jobs:
         echo "AWS Account ID: $ACCOUNT_ID"
         echo "account-id=$ACCOUNT_ID" >> $GITHUB_OUTPUT
 
+    - name: Get Bootstrap Stack Outputs
+      if: matrix.deploy
+      id: bootstrap-outputs
+      run: |
+        # Get TemplatesBucketName from bootstrap stack in us-east-1
+        BOOTSTRAP_STACK_NAME="bootstrap-${{ matrix.region }}"
+        TEMPLATES_BUCKET_NAME=$(aws cloudformation describe-stacks --stack-name $BOOTSTRAP_STACK_NAME --region us-east-1 --query 'Stacks[0].Outputs[?OutputKey==`TemplatesBucketName`].OutputValue' --output text)
+        echo "Templates bucket name: $TEMPLATES_BUCKET_NAME"
+        echo "templates-bucket-name=$TEMPLATES_BUCKET_NAME" >> $GITHUB_OUTPUT
 
     - name: Build and package master template
       if: matrix.deploy
       run: |
-        BUCKET_NAME="cf-templates-${{ steps.account-id.outputs.account-id }}-${{ matrix.region }}"
+        # Use TemplatesBucketName from bootstrap stack in us-east-1
+        BUCKET_NAME="${{ steps.bootstrap-outputs.outputs.templates-bucket-name }}"
         BRANCH_NAME="${{ needs.get-branch-name.outputs.branch-name }}"
         echo "BUCKET_NAME=$BUCKET_NAME" >> $GITHUB_ENV
 
@@ -323,7 +333,7 @@ jobs:
       uses: aws-actions/aws-cloudformation-github-deploy@v1
       with:
         name: taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-${{ matrix.region }}
-        template: https://s3.amazonaws.com/cf-templates-${{ steps.account-id.outputs.account-id }}-${{ matrix.region }}/${{ needs.get-branch-name.outputs.branch-name }}/master-template.yaml?versionId=${{ env.TEMPLATE_VERSION_ID }}
+        template: https://s3.amazonaws.com/${{ steps.bootstrap-outputs.outputs.templates-bucket-name }}/${{ needs.get-branch-name.outputs.branch-name }}/master-template.yaml?versionId=${{ env.TEMPLATE_VERSION_ID }}
         parameter-overrides: ${{ steps.set-params.outputs.params }}
         capabilities: "CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND"
         no-fail-on-empty-changeset: "1"
