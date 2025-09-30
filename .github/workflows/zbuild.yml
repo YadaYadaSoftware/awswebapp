@@ -193,11 +193,14 @@ jobs:
       if: matrix.deploy
       id: bootstrap-outputs
       run: |
-        # Get TemplatesBucketName from bootstrap stack in us-east-1
+        # Get TemplatesBucketName and WebECRRepositoryUri from bootstrap stack
         BOOTSTRAP_STACK_NAME="bootstrap"
         TEMPLATES_BUCKET_NAME=$(aws cloudformation describe-stacks --stack-name $BOOTSTRAP_STACK_NAME --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`TemplatesBucketName`].OutputValue' --output text)
+        WEB_ECR_URI=$(aws cloudformation describe-stacks --stack-name $BOOTSTRAP_STACK_NAME --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`WebECRRepositoryUri`].OutputValue' --output text)
         echo "Templates bucket name: $TEMPLATES_BUCKET_NAME"
+        echo "Web ECR URI: $WEB_ECR_URI"
         echo "templates-bucket-name=$TEMPLATES_BUCKET_NAME" >> $GITHUB_OUTPUT
+        echo "web-ecr-uri=$WEB_ECR_URI" >> $GITHUB_OUTPUT
 
     - name: Build and package master template
       if: matrix.deploy && steps.deployment-type.outputs.deploy-master == 'true'
@@ -245,9 +248,8 @@ jobs:
         BRANCH_NAME=${{ needs.get-branch-name.outputs.branch-name }}
         SEMVER_TAG=${{ needs.build.outputs.customVersion }}
 
-        # Construct ECR repository URI
-        ACCOUNT_ID=${{ steps.account-id.outputs.account-id }}
-        ECR_REPO="${ACCOUNT_ID}.dkr.ecr.${{ matrix.region }}.amazonaws.com/ecr-${ACCOUNT_ID}-${{ matrix.region }}"
+        # Get ECR repository URI from bootstrap stack
+        ECR_REPO="${{ steps.bootstrap-outputs.outputs.web-ecr-uri }}"
 
         echo "🎯 ECR repository: $ECR_REPO"
         echo "📋 Checksum tag: $SRC_CHECKSUM"
@@ -274,9 +276,8 @@ jobs:
         SEMVER_TAG=${{ needs.build.outputs.customVersion }}
         BRANCH_TAG=${BRANCH_NAME:-main}
 
-        # Construct ECR repository URI
-        ACCOUNT_ID=${{ steps.account-id.outputs.account-id }}
-        ECR_REPO="${ACCOUNT_ID}.dkr.ecr.${{ matrix.region }}.amazonaws.com/ecr-${ACCOUNT_ID}-${{ matrix.region }}"
+        # Get ECR repository URI from bootstrap stack
+        ECR_REPO="${{ steps.bootstrap-outputs.outputs.web-ecr-uri }}"
 
         echo "🎯 ECR repository: $ECR_REPO"
         echo "📋 Checksum tag: $SRC_CHECKSUM"
@@ -315,8 +316,7 @@ jobs:
       if: matrix.deploy
       run: |
         SRC_CHECKSUM=${{ steps.checksum.outputs.src-checksum }}
-        ACCOUNT_ID=${{ steps.account-id.outputs.account-id }}
-        ECR_REPO="${ACCOUNT_ID}.dkr.ecr.${{ matrix.region }}.amazonaws.com/ecr-${ACCOUNT_ID}-${{ matrix.region }}"
+        ECR_REPO="${{ steps.bootstrap-outputs.outputs.web-ecr-uri }}"
         CONTAINER_IMAGE=$ECR_REPO:$SRC_CHECKSUM
         echo "CONTAINER_IMAGE=$CONTAINER_IMAGE" >> $GITHUB_ENV
 
