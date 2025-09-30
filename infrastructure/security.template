@@ -86,8 +86,6 @@ Resources:
       Tags:
         - Key: LogicalId
           Value: AuroraKmsKey
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
 
   AuroraKmsKeyReplica:
     Type: AWS::KMS::ReplicaKey
@@ -145,8 +143,6 @@ Resources:
       Tags:
         - Key: LogicalId
           Value: AuroraKmsKeyReplica
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
 
   SharedLambdaExecutionRole:
     Type: AWS::IAM::Role
@@ -252,8 +248,6 @@ Resources:
       Tags:
         - Key: LogicalId
           Value: SharedLambdaExecutionRole
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
 
 Outputs:
   AuroraKmsKeyArn:

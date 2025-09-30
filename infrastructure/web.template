@@ -138,8 +138,6 @@ Resources:
       Tags:
         - Key: LogicalId
           Value: WebECSLogGroup
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
 
   # Application Load Balancer
   WebLoadBalancer:
@@ -158,8 +156,6 @@ Resources:
           Value: WebLoadBalancer
         - Key: Environment
           Value: !Ref Environment
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
 
   # Target Group
   WebTargetGroup:
@@ -179,8 +175,6 @@ Resources:
       Tags:
         - Key: LogicalId
           Value: WebTargetGroup
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
 
   # ALB HTTP Listener (redirects to HTTPS)
   WebListener:
@@ -303,8 +297,6 @@ Resources:
           Value: WebService
         - Key: Environment
           Value: !Ref Environment
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
 
   # CloudWatch Alarms for Web
   WebECSServiceAlarm:
@@ -327,8 +319,6 @@ Resources:
       Tags:
         - Key: LogicalId
           Value: WebECSServiceAlarm
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
 
 Outputs:
   WebEndpoint:

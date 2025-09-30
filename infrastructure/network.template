@@ -23,12 +23,8 @@ Resources:
       Tags:
         - Key: LogicalId
           Value: TaskManagerVPC
-        - Key: Name
-          Value: "TaskManager-VPC"
         - Key: Purpose
           Value: "Regional Database Infrastructure"
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
 
   InternetGateway:
     Type: AWS::EC2::InternetGateway
@@ -36,10 +32,6 @@ Resources:
       Tags:
         - Key: LogicalId
           Value: InternetGateway
-        - Key: Name
-          Value: "TaskManager-IGW"
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
 
   AttachGateway:
     Type: AWS::EC2::VPCGatewayAttachment
@@ -58,10 +50,6 @@ Resources:
       Tags:
         - Key: LogicalId
           Value: PublicSubnet1
-        - Key: Name
-          Value: "TaskManager-Public-Subnet-1"
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
 
   PublicSubnet2:
     Type: AWS::EC2::Subnet
@@ -73,10 +61,6 @@ Resources:
       Tags:
         - Key: LogicalId
           Value: PublicSubnet2
-        - Key: Name
-          Value: "TaskManager-Public-Subnet-2"
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
 
   # Private Subnets for Lambda and RDS
   PrivateSubnet1:
@@ -88,10 +72,6 @@ Resources:
       Tags:
         - Key: LogicalId
           Value: PrivateSubnet1
-        - Key: Name
-          Value: "TaskManager-Private-Subnet-1"
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
 
   PrivateSubnet2:
     Type: AWS::EC2::Subnet
@@ -102,10 +82,6 @@ Resources:
       Tags:
         - Key: LogicalId
           Value: PrivateSubnet2
-        - Key: Name
-          Value: "TaskManager-Private-Subnet-2"
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
 
   # NAT Gateway for private subnet internet access
   NATGateway1EIP:
@@ -116,8 +92,6 @@ Resources:
       Tags:
         - Key: LogicalId
           Value: NATGateway1EIP
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
 
   NATGateway1:
     Type: AWS::EC2::NatGateway
@@ -127,8 +101,6 @@ Resources:
       Tags:
         - Key: LogicalId
           Value: NATGateway1
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
 
   # Route Tables
   PublicRouteTable:
@@ -138,10 +110,6 @@ Resources:
       Tags:
         - Key: LogicalId
           Value: PublicRouteTable
-        - Key: Name
-          Value: "TaskManager-Public-RT"
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
 
   DefaultPublicRoute:
     Type: AWS::EC2::Route
@@ -170,10 +138,6 @@ Resources:
       Tags:
         - Key: LogicalId
           Value: PrivateRouteTable
-        - Key: Name
-          Value: "TaskManager-Private-RT"
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
 
   DefaultPrivateRoute:
     Type: AWS::EC2::Route
@@ -206,10 +170,6 @@ Resources:
       Tags:
         - Key: LogicalId
           Value: LambdaSecurityGroup
-        - Key: Name
-          Value: "TaskManager-Lambda-SG"
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
 
   ECSTaskSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -228,10 +188,6 @@ Resources:
       Tags:
         - Key: LogicalId
           Value: ECSTaskSecurityGroup
-        - Key: Name
-          Value: "TaskManager-ECS-Task-SG"
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
 
   ALBSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -255,10 +211,6 @@ Resources:
       Tags:
         - Key: LogicalId
           Value: ALBSecurityGroup
-        - Key: Name
-          Value: "TaskManager-ALB-SG"
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
 
   RDSSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -277,10 +229,6 @@ Resources:
       Tags:
         - Key: LogicalId
           Value: RDSSecurityGroup
-        - Key: Name
-          Value: "TaskManager-Aurora-SG"
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
 
   # VPC Flow Logs Role
   VPCFlowLogsRole:
@@ -309,8 +257,6 @@ Resources:
       Tags:
         - Key: LogicalId
           Value: VPCFlowLogsRole
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
 
   # VPC Flow Logs
   VPCFlowLogsLogGroup:
@@ -320,8 +266,6 @@ Resources:
       Tags:
         - Key: LogicalId
           Value: VPCFlowLogsLogGroup
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
 
   VPCFlowLogs:
     DependsOn: [VPCFlowLogsLogGroup, VPCFlowLogsRole]
@@ -336,8 +280,6 @@ Resources:
       Tags:
         - Key: LogicalId
           Value: VPCFlowLogs
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
 
 Outputs:
   VPCId:

@@ -92,8 +92,6 @@ Resources:
       Tags:
         - Key: LogicalId
           Value: ApiLambdaLogGroup
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
 
   # CloudWatch Log Group for API Gateway Access Logs
   ApiGatewayAccessLogGroup:
@@ -104,8 +102,6 @@ Resources:
       Tags:
         - Key: LogicalId
           Value: ApiGatewayAccessLogGroup
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
 
   # CloudWatch Log Group for API Gateway Execution Logs
   ApiGatewayExecutionLogGroup:
@@ -116,8 +112,6 @@ Resources:
       Tags:
         - Key: LogicalId
           Value: ApiGatewayExecutionLogGroup
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
 
   # MySQL Layer removed - no longer needed for database setup
 
@@ -171,7 +165,6 @@ Resources:
       Tags:
         LogicalId: TaskManagerApiFunction
         Environment: !Ref Environment
-        Stack: !Ref "AWS::StackName"
 
   # CloudWatch Alarms for API
   LambdaErrorAlarm:
@@ -192,8 +185,6 @@ Resources:
       Tags:
         - Key: LogicalId
           Value: LambdaErrorAlarm
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
 
 Outputs:
   ApiEndpoint:

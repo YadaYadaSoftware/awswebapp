@@ -21,8 +21,6 @@ Resources:
           Value: GitHubActionsUser
         - Key: Purpose
           Value: "GitHub Actions Deployment"
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
 
   # Custom IAM Policy with specific permissions
   DeploymentPolicy:
@@ -204,12 +202,8 @@ Resources:
       Tags:
         - Key: LogicalId
           Value: WebECRRepository
-        - Key: Name
-          Value: "Web-ECR"
         - Key: Purpose
           Value: "Container Registry"
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
 
   # API Gateway CloudWatch Logs Role
   ApiGatewayCloudWatchLogsRole:
@@ -240,8 +234,6 @@ Resources:
       Tags:
         - Key: LogicalId
           Value: ApiGatewayCloudWatchLogsRole
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
 
   # API Gateway Account Configuration
   ApiGatewayAccount:

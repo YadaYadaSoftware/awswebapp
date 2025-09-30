@@ -95,12 +95,8 @@ Resources:
       Tags:
         - Key: LogicalId
           Value: AuroraDBSubnetGroup
-        - Key: Name
-          Value: "TaskManager-Aurora-SubnetGroup"
         - Key: Region
           Value: !Ref AWS::Region
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
 
   # Aurora DB Cluster Parameter Group
   AuroraClusterParameterGroup:
@@ -125,8 +121,6 @@ Resources:
       Tags:
         - Key: LogicalId
           Value: AuroraAuditLogGroup
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
 
   AuroraErrorLogGroup:
     Type: AWS::Logs::LogGroup
@@ -136,8 +130,6 @@ Resources:
       Tags:
         - Key: LogicalId
           Value: AuroraErrorLogGroup
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
 
   AuroraGeneralLogGroup:
     Type: AWS::Logs::LogGroup
@@ -147,8 +139,6 @@ Resources:
       Tags:
         - Key: LogicalId
           Value: AuroraGeneralLogGroup
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
 
   AuroraSlowQueryLogGroup:
     Type: AWS::Logs::LogGroup
@@ -158,8 +148,6 @@ Resources:
       Tags:
         - Key: LogicalId
           Value: AuroraSlowQueryLogGroup
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
 
   # Aurora Serverless v2 Cluster
   AuroraCluster:
@@ -208,14 +196,10 @@ Resources:
       Tags:
         - Key: LogicalId
           Value: AuroraCluster
-        - Key: Name
-          Value: !Sub "TaskManager-Aurora-Cluster-${AWS::Region}"
         - Key: Purpose
           Value: !Sub "${IsPrimaryRegion} Aurora Cluster"
         - Key: Region
           Value: !Ref AWS::Region
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
 
   # Aurora Serverless v2 Instance
   AuroraInstance:
@@ -229,14 +213,10 @@ Resources:
       Tags:
         - Key: LogicalId
           Value: AuroraInstance
-        - Key: Name
-          Value: !Sub "TaskManager-Aurora-Instance-${AWS::Region}"
         - Key: Purpose
           Value: "Regional Aurora Instance"
         - Key: Region
           Value: !Ref AWS::Region
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
 
   AuroraGlobalCluster:
     Condition: ShouldCreateGlobalCluster
@@ -250,8 +230,6 @@ Resources:
       Tags:
         - Key: LogicalId
           Value: AuroraGlobalCluster
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
   # Database Password Secret (only password remains sensitive)
   DatabasePasswordSecret:
     Type: AWS::SecretsManager::Secret
@@ -262,8 +240,6 @@ Resources:
       Tags:
         - Key: LogicalId
           Value: DatabasePasswordSecret
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
 
 Outputs:
   AuroraClusterId:
