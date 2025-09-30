@@ -194,8 +194,8 @@ jobs:
       id: bootstrap-outputs
       run: |
         # Get TemplatesBucketName from bootstrap stack in us-east-1
-        BOOTSTRAP_STACK_NAME="taskmanager-bootstrap"
-        TEMPLATES_BUCKET_NAME=$(aws cloudformation describe-stacks --stack-name $BOOTSTRAP_STACK_NAME --region us-east-1 --query 'Stacks[0].Outputs[?OutputKey==`TemplatesBucketName`].OutputValue' --output text)
+        BOOTSTRAP_STACK_NAME="bootstrap"
+        TEMPLATES_BUCKET_NAME=$(aws cloudformation describe-stacks --stack-name $BOOTSTRAP_STACK_NAME --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`TemplatesBucketName`].OutputValue' --output text)
         echo "Templates bucket name: $TEMPLATES_BUCKET_NAME"
         echo "templates-bucket-name=$TEMPLATES_BUCKET_NAME" >> $GITHUB_OUTPUT
 
@@ -417,7 +417,7 @@ jobs:
       if: matrix.deploy && steps.deployment-type.outputs.deploy-master == 'true'
       uses: aws-actions/aws-cloudformation-github-deploy@v1
       with:
-        name: taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-${{ matrix.region }}
+        name: taskmanager-${{ needs.get-branch-name.outputs.branch-name }}
         template: https://s3.amazonaws.com/${{ steps.bootstrap-outputs.outputs.templates-bucket-name }}/${{ needs.get-branch-name.outputs.branch-name }}/master-template.yaml?versionId=${{ env.TEMPLATE_VERSION_ID }}
         parameter-overrides: ${{ steps.set-master-params.outputs.params }}
         capabilities: "CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND"
@@ -429,7 +429,7 @@ jobs:
       if: matrix.deploy && steps.deployment-type.outputs.deploy-master == 'false'
       uses: aws-actions/aws-cloudformation-github-deploy@v1
       with:
-        name: taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-${{ matrix.region }}
+        name: taskmanager-${{ needs.get-branch-name.outputs.branch-name }}
         template: https://s3.amazonaws.com/${{ steps.bootstrap-outputs.outputs.templates-bucket-name }}/${{ needs.get-branch-name.outputs.branch-name }}/application-template.yaml?versionId=${{ env.TEMPLATE_VERSION_ID }}
         parameter-overrides: ${{ steps.set-application-params.outputs.params }}
         capabilities: "CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND"
