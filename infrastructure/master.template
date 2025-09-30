@@ -3,15 +3,6 @@ AWSTemplateFormatVersion: "2010-09-09"
 Description: "TaskManager Master Infrastructure Template - Includes backend and application nested stacks"
 
 Parameters:
-  # Common parameters
-  TemplateBucket:
-    Type: String
-    Description: S3 bucket name containing the CloudFormation templates
-
-  GitHubActionsUserArn:
-    Type: String
-    Description: ARN of the GitHub Actions IAM user
-
   BranchName:
     Type: String
     Description: Branch name for resource naming
@@ -127,8 +118,8 @@ Resources:
     Properties:
       TemplateURL: ./backend.template
       Parameters:
-        TemplateBucket: !Ref TemplateBucket
-        GitHubActionsUserArn: !Ref GitHubActionsUserArn
+        TemplateBucket: !ImportValue TemplatesBucketName
+        GitHubActionsUserArn: !ImportValue GitHubActionsUserArn
         BranchName: !Ref BranchName
         DatabasePassword: !Ref DatabasePassword
         EngineVersion: !Ref EngineVersion
@@ -147,8 +138,8 @@ Resources:
     Properties:
       TemplateURL: ./application.template
       Parameters:
-        TemplateBucket: !Ref TemplateBucket
-        GitHubActionsUserArn: !Ref GitHubActionsUserArn
+        TemplateBucket: !ImportValue TemplatesBucketName
+        GitHubActionsUserArn: !ImportValue GitHubActionsUserArn
         BranchName: !Ref BranchName
         GoogleOAuthClientId: !Ref GoogleOAuthClientId
         GoogleOAuthClientSecret: !Ref GoogleOAuthClientSecret

@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Description: "TaskManager GitHub Actions IAM User and Permissions Setup"
+Description: "GitHub Actions IAM User and Permissions Setup"
 
 Parameters:
   TemplatesBucketName:
@@ -21,13 +21,11 @@ Resources:
           Value: GitHubActionsUser
         - Key: Purpose
           Value: "GitHub Actions Deployment"
-        - Key: Application
-          Value: "TaskManager"
         - Key: Stack
           Value: !Ref "AWS::StackName"
 
   # Custom IAM Policy with specific permissions
-  TaskManagerDeploymentPolicy:
+  DeploymentPolicy:
     Type: AWS::IAM::Policy
     Properties:
       PolicyName: !Sub "DeploymentPolicy-${AWS::Region}"
@@ -207,7 +205,7 @@ Resources:
         - Key: LogicalId
           Value: WebECRRepository
         - Key: Name
-          Value: "TaskManager-Web-ECR"
+          Value: "Web-ECR"
         - Key: Purpose
           Value: "Container Registry"
         - Key: Stack
@@ -466,6 +464,8 @@ Outputs:
   UserName:
     Description: "IAM User name for GitHub Actions"
     Value: !Ref GitHubActionsUser
+    Export:
+      Name: GitHubActionsUser
 
   AccessKeyId:
     Description: "Access Key ID for GitHub Actions (add to GitHub secrets)"
@@ -478,22 +478,38 @@ Outputs:
   UserArn:
     Description: "IAM User ARN"
     Value: !GetAtt GitHubActionsUser.Arn
+    Export:
+      Name: GitHubActionsUserArn
 
   PolicyArn:
     Description: "Custom policy ARN"
-    Value: !Ref TaskManagerDeploymentPolicy
+    Value: !Ref DeploymentPolicy
+    Export:
+      Name: DeploymentPolicy
 
   TemplatesBucketName:
     Description: "S3 bucket name for CloudFormation templates"
     Value: !Ref TemplatesBucketName
+    Export:
+      Name: TemplatesBucketName
 
   WebECRRepositoryName:
     Description: "ECR repository name for web application"
     Value: !Ref WebECRRepository
+    Export:
+      Name: WebECRRepository
+
+  WebECRRepositoryUri:
+    Description: "ECR repository URI for web application"
+    Value: !GetAtt WebECRRepository.RepositoryUri
+    Export:
+      Name: WebECRRepositoryUri
 
   ApiGatewayCloudWatchLogsRoleArn:
     Description: "API Gateway CloudWatch Logs role ARN"
     Value: !GetAtt ApiGatewayCloudWatchLogsRole.Arn
+    Export:
+      Name: ApiGatewayCloudWatchLogsRoleArn
 
   SetupInstructions:
     Description: "Instructions for GitHub Secrets setup"

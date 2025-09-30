@@ -310,7 +310,7 @@ jobs:
         else
           ENABLE_GLOBAL=false
         fi
-        BASE_PARAMS="TemplateBucket=${{ env.BUCKET_NAME }},GitHubActionsUserArn=${{ secrets.USER_ARN }},BranchName=${{ needs.get-branch-name.outputs.branch-name }},DatabasePassword=${{ secrets.DATABASE_PASSWORD }},EngineVersion=${{ env.ENGINE_VERSION }},IsPrimaryRegion=${{ matrix.is_primary }},MinCapacity=$MIN_CAP,MaxCapacity=$MAX_CAP,EnableGlobalCluster=$ENABLE_GLOBAL,GoogleOAuthClientId=${{ secrets.GOOGLE_CLIENT_ID }},GoogleOAuthClientSecret=${{ secrets.GOOGLE_CLIENT_SECRET }},WebContainerImage=${{ env.CONTAINER_IMAGE }},DeploymentToken=${{ github.sha }},DomainName=appcloud.systems,HostedZoneId=Z06422172SASV44F5Y8VA"
+        BASE_PARAMS="BranchName=${{ needs.get-branch-name.outputs.branch-name }},DatabasePassword=${{ secrets.DATABASE_PASSWORD }},EngineVersion=${{ env.ENGINE_VERSION }},IsPrimaryRegion=${{ matrix.is_primary }},MinCapacity=$MIN_CAP,MaxCapacity=$MAX_CAP,EnableGlobalCluster=$ENABLE_GLOBAL,GoogleOAuthClientId=${{ secrets.GOOGLE_CLIENT_ID }},GoogleOAuthClientSecret=${{ secrets.GOOGLE_CLIENT_SECRET }},WebContainerImage=${{ env.CONTAINER_IMAGE }},DeploymentToken=${{ github.sha }},DomainName=appcloud.systems,HostedZoneId=Z06422172SASV44F5Y8VA"
         if [ "${{ matrix.is_primary }}" = "false" ]; then
           BASE_PARAMS="$BASE_PARAMS,AuroraGlobalClusterId=${{ steps.get-primary-outputs.outputs.global-cluster-id }},KmsKeyArn=${{ steps.get-primary-outputs.outputs.kms-key-arn }},PrimaryRegion=${{ env.AWS_REGION_PRIMARY }},PrimaryWebLoadBalancerDNS=${{ steps.get-primary-outputs.outputs.primary-lb-dns }},PrimaryWebLoadBalancerHostedZoneId=${{ steps.get-primary-outputs.outputs.primary-lb-hz }}"
         fi
