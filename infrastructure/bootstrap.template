@@ -15,12 +15,6 @@ Resources:
   # IAM User for GitHub Actions
   GitHubActionsUser:
     Type: AWS::IAM::User
-    Properties:
-      Tags:
-        - Key: LogicalId
-          Value: GitHubActionsUser
-        - Key: Purpose
-          Value: "GitHub Actions Deployment"
 
   # Custom IAM Policy with specific permissions
   DeploymentPolicy:
@@ -199,11 +193,6 @@ Resources:
               }
             ]
           }
-      Tags:
-        - Key: LogicalId
-          Value: WebECRRepository
-        - Key: Purpose
-          Value: "Container Registry"
 
   # API Gateway CloudWatch Logs Role
   ApiGatewayCloudWatchLogsRole:
@@ -231,9 +220,6 @@ Resources:
                   - logs:FilterLogEvents
                   - logs:GetLogEvents
                 Resource: "*"
-      Tags:
-        - Key: LogicalId
-          Value: ApiGatewayCloudWatchLogsRole
 
   # API Gateway Account Configuration
   ApiGatewayAccount:

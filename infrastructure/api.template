@@ -89,9 +89,6 @@ Resources:
     Properties:
       LogGroupName: !Sub "/aws/lambda/TaskManagerApi-${Environment}"
       RetentionInDays: !Ref LogRetentionDays
-      Tags:
-        - Key: LogicalId
-          Value: ApiLambdaLogGroup
 
   # CloudWatch Log Group for API Gateway Access Logs
   ApiGatewayAccessLogGroup:
@@ -99,9 +96,6 @@ Resources:
     Properties:
       LogGroupName: !Sub "/aws/apigateway/TaskManagerApi-${Environment}"
       RetentionInDays: !Ref LogRetentionDays
-      Tags:
-        - Key: LogicalId
-          Value: ApiGatewayAccessLogGroup
 
   # CloudWatch Log Group for API Gateway Execution Logs
   ApiGatewayExecutionLogGroup:
@@ -109,9 +103,6 @@ Resources:
     Properties:
       LogGroupName: !Sub "/aws/apigateway/${ServerlessRestApi}/Prod"
       RetentionInDays: !Ref LogRetentionDays
-      Tags:
-        - Key: LogicalId
-          Value: ApiGatewayExecutionLogGroup
 
   # MySQL Layer removed - no longer needed for database setup
 
@@ -162,9 +153,6 @@ Resources:
           Properties:
             Path: /api/{proxy+}
             Method: ANY
-      Tags:
-        LogicalId: TaskManagerApiFunction
-        Environment: !Ref Environment
 
   # CloudWatch Alarms for API
   LambdaErrorAlarm:
@@ -182,9 +170,6 @@ Resources:
       Dimensions:
         - Name: FunctionName
           Value: !Ref TaskManagerApiFunction
-      Tags:
-        - Key: LogicalId
-          Value: LambdaErrorAlarm
 
 Outputs:
   ApiEndpoint:

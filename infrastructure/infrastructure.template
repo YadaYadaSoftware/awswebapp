@@ -23,11 +23,6 @@ Resources:
     Type: AWS::ECS::Cluster
     Properties:
       ClusterName: !Sub "TaskManager-Cluster-${BranchName}"
-      Tags:
-        - Key: LogicalId
-          Value: ECSCluster
-        - Key: Purpose
-          Value: "Regional Infrastructure"
 
   # Google OAuth Secrets
   GoogleOAuthSecrets:
@@ -40,11 +35,6 @@ Resources:
           "clientId": "${GoogleOAuthClientId}",
           "clientSecret": "${GoogleOAuthClientSecret}"
         }
-      Tags:
-        - Key: LogicalId
-          Value: GoogleOAuthSecrets
-        - Key: Purpose
-          Value: "Google OAuth Configuration"
 
 Outputs:
   ECSClusterName:

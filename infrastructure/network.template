@@ -20,18 +20,9 @@ Resources:
       CidrBlock: 10.0.0.0/16
       EnableDnsHostnames: true
       EnableDnsSupport: true
-      Tags:
-        - Key: LogicalId
-          Value: TaskManagerVPC
-        - Key: Purpose
-          Value: "Regional Database Infrastructure"
 
   InternetGateway:
     Type: AWS::EC2::InternetGateway
-    Properties:
-      Tags:
-        - Key: LogicalId
-          Value: InternetGateway
 
   AttachGateway:
     Type: AWS::EC2::VPCGatewayAttachment
@@ -47,9 +38,6 @@ Resources:
       CidrBlock: 10.0.1.0/24
       AvailabilityZone: !Select [0, !GetAZs ""]
       MapPublicIpOnLaunch: true
-      Tags:
-        - Key: LogicalId
-          Value: PublicSubnet1
 
   PublicSubnet2:
     Type: AWS::EC2::Subnet
@@ -58,9 +46,6 @@ Resources:
       CidrBlock: 10.0.2.0/24
       AvailabilityZone: !Select [1, !GetAZs ""]
       MapPublicIpOnLaunch: true
-      Tags:
-        - Key: LogicalId
-          Value: PublicSubnet2
 
   # Private Subnets for Lambda and RDS
   PrivateSubnet1:
@@ -69,9 +54,6 @@ Resources:
       VpcId: !Ref TaskManagerVPC
       CidrBlock: 10.0.3.0/24
       AvailabilityZone: !Select [0, !GetAZs ""]
-      Tags:
-        - Key: LogicalId
-          Value: PrivateSubnet1
 
   PrivateSubnet2:
     Type: AWS::EC2::Subnet
@@ -79,9 +61,6 @@ Resources:
       VpcId: !Ref TaskManagerVPC
       CidrBlock: 10.0.4.0/24
       AvailabilityZone: !Select [1, !GetAZs ""]
-      Tags:
-        - Key: LogicalId
-          Value: PrivateSubnet2
 
   # NAT Gateway for private subnet internet access
   NATGateway1EIP:
@@ -89,27 +68,18 @@ Resources:
     DependsOn: AttachGateway
     Properties:
       Domain: vpc
-      Tags:
-        - Key: LogicalId
-          Value: NATGateway1EIP
 
   NATGateway1:
     Type: AWS::EC2::NatGateway
     Properties:
       AllocationId: !GetAtt NATGateway1EIP.AllocationId
       SubnetId: !Ref PublicSubnet1
-      Tags:
-        - Key: LogicalId
-          Value: NATGateway1
 
   # Route Tables
   PublicRouteTable:
     Type: AWS::EC2::RouteTable
     Properties:
       VpcId: !Ref TaskManagerVPC
-      Tags:
-        - Key: LogicalId
-          Value: PublicRouteTable
 
   DefaultPublicRoute:
     Type: AWS::EC2::Route
@@ -135,9 +105,6 @@ Resources:
     Type: AWS::EC2::RouteTable
     Properties:
       VpcId: !Ref TaskManagerVPC
-      Tags:
-        - Key: LogicalId
-          Value: PrivateRouteTable
 
   DefaultPrivateRoute:
     Type: AWS::EC2::Route
@@ -167,9 +134,6 @@ Resources:
       SecurityGroupEgress:
         - IpProtocol: -1
           CidrIp: 0.0.0.0/0
-      Tags:
-        - Key: LogicalId
-          Value: LambdaSecurityGroup
 
   ECSTaskSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -185,9 +149,6 @@ Resources:
       SecurityGroupEgress:
         - IpProtocol: -1
           CidrIp: 0.0.0.0/0
-      Tags:
-        - Key: LogicalId
-          Value: ECSTaskSecurityGroup
 
   ALBSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -208,9 +169,6 @@ Resources:
       SecurityGroupEgress:
         - IpProtocol: -1
           CidrIp: 0.0.0.0/0
-      Tags:
-        - Key: LogicalId
-          Value: ALBSecurityGroup
 
   RDSSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -226,9 +184,6 @@ Resources:
           FromPort: 3306
           ToPort: 3306
           SourceSecurityGroupId: !Ref ECSTaskSecurityGroup
-      Tags:
-        - Key: LogicalId
-          Value: RDSSecurityGroup
 
   # VPC Flow Logs Role
   VPCFlowLogsRole:
@@ -254,18 +209,12 @@ Resources:
                   - logs:DescribeLogGroups
                   - logs:DescribeLogStreams
                 Resource: "*"
-      Tags:
-        - Key: LogicalId
-          Value: VPCFlowLogsRole
 
   # VPC Flow Logs
   VPCFlowLogsLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       RetentionInDays: !Ref LogRetentionDays
-      Tags:
-        - Key: LogicalId
-          Value: VPCFlowLogsLogGroup
 
   VPCFlowLogs:
     DependsOn: [VPCFlowLogsLogGroup, VPCFlowLogsRole]
@@ -277,9 +226,6 @@ Resources:
       DeliverLogsPermissionArn: !GetAtt VPCFlowLogsRole.Arn
       LogDestinationType: cloud-watch-logs
       LogGroupName: !Ref VPCFlowLogsLogGroup
-      Tags:
-        - Key: LogicalId
-          Value: VPCFlowLogs
 
 Outputs:
   VPCId:

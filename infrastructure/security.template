@@ -83,9 +83,6 @@ Resources:
               - kms:ListGrants
               - kms:RevokeGrant
             Resource: "*"
-      Tags:
-        - Key: LogicalId
-          Value: AuroraKmsKey
 
   AuroraKmsKeyReplica:
     Type: AWS::KMS::ReplicaKey
@@ -140,9 +137,6 @@ Resources:
               - kms:ListGrants
               - kms:RevokeGrant
             Resource: "*"
-      Tags:
-        - Key: LogicalId
-          Value: AuroraKmsKeyReplica
 
   SharedLambdaExecutionRole:
     Type: AWS::IAM::Role
@@ -245,9 +239,6 @@ Resources:
                   - ecr:GetDownloadUrlForLayer
                   - ecr:BatchGetImage
                 Resource: "*"
-      Tags:
-        - Key: LogicalId
-          Value: SharedLambdaExecutionRole
 
 Outputs:
   AuroraKmsKeyArn:

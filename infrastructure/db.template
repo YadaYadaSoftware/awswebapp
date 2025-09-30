@@ -92,11 +92,6 @@ Resources:
         - !Ref PrivateSubnet1Id
         - !Ref PrivateSubnet2Id
       DBSubnetGroupName: !Sub "taskmanager-${BranchName}-aurora-subnet-group-${AWS::Region}"
-      Tags:
-        - Key: LogicalId
-          Value: AuroraDBSubnetGroup
-        - Key: Region
-          Value: !Ref AWS::Region
 
   # Aurora DB Cluster Parameter Group
   AuroraClusterParameterGroup:
@@ -118,36 +113,24 @@ Resources:
     Properties:
       LogGroupName: !Sub "/aws/rds/cluster/taskmanager-${BranchName}-aurora-cluster-${AWS::Region}/audit"
       RetentionInDays: !Ref LogRetentionDays
-      Tags:
-        - Key: LogicalId
-          Value: AuroraAuditLogGroup
 
   AuroraErrorLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub "/aws/rds/cluster/taskmanager-${BranchName}-aurora-cluster-${AWS::Region}/error"
       RetentionInDays: !Ref LogRetentionDays
-      Tags:
-        - Key: LogicalId
-          Value: AuroraErrorLogGroup
 
   AuroraGeneralLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub "/aws/rds/cluster/taskmanager-${BranchName}-aurora-cluster-${AWS::Region}/general"
       RetentionInDays: !Ref LogRetentionDays
-      Tags:
-        - Key: LogicalId
-          Value: AuroraGeneralLogGroup
 
   AuroraSlowQueryLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub "/aws/rds/cluster/taskmanager-${BranchName}-aurora-cluster-${AWS::Region}/slowquery"
       RetentionInDays: !Ref LogRetentionDays
-      Tags:
-        - Key: LogicalId
-          Value: AuroraSlowQueryLogGroup
 
   # Aurora Serverless v2 Cluster
   AuroraCluster:
@@ -193,13 +176,6 @@ Resources:
         - error
         - general
         - slowquery
-      Tags:
-        - Key: LogicalId
-          Value: AuroraCluster
-        - Key: Purpose
-          Value: !Sub "${IsPrimaryRegion} Aurora Cluster"
-        - Key: Region
-          Value: !Ref AWS::Region
 
   # Aurora Serverless v2 Instance
   AuroraInstance:
@@ -210,13 +186,6 @@ Resources:
       DBInstanceClass: db.serverless
       Engine: aurora-mysql
       PubliclyAccessible: false
-      Tags:
-        - Key: LogicalId
-          Value: AuroraInstance
-        - Key: Purpose
-          Value: "Regional Aurora Instance"
-        - Key: Region
-          Value: !Ref AWS::Region
 
   AuroraGlobalCluster:
     Condition: ShouldCreateGlobalCluster
@@ -227,9 +196,6 @@ Resources:
       EngineVersion: !Ref EngineVersion
       DeletionProtection: false
       StorageEncrypted: true
-      Tags:
-        - Key: LogicalId
-          Value: AuroraGlobalCluster
   # Database Password Secret (only password remains sensitive)
   DatabasePasswordSecret:
     Type: AWS::SecretsManager::Secret
@@ -237,9 +203,6 @@ Resources:
       Name: !Sub "taskmanager/database/${BranchName}/regional/${AWS::Region}/password"
       Description: Database password for Aurora Regional Cluster
       SecretString: !Ref DatabasePassword
-      Tags:
-        - Key: LogicalId
-          Value: DatabasePasswordSecret
 
 Outputs:
   AuroraClusterId:

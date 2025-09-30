@@ -135,9 +135,6 @@ Resources:
     Properties:
       LogGroupName: !Sub "/ecs/TaskManagerWeb-${Environment}"
       RetentionInDays: !Ref LogRetentionDays
-      Tags:
-        - Key: LogicalId
-          Value: WebECSLogGroup
 
   # Application Load Balancer
   WebLoadBalancer:
@@ -151,11 +148,6 @@ Resources:
       Subnets:
         - !Ref PublicSubnet1Id
         - !Ref PublicSubnet2Id
-      Tags:
-        - Key: LogicalId
-          Value: WebLoadBalancer
-        - Key: Environment
-          Value: !Ref Environment
 
   # Target Group
   WebTargetGroup:
@@ -172,9 +164,6 @@ Resources:
       HealthyThresholdCount: 2
       UnhealthyThresholdCount: 2
       HealthCheckPort: 80
-      Tags:
-        - Key: LogicalId
-          Value: WebTargetGroup
 
   # ALB HTTP Listener (redirects to HTTPS)
   WebListener:
@@ -292,11 +281,6 @@ Resources:
           ContainerName: web
           ContainerPort: 80
       HealthCheckGracePeriodSeconds: 300
-      Tags:
-        - Key: LogicalId
-          Value: WebService
-        - Key: Environment
-          Value: !Ref Environment
 
   # CloudWatch Alarms for Web
   WebECSServiceAlarm:
@@ -316,9 +300,6 @@ Resources:
           Value: !GetAtt WebLoadBalancer.LoadBalancerFullName
         - Name: TargetGroup
           Value: !GetAtt WebTargetGroup.TargetGroupFullName
-      Tags:
-        - Key: LogicalId
-          Value: WebECSServiceAlarm
 
 Outputs:
   WebEndpoint:
