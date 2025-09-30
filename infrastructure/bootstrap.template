@@ -2,25 +2,20 @@ AWSTemplateFormatVersion: "2010-09-09"
 Description: "TaskManager GitHub Actions IAM User and Permissions Setup"
 
 Parameters:
-  UserName:
-    Type: String
-    Default: "taskmanager-github-actions"
-    Description: "Name for the GitHub Actions IAM user"
-
   TemplatesBucketName:
     Type: String
     Description: "Name of the S3 bucket for CloudFormation templates (must already exist or be created separately)"
 
-Conditions:
-  IsUsEast1: !Equals [!Ref "AWS::Region", "us-east-1"]
+  RetentionDays:
+    Type: Number
+    Default: 7
+    Description: "Number of days to retain CloudWatch logs"
 
 Resources:
   # IAM User for GitHub Actions
   GitHubActionsUser:
     Type: AWS::IAM::User
-    Condition: IsUsEast1
     Properties:
-      UserName: !Ref UserName
       Tags:
         - Key: LogicalId
           Value: GitHubActionsUser
@@ -34,9 +29,8 @@ Resources:
   # Custom IAM Policy with specific permissions
   TaskManagerDeploymentPolicy:
     Type: AWS::IAM::Policy
-    Condition: IsUsEast1
     Properties:
-      PolicyName: "TaskManagerDeploymentPolicy"
+      PolicyName: !Sub "DeploymentPolicy-${AWS::Region}"
       PolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -61,6 +55,7 @@ Resources:
               - iam:*
               - ssm:GetParameter
               - ssm:GetParameters
+              - config:*
             Resource: "*"
 
           # Service-linked role creation
@@ -154,14 +149,12 @@ Resources:
   # Access Key for GitHub Actions
   GitHubActionsAccessKey:
     Type: AWS::IAM::AccessKey
-    Condition: IsUsEast1
     Properties:
       UserName: !Ref GitHubActionsUser
 
   # S3 Bucket Policy for CloudFormation Access (bucket must exist)
   TemplatesBucketPolicy:
     Type: AWS::S3::BucketPolicy
-    Condition: IsUsEast1
     Properties:
       Bucket: !Ref TemplatesBucketName
       PolicyDocument:
@@ -188,7 +181,6 @@ Resources:
   WebECRRepository:
     Type: AWS::ECR::Repository
     Properties:
-      RepositoryName: !Sub "ecr-${AWS::AccountId}-${AWS::Region}"
       ImageScanningConfiguration:
         ScanOnPush: true
       ImageTagMutability: MUTABLE
@@ -233,7 +225,7 @@ Resources:
               Service: apigateway.amazonaws.com
             Action: sts:AssumeRole
       Policies:
-        - PolicyName: ApiGatewayCloudWatchLogsPolicy
+        - PolicyName: !Sub "ApiGatewayCloudWatchLogsPolicy-${AWS::Region}"
           PolicyDocument:
             Version: 2012-10-17
             Statement:
@@ -259,31 +251,237 @@ Resources:
     Properties:
       CloudWatchRoleArn: !GetAtt ApiGatewayCloudWatchLogsRole.Arn
 
+  # Lambda function for Config rule evaluation and remediation
+  LogRetentionConfigFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: python3.9
+      Handler: index.lambda_handler
+      Role: !GetAtt ConfigRuleRole.Arn
+      Code:
+        ZipFile: |
+          import boto3
+          import json
+          import os
+          from datetime import datetime
+
+          def lambda_handler(event, context):
+              print(f"Received event: {json.dumps(event)}")
+
+              # Check if this is a remediation call
+              if 'RetentionDays' in event:
+                  return handle_remediation(event)
+
+              # Otherwise, handle Config evaluation
+              return handle_evaluation(event)
+
+          def handle_evaluation(event):
+              config_client = boto3.client('config')
+              logs_client = boto3.client('logs')
+
+              retention_days = int(os.environ['RETENTION_DAYS'])
+
+              # Get the log group from the configuration item
+              invoking_event = json.loads(event['invokingEvent'])
+              configuration_item = invoking_event['configurationItem']
+
+              log_group_name = configuration_item['resourceName']
+
+              # Evaluate compliance
+              try:
+                  response = logs_client.describe_log_groups(
+                      logGroupNamePrefix=log_group_name
+                  )
+
+                  if response['logGroups']:
+                      log_group = response['logGroups'][0]
+                      current_retention = log_group.get('retentionInDays')
+
+                      if current_retention != retention_days:
+                          # Non-compliant
+                          return {
+                              'ComplianceType': 'NON_COMPLIANT',
+                              'Annotation': f'Log group retention is {current_retention}, should be {retention_days}'
+                          }
+                      else:
+                          return {'ComplianceType': 'COMPLIANT'}
+
+              except Exception as e:
+                  print(f"Error evaluating log group {log_group_name}: {str(e)}")
+                  return {
+                      'ComplianceType': 'NON_COMPLIANT',
+                      'Annotation': f'Error evaluating log group: {str(e)}'
+                  }
+
+              return {'ComplianceType': 'NOT_APPLICABLE'}
+
+          def handle_remediation(event):
+              logs_client = boto3.client('logs')
+
+              log_group_name = event.get('LogGroupName')
+              retention_days = int(event['RetentionDays'])
+
+              if not log_group_name:
+                  raise ValueError("LogGroupName not provided in remediation event")
+
+              try:
+                  logs_client.put_retention_policy(
+                      logGroupName=log_group_name,
+                      retentionInDays=retention_days
+                  )
+                  print(f"Set retention to {retention_days} days for {log_group_name}")
+                  return {'status': 'SUCCESS'}
+              except Exception as e:
+                  print(f"Error setting retention for {log_group_name}: {str(e)}")
+                  raise e
+      Environment:
+        Variables:
+          RETENTION_DAYS: !Ref RetentionDays
+
+  # IAM role for Config rule Lambda
+  ConfigRuleRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: !Sub "ConfigRulePolicy-${AWS::Region}"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - config:PutEvaluations
+                  - logs:DescribeLogGroups
+                  - logs:PutRetentionPolicy
+                Resource: "*"
+
+  # Config Rule for log group retention
+  LogRetentionConfigRule:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      Description: "Checks that CloudWatch log groups have appropriate retention settings"
+      Scope:
+        ComplianceResourceTypes:
+          - AWS::Logs::LogGroup
+      Source:
+        Owner: CUSTOM_LAMBDA
+        SourceIdentifier: !GetAtt LogRetentionConfigFunction.Arn
+        SourceDetails:
+          - EventSource: aws.config
+            MessageType: ConfigurationItemChangeNotification
+
+  # SSM Automation Document for remediation
+  LogRetentionRemediationDocument:
+    Type: AWS::SSM::Document
+    Properties:
+      DocumentType: Automation
+      Content:
+        schemaVersion: "0.3"
+        assumeRole: "{{AutomationAssumeRole}}"
+        parameters:
+          LogGroupName:
+            type: String
+            description: The name of the log group to remediate
+          RetentionDays:
+            type: String
+            description: The retention period in days
+          AutomationAssumeRole:
+            type: String
+            description: The ARN of the role that allows Automation to perform actions
+        mainSteps:
+          - name: InvokeLambdaFunction
+            action: aws:invokeLambdaFunction
+            inputs:
+              FunctionName: !Ref LogRetentionConfigFunction
+              Payload: |
+                {
+                  "LogGroupName": "{{LogGroupName}}",
+                  "RetentionDays": "{{RetentionDays}}"
+                }
+
+  # IAM role for SSM Automation
+  SSMAutomationRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ssm.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonSSMAutomationRole
+      Policies:
+        - PolicyName: !Sub "SSMAutomationLambdaInvoke-${AWS::Region}"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource: !GetAtt LogRetentionConfigFunction.Arn
+
+  # Remediation configuration using SSM document
+  LogRetentionRemediation:
+    Type: AWS::Config::RemediationConfiguration
+    Properties:
+      ConfigRuleName: !Ref LogRetentionConfigRule
+      TargetId: !Ref LogRetentionRemediationDocument
+      TargetType: SSM_DOCUMENT
+      Parameters:
+        LogGroupName:
+          ResourceValue:
+            Value: RESOURCE_ID
+        RetentionDays:
+          StaticValue:
+            Values:
+              - !Ref RetentionDays
+        AutomationAssumeRole:
+          StaticValue:
+            Values:
+              - !GetAtt SSMAutomationRole.Arn
+      Automatic: true
+      MaximumAutomaticAttempts: 5
+      RetryAttemptSeconds: 60
+
+  # Permission for Config to invoke Lambda
+  ConfigInvokeLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref LogRetentionConfigFunction
+      Action: lambda:InvokeFunction
+      Principal: config.amazonaws.com
+      SourceAccount: !Ref AWS::AccountId
+
 Outputs:
   UserName:
     Description: "IAM User name for GitHub Actions"
     Value: !Ref GitHubActionsUser
-    Condition: IsUsEast1
 
   AccessKeyId:
     Description: "Access Key ID for GitHub Actions (add to GitHub secrets)"
     Value: !Ref GitHubActionsAccessKey
-    Condition: IsUsEast1
 
   SecretAccessKey:
     Description: "Secret Access Key for GitHub Actions (add to GitHub secrets)"
     Value: !GetAtt GitHubActionsAccessKey.SecretAccessKey
-    Condition: IsUsEast1
 
   UserArn:
     Description: "IAM User ARN"
     Value: !GetAtt GitHubActionsUser.Arn
-    Condition: IsUsEast1
 
   PolicyArn:
     Description: "Custom policy ARN"
     Value: !Ref TaskManagerDeploymentPolicy
-    Condition: IsUsEast1
 
   TemplatesBucketName:
     Description: "S3 bucket name for CloudFormation templates"
@@ -314,4 +512,3 @@ Outputs:
       - Server-side encryption (SSE-S3 or SSE-KMS)
       - Public access blocked
       - Appropriate bucket policies for CloudFormation and GitHub Actions access
-    Condition: IsUsEast1
