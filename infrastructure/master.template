@@ -1,6 +1,6 @@
 ---
 AWSTemplateFormatVersion: "2010-09-09"
-Description: "TaskManager Master Infrastructure Template - Includes all regional components and applications"
+Description: "TaskManager Master Infrastructure Template - Includes backend and application nested stacks"
 
 Parameters:
   # Common parameters
@@ -122,298 +122,215 @@ Conditions:
     ]
 
 Resources:
-  # KMS Key (Primary or Replica)
-  SecurityStack:
+  BackendStack:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: ./security.template
+      TemplateURL: ./backend.template
       Parameters:
+        TemplateBucket: !Ref TemplateBucket
         GitHubActionsUserArn: !Ref GitHubActionsUserArn
         BranchName: !Ref BranchName
-        KmsKeyArn: !If [HasKmsKeyArn, !Ref KmsKeyArn, !Ref "AWS::NoValue"]
-        IsPrimaryRegion: !Ref IsPrimaryRegion
-
-  # Regional VPC
-  NetworkingStack:
-    Type: AWS::CloudFormation::Stack
-    Properties:
-      TemplateURL: ./network.template
-      Parameters:
-        BranchName: !Ref BranchName
-        LogRetentionDays: 7
-
-  # Regional Database
-  DbStack:
-    Type: AWS::CloudFormation::Stack
-    DependsOn: [SecurityStack, NetworkingStack]
-    Properties:
-      TemplateURL: ./db.template
-      Parameters:
         DatabasePassword: !Ref DatabasePassword
         EngineVersion: !Ref EngineVersion
-        AuroraGlobalClusterId: !Ref AuroraGlobalClusterId
-        AuroraKmsKeyArn: !GetAtt SecurityStack.Outputs.AuroraKmsKeyArn
-        IsPrimaryRegion: !Ref IsPrimaryRegion
-        GitHubActionsUserArn: !Ref GitHubActionsUserArn
-        BranchName: !Ref BranchName
-        VPCId: !GetAtt NetworkingStack.Outputs.VPCId
-        PrivateSubnet1Id: !GetAtt NetworkingStack.Outputs.PrivateSubnet1Id
-        PrivateSubnet2Id: !GetAtt NetworkingStack.Outputs.PrivateSubnet2Id
-        RDSSecurityGroupId: !GetAtt NetworkingStack.Outputs.RDSSecurityGroupId
         MinCapacity: !Ref MinCapacity
         MaxCapacity: !Ref MaxCapacity
         EnableGlobalCluster: !Ref EnableGlobalCluster
-        LogRetentionDays: 7
-
-  # Regional Infrastructure
-  InfrastructureStack:
-    Type: AWS::CloudFormation::Stack
-    DependsOn: DbStack
-    Properties:
-      TemplateURL: ./infrastructure.template
-      Parameters:
-        BranchName: !Ref BranchName
+        IsPrimaryRegion: !Ref IsPrimaryRegion
+        AuroraGlobalClusterId: !Ref AuroraGlobalClusterId
+        KmsKeyArn: !Ref KmsKeyArn
         GoogleOAuthClientId: !Ref GoogleOAuthClientId
         GoogleOAuthClientSecret: !Ref GoogleOAuthClientSecret
 
-  # Regional API
-  ApiStack:
+  ApplicationStack:
     Type: AWS::CloudFormation::Stack
-    DependsOn: [InfrastructureStack, DbStack]
+    DependsOn: BackendStack
     Properties:
-      TemplateURL: ./api.template
+      TemplateURL: ./application.template
       Parameters:
-        Environment: !Ref BranchName
-        SharedLambdaRoleArn: !GetAtt SecurityStack.Outputs.SharedLambdaRoleArn
-        DatabaseHost: !GetAtt DbStack.Outputs.DatabaseHost
-        DatabaseUsername: !GetAtt DbStack.Outputs.DatabaseUsername
-        DatabaseEngine: !GetAtt DbStack.Outputs.DatabaseEngine
-        DatabasePort: !GetAtt DbStack.Outputs.DatabasePort
-        DatabaseName: !GetAtt DbStack.Outputs.DatabaseName
-        DatabaseClusterArn: !GetAtt DbStack.Outputs.DatabaseClusterArn
-        LambdaSecurityGroupId: !GetAtt NetworkingStack.Outputs.LambdaSecurityGroupId
-        PrivateSubnet1Id: !GetAtt NetworkingStack.Outputs.PrivateSubnet1Id
-        PrivateSubnet2Id: !GetAtt NetworkingStack.Outputs.PrivateSubnet2Id
-        LogRetentionDays: 7
-
-  # Regional Web
-  WebStack:
-    Type: AWS::CloudFormation::Stack
-    DependsOn: [InfrastructureStack, DbStack]
-    Properties:
-      TemplateURL: ./web.template
-      Parameters:
-        Environment: !Ref BranchName
+        TemplateBucket: !Ref TemplateBucket
+        GitHubActionsUserArn: !Ref GitHubActionsUserArn
+        BranchName: !Ref BranchName
+        GoogleOAuthClientId: !Ref GoogleOAuthClientId
+        GoogleOAuthClientSecret: !Ref GoogleOAuthClientSecret
         WebContainerImage: !Ref WebContainerImage
         DeploymentToken: !Ref DeploymentToken
         DomainName: !Ref DomainName
         HostedZoneId: !Ref HostedZoneId
-        SharedLambdaRoleArn: !GetAtt SecurityStack.Outputs.SharedLambdaRoleArn
-        VPCId: !GetAtt NetworkingStack.Outputs.VPCId
-        ALBSecurityGroupId: !GetAtt NetworkingStack.Outputs.ALBSecurityGroupId
-        ECSTaskSecurityGroupId: !GetAtt NetworkingStack.Outputs.ECSTaskSecurityGroupId
-        PublicSubnet1Id: !GetAtt NetworkingStack.Outputs.PublicSubnet1Id
-        PublicSubnet2Id: !GetAtt NetworkingStack.Outputs.PublicSubnet2Id
-        PrivateSubnet1Id: !GetAtt NetworkingStack.Outputs.PrivateSubnet1Id
-        PrivateSubnet2Id: !GetAtt NetworkingStack.Outputs.PrivateSubnet2Id
-        ECSClusterName: !GetAtt InfrastructureStack.Outputs.ECSClusterName
-        GoogleOAuthSecretArn: !GetAtt InfrastructureStack.Outputs.GoogleOAuthSecretArn
-        DatabaseHost: !GetAtt DbStack.Outputs.DatabaseHost
-        DatabaseUsername: !GetAtt DbStack.Outputs.DatabaseUsername
-        DatabaseEngine: !GetAtt DbStack.Outputs.DatabaseEngine
-        DatabasePort: !GetAtt DbStack.Outputs.DatabasePort
-        DatabaseName: !GetAtt DbStack.Outputs.DatabaseName
-        DatabaseClusterArn: !GetAtt DbStack.Outputs.DatabaseClusterArn
-        DatabasePasswordSecretArn: !GetAtt DbStack.Outputs.DatabasePasswordSecretArn
-        LogRetentionDays: 7
-
-  # DNS for primary region (simple record for single region)
-  PrimaryDnsStack:
-    Condition: IsPrimarySingleRegion
-    Type: AWS::CloudFormation::Stack
-    DependsOn: WebStack
-    Properties:
-      TemplateURL: ./dns.template
-      Parameters:
-        Environment: !Ref BranchName
-        DomainName: !Ref DomainName
-        HostedZoneId: !Ref HostedZoneId
-        PrimaryRegion: !Ref "AWS::Region"
-        PrimaryWebLoadBalancerDNS: !GetAtt WebStack.Outputs.WebLoadBalancerDNS
-        PrimaryWebLoadBalancerHostedZoneId: !GetAtt WebStack.Outputs.WebLoadBalancerHostedZoneId
-        SecondaryWebLoadBalancerDNS: !Ref "AWS::NoValue"
-        SecondaryWebLoadBalancerHostedZoneId: !Ref "AWS::NoValue"
-
-  # Global DNS (only in secondary region - failover setup)
-  SecondaryDnsStack:
-    Condition: IsSecondary
-    Type: AWS::CloudFormation::Stack
-    DependsOn: WebStack
-    Properties:
-      TemplateURL: ./dns.template
-      Parameters:
-        Environment: !Ref BranchName
-        DomainName: !Ref DomainName
-        HostedZoneId: !Ref HostedZoneId
         PrimaryRegion: !Ref PrimaryRegion
-        SecondaryRegion: !Ref "AWS::Region"
         PrimaryWebLoadBalancerDNS: !Ref PrimaryWebLoadBalancerDNS
         PrimaryWebLoadBalancerHostedZoneId: !Ref PrimaryWebLoadBalancerHostedZoneId
-        SecondaryWebLoadBalancerDNS: !GetAtt WebStack.Outputs.WebLoadBalancerDNS
-        SecondaryWebLoadBalancerHostedZoneId: !GetAtt WebStack.Outputs.WebLoadBalancerHostedZoneId
+        SharedLambdaRoleArn: !GetAtt BackendStack.Outputs.SharedLambdaRoleArn
+        DatabaseHost: !GetAtt BackendStack.Outputs.DatabaseHost
+        DatabaseUsername: !GetAtt BackendStack.Outputs.DatabaseUsername
+        DatabaseEngine: !GetAtt BackendStack.Outputs.DatabaseEngine
+        DatabasePort: !GetAtt BackendStack.Outputs.DatabasePort
+        DatabaseName: !GetAtt BackendStack.Outputs.DatabaseName
+        DatabaseClusterArn: !GetAtt BackendStack.Outputs.DatabaseClusterArn
+        DatabasePasswordSecretArn: !GetAtt BackendStack.Outputs.DatabasePasswordSecretArn
+        VPCId: !GetAtt BackendStack.Outputs.VpcId
+        PrivateSubnet1Id: !GetAtt BackendStack.Outputs.PrivateSubnet1Id
+        PrivateSubnet2Id: !GetAtt BackendStack.Outputs.PrivateSubnet2Id
+        PublicSubnet1Id: !GetAtt BackendStack.Outputs.PublicSubnet1Id
+        PublicSubnet2Id: !GetAtt BackendStack.Outputs.PublicSubnet2Id
+        LambdaSecurityGroupId: !GetAtt BackendStack.Outputs.LambdaSecurityGroupId
+        ALBSecurityGroupId: !GetAtt BackendStack.Outputs.ALBSecurityGroupId
+        ECSTaskSecurityGroupId: !GetAtt BackendStack.Outputs.ECSTaskSecurityGroupId
+        ECSClusterName: !GetAtt BackendStack.Outputs.ECSClusterName
+        GoogleOAuthSecretArn: !GetAtt BackendStack.Outputs.GoogleOAuthSecretArn
+        IsPrimaryRegion: !Ref IsPrimaryRegion
 
 Outputs:
   # KMS outputs
   AuroraKmsKeyArn:
     Description: ARN of the KMS key
-    Value: !GetAtt SecurityStack.Outputs.AuroraKmsKeyArn
+    Value: !GetAtt BackendStack.Outputs.AuroraKmsKeyArn
 
   # Global outputs
   AuroraGlobalClusterId:
     Condition: ShouldCreateGlobalCluster
     Description: ID of the Aurora global cluster
-    Value: !GetAtt DbStack.Outputs.AuroraGlobalClusterId
+    Value: !GetAtt BackendStack.Outputs.AuroraGlobalClusterId
 
   SharedLambdaRoleArn:
     Description: ARN of the shared Lambda role
-    Value: !GetAtt SecurityStack.Outputs.SharedLambdaRoleArn
+    Value: !GetAtt BackendStack.Outputs.SharedLambdaRoleArn
 
   # Database outputs
   DatabaseEndpoint:
     Description: Aurora MySQL cluster endpoint
-    Value: !GetAtt DbStack.Outputs.DatabaseEndpoint
+    Value: !GetAtt BackendStack.Outputs.DatabaseEndpoint
 
   DatabaseReaderEndpoint:
     Description: Aurora MySQL reader endpoint
-    Value: !GetAtt DbStack.Outputs.DatabaseReaderEndpoint
+    Value: !GetAtt BackendStack.Outputs.DatabaseReaderEndpoint
 
   DatabaseUsername:
     Description: Database username
-    Value: !GetAtt DbStack.Outputs.DatabaseUsername
+    Value: !GetAtt BackendStack.Outputs.DatabaseUsername
 
   DatabaseEngine:
     Description: Database engine
-    Value: !GetAtt DbStack.Outputs.DatabaseEngine
+    Value: !GetAtt BackendStack.Outputs.DatabaseEngine
 
   DatabaseHost:
     Description: Database host endpoint
-    Value: !GetAtt DbStack.Outputs.DatabaseHost
+    Value: !GetAtt BackendStack.Outputs.DatabaseHost
 
   DatabasePort:
     Description: Database port
-    Value: !GetAtt DbStack.Outputs.DatabasePort
+    Value: !GetAtt BackendStack.Outputs.DatabasePort
 
   DatabaseName:
     Description: Database name
-    Value: !GetAtt DbStack.Outputs.DatabaseName
+    Value: !GetAtt BackendStack.Outputs.DatabaseName
 
   DatabaseClusterArn:
     Description: Database cluster ARN
-    Value: !GetAtt DbStack.Outputs.DatabaseClusterArn
+    Value: !GetAtt BackendStack.Outputs.DatabaseClusterArn
 
   DatabasePasswordSecretArn:
     Description: Database password secret ARN
-    Value: !GetAtt DbStack.Outputs.DatabasePasswordSecretArn
+    Value: !GetAtt BackendStack.Outputs.DatabasePasswordSecretArn
 
   # VPC outputs
   VpcId:
     Description: VPC ID
-    Value: !GetAtt NetworkingStack.Outputs.VPCId
+    Value: !GetAtt BackendStack.Outputs.VpcId
 
   PrivateSubnet1Id:
     Description: Private subnet 1 ID
-    Value: !GetAtt NetworkingStack.Outputs.PrivateSubnet1Id
+    Value: !GetAtt BackendStack.Outputs.PrivateSubnet1Id
 
   PrivateSubnet2Id:
     Description: Private subnet 2 ID
-    Value: !GetAtt NetworkingStack.Outputs.PrivateSubnet2Id
+    Value: !GetAtt BackendStack.Outputs.PrivateSubnet2Id
 
   PublicSubnet1Id:
     Description: Public subnet 1 ID
-    Value: !GetAtt NetworkingStack.Outputs.PublicSubnet1Id
+    Value: !GetAtt BackendStack.Outputs.PublicSubnet1Id
 
   PublicSubnet2Id:
     Description: Public subnet 2 ID
-    Value: !GetAtt NetworkingStack.Outputs.PublicSubnet2Id
+    Value: !GetAtt BackendStack.Outputs.PublicSubnet2Id
 
   LambdaSecurityGroupId:
     Description: Lambda security group ID
-    Value: !GetAtt NetworkingStack.Outputs.LambdaSecurityGroupId
+    Value: !GetAtt BackendStack.Outputs.LambdaSecurityGroupId
 
   ALBSecurityGroupId:
     Description: ALB security group ID
-    Value: !GetAtt NetworkingStack.Outputs.ALBSecurityGroupId
+    Value: !GetAtt BackendStack.Outputs.ALBSecurityGroupId
 
   ECSTaskSecurityGroupId:
     Description: ECS task security group ID
-    Value: !GetAtt NetworkingStack.Outputs.ECSTaskSecurityGroupId
+    Value: !GetAtt BackendStack.Outputs.ECSTaskSecurityGroupId
 
   VpcFlowLogsRoleArn:
     Description: VPC Flow Logs role ARN
-    Value: !GetAtt NetworkingStack.Outputs.VpcFlowLogsRoleArn
+    Value: !GetAtt BackendStack.Outputs.VpcFlowLogsRoleArn
 
   # Infrastructure outputs
   ECSClusterName:
     Description: ECS cluster name
-    Value: !GetAtt InfrastructureStack.Outputs.ECSClusterName
+    Value: !GetAtt BackendStack.Outputs.ECSClusterName
 
   GoogleOAuthSecretArn:
     Description: ARN of the Google OAuth secrets
-    Value: !GetAtt InfrastructureStack.Outputs.GoogleOAuthSecretArn
+    Value: !GetAtt BackendStack.Outputs.GoogleOAuthSecretArn
 
   # API outputs
   ApiEndpoint:
     Description: "API Gateway endpoint URL"
-    Value: !GetAtt ApiStack.Outputs.ApiEndpoint
+    Value: !GetAtt ApplicationStack.Outputs.ApiEndpoint
 
   ApiLambdaFunctionName:
     Description: "API Lambda function name"
-    Value: !GetAtt ApiStack.Outputs.ApiLambdaFunctionName
+    Value: !GetAtt ApplicationStack.Outputs.ApiLambdaFunctionName
 
   # Web outputs
   WebEndpoint:
     Description: "Web application endpoint URL"
-    Value: !GetAtt WebStack.Outputs.WebEndpoint
+    Value: !GetAtt ApplicationStack.Outputs.WebEndpoint
 
   WebLoadBalancerDNS:
     Description: "Web Load Balancer DNS name"
-    Value: !GetAtt WebStack.Outputs.WebLoadBalancerDNS
+    Value: !GetAtt ApplicationStack.Outputs.WebLoadBalancerDNS
 
   WebLoadBalancerHostedZoneId:
     Description: "Web Load Balancer hosted zone ID"
-    Value: !GetAtt WebStack.Outputs.WebLoadBalancerHostedZoneId
+    Value: !GetAtt ApplicationStack.Outputs.WebLoadBalancerHostedZoneId
 
   WebTaskDefinition:
     Description: "Web ECS task definition"
-    Value: !GetAtt WebStack.Outputs.WebTaskDefinition
+    Value: !GetAtt ApplicationStack.Outputs.WebTaskDefinition
 
   WebServiceName:
     Description: "Web ECS service name"
-    Value: !GetAtt WebStack.Outputs.WebServiceName
+    Value: !GetAtt ApplicationStack.Outputs.WebServiceName
 
   # DNS outputs for primary region (single region only)
   PrimaryWebEndpoint:
     Condition: IsPrimarySingleRegion
     Description: "Web application endpoint URL"
-    Value: !GetAtt PrimaryDnsStack.Outputs.WebEndpoint
+    Value: !GetAtt ApplicationStack.Outputs.PrimaryWebEndpoint
 
   # DNS outputs for secondary region (failover setup)
   SecondaryWebEndpoint:
     Condition: IsSecondary
     Description: "Web application endpoint URL"
-    Value: !GetAtt SecondaryDnsStack.Outputs.WebEndpoint
+    Value: !GetAtt ApplicationStack.Outputs.SecondaryWebEndpoint
 
   PrimaryHealthCheckId:
     Condition: IsPrimarySingleRegion
     Description: "Primary health check ID"
-    Value: !GetAtt PrimaryDnsStack.Outputs.PrimaryHealthCheckId
+    Value: !GetAtt ApplicationStack.Outputs.PrimaryHealthCheckId
 
   PrimaryHealthCheckIdSecondary:
     Condition: IsSecondary
     Description: "Primary health check ID"
-    Value: !GetAtt SecondaryDnsStack.Outputs.PrimaryHealthCheckId
+    Value: !GetAtt ApplicationStack.Outputs.PrimaryHealthCheckIdSecondary
 
   SecondaryHealthCheckId:
     Condition: IsSecondary
     Description: "Secondary health check ID"
-    Value: !GetAtt SecondaryDnsStack.Outputs.SecondaryHealthCheckId
+    Value: !GetAtt ApplicationStack.Outputs.SecondaryHealthCheckId

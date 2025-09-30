@@ -1,0 +1,241 @@
+---
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "TaskManager Backend Infrastructure Template - Includes security, networking, database, and infrastructure components"
+
+Parameters:
+  # Common parameters
+  TemplateBucket:
+    Type: String
+    Description: S3 bucket name containing the CloudFormation templates
+
+  GitHubActionsUserArn:
+    Type: String
+    Description: ARN of the GitHub Actions IAM user
+
+  BranchName:
+    Type: String
+    Description: Branch name for resource naming
+
+  DatabasePassword:
+    Type: String
+    NoEcho: true
+    MinLength: 8
+    Description: Password for the Aurora MySQL database
+
+  EngineVersion:
+    Type: String
+    Description: Aurora MySQL engine version
+
+  MinCapacity:
+    Type: Number
+    Description: Minimum Aurora Serverless v2 capacity (ACUs)
+
+  MaxCapacity:
+    Type: Number
+    Description: Maximum Aurora Serverless v2 capacity (ACUs)
+
+  EnableGlobalCluster:
+    Type: String
+    AllowedValues: ["true", "false"]
+    Default: "true"
+    Description: Whether to enable Aurora global cluster
+
+  # Region-specific parameters
+  IsPrimaryRegion:
+    Type: String
+    AllowedValues: ["true", "false"]
+    Description: Whether this region hosts the primary cluster
+
+  # Parameters for global infrastructure outputs
+  AuroraGlobalClusterId:
+    Type: String
+    Default: ""
+    Description: ID of the Aurora global cluster
+
+  # Parameters for secondary regions
+  KmsKeyArn:
+    Type: String
+    Description: ARN of the primary KMS key (for secondary regions)
+    Default: ""
+
+  # Google OAuth parameters
+  GoogleOAuthClientId:
+    Type: String
+    Description: Google OAuth Client ID
+    NoEcho: true
+
+  GoogleOAuthClientSecret:
+    Type: String
+    Description: Google OAuth Client Secret
+    NoEcho: true
+
+Conditions:
+  IsPrimary: !Equals [!Ref IsPrimaryRegion, "true"]
+  IsSecondary: !Equals [!Ref IsPrimaryRegion, "false"]
+  HasKmsKeyArn: !Not [!Equals [!Ref KmsKeyArn, ""]]
+  HasGlobalClusterId: !Not [!Equals [!Ref AuroraGlobalClusterId, ""]]
+  IsSingleRegion: !Equals [!Ref EnableGlobalCluster, "false"]
+  IsPrimarySingleRegion:
+    !And [
+      !Equals [!Ref IsPrimaryRegion, "true"],
+      !Equals [!Ref EnableGlobalCluster, "false"],
+    ]
+  ShouldCreateGlobalCluster:
+    !And [
+      !Equals [!Ref IsPrimaryRegion, "true"],
+      !Equals [!Ref EnableGlobalCluster, "true"],
+    ]
+
+Resources:
+  # KMS Key (Primary or Replica)
+  SecurityStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: ./security.template
+      Parameters:
+        GitHubActionsUserArn: !Ref GitHubActionsUserArn
+        BranchName: !Ref BranchName
+        KmsKeyArn: !If [HasKmsKeyArn, !Ref KmsKeyArn, !Ref "AWS::NoValue"]
+        IsPrimaryRegion: !Ref IsPrimaryRegion
+
+  # Regional VPC
+  NetworkingStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: ./network.template
+      Parameters:
+        BranchName: !Ref BranchName
+        LogRetentionDays: 7
+
+  # Regional Database
+  DbStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: [SecurityStack, NetworkingStack]
+    Properties:
+      TemplateURL: ./db.template
+      Parameters:
+        DatabasePassword: !Ref DatabasePassword
+        EngineVersion: !Ref EngineVersion
+        AuroraGlobalClusterId: !Ref AuroraGlobalClusterId
+        AuroraKmsKeyArn: !GetAtt SecurityStack.Outputs.AuroraKmsKeyArn
+        IsPrimaryRegion: !Ref IsPrimaryRegion
+        GitHubActionsUserArn: !Ref GitHubActionsUserArn
+        BranchName: !Ref BranchName
+        VPCId: !GetAtt NetworkingStack.Outputs.VPCId
+        PrivateSubnet1Id: !GetAtt NetworkingStack.Outputs.PrivateSubnet1Id
+        PrivateSubnet2Id: !GetAtt NetworkingStack.Outputs.PrivateSubnet2Id
+        RDSSecurityGroupId: !GetAtt NetworkingStack.Outputs.RDSSecurityGroupId
+        MinCapacity: !Ref MinCapacity
+        MaxCapacity: !Ref MaxCapacity
+        EnableGlobalCluster: !Ref EnableGlobalCluster
+        LogRetentionDays: 7
+
+  # Regional Infrastructure
+  InfrastructureStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: DbStack
+    Properties:
+      TemplateURL: ./infrastructure.template
+      Parameters:
+        BranchName: !Ref BranchName
+        GoogleOAuthClientId: !Ref GoogleOAuthClientId
+        GoogleOAuthClientSecret: !Ref GoogleOAuthClientSecret
+
+Outputs:
+  # KMS outputs
+  AuroraKmsKeyArn:
+    Description: ARN of the KMS key
+    Value: !GetAtt SecurityStack.Outputs.AuroraKmsKeyArn
+
+  # Global outputs
+  AuroraGlobalClusterId:
+    Condition: ShouldCreateGlobalCluster
+    Description: ID of the Aurora global cluster
+    Value: !GetAtt DbStack.Outputs.AuroraGlobalClusterId
+
+  SharedLambdaRoleArn:
+    Description: ARN of the shared Lambda role
+    Value: !GetAtt SecurityStack.Outputs.SharedLambdaRoleArn
+
+  # Database outputs
+  DatabaseEndpoint:
+    Description: Aurora MySQL cluster endpoint
+    Value: !GetAtt DbStack.Outputs.DatabaseEndpoint
+
+  DatabaseReaderEndpoint:
+    Description: Aurora MySQL reader endpoint
+    Value: !GetAtt DbStack.Outputs.DatabaseReaderEndpoint
+
+  DatabaseUsername:
+    Description: Database username
+    Value: !GetAtt DbStack.Outputs.DatabaseUsername
+
+  DatabaseEngine:
+    Description: Database engine
+    Value: !GetAtt DbStack.Outputs.DatabaseEngine
+
+  DatabaseHost:
+    Description: Database host endpoint
+    Value: !GetAtt DbStack.Outputs.DatabaseHost
+
+  DatabasePort:
+    Description: Database port
+    Value: !GetAtt DbStack.Outputs.DatabasePort
+
+  DatabaseName:
+    Description: Database name
+    Value: !GetAtt DbStack.Outputs.DatabaseName
+
+  DatabaseClusterArn:
+    Description: Database cluster ARN
+    Value: !GetAtt DbStack.Outputs.DatabaseClusterArn
+
+  DatabasePasswordSecretArn:
+    Description: Database password secret ARN
+    Value: !GetAtt DbStack.Outputs.DatabasePasswordSecretArn
+
+  # VPC outputs
+  VpcId:
+    Description: VPC ID
+    Value: !GetAtt NetworkingStack.Outputs.VPCId
+
+  PrivateSubnet1Id:
+    Description: Private subnet 1 ID
+    Value: !GetAtt NetworkingStack.Outputs.PrivateSubnet1Id
+
+  PrivateSubnet2Id:
+    Description: Private subnet 2 ID
+    Value: !GetAtt NetworkingStack.Outputs.PrivateSubnet2Id
+
+  PublicSubnet1Id:
+    Description: Public subnet 1 ID
+    Value: !GetAtt NetworkingStack.Outputs.PublicSubnet1Id
+
+  PublicSubnet2Id:
+    Description: Public subnet 2 ID
+    Value: !GetAtt NetworkingStack.Outputs.PublicSubnet2Id
+
+  LambdaSecurityGroupId:
+    Description: Lambda security group ID
+    Value: !GetAtt NetworkingStack.Outputs.LambdaSecurityGroupId
+
+  ALBSecurityGroupId:
+    Description: ALB security group ID
+    Value: !GetAtt NetworkingStack.Outputs.ALBSecurityGroupId
+
+  ECSTaskSecurityGroupId:
+    Description: ECS task security group ID
+    Value: !GetAtt NetworkingStack.Outputs.ECSTaskSecurityGroupId
+
+  VpcFlowLogsRoleArn:
+    Description: VPC Flow Logs role ARN
+    Value: !GetAtt NetworkingStack.Outputs.VpcFlowLogsRoleArn
+
+  # Infrastructure outputs
+  ECSClusterName:
+    Description: ECS cluster name
+    Value: !GetAtt InfrastructureStack.Outputs.ECSClusterName
+
+  GoogleOAuthSecretArn:
+    Description: ARN of the Google OAuth secrets
+    Value: !GetAtt InfrastructureStack.Outputs.GoogleOAuthSecretArn
