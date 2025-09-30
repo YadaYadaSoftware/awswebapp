@@ -21,7 +21,10 @@ jobs:
     - name: Get branch name
       id: get-branch
       run: |
-        BRANCH_NAME=${GITHUB_REF#refs/heads/}
+        # for right now, just hardcode to dev
+        # BRANCH_NAME=${GITHUB_REF#refs/heads/}
+        # for right now, just hardcode to dev
+        BRANCH_NAME=dev
         echo "branch-name=$BRANCH_NAME" >> $GITHUB_OUTPUT
 
   build:
@@ -134,7 +137,7 @@ jobs:
             deploy: true
           - region: us-west-2
             is_primary: "false"
-            deploy: ${{ contains(fromJson('["app","beta"]'), needs.get-branch-name.outputs.branch-name) }}
+            deploy: ${{ contains(fromJson('["app","beta","alpha","dev"]'), needs.get-branch-name.outputs.branch-name) }}
       max-parallel: 1
     steps:
     - name: Checkout code
@@ -142,6 +145,19 @@ jobs:
       uses: actions/checkout@v4
       with:
         fetch-depth: 0
+
+    - name: Determine deployment type
+      if: matrix.deploy
+      id: deployment-type
+      run: |
+        BRANCH_NAME="${{ needs.get-branch-name.outputs.branch-name }}"
+        if [[ " app beta alpha dev " == *" $BRANCH_NAME "* ]]; then
+          echo "Deploying master template for branch: $BRANCH_NAME"
+          echo "deploy-master=true" >> $GITHUB_OUTPUT
+        else
+          echo "Deploying application template only for branch: $BRANCH_NAME"
+          echo "deploy-master=false" >> $GITHUB_OUTPUT
+        fi
 
     - name: Calculate Source Checksum
       if: matrix.deploy
@@ -178,13 +194,13 @@ jobs:
       id: bootstrap-outputs
       run: |
         # Get TemplatesBucketName from bootstrap stack in us-east-1
-        BOOTSTRAP_STACK_NAME="bootstrap-${{ matrix.region }}"
+        BOOTSTRAP_STACK_NAME="taskmanager-bootstrap"
         TEMPLATES_BUCKET_NAME=$(aws cloudformation describe-stacks --stack-name $BOOTSTRAP_STACK_NAME --region us-east-1 --query 'Stacks[0].Outputs[?OutputKey==`TemplatesBucketName`].OutputValue' --output text)
         echo "Templates bucket name: $TEMPLATES_BUCKET_NAME"
         echo "templates-bucket-name=$TEMPLATES_BUCKET_NAME" >> $GITHUB_OUTPUT
 
     - name: Build and package master template
-      if: matrix.deploy
+      if: matrix.deploy && steps.deployment-type.outputs.deploy-master == 'true'
       run: |
         # Use TemplatesBucketName from bootstrap stack in us-east-1
         BUCKET_NAME="${{ steps.bootstrap-outputs.outputs.templates-bucket-name }}"
@@ -198,6 +214,23 @@ jobs:
         # Upload the packaged template as master-template.yaml for compatibility
         aws s3 cp packaged-master-template.yaml s3://$BUCKET_NAME/$BRANCH_NAME/master-template.yaml --region ${{ matrix.region }}
         TEMPLATE_VERSION_ID=$(aws s3api head-object --bucket $BUCKET_NAME --key $BRANCH_NAME/master-template.yaml --query VersionId --output text)
+        echo "TEMPLATE_VERSION_ID=$TEMPLATE_VERSION_ID" >> $GITHUB_ENV
+
+    - name: Build and package application template
+      if: matrix.deploy && steps.deployment-type.outputs.deploy-master == 'false'
+      run: |
+        # Use TemplatesBucketName from bootstrap stack in us-east-1
+        BUCKET_NAME="${{ steps.bootstrap-outputs.outputs.templates-bucket-name }}"
+        BRANCH_NAME="${{ needs.get-branch-name.outputs.branch-name }}"
+        echo "BUCKET_NAME=$BUCKET_NAME" >> $GITHUB_ENV
+
+        echo "Building and packaging application template to S3 bucket: $BUCKET_NAME"
+        sam build --template infrastructure/application.template --region ${{ matrix.region }}
+        sam package --template-file .aws-sam/build/template.yaml --s3-bucket $BUCKET_NAME --s3-prefix $BRANCH_NAME --output-template-file packaged-application-template.yaml --region ${{ matrix.region }}
+
+        # Upload the packaged template as application-template.yaml for compatibility
+        aws s3 cp packaged-application-template.yaml s3://$BUCKET_NAME/$BRANCH_NAME/application-template.yaml --region ${{ matrix.region }}
+        TEMPLATE_VERSION_ID=$(aws s3api head-object --bucket $BUCKET_NAME --key $BRANCH_NAME/application-template.yaml --query VersionId --output text)
         echo "TEMPLATE_VERSION_ID=$TEMPLATE_VERSION_ID" >> $GITHUB_ENV
 
     - name: Check if Web Container Image Exists
@@ -289,7 +322,7 @@ jobs:
 
     - name: Get primary region outputs for secondary
       id: get-primary-outputs
-      if: matrix.is_primary == 'false' && matrix.deploy
+      if: matrix.is_primary == 'false' && matrix.deploy && steps.deployment-type.outputs.deploy-master == 'true'
       run: |
         echo "Getting outputs from primary region stack..."
         PRIMARY_STACK_NAME="taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-us-east-1"
@@ -302,10 +335,54 @@ jobs:
         echo "primary-lb-dns=$PRIMARY_LB_DNS" >> $GITHUB_OUTPUT
         echo "primary-lb-hz=$PRIMARY_LB_HZ" >> $GITHUB_OUTPUT
 
+    - name: Get dev branch backend outputs for application-only deployment
+      id: get-dev-backend-outputs
+      if: matrix.deploy && steps.deployment-type.outputs.deploy-master == 'false'
+      run: |
+        echo "Getting backend outputs from dev branch stack..."
+        DEV_STACK_NAME="taskmanager-dev-${{ matrix.region }}"
+        SHARED_LAMBDA_ROLE_ARN=$(aws cloudformation describe-stacks --stack-name $DEV_STACK_NAME --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`SharedLambdaRoleArn`].OutputValue' --output text)
+        DATABASE_HOST=$(aws cloudformation describe-stacks --stack-name $DEV_STACK_NAME --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`DatabaseHost`].OutputValue' --output text)
+        DATABASE_USERNAME=$(aws cloudformation describe-stacks --stack-name $DEV_STACK_NAME --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`DatabaseUsername`].OutputValue' --output text)
+        DATABASE_ENGINE=$(aws cloudformation describe-stacks --stack-name $DEV_STACK_NAME --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`DatabaseEngine`].OutputValue' --output text)
+        DATABASE_PORT=$(aws cloudformation describe-stacks --stack-name $DEV_STACK_NAME --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`DatabasePort`].OutputValue' --output text)
+        DATABASE_NAME=$(aws cloudformation describe-stacks --stack-name $DEV_STACK_NAME --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`DatabaseName`].OutputValue' --output text)
+        DATABASE_CLUSTER_ARN=$(aws cloudformation describe-stacks --stack-name $DEV_STACK_NAME --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`DatabaseClusterArn`].OutputValue' --output text)
+        DATABASE_PASSWORD_SECRET_ARN=$(aws cloudformation describe-stacks --stack-name $DEV_STACK_NAME --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`DatabasePasswordSecretArn`].OutputValue' --output text)
+        VPC_ID=$(aws cloudformation describe-stacks --stack-name $DEV_STACK_NAME --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`VpcId`].OutputValue' --output text)
+        PRIVATE_SUBNET_1_ID=$(aws cloudformation describe-stacks --stack-name $DEV_STACK_NAME --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`PrivateSubnet1Id`].OutputValue' --output text)
+        PRIVATE_SUBNET_2_ID=$(aws cloudformation describe-stacks --stack-name $DEV_STACK_NAME --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`PrivateSubnet2Id`].OutputValue' --output text)
+        PUBLIC_SUBNET_1_ID=$(aws cloudformation describe-stacks --stack-name $DEV_STACK_NAME --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`PublicSubnet1Id`].OutputValue' --output text)
+        PUBLIC_SUBNET_2_ID=$(aws cloudformation describe-stacks --stack-name $DEV_STACK_NAME --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`PublicSubnet2Id`].OutputValue' --output text)
+        LAMBDA_SECURITY_GROUP_ID=$(aws cloudformation describe-stacks --stack-name $DEV_STACK_NAME --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`LambdaSecurityGroupId`].OutputValue' --output text)
+        ALB_SECURITY_GROUP_ID=$(aws cloudformation describe-stacks --stack-name $DEV_STACK_NAME --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`ALBSecurityGroupId`].OutputValue' --output text)
+        ECS_TASK_SECURITY_GROUP_ID=$(aws cloudformation describe-stacks --stack-name $DEV_STACK_NAME --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`ECSTaskSecurityGroupId`].OutputValue' --output text)
+        ECS_CLUSTER_NAME=$(aws cloudformation describe-stacks --stack-name $DEV_STACK_NAME --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`ECSClusterName`].OutputValue' --output text)
+        GOOGLE_OAUTH_SECRET_ARN=$(aws cloudformation describe-stacks --stack-name $DEV_STACK_NAME --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`GoogleOAuthSecretArn`].OutputValue' --output text)
 
-    - name: Set parameter overrides
-      id: set-params
-      if: matrix.deploy
+        echo "shared-lambda-role-arn=$SHARED_LAMBDA_ROLE_ARN" >> $GITHUB_OUTPUT
+        echo "database-host=$DATABASE_HOST" >> $GITHUB_OUTPUT
+        echo "database-username=$DATABASE_USERNAME" >> $GITHUB_OUTPUT
+        echo "database-engine=$DATABASE_ENGINE" >> $GITHUB_OUTPUT
+        echo "database-port=$DATABASE_PORT" >> $GITHUB_OUTPUT
+        echo "database-name=$DATABASE_NAME" >> $GITHUB_OUTPUT
+        echo "database-cluster-arn=$DATABASE_CLUSTER_ARN" >> $GITHUB_OUTPUT
+        echo "database-password-secret-arn=$DATABASE_PASSWORD_SECRET_ARN" >> $GITHUB_OUTPUT
+        echo "vpc-id=$VPC_ID" >> $GITHUB_OUTPUT
+        echo "private-subnet-1-id=$PRIVATE_SUBNET_1_ID" >> $GITHUB_OUTPUT
+        echo "private-subnet-2-id=$PRIVATE_SUBNET_2_ID" >> $GITHUB_OUTPUT
+        echo "public-subnet-1-id=$PUBLIC_SUBNET_1_ID" >> $GITHUB_OUTPUT
+        echo "public-subnet-2-id=$PUBLIC_SUBNET_2_ID" >> $GITHUB_OUTPUT
+        echo "lambda-security-group-id=$LAMBDA_SECURITY_GROUP_ID" >> $GITHUB_OUTPUT
+        echo "alb-security-group-id=$ALB_SECURITY_GROUP_ID" >> $GITHUB_OUTPUT
+        echo "ecs-task-security-group-id=$ECS_TASK_SECURITY_GROUP_ID" >> $GITHUB_OUTPUT
+        echo "ecs-cluster-name=$ECS_CLUSTER_NAME" >> $GITHUB_OUTPUT
+        echo "google-oauth-secret-arn=$GOOGLE_OAUTH_SECRET_ARN" >> $GITHUB_OUTPUT
+
+
+    - name: Set parameter overrides for master template
+      id: set-master-params
+      if: matrix.deploy && steps.deployment-type.outputs.deploy-master == 'true'
       run: |
         BRANCH_NAME="${{ needs.get-branch-name.outputs.branch-name }}"
         if [ "$BRANCH_NAME" = "app" ]; then
@@ -315,7 +392,7 @@ jobs:
           MIN_CAP=0
           MAX_CAP=1
         fi
-        if [[ " app beta " == *" $BRANCH_NAME "* ]]; then
+        if [[ " app beta alpha dev " == *" $BRANCH_NAME "* ]]; then
           ENABLE_GLOBAL=true
         else
           ENABLE_GLOBAL=false
@@ -327,14 +404,34 @@ jobs:
         PARAMS="$BASE_PARAMS"
         echo "params=$PARAMS" >> $GITHUB_OUTPUT
 
+    - name: Set parameter overrides for application template
+      id: set-application-params
+      if: matrix.deploy && steps.deployment-type.outputs.deploy-master == 'false'
+      run: |
+        # Application template parameters using dev branch backend outputs
+        APP_PARAMS="TemplateBucket=${{ steps.bootstrap-outputs.outputs.templates-bucket-name }},GitHubActionsUserArn=${{ secrets.USER_ARN }},BranchName=${{ needs.get-branch-name.outputs.branch-name }},GoogleOAuthClientId=${{ secrets.GOOGLE_CLIENT_ID }},GoogleOAuthClientSecret=${{ secrets.GOOGLE_CLIENT_SECRET }},WebContainerImage=${{ env.CONTAINER_IMAGE }},DeploymentToken=${{ github.sha }},DomainName=appcloud.systems,HostedZoneId=Z06422172SASV44F5Y8VA,SharedLambdaRoleArn=${{ steps.get-dev-backend-outputs.outputs.shared-lambda-role-arn }},DatabaseHost=${{ steps.get-dev-backend-outputs.outputs.database-host }},DatabaseUsername=${{ steps.get-dev-backend-outputs.outputs.database-username }},DatabaseEngine=${{ steps.get-dev-backend-outputs.outputs.database-engine }},DatabasePort=${{ steps.get-dev-backend-outputs.outputs.database-port }},DatabaseName=${{ steps.get-dev-backend-outputs.outputs.database-name }},DatabaseClusterArn=${{ steps.get-dev-backend-outputs.outputs.database-cluster-arn }},DatabasePasswordSecretArn=${{ steps.get-dev-backend-outputs.outputs.database-password-secret-arn }},VPCId=${{ steps.get-dev-backend-outputs.outputs.vpc-id }},PrivateSubnet1Id=${{ steps.get-dev-backend-outputs.outputs.private-subnet-1-id }},PrivateSubnet2Id=${{ steps.get-dev-backend-outputs.outputs.private-subnet-2-id }},PublicSubnet1Id=${{ steps.get-dev-backend-outputs.outputs.public-subnet-1-id }},PublicSubnet2Id=${{ steps.get-dev-backend-outputs.outputs.public-subnet-2-id }},LambdaSecurityGroupId=${{ steps.get-dev-backend-outputs.outputs.lambda-security-group-id }},ALBSecurityGroupId=${{ steps.get-dev-backend-outputs.outputs.alb-security-group-id }},ECSTaskSecurityGroupId=${{ steps.get-dev-backend-outputs.outputs.ecs-task-security-group-id }},ECSClusterName=${{ steps.get-dev-backend-outputs.outputs.ecs-cluster-name }},GoogleOAuthSecretArn=${{ steps.get-dev-backend-outputs.outputs.google-oauth-secret-arn }},IsPrimaryRegion=${{ matrix.is_primary }}"
+        echo "params=$APP_PARAMS" >> $GITHUB_OUTPUT
+
     - name: Deploy master template
       id: deploy-master
-      if: matrix.deploy
+      if: matrix.deploy && steps.deployment-type.outputs.deploy-master == 'true'
       uses: aws-actions/aws-cloudformation-github-deploy@v1
       with:
         name: taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-${{ matrix.region }}
         template: https://s3.amazonaws.com/${{ steps.bootstrap-outputs.outputs.templates-bucket-name }}/${{ needs.get-branch-name.outputs.branch-name }}/master-template.yaml?versionId=${{ env.TEMPLATE_VERSION_ID }}
-        parameter-overrides: ${{ steps.set-params.outputs.params }}
+        parameter-overrides: ${{ steps.set-master-params.outputs.params }}
+        capabilities: "CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND"
+        no-fail-on-empty-changeset: "1"
+        timeout-in-minutes: 30
+
+    - name: Deploy application template
+      id: deploy-application
+      if: matrix.deploy && steps.deployment-type.outputs.deploy-master == 'false'
+      uses: aws-actions/aws-cloudformation-github-deploy@v1
+      with:
+        name: taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-${{ matrix.region }}
+        template: https://s3.amazonaws.com/${{ steps.bootstrap-outputs.outputs.templates-bucket-name }}/${{ needs.get-branch-name.outputs.branch-name }}/application-template.yaml?versionId=${{ env.TEMPLATE_VERSION_ID }}
+        parameter-overrides: ${{ steps.set-application-params.outputs.params }}
         capabilities: "CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND"
         no-fail-on-empty-changeset: "1"
         timeout-in-minutes: 30
