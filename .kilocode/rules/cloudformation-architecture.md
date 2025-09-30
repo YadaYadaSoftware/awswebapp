@@ -1,12 +1,6 @@
 ## Brief overview
 Project-specific guidelines for CloudFormation infrastructure architecture, emphasizing parameter-based stack composition over export/import mechanisms.
 
-## CloudFormation stack communication
-- **Never use `Export` or `Fn::ImportValue`** in CloudFormation templates
-- Use **stack outputs passed as parameters** to subsequent stacks instead
-- This approach provides better control over stack dependencies and deployment ordering
-- Avoids the global namespace conflicts that can occur with exports across accounts/regions
-
 ## Infrastructure deployment pattern
 - Deploy infrastructure stacks in sequence, passing outputs as parameters to dependent stacks
 - Use GitHub Actions job outputs to transfer values between deployment steps
