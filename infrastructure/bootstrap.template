@@ -35,6 +35,7 @@ Resources:
   # Custom IAM Policy with specific permissions
   DeploymentPolicy:
     Type: AWS::IAM::Policy
+    Condition: CreateGitHubActionsUser
     Properties:
       PolicyName: !Sub "DeploymentPolicy-${AWS::Region}"
       PolicyDocument:
@@ -476,10 +477,12 @@ Outputs:
 
   AccessKeyId:
     Description: "Access Key ID for GitHub Actions (add to GitHub secrets)"
+    Condition: CreateGitHubActionsUser
     Value: !Ref GitHubActionsAccessKey
 
   SecretAccessKey:
     Description: "Secret Access Key for GitHub Actions (add to GitHub secrets)"
+    Condition: CreateGitHubActionsUser
     Value: !GetAtt GitHubActionsAccessKey.SecretAccessKey
 
   UserArn:
@@ -493,6 +496,7 @@ Outputs:
 
   PolicyArn:
     Description: "Custom policy ARN"
+    Condition: CreateGitHubActionsUser
     Value: !Ref DeploymentPolicy
     Export:
       Name: DeploymentPolicy
@@ -523,6 +527,7 @@ Outputs:
 
   SetupInstructions:
     Description: "Instructions for GitHub Secrets setup"
+    Condition: CreateGitHubActionsUser
     Value: !Sub |
       Add these to your GitHub repository secrets:
       AWS_ACCESS_KEY_ID=${GitHubActionsAccessKey}
