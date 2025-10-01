@@ -202,6 +202,27 @@ jobs:
         echo "templates-bucket-name=$TEMPLATES_BUCKET_NAME" >> $GITHUB_OUTPUT
         echo "web-ecr-uri=$WEB_ECR_URI" >> $GITHUB_OUTPUT
 
+    - name: Check Templates Bucket Versioning
+      if: matrix.deploy
+      run: |
+        BUCKET_NAME="${{ steps.bootstrap-outputs.outputs.templates-bucket-name }}"
+
+        echo "🔍 Checking versioning status for bucket: $BUCKET_NAME"
+
+        # Check if bucket versioning is enabled
+        VERSIONING_STATUS=$(aws s3api get-bucket-versioning --bucket $BUCKET_NAME --region ${{ matrix.region }} --query 'Status' --output text 2>/dev/null || echo "NotFound")
+
+        if [ "$VERSIONING_STATUS" = "Enabled" ]; then
+          echo "✅ Bucket versioning is enabled for $BUCKET_NAME"
+        elif [ "$VERSIONING_STATUS" = "NotFound" ]; then
+          echo "❌ Bucket $BUCKET_NAME does not exist"
+          exit 1
+        else
+          echo "❌ Bucket versioning is not enabled for $BUCKET_NAME (Status: $VERSIONING_STATUS)"
+          echo "Required: Enabled"
+          exit 1
+        fi
+
     - name: Build and package master template
       if: matrix.deploy && steps.deployment-type.outputs.deploy-master == 'true'
       run: |
