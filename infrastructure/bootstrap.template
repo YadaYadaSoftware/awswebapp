@@ -11,10 +11,26 @@ Parameters:
     Default: 7
     Description: "Number of days to retain CloudWatch logs"
 
+  GitHubActionsUserName:
+    Type: String
+    Default: ""
+    Description: "Existing GitHub Actions IAM user name (leave empty to create new user)"
+
+  GitHubActionsUserArn:
+    Type: String
+    Default: ""
+    Description: "Existing GitHub Actions IAM user ARN (leave empty to create new user)"
+
+Conditions:
+  CreateGitHubActionsUser: !Or
+    - !Equals [!Ref GitHubActionsUserName, ""]
+    - !Equals [!Ref GitHubActionsUserArn, ""]
+
 Resources:
-  # IAM User for GitHub Actions
+  # IAM User for GitHub Actions (only created if GitHubActionsUserName and GitHubActionsUserArn are empty)
   GitHubActionsUser:
     Type: AWS::IAM::User
+    Condition: CreateGitHubActionsUser
 
   # Custom IAM Policy with specific permissions
   DeploymentPolicy:
@@ -134,13 +150,20 @@ Resources:
               - sts:AssumeRole
             Resource: "*"
       Users:
-        - !Ref GitHubActionsUser
+        - !If
+          - CreateGitHubActionsUser
+          - !Ref GitHubActionsUser
+          - !Ref GitHubActionsUserName
 
   # Access Key for GitHub Actions
   GitHubActionsAccessKey:
     Type: AWS::IAM::AccessKey
+    Condition: CreateGitHubActionsUser
     Properties:
-      UserName: !Ref GitHubActionsUser
+      UserName: !If
+        - CreateGitHubActionsUser
+        - !Ref GitHubActionsUser
+        - !Ref GitHubActionsUserName
 
   # S3 Bucket Policy for CloudFormation Access (bucket must exist)
   TemplatesBucketPolicy:
@@ -160,7 +183,10 @@ Resources:
           - Sid: AllowGitHubActionsFullAccess
             Effect: Allow
             Principal:
-              AWS: !GetAtt GitHubActionsUser.Arn
+              AWS: !If
+                - CreateGitHubActionsUser
+                - !GetAtt GitHubActionsUser.Arn
+                - !Ref GitHubActionsUserArn
             Action:
               - s3:*
             Resource:
@@ -441,7 +467,10 @@ Resources:
 Outputs:
   UserName:
     Description: "IAM User name for GitHub Actions"
-    Value: !Ref GitHubActionsUser
+    Value: !If
+      - CreateGitHubActionsUser
+      - !Ref GitHubActionsUser
+      - !Ref GitHubActionsUserName
     Export:
       Name: GitHubActionsUser
 
@@ -455,7 +484,10 @@ Outputs:
 
   UserArn:
     Description: "IAM User ARN"
-    Value: !GetAtt GitHubActionsUser.Arn
+    Value: !If
+      - CreateGitHubActionsUser
+      - !GetAtt GitHubActionsUser.Arn
+      - !Ref GitHubActionsUserArn
     Export:
       Name: GitHubActionsUserArn
 
