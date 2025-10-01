@@ -176,6 +176,7 @@ Resources:
         - error
         - general
         - slowquery
+      EnableHttpEndpoint: true
 
   # Aurora Serverless v2 Instance
   AuroraInstance:
