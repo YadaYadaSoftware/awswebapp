@@ -16,18 +16,11 @@ Parameters:
     Default: ""
     Description: "Existing GitHub Actions IAM user name (leave empty to create new user)"
 
-  GitHubActionsUserArn:
-    Type: String
-    Default: ""
-    Description: "Existing GitHub Actions IAM user ARN (leave empty to create new user)"
-
 Conditions:
-  CreateGitHubActionsUser: !Or
-    - !Equals [!Ref GitHubActionsUserName, ""]
-    - !Equals [!Ref GitHubActionsUserArn, ""]
+  CreateGitHubActionsUser: !Equals [!Ref GitHubActionsUserName, ""]
 
 Resources:
-  # IAM User for GitHub Actions (only created if GitHubActionsUserName and GitHubActionsUserArn are empty)
+  # IAM User for GitHub Actions (only created if GitHubActionsUserName is empty)
   GitHubActionsUser:
     Type: AWS::IAM::User
     Condition: CreateGitHubActionsUser
@@ -187,7 +180,7 @@ Resources:
               AWS: !If
                 - CreateGitHubActionsUser
                 - !GetAtt GitHubActionsUser.Arn
-                - !Ref GitHubActionsUserArn
+                - !Sub "arn:aws:iam::${AWS::AccountId}:user/${GitHubActionsUserName}"
             Action:
               - s3:*
             Resource:
@@ -490,7 +483,7 @@ Outputs:
     Value: !If
       - CreateGitHubActionsUser
       - !GetAtt GitHubActionsUser.Arn
-      - !Ref GitHubActionsUserArn
+      - !Sub "arn:aws:iam::${AWS::AccountId}:user/${GitHubActionsUserName}"
     Export:
       Name: GitHubActionsUserArn
 
