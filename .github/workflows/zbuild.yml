@@ -518,7 +518,7 @@ jobs:
       if: matrix.deploy && steps.deployment-type.outputs.deploy-master == 'true'
       uses: aws-actions/aws-cloudformation-github-deploy@v1
       with:
-        name: ${{ steps.stack-names.outputs.web-stack-name }}-${{ matrix.region }}
+        name: ${{ steps.stack-names.outputs.web-stack-name }}
         template: https://s3.${{ matrix.region }}.amazonaws.com/${{ steps.bootstrap-outputs.outputs.templates-bucket-name }}/${{ needs.get-branch-name.outputs.branch-name }}/master-template.yaml?versionId=${{ env.TEMPLATE_VERSION_ID }}
         parameter-overrides: ${{ steps.set-master-params.outputs.params }}
         capabilities: "CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND"
@@ -530,7 +530,7 @@ jobs:
       if: matrix.deploy && steps.deployment-type.outputs.deploy-master == 'false'
       uses: aws-actions/aws-cloudformation-github-deploy@v1
       with:
-        name: ${{ steps.stack-names.outputs.web-stack-name }}-${{ matrix.region }}
+        name: ${{ steps.stack-names.outputs.web-stack-name }}
         template: https://s3.${{ matrix.region }}.amazonaws.com/${{ steps.bootstrap-outputs.outputs.templates-bucket-name }}/${{ needs.get-branch-name.outputs.branch-name }}/application-template.yaml?versionId=${{ env.TEMPLATE_VERSION_ID }}
         parameter-overrides: ${{ steps.set-application-params.outputs.params }}
         capabilities: "CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND"
