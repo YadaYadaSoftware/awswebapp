@@ -134,7 +134,7 @@ jobs:
             deploy: true
           - region: us-west-2
             is_primary: "false"
-            deploy: ${{ contains(fromJson('["app","beta"]'), needs.get-branch-name.outputs.branch-name) }}
+            deploy: ${{ contains(fromJson('["app","beta","dev"]'), needs.get-branch-name.outputs.branch-name) }}
       max-parallel: 1
     steps:
     - name: Checkout code

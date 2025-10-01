@@ -132,6 +132,7 @@ Resources:
   # CloudWatch Log Group for ECS
   WebECSLogGroup:
     Type: AWS::Logs::LogGroup
+    DeletePolicy: Retain
     Properties:
       LogGroupName: !Sub "/ecs/TaskManagerWeb-${Environment}"
       RetentionInDays: !Ref LogRetentionDays
