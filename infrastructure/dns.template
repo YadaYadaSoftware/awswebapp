@@ -45,10 +45,15 @@ Parameters:
     Default: ""
     Description: "Hosted zone ID of the secondary web load balancer (optional for single region)"
 
-Conditions:
-  HasSecondaryLoadBalancer:
-    !Not [!Equals [!Ref SecondaryWebLoadBalancerDNS, ""]]
-  IsSingleRegion: !Equals [!Ref SecondaryWebLoadBalancerDNS, ""]
+  DeploymentType:
+    Type: String
+    AllowedValues: ["single", "multi"]
+    Description: "Type of deployment - single or multi-region"
+
+  Conditions:
+    IsSingleRegionDeployment: !Equals [!Ref DeploymentType, "single"]
+    IsMultiRegionDeployment: !Equals [!Ref DeploymentType, "multi"]
+    HasSecondaryLoadBalancer: !Equals [!Ref DeploymentType, "multi"]
 
 Resources:
   # Health Check for Primary ALB
@@ -92,7 +97,7 @@ Resources:
 
   # Primary DNS Record for single region (simple record)
   PrimaryDNSRecordSingle:
-    Condition: IsSingleRegion
+    Condition: IsSingleRegionDeployment
     Type: AWS::Route53::RecordSet
     Properties:
       HostedZoneId: !Ref HostedZoneId
@@ -104,7 +109,7 @@ Resources:
 
   # Primary DNS Record for multi-region (failover record)
   PrimaryDNSRecordFailover:
-    Condition: HasSecondaryLoadBalancer
+    Condition: IsMultiRegionDeployment
     Type: AWS::Route53::RecordSet
     Properties:
       HostedZoneId: !Ref HostedZoneId
@@ -117,9 +122,9 @@ Resources:
         HostedZoneId: !Ref PrimaryWebLoadBalancerHostedZoneId
       HealthCheckId: !Ref PrimaryHealthCheck
 
-  # Secondary Failover Record (only when secondary load balancer is provided)
+  # Secondary Failover Record (only for multi-region deployment)
   SecondaryDNSRecord:
-    Condition: HasSecondaryLoadBalancer
+    Condition: IsMultiRegionDeployment
     Type: AWS::Route53::RecordSet
     Properties:
       HostedZoneId: !Ref HostedZoneId
@@ -142,6 +147,6 @@ Outputs:
     Value: !Ref PrimaryHealthCheck
 
   SecondaryHealthCheckId:
-    Condition: HasSecondaryLoadBalancer
+    Condition: IsMultiRegionDeployment
     Description: "Secondary health check ID"
     Value: !Ref SecondaryHealthCheck

@@ -141,12 +141,26 @@ Parameters:
     AllowedValues: ["true", "false"]
     Description: Whether this region hosts the primary cluster
 
-Conditions:
-  IsPrimarySingleRegion: !And [
-      !Equals [!Ref IsPrimaryRegion, "true"],
-      !Equals ["false", "false"], # Since EnableGlobalCluster is not here, but for single region it's false
-    ]
-  IsSecondary: !Equals [!Ref IsPrimaryRegion, "false"]
+  DeploymentType:
+    Type: String
+    AllowedValues: ["single", "multi"]
+    Description: Whether this is a single-region or multi-region deployment
+
+  Conditions:
+    IsPrimaryRegion: !Equals [!Ref IsPrimaryRegion, "true"]
+    IsSecondaryRegion: !Equals [!Ref IsPrimaryRegion, "false"]
+    IsSingleRegionDeployment: !Equals [!Ref DeploymentType, "single"]
+    IsMultiRegionDeployment: !Equals [!Ref DeploymentType, "multi"]
+    ShouldCreatePrimaryDNS:
+      !And [
+        !Equals [!Ref IsPrimaryRegion, "true"],
+        !Equals [!Ref DeploymentType, "single"],
+      ]
+    ShouldCreateSecondaryDNS:
+      !And [
+        !Equals [!Ref IsPrimaryRegion, "false"],
+        !Equals [!Ref DeploymentType, "multi"],
+      ]
 
 Resources:
   # Regional API
@@ -198,11 +212,13 @@ Resources:
         DatabasePasswordSecretArn: !Ref DatabasePasswordSecretArn
         LogRetentionDays: 7
 
-  # DNS for primary region (simple record for single region)
+  # Primary DNS Stack (single region deployment)
   PrimaryDnsStack:
-    Condition: IsPrimarySingleRegion
+    Condition: ShouldCreatePrimaryDNS
     Type: AWS::CloudFormation::Stack
-    DependsOn: WebStack
+    DependsOn:
+      - WebStack
+      - ApiStack
     Properties:
       TemplateURL: ./dns.template
       Parameters:
@@ -214,12 +230,15 @@ Resources:
         PrimaryWebLoadBalancerHostedZoneId: !GetAtt WebStack.Outputs.WebLoadBalancerHostedZoneId
         SecondaryWebLoadBalancerDNS: !Ref "AWS::NoValue"
         SecondaryWebLoadBalancerHostedZoneId: !Ref "AWS::NoValue"
+        DeploymentType: "single"
 
-  # Global DNS (only in secondary region - failover setup)
+  # Secondary DNS Stack (multi-region deployment)
   SecondaryDnsStack:
-    Condition: IsSecondary
+    Condition: ShouldCreateSecondaryDNS
     Type: AWS::CloudFormation::Stack
-    DependsOn: WebStack
+    DependsOn:
+      - WebStack
+      - ApiStack
     Properties:
       TemplateURL: ./dns.template
       Parameters:
@@ -232,6 +251,7 @@ Resources:
         PrimaryWebLoadBalancerHostedZoneId: !Ref PrimaryWebLoadBalancerHostedZoneId
         SecondaryWebLoadBalancerDNS: !GetAtt WebStack.Outputs.WebLoadBalancerDNS
         SecondaryWebLoadBalancerHostedZoneId: !GetAtt WebStack.Outputs.WebLoadBalancerHostedZoneId
+        DeploymentType: "multi"
 
 Outputs:
   # API outputs
@@ -266,27 +286,27 @@ Outputs:
 
   # DNS outputs for primary region (single region only)
   PrimaryWebEndpoint:
-    Condition: IsPrimarySingleRegion
+    Condition: ShouldCreatePrimaryDNS
     Description: "Web application endpoint URL"
     Value: !GetAtt PrimaryDnsStack.Outputs.WebEndpoint
 
   # DNS outputs for secondary region (failover setup)
   SecondaryWebEndpoint:
-    Condition: IsSecondary
+    Condition: ShouldCreateSecondaryDNS
     Description: "Web application endpoint URL"
     Value: !GetAtt SecondaryDnsStack.Outputs.WebEndpoint
 
   PrimaryHealthCheckId:
-    Condition: IsPrimarySingleRegion
+    Condition: ShouldCreatePrimaryDNS
     Description: "Primary health check ID"
     Value: !GetAtt PrimaryDnsStack.Outputs.PrimaryHealthCheckId
 
   PrimaryHealthCheckIdSecondary:
-    Condition: IsSecondary
+    Condition: ShouldCreateSecondaryDNS
     Description: "Primary health check ID"
     Value: !GetAtt SecondaryDnsStack.Outputs.PrimaryHealthCheckId
 
   SecondaryHealthCheckId:
-    Condition: IsSecondary
+    Condition: ShouldCreateSecondaryDNS
     Description: "Secondary health check ID"
     Value: !GetAtt SecondaryDnsStack.Outputs.SecondaryHealthCheckId

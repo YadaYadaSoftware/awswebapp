@@ -79,6 +79,11 @@ Parameters:
     Type: String
     Description: "Route 53 hosted zone ID for the domain"
 
+  DeploymentType:
+    Type: String
+    AllowedValues: ["single", "multi"]
+    Description: "Whether this is a single-region or multi-region deployment"
+
   # DNS parameters (for secondary region)
   PrimaryRegion:
     Type: String
@@ -147,6 +152,7 @@ Resources:
         DeploymentToken: !Ref DeploymentToken
         DomainName: !Ref DomainName
         HostedZoneId: !Ref HostedZoneId
+        DeploymentType: !Ref DeploymentType
         PrimaryRegion: !Ref PrimaryRegion
         PrimaryWebLoadBalancerDNS: !Ref PrimaryWebLoadBalancerDNS
         PrimaryWebLoadBalancerHostedZoneId: !Ref PrimaryWebLoadBalancerHostedZoneId
