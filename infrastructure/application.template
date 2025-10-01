@@ -39,7 +39,6 @@ Parameters:
 
   DomainName:
     Type: String
-    Default: "appcloud.systems"
     Description: "Domain name for SSL certificate"
 
   HostedZoneId:

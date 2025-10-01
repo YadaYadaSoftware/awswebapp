@@ -199,6 +199,55 @@ jobs:
         echo "templates-bucket-name=$TEMPLATES_BUCKET_NAME" >> $GITHUB_OUTPUT
         echo "web-ecr-uri=$WEB_ECR_URI" >> $GITHUB_OUTPUT
 
+    - name: Generate Stack Names and Domain
+      if: matrix.deploy
+      id: stack-names
+      run: |
+        BRANCH_NAME="${{ needs.get-branch-name.outputs.branch-name }}"
+        DOMAIN_NAME="${{ secrets.DOMAIN_NAME }}"
+
+        # Create domain name for this deployment: branch.domain
+        FULL_DOMAIN_NAME="${BRANCH_NAME}.${DOMAIN_NAME}"
+
+        # Create stack name for web endpoint: replace periods with hyphens
+        WEB_STACK_NAME=$(echo $FULL_DOMAIN_NAME | tr '.' '-')
+
+        # If branch starts with a number, prepend 'x' to stack name
+        if [[ $BRANCH_NAME =~ ^[0-9] ]]; then
+          WEB_STACK_NAME="x${WEB_STACK_NAME}"
+        fi
+
+        echo "Branch name: $BRANCH_NAME"
+        echo "Domain name: $DOMAIN_NAME"
+        echo "Full domain name: $FULL_DOMAIN_NAME"
+        echo "Web stack name: $WEB_STACK_NAME"
+
+        echo "full-domain-name=$FULL_DOMAIN_NAME" >> $GITHUB_OUTPUT
+        echo "web-stack-name=$WEB_STACK_NAME" >> $GITHUB_OUTPUT
+
+    - name: Lookup Hosted Zone ID
+      if: matrix.deploy
+      id: hosted-zone
+      run: |
+        DOMAIN_NAME="${{ secrets.DOMAIN_NAME }}"
+
+        echo "Looking up hosted zone ID for domain: $DOMAIN_NAME"
+
+        # Use list-hosted-zones-by-name to find the hosted zone
+        # This returns zones in DNS order, so the first match should be the most specific
+        HOSTED_ZONE_ID=$(aws route53 list-hosted-zones-by-name \
+          --dns-name "$DOMAIN_NAME" \
+          --query "HostedZones[?contains(Name, '$DOMAIN_NAME.')].Id" \
+          --output text | head -n 1 | cut -d '/' -f 3)
+
+        if [ -z "$HOSTED_ZONE_ID" ]; then
+          echo "❌ Could not find hosted zone for domain: $DOMAIN_NAME"
+          exit 1
+        fi
+
+        echo "✅ Found hosted zone ID: $HOSTED_ZONE_ID"
+        echo "hosted-zone-id=$HOSTED_ZONE_ID" >> $GITHUB_OUTPUT
+
     - name: Check Templates Bucket Versioning
       if: matrix.deploy
       run: |
@@ -415,7 +464,7 @@ jobs:
         else
           ENABLE_GLOBAL=false
         fi
-        BASE_PARAMS="BranchName=${{ needs.get-branch-name.outputs.branch-name }},DatabasePassword=${{ secrets.DATABASE_PASSWORD }},EngineVersion=${{ env.ENGINE_VERSION }},IsPrimaryRegion=${{ matrix.is_primary }},MinCapacity=$MIN_CAP,MaxCapacity=$MAX_CAP,EnableGlobalCluster=$ENABLE_GLOBAL,GoogleOAuthClientId=${{ secrets.GOOGLE_CLIENT_ID }},GoogleOAuthClientSecret=${{ secrets.GOOGLE_CLIENT_SECRET }},WebContainerImage=${{ env.CONTAINER_IMAGE }},DeploymentToken=${{ github.sha }},DomainName=appcloud.systems,HostedZoneId=Z06422172SASV44F5Y8VA"
+        BASE_PARAMS="BranchName=${{ needs.get-branch-name.outputs.branch-name }},DatabasePassword=${{ secrets.DATABASE_PASSWORD }},EngineVersion=${{ env.ENGINE_VERSION }},IsPrimaryRegion=${{ matrix.is_primary }},MinCapacity=$MIN_CAP,MaxCapacity=$MAX_CAP,EnableGlobalCluster=$ENABLE_GLOBAL,GoogleOAuthClientId=${{ secrets.GOOGLE_CLIENT_ID }},GoogleOAuthClientSecret=${{ secrets.GOOGLE_CLIENT_SECRET }},WebContainerImage=${{ env.CONTAINER_IMAGE }},DeploymentToken=${{ github.sha }},DomainName=${{ steps.stack-names.outputs.full-domain-name }},HostedZoneId=${{ steps.hosted-zone.outputs.hosted-zone-id }}"
         if [ "${{ matrix.is_primary }}" = "false" ]; then
           BASE_PARAMS="$BASE_PARAMS,AuroraGlobalClusterId=${{ steps.get-primary-outputs.outputs.global-cluster-id }},KmsKeyArn=${{ steps.get-primary-outputs.outputs.kms-key-arn }},PrimaryRegion=${{ env.AWS_REGION_PRIMARY }},PrimaryWebLoadBalancerDNS=${{ steps.get-primary-outputs.outputs.primary-lb-dns }},PrimaryWebLoadBalancerHostedZoneId=${{ steps.get-primary-outputs.outputs.primary-lb-hz }}"
         fi
@@ -427,7 +476,7 @@ jobs:
       if: matrix.deploy && steps.deployment-type.outputs.deploy-master == 'false'
       run: |
         # Application template parameters using dev branch backend outputs
-        APP_PARAMS="TemplateBucket=${{ steps.bootstrap-outputs.outputs.templates-bucket-name }},GitHubActionsUserArn=${{ secrets.USER_ARN }},BranchName=${{ needs.get-branch-name.outputs.branch-name }},GoogleOAuthClientId=${{ secrets.GOOGLE_CLIENT_ID }},GoogleOAuthClientSecret=${{ secrets.GOOGLE_CLIENT_SECRET }},WebContainerImage=${{ env.CONTAINER_IMAGE }},DeploymentToken=${{ github.sha }},DomainName=appcloud.systems,HostedZoneId=Z06422172SASV44F5Y8VA,SharedLambdaRoleArn=${{ steps.get-dev-backend-outputs.outputs.shared-lambda-role-arn }},DatabaseHost=${{ steps.get-dev-backend-outputs.outputs.database-host }},DatabaseUsername=${{ steps.get-dev-backend-outputs.outputs.database-username }},DatabaseEngine=${{ steps.get-dev-backend-outputs.outputs.database-engine }},DatabasePort=${{ steps.get-dev-backend-outputs.outputs.database-port }},DatabaseName=${{ steps.get-dev-backend-outputs.outputs.database-name }},DatabaseClusterArn=${{ steps.get-dev-backend-outputs.outputs.database-cluster-arn }},DatabasePasswordSecretArn=${{ steps.get-dev-backend-outputs.outputs.database-password-secret-arn }},VPCId=${{ steps.get-dev-backend-outputs.outputs.vpc-id }},PrivateSubnet1Id=${{ steps.get-dev-backend-outputs.outputs.private-subnet-1-id }},PrivateSubnet2Id=${{ steps.get-dev-backend-outputs.outputs.private-subnet-2-id }},PublicSubnet1Id=${{ steps.get-dev-backend-outputs.outputs.public-subnet-1-id }},PublicSubnet2Id=${{ steps.get-dev-backend-outputs.outputs.public-subnet-2-id }},LambdaSecurityGroupId=${{ steps.get-dev-backend-outputs.outputs.lambda-security-group-id }},ALBSecurityGroupId=${{ steps.get-dev-backend-outputs.outputs.alb-security-group-id }},ECSTaskSecurityGroupId=${{ steps.get-dev-backend-outputs.outputs.ecs-task-security-group-id }},ECSClusterName=${{ steps.get-dev-backend-outputs.outputs.ecs-cluster-name }},GoogleOAuthSecretArn=${{ steps.get-dev-backend-outputs.outputs.google-oauth-secret-arn }},IsPrimaryRegion=${{ matrix.is_primary }}"
+        APP_PARAMS="TemplateBucket=${{ steps.bootstrap-outputs.outputs.templates-bucket-name }},GitHubActionsUserArn=${{ secrets.USER_ARN }},BranchName=${{ needs.get-branch-name.outputs.branch-name }},GoogleOAuthClientId=${{ secrets.GOOGLE_CLIENT_ID }},GoogleOAuthClientSecret=${{ secrets.GOOGLE_CLIENT_SECRET }},WebContainerImage=${{ env.CONTAINER_IMAGE }},DeploymentToken=${{ github.sha }},DomainName=${{ steps.stack-names.outputs.full-domain-name }},HostedZoneId=${{ steps.hosted-zone.outputs.hosted-zone-id }},SharedLambdaRoleArn=${{ steps.get-dev-backend-outputs.outputs.shared-lambda-role-arn }},DatabaseHost=${{ steps.get-dev-backend-outputs.outputs.database-host }},DatabaseUsername=${{ steps.get-dev-backend-outputs.outputs.database-username }},DatabaseEngine=${{ steps.get-dev-backend-outputs.outputs.database-engine }},DatabasePort=${{ steps.get-dev-backend-outputs.outputs.database-port }},DatabaseName=${{ steps.get-dev-backend-outputs.outputs.database-name }},DatabaseClusterArn=${{ steps.get-dev-backend-outputs.outputs.database-cluster-arn }},DatabasePasswordSecretArn=${{ steps.get-dev-backend-outputs.outputs.database-password-secret-arn }},VPCId=${{ steps.get-dev-backend-outputs.outputs.vpc-id }},PrivateSubnet1Id=${{ steps.get-dev-backend-outputs.outputs.private-subnet-1-id }},PrivateSubnet2Id=${{ steps.get-dev-backend-outputs.outputs.private-subnet-2-id }},PublicSubnet1Id=${{ steps.get-dev-backend-outputs.outputs.public-subnet-1-id }},PublicSubnet2Id=${{ steps.get-dev-backend-outputs.outputs.public-subnet-2-id }},LambdaSecurityGroupId=${{ steps.get-dev-backend-outputs.outputs.lambda-security-group-id }},ALBSecurityGroupId=${{ steps.get-dev-backend-outputs.outputs.alb-security-group-id }},ECSTaskSecurityGroupId=${{ steps.get-dev-backend-outputs.outputs.ecs-task-security-group-id }},ECSClusterName=${{ steps.get-dev-backend-outputs.outputs.ecs-cluster-name }},GoogleOAuthSecretArn=${{ steps.get-dev-backend-outputs.outputs.google-oauth-secret-arn }},IsPrimaryRegion=${{ matrix.is_primary }}"
         echo "params=$APP_PARAMS" >> $GITHUB_OUTPUT
 
     - name: Deploy master template
@@ -435,7 +484,7 @@ jobs:
       if: matrix.deploy && steps.deployment-type.outputs.deploy-master == 'true'
       uses: aws-actions/aws-cloudformation-github-deploy@v1
       with:
-        name: taskmanager-${{ needs.get-branch-name.outputs.branch-name }}
+        name: ${{ steps.stack-names.outputs.web-stack-name }}-${{ matrix.region }}
         template: https://s3.${{ matrix.region }}.amazonaws.com/${{ steps.bootstrap-outputs.outputs.templates-bucket-name }}/${{ needs.get-branch-name.outputs.branch-name }}/master-template.yaml?versionId=${{ env.TEMPLATE_VERSION_ID }}
         parameter-overrides: ${{ steps.set-master-params.outputs.params }}
         capabilities: "CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND"
@@ -447,7 +496,7 @@ jobs:
       if: matrix.deploy && steps.deployment-type.outputs.deploy-master == 'false'
       uses: aws-actions/aws-cloudformation-github-deploy@v1
       with:
-        name: taskmanager-${{ needs.get-branch-name.outputs.branch-name }}
+        name: ${{ steps.stack-names.outputs.web-stack-name }}-${{ matrix.region }}
         template: https://s3.${{ matrix.region }}.amazonaws.com/${{ steps.bootstrap-outputs.outputs.templates-bucket-name }}/${{ needs.get-branch-name.outputs.branch-name }}/application-template.yaml?versionId=${{ env.TEMPLATE_VERSION_ID }}
         parameter-overrides: ${{ steps.set-application-params.outputs.params }}
         capabilities: "CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND"
