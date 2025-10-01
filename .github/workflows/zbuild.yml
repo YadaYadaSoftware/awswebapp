@@ -407,7 +407,9 @@ jobs:
       if: matrix.deploy && steps.deployment-type.outputs.deploy-master == 'false'
       run: |
         echo "Getting backend outputs from dev branch stack..."
-        DEV_STACK_NAME="taskmanager-dev-${{ matrix.region }}"
+        WEB_STACK_NAME="dev.${{ secrets.DOMAIN_NAME }}"
+        DEV_STACK_NAME=$(echo WEB_STACK_NAME | tr '.' '-')
+
         SHARED_LAMBDA_ROLE_ARN=$(aws cloudformation describe-stacks --stack-name $DEV_STACK_NAME --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`SharedLambdaRoleArn`].OutputValue' --output text)
         DATABASE_HOST=$(aws cloudformation describe-stacks --stack-name $DEV_STACK_NAME --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`DatabaseHost`].OutputValue' --output text)
         DATABASE_USERNAME=$(aws cloudformation describe-stacks --stack-name $DEV_STACK_NAME --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`DatabaseUsername`].OutputValue' --output text)
