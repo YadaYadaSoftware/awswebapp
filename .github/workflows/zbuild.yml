@@ -21,10 +21,7 @@ jobs:
     - name: Get branch name
       id: get-branch
       run: |
-        # for right now, just hardcode to dev
-        # BRANCH_NAME=${GITHUB_REF#refs/heads/}
-        # for right now, just hardcode to dev
-        BRANCH_NAME=dev
+        BRANCH_NAME=${GITHUB_REF#refs/heads/}
         echo "branch-name=$BRANCH_NAME" >> $GITHUB_OUTPUT
 
   build:
@@ -137,7 +134,7 @@ jobs:
             deploy: true
           - region: us-west-2
             is_primary: "false"
-            deploy: ${{ contains(fromJson('["app","beta","alpha","dev"]'), needs.get-branch-name.outputs.branch-name) }}
+            deploy: ${{ contains(fromJson('["app","beta"]'), needs.get-branch-name.outputs.branch-name) }}
       max-parallel: 1
     steps:
     - name: Checkout code
