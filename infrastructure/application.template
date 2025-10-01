@@ -146,7 +146,7 @@ Parameters:
     Description: Whether this is a single-region or multi-region deployment
 
   Conditions:
-    IsPrimaryRegion: !Equals [!Ref IsPrimaryRegion, "true"]
+    RegionIsPrimary: !Equals [!Ref IsPrimaryRegion, "true"]
     IsSecondaryRegion: !Equals [!Ref IsPrimaryRegion, "false"]
     IsSingleRegionDeployment: !Equals [!Ref DeploymentType, "single"]
     IsMultiRegionDeployment: !Equals [!Ref DeploymentType, "multi"]
