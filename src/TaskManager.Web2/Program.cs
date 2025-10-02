@@ -127,7 +127,7 @@ builder.Services.AddAuthentication().AddMicrosoftAccount(microsoftOptions =>
         try
         {
             // Test database connectivity
-            var dbContext = context.HttpContext.RequestServices.GetRequiredService<ApplicationDbContext>();
+            var dbContext = context.HttpContext.RequestServices.GetRequiredService<TaskManagerDbContext>();
             var canConnect = await dbContext.Database.CanConnectAsync();
             logger.LogInformation("Database connectivity check: {CanConnect}", canConnect);
 
