@@ -94,6 +94,14 @@ Parameters:
     Type: String
     Description: "ARN of the Google OAuth secrets in Secrets Manager"
 
+  MicrosoftOAuthClientId:
+    Type: String
+    Description: "Microsoft OAuth Client ID"
+
+  MicrosoftOAuthClientSecret:
+    Type: String
+    Description: "Microsoft OAuth Client Secret"
+
   DatabaseHost:
     Type: String
     Description: "Database host endpoint"
@@ -250,6 +258,10 @@ Resources:
               Value: !Sub "{{resolve:secretsmanager:${GoogleOAuthSecretArn}:SecretString:clientId}}"
             - Name: Authentication__Google__ClientSecret
               Value: !Sub "{{resolve:secretsmanager:${GoogleOAuthSecretArn}:SecretString:clientSecret}}"
+            - Name: Authentication__Microsoft__ClientId
+              Value: !Ref MicrosoftOAuthClientId
+            - Name: Authentication__Microsoft__ClientSecret
+              Value: !Ref MicrosoftOAuthClientSecret
           LogConfiguration:
             LogDriver: awslogs
             Options:

@@ -9,6 +9,7 @@ using Pomelo.EntityFrameworkCore.MySql;
 using TaskManager.Web2.Areas.Identity;
 using TaskManager.Web2.Data;
 using static Microsoft.Extensions.DependencyInjection.GoogleExtensions;
+using Microsoft.AspNetCore.Authentication.MicrosoftAccount;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -106,6 +107,51 @@ builder.Services.AddAuthentication().AddGoogle(googleOptions =>
     };
 });
 
+builder.Services.AddAuthentication().AddMicrosoftAccount(microsoftOptions =>
+{
+    microsoftOptions.ClientId = builder.Configuration["Authentication:Microsoft:ClientId"];
+    microsoftOptions.ClientSecret = builder.Configuration["Authentication:Microsoft:ClientSecret"];
+
+    microsoftOptions.Events.OnCreatingTicket = async context =>
+    {
+        var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
+        logger.LogInformation("Microsoft OAuth creating ticket for user: {User}", context.Identity?.Name ?? "Unknown");
+
+        try
+        {
+            // Test database connectivity
+            var dbContext = context.HttpContext.RequestServices.GetRequiredService<ApplicationDbContext>();
+            var canConnect = await dbContext.Database.CanConnectAsync();
+            logger.LogInformation("Database connectivity check: {CanConnect}", canConnect);
+
+            if (!canConnect)
+            {
+                logger.LogError("Database is not accessible during OAuth callback");
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error during database connectivity check in OAuth");
+        }
+
+        await Task.CompletedTask;
+    };
+
+    microsoftOptions.Events.OnRemoteFailure = context =>
+    {
+        var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
+        logger.LogError(context.Failure, "Microsoft OAuth remote failure");
+        return Task.CompletedTask;
+    };
+
+    microsoftOptions.Events.OnTicketReceived = context =>
+    {
+        var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
+        logger.LogInformation("Microsoft OAuth ticket received");
+        return Task.CompletedTask;
+    };
+});
+
 var app = builder.Build();
 
 // Log Google OAuth configuration status
@@ -114,8 +160,13 @@ var scopedLogger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
 var scopedConfig = scope.ServiceProvider.GetRequiredService<IConfiguration>();
 var clientId = scopedConfig["Authentication:Google:ClientId"];
 var clientSecret = scopedConfig["Authentication:Google:ClientSecret"];
+var microsoftClientId = scopedConfig["Authentication:Microsoft:ClientId"];
+var microsoftClientSecret = scopedConfig["Authentication:Microsoft:ClientSecret"];
+
 scopedLogger.LogInformation("Google OAuth ClientId configured: {Configured}", !string.IsNullOrEmpty(clientId));
 scopedLogger.LogInformation("Google OAuth ClientSecret configured: {Configured}", !string.IsNullOrEmpty(clientSecret));
+scopedLogger.LogInformation("Microsoft OAuth ClientId configured: {Configured}", !string.IsNullOrEmpty(microsoftClientId));
+scopedLogger.LogInformation("Microsoft OAuth ClientSecret configured: {Configured}", !string.IsNullOrEmpty(microsoftClientSecret));
 
 // Apply database migrations on startup in production
 if (!app.Environment.IsDevelopment())

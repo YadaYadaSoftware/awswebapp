@@ -27,6 +27,17 @@ Parameters:
     Description: Google OAuth Client Secret
     NoEcho: true
 
+  # Microsoft OAuth parameters
+  MicrosoftOAuthClientId:
+    Type: String
+    Description: Microsoft OAuth Client ID
+    NoEcho: true
+
+  MicrosoftOAuthClientSecret:
+    Type: String
+    Description: Microsoft OAuth Client Secret
+    NoEcho: true
+
   # Web parameters
   WebContainerImage:
     Type: String
@@ -198,6 +209,8 @@ Resources:
         PrivateSubnet2Id: !Ref PrivateSubnet2Id
         ECSClusterName: !Ref ECSClusterName
         GoogleOAuthSecretArn: !Ref GoogleOAuthSecretArn
+        MicrosoftOAuthClientId: !Ref MicrosoftOAuthClientId
+        MicrosoftOAuthClientSecret: !Ref MicrosoftOAuthClientSecret
         DatabaseHost: !Ref DatabaseHost
         DatabaseUsername: !Ref DatabaseUsername
         DatabaseEngine: !Ref DatabaseEngine
