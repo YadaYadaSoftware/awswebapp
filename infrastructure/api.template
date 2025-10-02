@@ -3,10 +3,9 @@ Transform: AWS::Serverless-2016-10-31
 Description: "TaskManager API - Lambda Function with Branch-Specific Database"
 
 Parameters:
-  Environment:
+  Branch:
     Type: String
-    Default: main
-    Description: "Environment name (typically branch name)"
+    Description: "Branch name for resource naming"
 
   SharedLambdaRoleArn:
     Type: String
@@ -68,7 +67,7 @@ Globals:
     MemorySize: 512
     Environment:
       Variables:
-        ASPNETCORE_ENVIRONMENT: !Ref Environment
+        ASPNETCORE_ENVIRONMENT: !Ref Branch
   Api:
     AccessLogSetting:
       DestinationArn: !GetAtt ApiGatewayAccessLogGroup.Arn
@@ -87,14 +86,14 @@ Resources:
   ApiLambdaLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub "/aws/lambda/TaskManagerApi-${Environment}"
+      LogGroupName: !Sub "/aws/lambda/TaskManagerApi-${Branch}"
       RetentionInDays: !Ref LogRetentionDays
 
   # CloudWatch Log Group for API Gateway Access Logs
   ApiGatewayAccessLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub "/aws/apigateway/TaskManagerApi-${Environment}"
+      LogGroupName: !Sub "/aws/apigateway/TaskManagerApi-${Branch}"
       RetentionInDays: !Ref LogRetentionDays
 
   # CloudWatch Log Group for API Gateway Execution Logs
@@ -118,7 +117,7 @@ Resources:
     DependsOn:
       - ApiLambdaLogGroup
     Properties:
-      FunctionName: !Sub "TaskManagerApi-${Environment}"
+      FunctionName: !Sub "TaskManagerApi-${Branch}"
       CodeUri: ../src/TaskManager.Api/
       Handler: >-
         TaskManager.Api::TaskManager.Api.LambdaEntryPoint::FunctionHandlerAsync
@@ -133,7 +132,7 @@ Resources:
             - DatabaseHost: !Ref DatabaseHost
               DatabaseName: !Ref DatabaseName
               DatabaseUsername: !Ref DatabaseUsername
-              DatabasePassword: !Sub "{{resolve:secretsmanager:taskmanager/database/${Environment}/regional/${AWS::Region}/password:SecretString}}"
+              DatabasePassword: !Sub "{{resolve:secretsmanager:taskmanager/database/${Branch}/regional/${AWS::Region}/password:SecretString}}"
       VpcConfig:
         SecurityGroupIds:
           - !Ref LambdaSecurityGroupId
@@ -158,7 +157,7 @@ Resources:
   LambdaErrorAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName: !Sub "TaskManager-API-Errors-${Environment}"
+      AlarmName: !Sub "TaskManager-API-Errors-${Branch}"
       AlarmDescription: "API Lambda function error rate alarm"
       MetricName: Errors
       Namespace: AWS/Lambda
@@ -189,4 +188,4 @@ Outputs:
 
   BranchEnvironment:
     Description: "Branch environment name"
-    Value: !Ref Environment
+    Value: !Ref Branch

@@ -3,10 +3,9 @@ AWSTemplateFormatVersion: "2010-09-09"
 Description: "Global DNS Configuration for Multi-Region Failover"
 
 Parameters:
-  Environment:
+  Branch:
     Type: String
-    Default: main
-    Description: "Environment name (typically branch name)"
+    Description: "Branch name for resource naming"
 
   DomainName:
     Type: String
@@ -70,7 +69,7 @@ Resources:
         - Key: LogicalId
           Value: PrimaryHealthCheck
         - Key: Environment
-          Value: !Ref Environment
+          Value: !Ref Branch
         - Key: Purpose
           Value: Primary-Web-Failover
 
@@ -90,7 +89,7 @@ Resources:
         - Key: LogicalId
           Value: SecondaryHealthCheck
         - Key: Environment
-          Value: !Ref Environment
+          Value: !Ref Branch
         - Key: Purpose
           Value: Secondary-Web-Failover
 
@@ -100,7 +99,7 @@ Resources:
     Type: AWS::Route53::RecordSet
     Properties:
       HostedZoneId: !Ref HostedZoneId
-      Name: !Sub "${Environment}.${DomainName}"
+      Name: !Sub "${Branch}.${DomainName}"
       Type: A
       AliasTarget:
         DNSName: !Ref PrimaryWebLoadBalancerDNS
@@ -112,9 +111,9 @@ Resources:
     Type: AWS::Route53::RecordSet
     Properties:
       HostedZoneId: !Ref HostedZoneId
-      Name: !Sub "${Environment}.${DomainName}"
+      Name: !Sub "${Branch}.${DomainName}"
       Type: A
-      SetIdentifier: !Sub "primary-${Environment}"
+      SetIdentifier: !Sub "primary-${Branch}"
       Failover: PRIMARY
       AliasTarget:
         DNSName: !Ref PrimaryWebLoadBalancerDNS
@@ -127,9 +126,9 @@ Resources:
     Type: AWS::Route53::RecordSet
     Properties:
       HostedZoneId: !Ref HostedZoneId
-      Name: !Sub "${Environment}.${DomainName}"
+      Name: !Sub "${Branch}.${DomainName}"
       Type: A
-      SetIdentifier: !Sub "secondary-${Environment}"
+      SetIdentifier: !Sub "secondary-${Branch}"
       Failover: SECONDARY
       AliasTarget:
         DNSName: !Ref SecondaryWebLoadBalancerDNS
@@ -139,7 +138,7 @@ Resources:
 Outputs:
   WebEndpoint:
     Description: "Web application endpoint URL"
-    Value: !Sub "https://${Environment}.${DomainName}"
+    Value: !Sub "https://${Branch}.${DomainName}"
 
   PrimaryHealthCheckId:
     Description: "Primary health check ID"

@@ -32,10 +32,9 @@ Mappings:
       ALBHostedZoneId: Z31USIVHYNEOWT
 
 Parameters:
-  Environment:
+  Branch:
     Type: String
-    Default: main
-    Description: "Environment name (typically branch name)"
+    Description: "Branch name for resource naming"
 
   WebContainerImage:
     Type: String
@@ -140,14 +139,14 @@ Resources:
   WebECSLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub "/ecs/TaskManagerWeb-${Environment}"
+      LogGroupName: !Sub "/ecs/TaskManagerWeb-${Branch}"
       RetentionInDays: !Ref LogRetentionDays
 
   # Application Load Balancer
   WebLoadBalancer:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:
-      Name: !Sub "web-${Environment}"
+      Name: !Sub "web-${Branch}"
       Type: application
       Scheme: internet-facing
       SecurityGroups:
@@ -160,7 +159,7 @@ Resources:
   WebTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
-      Name: !Sub "webtg-${Environment}"
+      Name: !Sub "webtg-${Branch}"
       Protocol: HTTP
       Port: 80
       VpcId: !Ref VPCId
@@ -206,17 +205,17 @@ Resources:
   WebSSLCertificate:
     Type: AWS::CertificateManager::Certificate
     Properties:
-      DomainName: !Sub "${Environment}.${DomainName}"
+      DomainName: !Sub "${Branch}.${DomainName}"
       ValidationMethod: DNS
       DomainValidationOptions:
-        - DomainName: !Sub "${Environment}.${DomainName}"
+        - DomainName: !Sub "${Branch}.${DomainName}"
           HostedZoneId: !Ref HostedZoneId
 
   # ECS Task Definition
   WebTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
-      Family: !Sub "webtd-${Environment}"
+      Family: !Sub "webtd-${Branch}"
       NetworkMode: awsvpc
       RequiresCompatibilities:
         - FARGATE
@@ -275,7 +274,7 @@ Resources:
       - WebListener
       - WebTaskDefinition
     Properties:
-      ServiceName: !Sub "websvc-${Environment}"
+      ServiceName: !Sub "websvc-${Branch}"
       Cluster: !Ref ECSClusterName
       TaskDefinition: !Ref WebTaskDefinition
       DesiredCount: 1
@@ -297,7 +296,7 @@ Resources:
   WebECSServiceAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName: !Sub "TaskManager-Web-Unhealthy-${Environment}"
+      AlarmName: !Sub "TaskManager-Web-Unhealthy-${Branch}"
       AlarmDescription: "Web ECS service unhealthy targets alarm"
       MetricName: UnHealthyHostCount
       Namespace: AWS/ApplicationELB
@@ -315,7 +314,7 @@ Resources:
 Outputs:
   WebEndpoint:
     Description: "Web application endpoint URL"
-    Value: !Sub "https://${Environment}.${DomainName}"
+    Value: !Sub "https://${Branch}.${DomainName}"
 
   WebLoadBalancerDNS:
     Description: "Web Load Balancer DNS name"
