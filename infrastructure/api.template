@@ -83,40 +83,15 @@ Resources:
   # CloudWatch Log Group for Database Setup - REMOVED
   # Database creation now handled automatically by Entity Framework
 
-  # CloudWatch Log Group for API
-  ApiLambdaLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub "/aws/lambda/TaskManagerApi-${Environment}"
-      RetentionInDays: !Ref LogRetentionDays
-
   # CloudWatch Log Group for API Gateway Access Logs
   ApiGatewayAccessLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub "/aws/apigateway/TaskManagerApi-${Environment}"
       RetentionInDays: !Ref LogRetentionDays
-
-  # CloudWatch Log Group for API Gateway Execution Logs
-  ApiGatewayExecutionLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub "/aws/apigateway/${ServerlessRestApi}/Prod"
-      RetentionInDays: !Ref LogRetentionDays
-
-  # MySQL Layer removed - no longer needed for database setup
-
-  # Database creation now handled automatically by Entity Framework
-  # No need for custom Lambda function
-
-  # Database setup now handled automatically by Entity Framework
-  # No need for custom CloudFormation resource
 
   # TaskManager API Function
   TaskManagerApiFunction:
     Type: AWS::Serverless::Function
-    DependsOn:
-      - ApiLambdaLogGroup
     Properties:
       FunctionName: !Sub "TaskManagerApi-${Environment}"
       CodeUri: ../src/TaskManager.Api/

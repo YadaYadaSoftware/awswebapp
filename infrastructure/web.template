@@ -132,7 +132,6 @@ Resources:
   WebECSLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub "/ecs/TaskManagerWeb-${Environment}"
       RetentionInDays: !Ref LogRetentionDays
 
   # Application Load Balancer
