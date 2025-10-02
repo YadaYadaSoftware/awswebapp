@@ -425,7 +425,7 @@ jobs:
       if: matrix.deploy && steps.deployment-type.outputs.deploy-master == 'false'
       run: |
         echo "Getting backend outputs from dev branch stack..."
-        BRANCH_NAME="dev"
+        BRANCH_NAME="${{ needs.get-branch-name.outputs.branch-name }}"
         DOMAIN_NAME="${{ secrets.DOMAIN_NAME }}"
 
         # Create domain name for dev branch: dev.domain
