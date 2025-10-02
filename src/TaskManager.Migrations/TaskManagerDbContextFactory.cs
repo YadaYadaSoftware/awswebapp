@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 using Microsoft.Extensions.Configuration;
+using Pomelo.EntityFrameworkCore.MySql;
 using TaskManager.Data;
 
 namespace TaskManager.Migrations;
@@ -24,7 +25,8 @@ public class TaskManagerDbContextFactory : IDesignTimeDbContextFactory<TaskManag
         }
 
         var optionsBuilder = new DbContextOptionsBuilder<TaskManagerDbContext>();
-        optionsBuilder.UseNpgsql(connectionString);
+        optionsBuilder.UseMySql(connectionString, ServerVersion.Parse("8.0.0-mysql"), mysqlOptions =>
+            mysqlOptions.MigrationsAssembly("TaskManager.Migrations"));
 
         return new TaskManagerDbContext(optionsBuilder.Options);
     }

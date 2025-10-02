@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using TaskManager.Data;
 using TaskManager.Data.Entities;
@@ -9,11 +10,13 @@ namespace TaskManager.Api.Services;
 public class DatabaseMigrationService : IDatabaseMigrationService
 {
     private readonly TaskManagerDbContext _context;
+    private readonly UserManager<IdentityUser> _userManager;
     private readonly ILogger<DatabaseMigrationService> _logger;
 
-    public DatabaseMigrationService(TaskManagerDbContext context, ILogger<DatabaseMigrationService> logger)
+    public DatabaseMigrationService(TaskManagerDbContext context, UserManager<IdentityUser> userManager, ILogger<DatabaseMigrationService> logger)
     {
         _context = context;
+        _userManager = userManager;
         _logger = logger;
     }
 
@@ -58,31 +61,31 @@ public class DatabaseMigrationService : IDatabaseMigrationService
         try
         {
             _logger.LogInformation("Checking for seed data...");
-            
+
             // Check if we already have users
-            if (await _context.Users.AnyAsync())
+            if (await _userManager.Users.AnyAsync())
             {
                 _logger.LogInformation("Database already contains data. Skipping seed.");
                 return;
             }
-            
+
             _logger.LogInformation("Seeding initial data...");
-            
+
             // Create a sample user for testing
-            var sampleUser = new User
+            var sampleUser = new IdentityUser
             {
-                Id = Guid.NewGuid(),
+                UserName = "admin@taskmanager.com",
                 Email = "admin@taskmanager.com",
-                FirstName = "Admin",
-                LastName = "User",
-                GoogleId = null, // Will be set when user logs in with Google
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow,
-                IsActive = true
+                EmailConfirmed = true
             };
-            
-            _context.Users.Add(sampleUser);
-            
+
+            var result = await _userManager.CreateAsync(sampleUser, "Admin123!");
+            if (!result.Succeeded)
+            {
+                _logger.LogError("Failed to create sample user: {Errors}", string.Join(", ", result.Errors.Select(e => e.Description)));
+                return;
+            }
+
             // Create initial admin invitation for the deployer
             var adminInvitation = new Invitation
             {
@@ -93,9 +96,9 @@ public class DatabaseMigrationService : IDatabaseMigrationService
                 IsAccepted = true, // Pre-accepted for admin
                 IsRevoked = false
             };
-            
+
             _context.Invitations.Add(adminInvitation);
-            
+
             // Create a sample project
             var sampleProject = new Project
             {
@@ -107,9 +110,9 @@ public class DatabaseMigrationService : IDatabaseMigrationService
                 UpdatedAt = DateTime.UtcNow,
                 IsActive = true
             };
-            
+
             _context.Projects.Add(sampleProject);
-            
+
             // Create sample tasks
             var tasks = new[]
             {
@@ -153,9 +156,9 @@ public class DatabaseMigrationService : IDatabaseMigrationService
                     UpdatedAt = DateTime.UtcNow
                 }
             };
-            
+
             _context.Tasks.AddRange(tasks);
-            
+
             // Add project member relationship
             var projectMember = new ProjectMember
             {
@@ -164,11 +167,11 @@ public class DatabaseMigrationService : IDatabaseMigrationService
                 Role = ProjectRole.Owner,
                 JoinedAt = DateTime.UtcNow
             };
-            
+
             _context.ProjectMembers.Add(projectMember);
-            
+
             await _context.SaveChangesAsync();
-            
+
             _logger.LogInformation("Seed data created successfully.");
             _logger.LogInformation("Sample user: {Email}", sampleUser.Email);
             _logger.LogInformation("Sample project: {ProjectName}", sampleProject.Name);

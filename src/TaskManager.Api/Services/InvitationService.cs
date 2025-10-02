@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using TaskManager.Data;
 using TaskManager.Data.Entities;
@@ -8,11 +9,13 @@ namespace TaskManager.Api.Services;
 public class InvitationService : IInvitationService
 {
     private readonly TaskManagerDbContext _context;
+    private readonly UserManager<IdentityUser> _userManager;
     private readonly ILogger<InvitationService> _logger;
 
-    public InvitationService(TaskManagerDbContext context, ILogger<InvitationService> logger)
+    public InvitationService(TaskManagerDbContext context, UserManager<IdentityUser> userManager, ILogger<InvitationService> logger)
     {
         _context = context;
+        _userManager = userManager;
         _logger = logger;
     }
 
@@ -20,21 +23,19 @@ public class InvitationService : IInvitationService
     {
         try
         {
-            // Check if user has a valid invitation or is already a user
-            var existingUser = await _context.Users
-                .FirstOrDefaultAsync(u => u.Email.ToLower() == email.ToLower() && u.IsActive);
-            
+            // Check if user already exists
+            var existingUser = await _userManager.FindByEmailAsync(email.ToLower());
             if (existingUser != null)
             {
-                return true; // Existing active user
+                return true; // Existing user
             }
 
             // Check for pending invitation
             var invitation = await _context.Invitations
-                .FirstOrDefaultAsync(i => i.Email.ToLower() == email.ToLower() 
-                                     && !i.IsRevoked 
+                .FirstOrDefaultAsync(i => i.Email.ToLower() == email.ToLower()
+                                     && !i.IsRevoked
                                      && !i.IsAccepted);
-            
+
             return invitation != null;
         }
         catch (Exception ex)
@@ -58,8 +59,7 @@ public class InvitationService : IInvitationService
             }
 
             // Check if user already exists
-            var existingUser = await _context.Users
-                .FirstOrDefaultAsync(u => u.Email.ToLower() == email.ToLower());
+            var existingUser = await _userManager.FindByEmailAsync(email.ToLower());
 
             if (existingUser != null)
             {
@@ -70,7 +70,7 @@ public class InvitationService : IInvitationService
             {
                 Id = Guid.NewGuid(),
                 Email = email.ToLower(),
-                InvitedByUserId = Guid.Parse(invitedByUserId),
+                InvitedByUserId = invitedByUserId,
                 InvitedAt = DateTime.UtcNow,
                 IsAccepted = false,
                 IsRevoked = false
@@ -95,8 +95,8 @@ public class InvitationService : IInvitationService
         try
         {
             var invitation = await _context.Invitations
-                .FirstOrDefaultAsync(i => i.Email.ToLower() == email.ToLower() 
-                                     && !i.IsRevoked 
+                .FirstOrDefaultAsync(i => i.Email.ToLower() == email.ToLower()
+                                     && !i.IsRevoked
                                      && !i.IsAccepted);
 
             if (invitation == null)
@@ -110,19 +110,20 @@ public class InvitationService : IInvitationService
             invitation.AcceptedAt = DateTime.UtcNow;
 
             // Create user account
-            var user = new User
+            var user = new IdentityUser
             {
-                Id = Guid.NewGuid(),
+                UserName = email.ToLower(),
                 Email = email.ToLower(),
-                FirstName = "", // Will be updated from Google profile
-                LastName = "",  // Will be updated from Google profile
-                GoogleId = googleId,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow,
-                IsActive = true
+                EmailConfirmed = true
             };
 
-            _context.Users.Add(user);
+            var result = await _userManager.CreateAsync(user);
+            if (!result.Succeeded)
+            {
+                _logger.LogError("Failed to create user: {Errors}", string.Join(", ", result.Errors.Select(e => e.Description)));
+                return false;
+            }
+
             await _context.SaveChangesAsync();
 
             _logger.LogInformation("Invitation accepted and user created for {Email}", email);
@@ -142,20 +143,26 @@ public class InvitationService : IInvitationService
             var invitations = await _context.Invitations
                 .Include(i => i.InvitedByUser)
                 .Where(i => !i.IsAccepted && !i.IsRevoked)
-                .Select(i => new InvitationDto
+                .ToListAsync();
+
+            var result = new List<InvitationDto>();
+            foreach (var i in invitations)
+            {
+                var invitedByUser = await _userManager.FindByIdAsync(i.InvitedByUserId);
+                result.Add(new InvitationDto
                 {
                     Id = i.Id,
                     Email = i.Email,
-                    InvitedByUserId = i.InvitedByUserId.ToString(),
-                    InvitedByName = $"{i.InvitedByUser.FirstName} {i.InvitedByUser.LastName}".Trim(),
+                    InvitedByUserId = i.InvitedByUserId,
+                    InvitedByName = invitedByUser?.UserName ?? invitedByUser?.Email ?? "Unknown",
                     InvitedAt = i.InvitedAt,
                     AcceptedAt = i.AcceptedAt,
                     IsAccepted = i.IsAccepted,
                     IsRevoked = i.IsRevoked
-                })
-                .ToListAsync();
+                });
+            }
 
-            return invitations;
+            return result;
         }
         catch (Exception ex)
         {
@@ -194,7 +201,6 @@ public class InvitationService : IInvitationService
     private async Task<InvitationDto> GetInvitationDtoAsync(Guid invitationId)
     {
         var invitation = await _context.Invitations
-            .Include(i => i.InvitedByUser)
             .FirstOrDefaultAsync(i => i.Id == invitationId);
 
         if (invitation == null)
@@ -202,12 +208,14 @@ public class InvitationService : IInvitationService
             throw new InvalidOperationException("Invitation not found");
         }
 
+        var invitedByUser = await _userManager.FindByIdAsync(invitation.InvitedByUserId);
+
         return new InvitationDto
         {
             Id = invitation.Id,
             Email = invitation.Email,
-            InvitedByUserId = invitation.InvitedByUserId.ToString(),
-            InvitedByName = $"{invitation.InvitedByUser.FirstName} {invitation.InvitedByUser.LastName}".Trim(),
+            InvitedByUserId = invitation.InvitedByUserId,
+            InvitedByName = invitedByUser?.UserName ?? invitedByUser?.Email ?? "Unknown",
             InvitedAt = invitation.InvitedAt,
             AcceptedAt = invitation.AcceptedAt,
             IsAccepted = invitation.IsAccepted,

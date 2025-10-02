@@ -6,8 +6,10 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.UI;
 using Microsoft.EntityFrameworkCore;
 using Pomelo.EntityFrameworkCore.MySql;
+using TaskManager.Data;
 using TaskManager.Web2.Areas.Identity;
 using TaskManager.Web2.Data;
+using TaskManager.Web2.Services;
 using static Microsoft.Extensions.DependencyInjection.GoogleExtensions;
 using Microsoft.AspNetCore.Authentication.MicrosoftAccount;
 
@@ -15,7 +17,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
-builder.Services.AddDbContext<ApplicationDbContext>(options =>
+builder.Services.AddDbContext<TaskManagerDbContext>(options =>
 {
     // Use MySQL for both development and production
     options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString));
@@ -25,7 +27,7 @@ builder.Services.AddDefaultIdentity<IdentityUser>(options =>
 {
     options.SignIn.RequireConfirmedAccount = true;
 })
-.AddEntityFrameworkStores<ApplicationDbContext>();
+.AddEntityFrameworkStores<TaskManagerDbContext>();
 
 builder.Services.ConfigureApplicationCookie(options =>
 {
@@ -61,6 +63,11 @@ builder.Services.AddRazorPages();
 builder.Services.AddServerSideBlazor();
 builder.Services.AddScoped<AuthenticationStateProvider, RevalidatingIdentityAuthenticationStateProvider<IdentityUser>>();
 builder.Services.AddSingleton<WeatherForecastService>();
+builder.Services.AddScoped<JwtTokenService>();
+builder.Services.AddHttpClient("ApiClient", client =>
+{
+    client.BaseAddress = new Uri(builder.Configuration["Api:BaseUrl"]!);
+});
 builder.Services.AddHealthChecks();
 builder.Services.AddAuthentication().AddGoogle(googleOptions =>
 {
@@ -75,7 +82,7 @@ builder.Services.AddAuthentication().AddGoogle(googleOptions =>
         try
         {
             // Test database connectivity
-            var dbContext = context.HttpContext.RequestServices.GetRequiredService<ApplicationDbContext>();
+            var dbContext = context.HttpContext.RequestServices.GetRequiredService<TaskManagerDbContext>();
             var canConnect = await dbContext.Database.CanConnectAsync();
             logger.LogInformation("Database connectivity check: {CanConnect}", canConnect);
 
@@ -168,11 +175,8 @@ scopedLogger.LogInformation("Google OAuth ClientSecret configured: {Configured}"
 scopedLogger.LogInformation("Microsoft OAuth ClientId configured: {Configured}", !string.IsNullOrEmpty(microsoftClientId));
 scopedLogger.LogInformation("Microsoft OAuth ClientSecret configured: {Configured}", !string.IsNullOrEmpty(microsoftClientSecret));
 
-// Apply database migrations on startup in production
-if (!app.Environment.IsDevelopment())
-{
-    await ApplyDatabaseMigrations(app);
-}
+// Apply database migrations on startup
+await ApplyDatabaseMigrations(app);
 
 // Configure forwarded headers for ALB
 var forwardedHeadersOptions = new ForwardedHeadersOptions
@@ -232,11 +236,11 @@ async Task ApplyDatabaseMigrations(WebApplication app)
     using var scope = app.Services.CreateScope();
     var services = scope.ServiceProvider;
     var logger = services.GetRequiredService<ILogger<Program>>();
-    var context = services.GetRequiredService<ApplicationDbContext>();
+    var context = services.GetRequiredService<TaskManagerDbContext>();
 
     try
     {
-        logger.LogInformation("Ensuring database exists and applying migrations for ApplicationDbContext...");
+        logger.LogInformation("Ensuring database exists and applying migrations for TaskManagerDbContext...");
 
         // This will create the database if it doesn't exist
         await context.Database.EnsureCreatedAsync();

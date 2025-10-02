@@ -3,6 +3,7 @@ using Amazon.Lambda.AspNetCoreServer;
 using Amazon.Lambda.Core;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Pomelo.EntityFrameworkCore.MySql;
 using TaskManager.Api.Services;
@@ -43,25 +44,22 @@ public class Program
                 throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
             }
 
-            // Use SQL Server in development, MySQL in production
-            if (Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") == "Development" ||
-                Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT") == "Development")
+            // Use MySQL for both development and production
+            options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString), mysqlOptions =>
             {
-                options.UseSqlServer(connectionString);
-            }
-            else
-            {
-                options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString), mysqlOptions =>
-                {
-                    // This ensures database exists before connecting
-                    mysqlOptions.EnableRetryOnFailure(3);
-                });
-            }
+                // This ensures database exists before connecting
+                mysqlOptions.EnableRetryOnFailure(3);
+            });
         });
-        
+
+        // Add ASP.NET Identity
+        services.AddIdentity<IdentityUser, IdentityRole>()
+            .AddEntityFrameworkStores<TaskManagerDbContext>()
+            .AddDefaultTokenProviders();
+
         // Add migration service
         services.AddScoped<IDatabaseMigrationService, DatabaseMigrationService>();
-        
+
         // Add invitation service
         services.AddScoped<IInvitationService, InvitationService>();
 
@@ -77,6 +75,7 @@ public class Program
         });
 
         // Add API services
+        services.AddControllers();
         services.AddEndpointsApiExplorer();
         services.AddSwaggerGen(c =>
         {
@@ -92,7 +91,28 @@ public class Program
             options.KnownProxies.Clear();
         });
 
-        // No authentication - API runs anonymously
+        // Add JWT authentication
+        services.AddAuthentication(options =>
+        {
+            options.DefaultAuthenticateScheme = Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerDefaults.AuthenticationScheme;
+            options.DefaultChallengeScheme = Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerDefaults.AuthenticationScheme;
+        })
+        .AddJwtBearer(options =>
+        {
+            options.TokenValidationParameters = new Microsoft.IdentityModel.Tokens.TokenValidationParameters
+            {
+                ValidateIssuer = true,
+                ValidateAudience = true,
+                ValidateLifetime = true,
+                ValidateIssuerSigningKey = true,
+                ValidIssuer = configuration["Jwt:Issuer"],
+                ValidAudience = configuration["Jwt:Audience"],
+                IssuerSigningKey = new Microsoft.IdentityModel.Tokens.SymmetricSecurityKey(
+                    System.Text.Encoding.UTF8.GetBytes(configuration["Jwt:Key"] ?? throw new InvalidOperationException("JWT Key not configured")))
+            };
+        });
+
+        services.AddAuthorization();
 
         // Lambda Functions will be registered when we implement them properly
     }
@@ -114,6 +134,10 @@ public class Program
         // Configure forwarded headers middleware
         app.UseForwardedHeaders();
 
+        // Add authentication and authorization middleware
+        app.UseAuthentication();
+        app.UseAuthorization();
+
         // Health check endpoint - must be before auth middleware
         app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow }))
            .WithName("HealthCheck")
@@ -121,7 +145,8 @@ public class Program
            .AllowAnonymous(); // Explicitly allow anonymous access
 
 
-        // API endpoints will be added via Lambda Annotations in separate controller classes
+        // Map controllers
+        app.MapControllers();
     }
 
     private static async Task ApplyDatabaseMigrations(WebApplication app)
