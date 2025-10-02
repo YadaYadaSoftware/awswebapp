@@ -49,10 +49,10 @@ Parameters:
     AllowedValues: ["single", "multi"]
     Description: "Type of deployment - single or multi-region"
 
-  Conditions:
-    IsSingleRegionDeployment: !Equals [!Ref DeploymentType, "single"]
-    IsMultiRegionDeployment: !Equals [!Ref DeploymentType, "multi"]
-    HasSecondaryLoadBalancer: !Equals [!Ref DeploymentType, "multi"]
+Conditions:
+  IsSingleRegionDeployment: !Equals [!Ref DeploymentType, "single"]
+  IsMultiRegionDeployment: !Equals [!Ref DeploymentType, "multi"]
+  HasSecondaryLoadBalancer: !Equals [!Ref DeploymentType, "multi"]
 
 Resources:
   # Health Check for Primary ALB
