@@ -163,6 +163,8 @@ Resources:
   # Target Group
   WebTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    DependsOn:
+      - WebLoadBalancer
     Properties:
       Name: !Sub "webtg-${Branch}"
       Protocol: HTTP
@@ -175,6 +177,8 @@ Resources:
       HealthyThresholdCount: 2
       UnhealthyThresholdCount: 2
       HealthCheckPort: 80
+      LoadBalancerArns:
+        - !Ref WebLoadBalancer
 
   # ALB HTTP Listener (redirects to HTTPS)
   WebListener:
@@ -277,6 +281,7 @@ Resources:
     Type: AWS::ECS::Service
     DependsOn:
       - WebListener
+      - WebHttpsListener
       - WebTaskDefinition
     Properties:
       ServiceName: !Sub "websvc-${Branch}"
