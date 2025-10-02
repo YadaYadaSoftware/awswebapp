@@ -424,7 +424,21 @@ jobs:
       if: matrix.is_primary == 'false' && matrix.deploy && steps.deployment-type.outputs.deploy-master == 'true'
       run: |
         echo "Getting outputs from primary region stack..."
-        PRIMARY_STACK_NAME="taskmanager-${{ needs.get-branch-name.outputs.branch-name }}"
+        BRANCH_NAME="${{ needs.get-branch-name.outputs.branch-name }}"
+        DOMAIN_NAME="${{ secrets.DOMAIN_NAME }}"
+
+        # Create domain name for this deployment: branch.domain
+        FULL_DOMAIN_NAME="${BRANCH_NAME}.${DOMAIN_NAME}"
+
+        # Create stack name for primary stack: replace periods with hyphens
+        PRIMARY_STACK_NAME=$(echo $FULL_DOMAIN_NAME | tr '.' '-')
+
+        # If branch starts with a number, prepend 'x' to stack name
+        if [[ $BRANCH_NAME =~ ^[0-9] ]]; then
+          PRIMARY_STACK_NAME="x${PRIMARY_STACK_NAME}"
+        fi
+
+        echo "Primary stack name: $PRIMARY_STACK_NAME"
         KMS_KEY_ARN=$(aws cloudformation describe-stacks --stack-name $PRIMARY_STACK_NAME --region $AWS_REGION_PRIMARY --query 'Stacks[0].Outputs[?OutputKey==`AuroraKmsKeyArn`].OutputValue' --output text)
         GLOBAL_CLUSTER_ID=$(aws cloudformation describe-stacks --stack-name $PRIMARY_STACK_NAME --region $AWS_REGION_PRIMARY --query 'Stacks[0].Outputs[?OutputKey==`AuroraGlobalClusterId`].OutputValue' --output text)
         PRIMARY_LB_DNS=$(aws cloudformation describe-stacks --stack-name $PRIMARY_STACK_NAME --region $AWS_REGION_PRIMARY --query 'Stacks[0].Outputs[?OutputKey==`WebLoadBalancerDNS`].OutputValue' --output text)
@@ -439,8 +453,16 @@ jobs:
       if: matrix.deploy && steps.deployment-type.outputs.deploy-master == 'false'
       run: |
         echo "Getting backend outputs from dev branch stack..."
-        WEB_STACK_NAME="dev.${{ secrets.DOMAIN_NAME }}"
-        DEV_STACK_NAME=$(echo WEB_STACK_NAME | tr '.' '-')
+        BRANCH_NAME="dev"
+        DOMAIN_NAME="${{ secrets.DOMAIN_NAME }}"
+
+        # Create domain name for dev branch: dev.domain
+        FULL_DOMAIN_NAME="${BRANCH_NAME}.${DOMAIN_NAME}"
+
+        # Create stack name for dev backend stack: replace periods with hyphens
+        DEV_STACK_NAME=$(echo $FULL_DOMAIN_NAME | tr '.' '-')
+
+        echo "Dev backend stack name: $DEV_STACK_NAME"
 
         SHARED_LAMBDA_ROLE_ARN=$(aws cloudformation describe-stacks --stack-name $DEV_STACK_NAME --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`SharedLambdaRoleArn`].OutputValue' --output text)
         DATABASE_HOST=$(aws cloudformation describe-stacks --stack-name $DEV_STACK_NAME --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`DatabaseHost`].OutputValue' --output text)
