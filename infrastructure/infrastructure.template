@@ -21,8 +21,6 @@ Resources:
   # ECS Cluster
   ECSCluster:
     Type: AWS::ECS::Cluster
-    Properties:
-      ClusterName: !Sub "TaskManager-Cluster-${BranchName}"
 
   # Google OAuth Secrets
   GoogleOAuthSecrets:

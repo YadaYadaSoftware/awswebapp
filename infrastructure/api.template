@@ -93,7 +93,6 @@ Resources:
   TaskManagerApiFunction:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub "TaskManagerApi-${Environment}"
       CodeUri: ../src/TaskManager.Api/
       Handler: >-
         TaskManager.Api::TaskManager.Api.LambdaEntryPoint::FunctionHandlerAsync
@@ -133,7 +132,6 @@ Resources:
   LambdaErrorAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName: !Sub "TaskManager-API-Errors-${Environment}"
       AlarmDescription: "API Lambda function error rate alarm"
       MetricName: Errors
       Namespace: AWS/Lambda

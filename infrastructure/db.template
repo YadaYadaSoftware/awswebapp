@@ -91,7 +91,6 @@ Resources:
       SubnetIds:
         - !Ref PrivateSubnet1Id
         - !Ref PrivateSubnet2Id
-      DBSubnetGroupName: !Sub "taskmanager-${BranchName}-aurora-subnet-group-${AWS::Region}"
 
   # Aurora DB Cluster Parameter Group
   AuroraClusterParameterGroup:
@@ -121,7 +120,6 @@ Resources:
           ],
           !Ref AuroraGlobalClusterId,
         ]
-      DBClusterIdentifier: !Sub "taskmanager-${BranchName}-aurora-cluster-${AWS::Region}"
       Engine: aurora-mysql
       EngineVersion: !Ref EngineVersion
       MasterUsername: !If [IsPrimary, "taskmanager_admin", !Ref "AWS::NoValue"]
@@ -152,7 +150,6 @@ Resources:
   AuroraInstance:
     Type: AWS::RDS::DBInstance
     Properties:
-      DBInstanceIdentifier: !Sub "taskmanager-${BranchName}-aurora-instance-${AWS::Region}"
       DBClusterIdentifier: !Ref AuroraCluster
       DBInstanceClass: db.serverless
       Engine: aurora-mysql
@@ -162,7 +159,6 @@ Resources:
     Condition: ShouldCreateGlobalCluster
     Type: AWS::RDS::GlobalCluster
     Properties:
-      GlobalClusterIdentifier: !Sub taskmanager-${BranchName}-global-cluster
       Engine: aurora-mysql
       EngineVersion: !Ref EngineVersion
       DeletionProtection: false
@@ -171,7 +167,6 @@ Resources:
   DatabasePasswordSecret:
     Type: AWS::SecretsManager::Secret
     Properties:
-      Name: !Sub "taskmanager/database/${BranchName}/regional/${AWS::Region}/password"
       Description: Database password for Aurora Regional Cluster
       SecretString: !Ref DatabasePassword
 
