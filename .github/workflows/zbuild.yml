@@ -442,7 +442,7 @@ jobs:
         DOMAIN_NAME="${{ secrets.DOMAIN_NAME }}"
 
         # Create domain name for dev branch: dev.domain
-        FULL_DOMAIN_NAME="${BRANCH_NAME}.${DOMAIN_NAME}"
+        FULL_DOMAIN_NAME="dev.${DOMAIN_NAME}"
 
         # Create stack name for dev backend stack: replace periods with hyphens
         DEV_STACK_NAME=$(echo $FULL_DOMAIN_NAME | tr '.' '-')
@@ -492,6 +492,87 @@ jobs:
         echo "ECS Task Security Group ID: $ECS_TASK_SECURITY_GROUP_ID"
         echo "ECS Cluster Name: $ECS_CLUSTER_NAME"
         echo "=========================="
+
+        # Validate that all required outputs are present and not empty
+        echo "🔍 Validating backend stack outputs..."
+
+        MISSING_OUTPUTS=()
+
+        if [ -z "$SHARED_LAMBDA_ROLE_ARN" ]; then
+          MISSING_OUTPUTS+=("SharedLambdaRoleArn")
+        fi
+
+        if [ -z "$DATABASE_HOST" ]; then
+          MISSING_OUTPUTS+=("DatabaseHost")
+        fi
+
+        if [ -z "$DATABASE_USERNAME" ]; then
+          MISSING_OUTPUTS+=("DatabaseUsername")
+        fi
+
+        if [ -z "$DATABASE_ENGINE" ]; then
+          MISSING_OUTPUTS+=("DatabaseEngine")
+        fi
+
+        if [ -z "$DATABASE_PORT" ]; then
+          MISSING_OUTPUTS+=("DatabasePort")
+        fi
+
+        if [ -z "$DATABASE_NAME" ]; then
+          MISSING_OUTPUTS+=("DatabaseName")
+        fi
+
+        if [ -z "$DATABASE_CLUSTER_ARN" ]; then
+          MISSING_OUTPUTS+=("DatabaseClusterArn")
+        fi
+
+        if [ -z "$VPC_ID" ]; then
+          MISSING_OUTPUTS+=("VpcId")
+        fi
+
+        if [ -z "$PRIVATE_SUBNET_1_ID" ]; then
+          MISSING_OUTPUTS+=("PrivateSubnet1Id")
+        fi
+
+        if [ -z "$PRIVATE_SUBNET_2_ID" ]; then
+          MISSING_OUTPUTS+=("PrivateSubnet2Id")
+        fi
+
+        if [ -z "$PUBLIC_SUBNET_1_ID" ]; then
+          MISSING_OUTPUTS+=("PublicSubnet1Id")
+        fi
+
+        if [ -z "$PUBLIC_SUBNET_2_ID" ]; then
+          MISSING_OUTPUTS+=("PublicSubnet2Id")
+        fi
+
+        if [ -z "$LAMBDA_SECURITY_GROUP_ID" ]; then
+          MISSING_OUTPUTS+=("LambdaSecurityGroupId")
+        fi
+
+        if [ -z "$ALB_SECURITY_GROUP_ID" ]; then
+          MISSING_OUTPUTS+=("ALBSecurityGroupId")
+        fi
+
+        if [ -z "$ECS_TASK_SECURITY_GROUP_ID" ]; then
+          MISSING_OUTPUTS+=("ECSTaskSecurityGroupId")
+        fi
+
+        if [ -z "$ECS_CLUSTER_NAME" ]; then
+          MISSING_OUTPUTS+=("ECSClusterName")
+        fi
+
+        if [ ${#MISSING_OUTPUTS[@]} -gt 0 ]; then
+          echo "❌ The following required outputs are missing or empty from stack $DEV_STACK_NAME:"
+          for output in "${MISSING_OUTPUTS[@]}"; do
+            echo "  - $output"
+          done
+          echo "💡 This usually means the dev backend stack hasn't been deployed yet or failed to deploy properly."
+          echo "   Please ensure the dev branch infrastructure is deployed successfully before deploying this branch."
+          exit 1
+        fi
+
+        echo "✅ All required backend stack outputs are present"
 
         echo "shared-lambda-role-arn=$SHARED_LAMBDA_ROLE_ARN" >> $GITHUB_OUTPUT
         echo "database-host=$DATABASE_HOST" >> $GITHUB_OUTPUT
