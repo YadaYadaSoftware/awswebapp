@@ -134,7 +134,7 @@ jobs:
             deploy: true
           - region: us-west-2
             is_primary: "false"
-            deploy: ${{ contains(fromJson('["app","beta","dev"]'), needs.get-branch-name.outputs.branch-name) }}
+            deploy: ${{ contains(fromJson('["app","beta"]'), needs.get-branch-name.outputs.branch-name) }}
       max-parallel: 1
     steps:
     - name: Checkout code
@@ -281,7 +281,7 @@ jobs:
         # Check if this region is primary and if secondary region will also deploy
         if [[ "${{ matrix.is_primary }}" == "true" ]]; then
           # This is primary region - check if secondary will deploy
-          if [[ "${{ contains(fromJson('["app","beta","dev"]'), needs.get-branch-name.outputs.branch-name) }}" == "true" ]]; then
+          if [[ "${{ contains(fromJson('["app","beta"]'), needs.get-branch-name.outputs.branch-name) }}" == "true" ]]; then
             IS_MULTI_REGION="true"
           fi
         else
@@ -419,34 +419,6 @@ jobs:
         CONTAINER_IMAGE=$ECR_REPO:$SRC_CHECKSUM
         echo "CONTAINER_IMAGE=$CONTAINER_IMAGE" >> $GITHUB_ENV
 
-    - name: Get primary region outputs for secondary
-      id: get-primary-outputs
-      if: matrix.is_primary == 'false' && matrix.deploy && steps.deployment-type.outputs.deploy-master == 'true'
-      run: |
-        echo "Getting outputs from primary region stack..."
-        BRANCH_NAME="${{ needs.get-branch-name.outputs.branch-name }}"
-        DOMAIN_NAME="${{ secrets.DOMAIN_NAME }}"
-
-        # Create domain name for this deployment: branch.domain
-        FULL_DOMAIN_NAME="${BRANCH_NAME}.${DOMAIN_NAME}"
-
-        # Create stack name for primary stack: replace periods with hyphens
-        PRIMARY_STACK_NAME=$(echo $FULL_DOMAIN_NAME | tr '.' '-')
-
-        # If branch starts with a number, prepend 'x' to stack name
-        if [[ $BRANCH_NAME =~ ^[0-9] ]]; then
-          PRIMARY_STACK_NAME="x${PRIMARY_STACK_NAME}"
-        fi
-
-        echo "Primary stack name: $PRIMARY_STACK_NAME"
-        KMS_KEY_ARN=$(aws cloudformation describe-stacks --stack-name $PRIMARY_STACK_NAME --region $AWS_REGION_PRIMARY --query 'Stacks[0].Outputs[?OutputKey==`AuroraKmsKeyArn`].OutputValue' --output text)
-        GLOBAL_CLUSTER_ID=$(aws cloudformation describe-stacks --stack-name $PRIMARY_STACK_NAME --region $AWS_REGION_PRIMARY --query 'Stacks[0].Outputs[?OutputKey==`AuroraGlobalClusterId`].OutputValue' --output text)
-        PRIMARY_LB_DNS=$(aws cloudformation describe-stacks --stack-name $PRIMARY_STACK_NAME --region $AWS_REGION_PRIMARY --query 'Stacks[0].Outputs[?OutputKey==`WebLoadBalancerDNS`].OutputValue' --output text)
-        PRIMARY_LB_HZ=$(aws cloudformation describe-stacks --stack-name $PRIMARY_STACK_NAME --region $AWS_REGION_PRIMARY --query 'Stacks[0].Outputs[?OutputKey==`WebLoadBalancerHostedZoneId`].OutputValue' --output text)
-        echo "kms-key-arn=$KMS_KEY_ARN" >> $GITHUB_OUTPUT
-        echo "global-cluster-id=$GLOBAL_CLUSTER_ID" >> $GITHUB_OUTPUT
-        echo "primary-lb-dns=$PRIMARY_LB_DNS" >> $GITHUB_OUTPUT
-        echo "primary-lb-hz=$PRIMARY_LB_HZ" >> $GITHUB_OUTPUT
 
     - name: Get dev branch backend outputs for application-only deployment
       id: get-dev-backend-outputs
@@ -515,15 +487,12 @@ jobs:
           MIN_CAP=0
           MAX_CAP=1
         fi
-        if [[ " app beta alpha dev " == *" $BRANCH_NAME "* ]]; then
+        if [[ " app beta alpha " == *" $BRANCH_NAME "* ]]; then
           ENABLE_GLOBAL=true
         else
           ENABLE_GLOBAL=false
         fi
         BASE_PARAMS="BranchName=${{ needs.get-branch-name.outputs.branch-name }},DatabasePassword=${{ secrets.DATABASE_PASSWORD }},EngineVersion=${{ env.ENGINE_VERSION }},IsPrimaryRegion=${{ matrix.is_primary }},MinCapacity=$MIN_CAP,MaxCapacity=$MAX_CAP,EnableGlobalCluster=$ENABLE_GLOBAL,GoogleOAuthClientId=${{ secrets.GOOGLE_CLIENT_ID }},GoogleOAuthClientSecret=${{ secrets.GOOGLE_CLIENT_SECRET }},WebContainerImage=${{ env.CONTAINER_IMAGE }},DeploymentToken=${{ github.sha }},DomainName=${{ steps.stack-names.outputs.full-domain-name }},HostedZoneId=${{ steps.hosted-zone.outputs.hosted-zone-id }},DeploymentType=${{ steps.deployment-config.outputs.deployment-type }}"
-        if [ "${{ matrix.is_primary }}" = "false" ]; then
-          BASE_PARAMS="$BASE_PARAMS,AuroraGlobalClusterId=${{ steps.get-primary-outputs.outputs.global-cluster-id }},KmsKeyArn=${{ steps.get-primary-outputs.outputs.kms-key-arn }},PrimaryRegion=${{ env.AWS_REGION_PRIMARY }},PrimaryWebLoadBalancerDNS=${{ steps.get-primary-outputs.outputs.primary-lb-dns }},PrimaryWebLoadBalancerHostedZoneId=${{ steps.get-primary-outputs.outputs.primary-lb-hz }}"
-        fi
         PARAMS="$BASE_PARAMS"
         echo "params=$PARAMS" >> $GITHUB_OUTPUT
 
