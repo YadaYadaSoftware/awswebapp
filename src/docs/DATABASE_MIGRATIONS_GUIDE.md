@@ -7,12 +7,12 @@ The TaskManager application now includes automatic database migrations that run 
 ## Migration Architecture
 
 ### **TaskManager.Migrations Project**
-**Purpose**: Dedicated assembly for database migration operations
+**Purpose**: Dedicated assembly for database migration design-time operations
 **Location**: [`src/TaskManager.Migrations`](src/TaskManager.Migrations)
 
 **Components**:
 - ✅ **DbContext Factory**: [`TaskManagerDbContextFactory.cs`](src/TaskManager.Migrations/TaskManagerDbContextFactory.cs) - Design-time context creation
-- ✅ **Migration Program**: [`Program.cs`](src/TaskManager.Migrations/Program.cs) - Standalone migration runner
+- ✅ **Migration Program**: [`Program.cs`](src/TaskManager.Migrations/Program.cs) - Design-time operations only (does not apply migrations)
 - ✅ **Configuration**: [`appsettings.json`](src/TaskManager.Migrations/appsettings.json) - Connection strings
 
 ### **API Integration**
@@ -88,11 +88,11 @@ public async Task MigrateAsync()
 
 ### **Development**
 ```bash
-# Run migrations locally
-dotnet run --project src/TaskManager.Migrations
-
-# Or let API handle it automatically
+# Start the API - migrations are applied automatically on startup
 dotnet run --project src/TaskManager.Api
+
+# Or start the Web application - migrations are applied automatically on startup
+dotnet run --project src/TaskManager.Web2
 ```
 
 ### **Production (AWS)**
@@ -100,7 +100,7 @@ dotnet run --project src/TaskManager.Api
 - ✅ **Safe**: Error handling prevents application failure
 - ✅ **Logged**: All migration activity logged to CloudWatch
 
-### **Manual Migration Management**
+### **Migration Management**
 ```bash
 # Add new migration
 dotnet ef migrations add NewFeature --project src/TaskManager.Data --startup-project src/TaskManager.Migrations
@@ -168,7 +168,6 @@ dotnet ef migrations script --project src/TaskManager.Data --startup-project src
 # Check migration status
 dotnet ef migrations list --project src/TaskManager.Data --startup-project src/TaskManager.Migrations
 
-# Validate migrations
-dotnet ef database update --dry-run --project src/TaskManager.Data --startup-project src/TaskManager.Migrations
-
 # Generate SQL script for review
+dotnet ef migrations script --project src/TaskManager.Data --startup-project src/TaskManager.Migrations
+```

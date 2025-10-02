@@ -1,0 +1,181 @@
+@page "/invitations"
+@attribute [Authorize]
+@using TaskManager.Shared.Models
+@using Microsoft.AspNetCore.Identity
+@using TaskManager.Web2.Services
+@using System.ComponentModel.DataAnnotations
+@using System.Collections.Generic
+@inject IHttpClientFactory HttpClientFactory
+@inject JwtTokenService JwtTokenService
+@inject UserManager<IdentityUser> UserManager
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>Invitations</PageTitle>
+
+<h1>Invitations</h1>
+
+<div class="mb-4">
+    <h3>Create Invitation</h3>
+    <EditForm Model="@inviteModel" OnValidSubmit="@CreateInvitation">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        <div class="form-group">
+            <label for="email">Email Address</label>
+            <InputText id="email" class="form-control" @bind-Value="inviteModel.Email" />
+            <ValidationMessage For="@(() => inviteModel.Email)" />
+        </div>
+
+        <button type="submit" class="btn btn-primary" disabled="@isSubmitting">
+            @if (isSubmitting)
+            {
+                <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                @("Sending invitation...")
+            }
+            else
+            {
+                @:Send Invitation
+            }
+        </button>
+    </EditForm>
+</div>
+
+@if (!string.IsNullOrEmpty(errorMessage))
+{
+    <div class="alert alert-danger">@errorMessage</div>
+}
+
+@if (!string.IsNullOrEmpty(successMessage))
+{
+    <div class="alert alert-success">@successMessage</div>
+}
+
+<h2>Pending Invitations</h2>
+
+@if (invitations == null)
+{
+    <p><em>Loading...</em></p>
+}
+else if (!invitations.Any())
+{
+    <p>No pending invitations.</p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Email</th>
+                <th>Invited By</th>
+                <th>Invited At</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var invitation in invitations)
+            {
+                <tr>
+                    <td>@invitation.Email</td>
+                    <td>@invitation.InvitedByName</td>
+                    <td>@invitation.InvitedAt.ToShortDateString()</td>
+                    <td>
+                        <button class="btn btn-danger" @onclick="() => RevokeInvitation(invitation.Email)">Revoke</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<InvitationDto>? invitations;
+    private string? token;
+    private InviteModel inviteModel = new();
+    private bool isSubmitting;
+    private string? errorMessage;
+    private string? successMessage;
+
+    public class InviteModel
+    {
+        [Required]
+        [EmailAddress]
+        public string Email { get; set; } = string.Empty;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        if (user.Identity?.IsAuthenticated == true)
+        {
+            var identityUser = await UserManager.GetUserAsync(user);
+            if (identityUser != null)
+            {
+                token = await JwtTokenService.GenerateTokenAsync(identityUser);
+                await LoadInvitations();
+            }
+        }
+    }
+
+    private async Task LoadInvitations()
+    {
+        if (string.IsNullOrEmpty(token)) return;
+        var client = HttpClientFactory.CreateClient("ApiClient");
+        client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        var response = await client.GetAsync("api/invitation/pending");
+        if (response.IsSuccessStatusCode)
+        {
+            invitations = await response.Content.ReadFromJsonAsync<List<InvitationDto>>();
+        }
+    }
+
+    private async Task RevokeInvitation(string email)
+    {
+        if (string.IsNullOrEmpty(token)) return;
+        var client = HttpClientFactory.CreateClient("ApiClient");
+        client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        var response = await client.DeleteAsync($"api/invitation/revoke/{email}");
+        if (response.IsSuccessStatusCode)
+        {
+            await LoadInvitations(); // Refresh the list
+        }
+    }
+
+    private async Task CreateInvitation()
+    {
+        isSubmitting = true;
+        errorMessage = null;
+        successMessage = null;
+
+        try
+        {
+            if (string.IsNullOrEmpty(token)) return;
+
+            var client = HttpClientFactory.CreateClient("ApiClient");
+            client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+
+            var request = new { Email = inviteModel.Email };
+            var response = await client.PostAsJsonAsync("api/invitation/invite", request);
+
+            if (response.IsSuccessStatusCode)
+            {
+                successMessage = $"Invitation sent to {inviteModel.Email}";
+                inviteModel.Email = string.Empty; // Clear the form
+                await LoadInvitations(); // Refresh the list
+            }
+            else
+            {
+                var error = await response.Content.ReadFromJsonAsync<Dictionary<string, string>>();
+                errorMessage = error?.GetValueOrDefault("error") ?? "Failed to send invitation";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"An error occurred: {ex.Message}";
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+}
