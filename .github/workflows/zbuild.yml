@@ -434,6 +434,11 @@ jobs:
         # Create stack name for dev backend stack: replace periods with hyphens
         DEV_STACK_NAME=$(echo $FULL_DOMAIN_NAME | tr '.' '-')
 
+        # If branch starts with a number, prepend 'x' to stack name
+        if [[ $BRANCH_NAME =~ ^[0-9] ]]; then
+          DEV_STACK_NAME="x${DEV_STACK_NAME}"
+        fi
+
         echo "Dev backend stack name: $DEV_STACK_NAME"
 
         SHARED_LAMBDA_ROLE_ARN=$(aws cloudformation describe-stacks --stack-name $DEV_STACK_NAME --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`SharedLambdaRoleArn`].OutputValue' --output text)
