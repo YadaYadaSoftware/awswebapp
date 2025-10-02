@@ -156,6 +156,19 @@ jobs:
           echo "deploy-master=false" >> $GITHUB_OUTPUT
         fi
 
+    - name: Determine Environment
+      if: matrix.deploy
+      id: environment
+      run: |
+        BRANCH_NAME="${{ needs.get-branch-name.outputs.branch-name }}"
+        if [[ " app beta alpha dev " == *" $BRANCH_NAME "* ]]; then
+          ENVIRONMENT="$BRANCH_NAME"
+        else
+          ENVIRONMENT="dev"
+        fi
+        echo "Environment: $ENVIRONMENT"
+        echo "environment=$ENVIRONMENT" >> $GITHUB_OUTPUT
+
     - name: Calculate Source Checksum
       if: matrix.deploy
       id: checksum
@@ -540,7 +553,7 @@ jobs:
         else
           ENABLE_GLOBAL=false
         fi
-        BASE_PARAMS="BranchName=${{ needs.get-branch-name.outputs.branch-name }},DatabasePassword=${{ secrets.DATABASE_PASSWORD }},EngineVersion=${{ env.ENGINE_VERSION }},IsPrimaryRegion=${{ matrix.is_primary }},MinCapacity=$MIN_CAP,MaxCapacity=$MAX_CAP,EnableGlobalCluster=$ENABLE_GLOBAL,GoogleOAuthClientId=${{ secrets.GOOGLE_CLIENT_ID }},GoogleOAuthClientSecret=${{ secrets.GOOGLE_CLIENT_SECRET }},MicrosoftOAuthClientId=${{ secrets.MICROSOFT_CLIENT_ID }},MicrosoftOAuthClientSecret=${{ secrets.MICROSOFT_SECRET }},WebContainerImage=${{ env.CONTAINER_IMAGE }},DeploymentToken=${{ github.sha }},DomainName=${{ steps.stack-names.outputs.full-domain-name }},HostedZoneId=${{ steps.hosted-zone.outputs.hosted-zone-id }},DeploymentType=${{ steps.deployment-config.outputs.deployment-type }}"
+        BASE_PARAMS="BranchName=${{ needs.get-branch-name.outputs.branch-name }},Environment=${{ steps.environment.outputs.environment }},DatabasePassword=${{ secrets.DATABASE_PASSWORD }},EngineVersion=${{ env.ENGINE_VERSION }},IsPrimaryRegion=${{ matrix.is_primary }},MinCapacity=$MIN_CAP,MaxCapacity=$MAX_CAP,EnableGlobalCluster=$ENABLE_GLOBAL,GoogleOAuthClientId=${{ secrets.GOOGLE_CLIENT_ID }},GoogleOAuthClientSecret=${{ secrets.GOOGLE_CLIENT_SECRET }},MicrosoftOAuthClientId=${{ secrets.MICROSOFT_CLIENT_ID }},MicrosoftOAuthClientSecret=${{ secrets.MICROSOFT_SECRET }},WebContainerImage=${{ env.CONTAINER_IMAGE }},DeploymentToken=${{ github.sha }},DomainName=${{ steps.stack-names.outputs.full-domain-name }},HostedZoneId=${{ steps.hosted-zone.outputs.hosted-zone-id }},DeploymentType=${{ steps.deployment-config.outputs.deployment-type }}"
         if [ "${{ matrix.is_primary }}" = "false" ]; then
           BASE_PARAMS="$BASE_PARAMS,AuroraGlobalClusterId=${{ steps.get-primary-outputs.outputs.global-cluster-id }},KmsKeyArn=${{ steps.get-primary-outputs.outputs.kms-key-arn }},PrimaryRegion=${{ env.AWS_REGION_PRIMARY }},PrimaryWebLoadBalancerDNS=${{ steps.get-primary-outputs.outputs.primary-lb-dns }},PrimaryWebLoadBalancerHostedZoneId=${{ steps.get-primary-outputs.outputs.primary-lb-hz }}"
         fi
@@ -552,7 +565,7 @@ jobs:
       if: matrix.deploy && steps.deployment-type.outputs.deploy-master == 'false'
       run: |
         # Application template parameters using dev branch backend outputs
-        APP_PARAMS="TemplateBucket=${{ steps.bootstrap-outputs.outputs.templates-bucket-name }},GitHubActionsUserArn=${{ secrets.USER_ARN }},BranchName=${{ needs.get-branch-name.outputs.branch-name }},GoogleOAuthClientId=${{ secrets.GOOGLE_CLIENT_ID }},GoogleOAuthClientSecret=${{ secrets.GOOGLE_CLIENT_SECRET }},MicrosoftOAuthClientId=${{ secrets.MICROSOFT_CLIENT_ID }},MicrosoftOAuthClientSecret=${{ secrets.MICROSOFT_SECRET }},WebContainerImage=${{ env.CONTAINER_IMAGE }},DeploymentToken=${{ github.sha }},DomainName=${{ steps.stack-names.outputs.full-domain-name }},HostedZoneId=${{ steps.hosted-zone.outputs.hosted-zone-id }},DeploymentType=${{ steps.deployment-config.outputs.deployment-type }},IsPrimaryRegion=${{ matrix.is_primary }},SharedLambdaRoleArn=${{ steps.get-dev-backend-outputs.outputs.shared-lambda-role-arn }},DatabaseHost=${{ steps.get-dev-backend-outputs.outputs.database-host }},DatabaseUsername=${{ steps.get-dev-backend-outputs.outputs.database-username }},DatabaseEngine=${{ steps.get-dev-backend-outputs.outputs.database-engine }},DatabasePort=${{ steps.get-dev-backend-outputs.outputs.database-port }},DatabaseName=${{ steps.get-dev-backend-outputs.outputs.database-name }},DatabaseClusterArn=${{ steps.get-dev-backend-outputs.outputs.database-cluster-arn }},DatabasePasswordSecretArn=${{ steps.get-dev-backend-outputs.outputs.database-password-secret-arn }},VPCId=${{ steps.get-dev-backend-outputs.outputs.vpc-id }},PrivateSubnet1Id=${{ steps.get-dev-backend-outputs.outputs.private-subnet-1-id }},PrivateSubnet2Id=${{ steps.get-dev-backend-outputs.outputs.private-subnet-2-id }},PublicSubnet1Id=${{ steps.get-dev-backend-outputs.outputs.public-subnet-1-id }},PublicSubnet2Id=${{ steps.get-dev-backend-outputs.outputs.public-subnet-2-id }},LambdaSecurityGroupId=${{ steps.get-dev-backend-outputs.outputs.lambda-security-group-id }},ALBSecurityGroupId=${{ steps.get-dev-backend-outputs.outputs.alb-security-group-id }},ECSTaskSecurityGroupId=${{ steps.get-dev-backend-outputs.outputs.ecs-task-security-group-id }},ECSClusterName=${{ steps.get-dev-backend-outputs.outputs.ecs-cluster-name }},GoogleOAuthSecretArn=${{ steps.get-dev-backend-outputs.outputs.google-oauth-secret-arn }}"
+        APP_PARAMS="TemplateBucket=${{ steps.bootstrap-outputs.outputs.templates-bucket-name }},GitHubActionsUserArn=${{ secrets.USER_ARN }},BranchName=${{ needs.get-branch-name.outputs.branch-name }},Environment=${{ steps.environment.outputs.environment }},GoogleOAuthClientId=${{ secrets.GOOGLE_CLIENT_ID }},GoogleOAuthClientSecret=${{ secrets.GOOGLE_CLIENT_SECRET }},MicrosoftOAuthClientId=${{ secrets.MICROSOFT_CLIENT_ID }},MicrosoftOAuthClientSecret=${{ secrets.MICROSOFT_SECRET }},WebContainerImage=${{ env.CONTAINER_IMAGE }},DeploymentToken=${{ github.sha }},DomainName=${{ steps.stack-names.outputs.full-domain-name }},HostedZoneId=${{ steps.hosted-zone.outputs.hosted-zone-id }},DeploymentType=${{ steps.deployment-config.outputs.deployment-type }},IsPrimaryRegion=${{ matrix.is_primary }},SharedLambdaRoleArn=${{ steps.get-dev-backend-outputs.outputs.shared-lambda-role-arn }},DatabaseHost=${{ steps.get-dev-backend-outputs.outputs.database-host }},DatabaseUsername=${{ steps.get-dev-backend-outputs.outputs.database-username }},DatabaseEngine=${{ steps.get-dev-backend-outputs.outputs.database-engine }},DatabasePort=${{ steps.get-dev-backend-outputs.outputs.database-port }},DatabaseName=${{ steps.get-dev-backend-outputs.outputs.database-name }},DatabaseClusterArn=${{ steps.get-dev-backend-outputs.outputs.database-cluster-arn }},DatabasePasswordSecretArn=${{ steps.get-dev-backend-outputs.outputs.database-password-secret-arn }},VPCId=${{ steps.get-dev-backend-outputs.outputs.vpc-id }},PrivateSubnet1Id=${{ steps.get-dev-backend-outputs.outputs.private-subnet-1-id }},PrivateSubnet2Id=${{ steps.get-dev-backend-outputs.outputs.private-subnet-2-id }},PublicSubnet1Id=${{ steps.get-dev-backend-outputs.outputs.public-subnet-1-id }},PublicSubnet2Id=${{ steps.get-dev-backend-outputs.outputs.public-subnet-2-id }},LambdaSecurityGroupId=${{ steps.get-dev-backend-outputs.outputs.lambda-security-group-id }},ALBSecurityGroupId=${{ steps.get-dev-backend-outputs.outputs.alb-security-group-id }},ECSTaskSecurityGroupId=${{ steps.get-dev-backend-outputs.outputs.ecs-task-security-group-id }},ECSClusterName=${{ steps.get-dev-backend-outputs.outputs.ecs-cluster-name }},GoogleOAuthSecretArn=${{ steps.get-dev-backend-outputs.outputs.google-oauth-secret-arn }}"
         echo "params=$APP_PARAMS" >> $GITHUB_OUTPUT
 
     - name: Deploy master template

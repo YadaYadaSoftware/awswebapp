@@ -7,6 +7,11 @@ Parameters:
     Type: String
     Description: "Branch name for resource naming"
 
+  Environment:
+    Type: String
+    AllowedValues: ["app", "beta", "alpha", "dev"]
+    Description: "Environment name for secret access"
+
   SharedLambdaRoleArn:
     Type: String
     Description: "ARN of the shared Lambda execution role"
@@ -132,7 +137,7 @@ Resources:
             - DatabaseHost: !Ref DatabaseHost
               DatabaseName: !Ref DatabaseName
               DatabaseUsername: !Ref DatabaseUsername
-              DatabasePassword: !Sub "{{resolve:secretsmanager:taskmanager/database/${Branch}/regional/${AWS::Region}/password:SecretString}}"
+              DatabasePassword: !Sub "{{resolve:secretsmanager:taskmanager/database/${Environment}/regional/${AWS::Region}/password:SecretString}}"
       VpcConfig:
         SecurityGroupIds:
           - !Ref LambdaSecurityGroupId

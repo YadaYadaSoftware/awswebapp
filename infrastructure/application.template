@@ -16,6 +16,11 @@ Parameters:
     Type: String
     Description: Branch name for resource naming
 
+  Environment:
+    Type: String
+    AllowedValues: ["app", "beta", "alpha", "dev"]
+    Description: Environment name for secret access
+
   # Google OAuth parameters
   GoogleOAuthClientId:
     Type: String
@@ -176,6 +181,7 @@ Resources:
       TemplateURL: ./api.template
       Parameters:
         Branch: !Ref BranchName
+        Environment: !Ref Environment
         SharedLambdaRoleArn: !Ref SharedLambdaRoleArn
         DatabaseHost: !Ref DatabaseHost
         DatabaseUsername: !Ref DatabaseUsername
@@ -195,6 +201,7 @@ Resources:
       TemplateURL: ./web.template
       Parameters:
         Branch: !Ref BranchName
+        Environment: !Ref Environment
         WebContainerImage: !Ref WebContainerImage
         DeploymentToken: !Ref DeploymentToken
         DomainName: !Ref DomainName
@@ -231,6 +238,7 @@ Resources:
       TemplateURL: ./dns.template
       Parameters:
         Branch: !Ref BranchName
+        Environment: !Ref Environment
         DomainName: !Ref DomainName
         HostedZoneId: !Ref HostedZoneId
         PrimaryRegion: !Ref "AWS::Region"
@@ -251,6 +259,7 @@ Resources:
       TemplateURL: ./dns.template
       Parameters:
         Branch: !Ref BranchName
+        Environment: !Ref Environment
         DomainName: !Ref DomainName
         HostedZoneId: !Ref HostedZoneId
         PrimaryRegion: !Ref PrimaryRegion

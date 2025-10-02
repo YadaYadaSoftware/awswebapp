@@ -7,6 +7,11 @@ Parameters:
     Type: String
     Description: "Branch name for resource naming"
 
+  Environment:
+    Type: String
+    AllowedValues: ["app", "beta", "alpha", "dev"]
+    Description: "Environment name for secret access"
+
   DomainName:
     Type: String
     Description: "Domain name for SSL certificate"

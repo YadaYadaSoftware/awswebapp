@@ -36,6 +36,11 @@ Parameters:
     Type: String
     Description: "Branch name for resource naming"
 
+  Environment:
+    Type: String
+    AllowedValues: ["app", "beta", "alpha", "dev"]
+    Description: "Environment name for secret access"
+
   WebContainerImage:
     Type: String
     Description: "Container image URI for the web application"

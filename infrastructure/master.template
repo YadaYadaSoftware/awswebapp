@@ -7,6 +7,11 @@ Parameters:
     Type: String
     Description: Branch name for resource naming
 
+  Environment:
+    Type: String
+    AllowedValues: ["app", "beta", "alpha", "dev"]
+    Description: Environment name for secret access
+
   DatabasePassword:
     Type: String
     NoEcho: true
@@ -145,6 +150,7 @@ Resources:
         TemplateBucket: !ImportValue TemplatesBucketName
         GitHubActionsUserArn: !ImportValue GitHubActionsUserArn
         BranchName: !Ref BranchName
+        Environment: !Ref Environment
         GoogleOAuthClientId: !Ref GoogleOAuthClientId
         GoogleOAuthClientSecret: !Ref GoogleOAuthClientSecret
         WebContainerImage: !Ref WebContainerImage
