@@ -145,21 +145,17 @@ Parameters:
     AllowedValues: ["single", "multi"]
     Description: Whether this is a single-region or multi-region deployment
 
-  Conditions:
-    RegionIsPrimary: !Equals [!Ref IsPrimaryRegion, "true"]
-    IsSecondaryRegion: !Equals [!Ref IsPrimaryRegion, "false"]
-    IsSingleRegionDeployment: !Equals [!Ref DeploymentType, "single"]
-    IsMultiRegionDeployment: !Equals [!Ref DeploymentType, "multi"]
-    ShouldCreatePrimaryDNS:
-      !And [
-        !Equals [!Ref IsPrimaryRegion, "true"],
-        !Equals [!Ref DeploymentType, "single"],
-      ]
-    ShouldCreateSecondaryDNS:
-      !And [
-        !Equals [!Ref IsPrimaryRegion, "false"],
-        !Equals [!Ref DeploymentType, "multi"],
-      ]
+Conditions:
+  ShouldCreatePrimaryDNS:
+    !And [
+      !Equals [!Ref IsPrimaryRegion, "true"],
+      !Equals [!Ref DeploymentType, "single"],
+    ]
+  ShouldCreateSecondaryDNS:
+    !And [
+      !Equals [!Ref IsPrimaryRegion, "false"],
+      !Equals [!Ref DeploymentType, "multi"],
+    ]
 
 Resources:
   # Regional API
