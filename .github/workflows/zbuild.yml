@@ -425,19 +425,12 @@ jobs:
       if: matrix.deploy && steps.deployment-type.outputs.deploy-master == 'false'
       run: |
         echo "Getting backend outputs from dev branch stack..."
-        BRANCH_NAME="${{ needs.get-branch-name.outputs.branch-name }}"
-        DOMAIN_NAME="${{ secrets.DOMAIN_NAME }}"
 
         # Create domain name for dev branch: dev.domain
-        FULL_DOMAIN_NAME="${BRANCH_NAME}.${DOMAIN_NAME}"
+        FULL_DOMAIN_NAME="dev.${{ secrets.DOMAIN_NAME }}"
 
         # Create stack name for dev backend stack: replace periods with hyphens
         DEV_STACK_NAME=$(echo $FULL_DOMAIN_NAME | tr '.' '-')
-
-        # If branch starts with a number, prepend 'x' to stack name
-        if [[ $BRANCH_NAME =~ ^[0-9] ]]; then
-          DEV_STACK_NAME="x${DEV_STACK_NAME}"
-        fi
 
         echo "Dev backend stack name: $DEV_STACK_NAME"
 
