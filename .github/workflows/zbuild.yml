@@ -450,8 +450,6 @@ jobs:
         LAMBDA_SECURITY_GROUP_ID=$(aws cloudformation describe-stacks --stack-name $DEV_STACK_NAME --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`LambdaSecurityGroupId`].OutputValue' --output text)
         ALB_SECURITY_GROUP_ID=$(aws cloudformation describe-stacks --stack-name $DEV_STACK_NAME --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`ALBSecurityGroupId`].OutputValue' --output text)
         ECS_TASK_SECURITY_GROUP_ID=$(aws cloudformation describe-stacks --stack-name $DEV_STACK_NAME --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`ECSTaskSecurityGroupId`].OutputValue' --output text)
-        ECS_CLUSTER_NAME=$(aws cloudformation describe-stacks --stack-name $DEV_STACK_NAME --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`ECSClusterName`].OutputValue' --output text)
-        GOOGLE_OAUTH_SECRET_ARN=$(aws cloudformation describe-stacks --stack-name $DEV_STACK_NAME --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`GoogleOAuthSecretArn`].OutputValue' --output text)
 
         echo "shared-lambda-role-arn=$SHARED_LAMBDA_ROLE_ARN" >> $GITHUB_OUTPUT
         echo "database-host=$DATABASE_HOST" >> $GITHUB_OUTPUT
@@ -469,8 +467,6 @@ jobs:
         echo "lambda-security-group-id=$LAMBDA_SECURITY_GROUP_ID" >> $GITHUB_OUTPUT
         echo "alb-security-group-id=$ALB_SECURITY_GROUP_ID" >> $GITHUB_OUTPUT
         echo "ecs-task-security-group-id=$ECS_TASK_SECURITY_GROUP_ID" >> $GITHUB_OUTPUT
-        echo "ecs-cluster-name=$ECS_CLUSTER_NAME" >> $GITHUB_OUTPUT
-        echo "google-oauth-secret-arn=$GOOGLE_OAUTH_SECRET_ARN" >> $GITHUB_OUTPUT
 
 
     - name: Set parameter overrides for master template
@@ -497,8 +493,6 @@ jobs:
         BASE_PARAMS="$BASE_PARAMS,MinCapacity=$MIN_CAP"
         BASE_PARAMS="$BASE_PARAMS,MaxCapacity=$MAX_CAP"
         BASE_PARAMS="$BASE_PARAMS,EnableGlobalCluster=$ENABLE_GLOBAL"
-        BASE_PARAMS="$BASE_PARAMS,GoogleOAuthClientId=${{ secrets.GOOGLE_CLIENT_ID }}"
-        BASE_PARAMS="$BASE_PARAMS,GoogleOAuthClientSecret=${{ secrets.GOOGLE_CLIENT_SECRET }}"
         BASE_PARAMS="$BASE_PARAMS,WebContainerImage=${{ env.CONTAINER_IMAGE }}"
         BASE_PARAMS="$BASE_PARAMS,DeploymentToken=${{ github.sha }}"
         BASE_PARAMS="$BASE_PARAMS,DomainName=${{ steps.stack-names.outputs.full-domain-name }}"
@@ -521,8 +515,6 @@ jobs:
         APP_PARAMS="TemplateBucket=${{ steps.bootstrap-outputs.outputs.templates-bucket-name }}"
         APP_PARAMS="$APP_PARAMS,GitHubActionsUserArn=${{ secrets.USER_ARN }}"
         APP_PARAMS="$APP_PARAMS,BranchName=${{ needs.get-branch-name.outputs.branch-name }}"
-        APP_PARAMS="$APP_PARAMS,GoogleOAuthClientId=${{ secrets.GOOGLE_CLIENT_ID }}"
-        APP_PARAMS="$APP_PARAMS,GoogleOAuthClientSecret=${{ secrets.GOOGLE_CLIENT_SECRET }}"
         APP_PARAMS="$APP_PARAMS,WebContainerImage=${{ env.CONTAINER_IMAGE }}"
         APP_PARAMS="$APP_PARAMS,DeploymentToken=${{ github.sha }}"
         APP_PARAMS="$APP_PARAMS,DomainName=${{ steps.stack-names.outputs.full-domain-name }}"
