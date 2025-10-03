@@ -16,11 +16,6 @@ Parameters:
     Type: String
     Description: "Route 53 hosted zone ID for the domain"
 
-  PrimaryRegion:
-    Type: String
-    Default: "us-east-1"
-    Description: "Primary region for failover"
-
   SecondaryRegion:
     Type: String
     Default: "us-east-2"

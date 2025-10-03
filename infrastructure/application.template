@@ -34,12 +34,6 @@ Parameters:
     Type: String
     Description: "Route 53 hosted zone ID for the domain"
 
-  # DNS parameters (for secondary region)
-  PrimaryRegion:
-    Type: String
-    Default: ""
-    Description: "Primary region for DNS failover"
-
   PrimaryWebLoadBalancerDNS:
     Type: String
     Default: ""
@@ -200,7 +194,6 @@ Resources:
         Environment: !Ref BranchName
         DomainName: !Ref DomainName
         HostedZoneId: !Ref HostedZoneId
-        PrimaryRegion: !Ref "AWS::Region"
         PrimaryWebLoadBalancerDNS: !GetAtt WebStack.Outputs.WebLoadBalancerDNS
         PrimaryWebLoadBalancerHostedZoneId: !GetAtt WebStack.Outputs.WebLoadBalancerHostedZoneId
         SecondaryWebLoadBalancerDNS: !Ref "AWS::NoValue"
@@ -220,7 +213,6 @@ Resources:
         Environment: !Ref BranchName
         DomainName: !Ref DomainName
         HostedZoneId: !Ref HostedZoneId
-        PrimaryRegion: !Ref PrimaryRegion
         SecondaryRegion: !Ref "AWS::Region"
         PrimaryWebLoadBalancerDNS: !Ref PrimaryWebLoadBalancerDNS
         PrimaryWebLoadBalancerHostedZoneId: !Ref PrimaryWebLoadBalancerHostedZoneId

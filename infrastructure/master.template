@@ -72,12 +72,6 @@ Parameters:
     AllowedValues: ["single", "multi"]
     Description: "Whether this is a single-region or multi-region deployment"
 
-  # DNS parameters (for secondary region)
-  PrimaryRegion:
-    Type: String
-    Default: ""
-    Description: "Primary region for DNS failover"
-
   PrimaryWebLoadBalancerDNS:
     Type: String
     Default: ""
@@ -137,7 +131,6 @@ Resources:
         DomainName: !Ref DomainName
         HostedZoneId: !Ref HostedZoneId
         DeploymentType: !Ref DeploymentType
-        PrimaryRegion: !Ref PrimaryRegion
         PrimaryWebLoadBalancerDNS: !Ref PrimaryWebLoadBalancerDNS
         PrimaryWebLoadBalancerHostedZoneId: !Ref PrimaryWebLoadBalancerHostedZoneId
         SharedLambdaRoleArn: !GetAtt BackendStack.Outputs.SharedLambdaRoleArn
