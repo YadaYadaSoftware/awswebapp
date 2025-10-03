@@ -504,7 +504,13 @@ jobs:
           "DomainName=${{ steps.stack-names.outputs.full-domain-name }}," \
           "HostedZoneId=${{ steps.hosted-zone.outputs.hosted-zone-id }}," \
           "DeploymentType=${{ steps.deployment-config.outputs.deployment-type }}"
-        
+
+        # Add AuroraGlobalClusterId for secondary region if available
+        if [[ "${{ matrix.is_primary }}" == "false" ]] && [[ -f "../aurora-global-cluster-id.txt" ]]; then
+          GLOBAL_CLUSTER_ID=$(cat ../aurora-global-cluster-id.txt)
+          BASE_PARAMS="$BASE_PARAMS,AuroraGlobalClusterId=$GLOBAL_CLUSTER_ID,"
+        fi
+
         echo "params=$BASE_PARAMS" >> $GITHUB_OUTPUT
 
     - name: Set parameter overrides for application template
@@ -541,6 +547,13 @@ jobs:
           "ECSTaskSecurityGroupId=${{ steps.get-dev-backend-outputs.outputs.ecs-task-security-group-id }}," \
           "ECSClusterName=${{ steps.get-dev-backend-outputs.outputs.ecs-cluster-name }}," \
           "GoogleOAuthSecretArn=${{ steps.get-dev-backend-outputs.outputs.google-oauth-secret-arn }}"
+
+        # Add AuroraGlobalClusterId for secondary region if available
+        if [[ "${{ matrix.is_primary }}" == "false" ]] && [[ -f "../aurora-global-cluster-id.txt" ]]; then
+          GLOBAL_CLUSTER_ID=$(cat ../aurora-global-cluster-id.txt)
+          APP_PARAMS="$APP_PARAMS,AuroraGlobalClusterId=$GLOBAL_CLUSTER_ID,"
+        fi
+
         echo "params=$APP_PARAMS" >> $GITHUB_OUTPUT
 
     - name: Deploy master template
@@ -554,6 +567,42 @@ jobs:
         capabilities: "CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND"
         no-fail-on-empty-changeset: "1"
         timeout-in-minutes: 30
+
+    - name: Store Aurora Global Cluster ID for cross-region sharing
+      id: store-global-cluster-id
+      if: matrix.deploy && matrix.is_primary == 'true' && steps.deployment-type.outputs.deploy-master == 'true'
+      run: |
+        echo "Getting AuroraGlobalClusterId from primary region stack..."
+
+        STACK_NAME="${{ steps.stack-names.outputs.web-stack-name }}"
+        GLOBAL_CLUSTER_ID=$(aws cloudformation describe-stacks \
+          --stack-name $STACK_NAME \
+          --region ${{ matrix.region }} \
+          --query 'Stacks[0].Outputs[?OutputKey==`AuroraGlobalClusterId`].OutputValue' \
+          --output text)
+
+        if [ -n "$GLOBAL_CLUSTER_ID" ] && [ "$GLOBAL_CLUSTER_ID" != "None" ]; then
+          echo "✅ Found AuroraGlobalClusterId: $GLOBAL_CLUSTER_ID"
+          # Store in workspace file for secondary region to read
+          echo "$GLOBAL_CLUSTER_ID" > ../aurora-global-cluster-id.txt
+          echo "aurora-global-cluster-id=$GLOBAL_CLUSTER_ID" >> $GITHUB_OUTPUT
+        else
+          echo "❌ AuroraGlobalClusterId not found in stack outputs"
+          exit 1
+        fi
+
+    - name: Read Aurora Global Cluster ID for secondary region
+      id: read-global-cluster-id
+      if: matrix.deploy && matrix.is_primary == 'false' && steps.deployment-type.outputs.deploy-master == 'true'
+      run: |
+        if [ -f "../aurora-global-cluster-id.txt" ]; then
+          GLOBAL_CLUSTER_ID=$(cat ../aurora-global-cluster-id.txt)
+          echo "✅ Read AuroraGlobalClusterId from primary region: $GLOBAL_CLUSTER_ID"
+          echo "aurora-global-cluster-id=$GLOBAL_CLUSTER_ID" >> $GITHUB_OUTPUT
+        else
+          echo "❌ AuroraGlobalClusterId file not found from primary region"
+          exit 1
+        fi
 
     - name: Deploy application template
       id: deploy-application
