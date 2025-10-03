@@ -538,11 +538,7 @@ jobs:
         APP_PARAMS="$APP_PARAMS,LambdaSecurityGroupId=${{ steps.get-dev-backend-outputs.outputs.lambda-security-group-id }}"
         APP_PARAMS="$APP_PARAMS,ALBSecurityGroupId=${{ steps.get-dev-backend-outputs.outputs.alb-security-group-id }}"
         APP_PARAMS="$APP_PARAMS,ECSTaskSecurityGroupId=${{ steps.get-dev-backend-outputs.outputs.ecs-task-security-group-id }}"
-
-       # Note: AuroraGlobalClusterId is only needed for master template deployments
-       # Application template uses existing dev branch infrastructure
-
-       echo "params=$APP_PARAMS" >> $GITHUB_OUTPUT
+        echo "params=$APP_PARAMS" >> $GITHUB_OUTPUT
 
     - name: Deploy master template
       id: deploy-master
