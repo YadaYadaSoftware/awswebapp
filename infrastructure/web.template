@@ -281,7 +281,6 @@ Resources:
   WebECSServiceAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName: !Sub "TaskManager-Web-Unhealthy-${Environment}"
       AlarmDescription: "Web ECS service unhealthy targets alarm"
       MetricName: UnHealthyHostCount
       Namespace: AWS/ApplicationELB
