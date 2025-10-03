@@ -10,6 +10,9 @@ Parameters:
     Type: Number
     Default: 7
     Description: Number of days to retain CloudWatch logs
+  VpcFlowLogsRoleArn:
+    Type: String
+    Description: ARN of the VPC Flow Logs IAM role
 
 Resources:
   # VPC and Networking
@@ -185,31 +188,6 @@ Resources:
           ToPort: 3306
           SourceSecurityGroupId: !Ref ECSTaskSecurityGroup
 
-  # VPC Flow Logs Role
-  VPCFlowLogsRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: 2012-10-17
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: vpc-flow-logs.amazonaws.com
-            Action: sts:AssumeRole
-      Policies:
-        - PolicyName: VPCFlowLogsPolicy
-          PolicyDocument:
-            Version: 2012-10-17
-            Statement:
-              - Effect: Allow
-                Action:
-                  - logs:CreateLogGroup
-                  - logs:CreateLogStream
-                  - logs:PutLogEvents
-                  - logs:DescribeLogGroups
-                  - logs:DescribeLogStreams
-                Resource: "*"
-
   # VPC Flow Logs
   VPCFlowLogsLogGroup:
     Type: AWS::Logs::LogGroup
@@ -217,13 +195,13 @@ Resources:
       RetentionInDays: !Ref LogRetentionDays
 
   VPCFlowLogs:
-    DependsOn: [VPCFlowLogsLogGroup, VPCFlowLogsRole]
+    DependsOn: VPCFlowLogsLogGroup
     Type: AWS::EC2::FlowLog
     Properties:
       ResourceId: !Ref TaskManagerVPC
       ResourceType: VPC
       TrafficType: ALL
-      DeliverLogsPermissionArn: !GetAtt VPCFlowLogsRole.Arn
+      DeliverLogsPermissionArn: !Ref VpcFlowLogsRoleArn
       LogDestinationType: cloud-watch-logs
       LogGroupName: !Ref VPCFlowLogsLogGroup
 
@@ -263,7 +241,3 @@ Outputs:
   RDSSecurityGroupId:
     Description: Security group for RDS access
     Value: !Ref RDSSecurityGroup
-
-  VpcFlowLogsRoleArn:
-    Description: VPC Flow Logs role ARN
-    Value: !GetAtt VPCFlowLogsRole.Arn

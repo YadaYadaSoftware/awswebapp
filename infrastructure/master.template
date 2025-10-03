@@ -173,6 +173,7 @@ Resources:
         ECSTaskSecurityGroupId: !GetAtt BackendStack.Outputs.ECSTaskSecurityGroupId
         ECSClusterName: !GetAtt BackendStack.Outputs.ECSClusterName
         GoogleOAuthSecretArn: !GetAtt BackendStack.Outputs.GoogleOAuthSecretArn
+        VpcFlowLogsRoleArn: !GetAtt BackendStack.Outputs.VpcFlowLogsRoleArn
         IsPrimaryRegion: !Ref IsPrimaryRegion
 
 Outputs:

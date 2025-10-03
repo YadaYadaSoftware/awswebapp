@@ -240,6 +240,30 @@ Resources:
                   - ecr:BatchGetImage
                 Resource: "*"
 
+  VPCFlowLogsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: vpc-flow-logs.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: VPCFlowLogsPolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                  - logs:DescribeLogGroups
+                  - logs:DescribeLogStreams
+                Resource: "*"
+
 Outputs:
   AuroraKmsKeyArn:
     Description: ARN of the KMS key (primary or replica)
@@ -253,3 +277,7 @@ Outputs:
   SharedLambdaRoleArn:
     Description: Shared Lambda execution role ARN
     Value: !GetAtt SharedLambdaExecutionRole.Arn
+
+  VpcFlowLogsRoleArn:
+    Description: VPC Flow Logs role ARN
+    Value: !GetAtt VPCFlowLogsRole.Arn
