@@ -299,7 +299,7 @@ Resources:
 Outputs:
   WebEndpoint:
     Description: "Web application endpoint URL"
-    Value: !Sub "https://${Environment}.${DomainName}"
+    Value: !Sub "https://${DomainName}"
 
   WebLoadBalancerDNS:
     Description: "Web Load Balancer DNS name"
