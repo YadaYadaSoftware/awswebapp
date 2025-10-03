@@ -30,6 +30,11 @@ builder.Services.AddDefaultIdentity<IdentityUser>(options =>
 
 builder.Services.ConfigureApplicationCookie(options =>
 {
+    // Configure cookie settings for production deployment
+    options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+    options.Cookie.SameSite = SameSiteMode.Lax;
+    options.Cookie.HttpOnly = true;
+
     options.Events.OnRedirectToLogin = context =>
     {
         var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
@@ -130,7 +135,7 @@ await ApplyDatabaseMigrations(app);
 // Configure forwarded headers for ALB
 var forwardedHeadersOptions = new ForwardedHeadersOptions
 {
-    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedHost
 };
 // Clear known proxies/networks to allow ALB (which has dynamic IPs)
 forwardedHeadersOptions.KnownProxies.Clear();
