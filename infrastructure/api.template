@@ -36,6 +36,10 @@ Parameters:
     Type: String
     Description: "Database cluster ARN"
 
+  DatabasePasswordSecretArn:
+    Type: String
+    Description: "ARN of the database password secret"
+
   LambdaSecurityGroupId:
     Type: String
     Description: "Security group ID for Lambda functions"
@@ -107,7 +111,7 @@ Resources:
             - DatabaseHost: !Ref DatabaseHost
               DatabaseName: !Ref DatabaseName
               DatabaseUsername: !Ref DatabaseUsername
-              DatabasePassword: !Sub "{{resolve:secretsmanager:taskmanager/database/${Environment}/regional/${AWS::Region}/password:SecretString}}"
+              DatabasePassword: !Sub "{{resolve:secretsmanager:${DatabasePasswordSecretArn}:SecretString}}"
       VpcConfig:
         SecurityGroupIds:
           - !Ref LambdaSecurityGroupId
