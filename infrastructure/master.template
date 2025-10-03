@@ -49,17 +49,6 @@ Parameters:
     Description: ARN of the primary KMS key (for secondary regions)
     Default: ""
 
-  # Google OAuth parameters
-  GoogleOAuthClientId:
-    Type: String
-    Description: Google OAuth Client ID
-    NoEcho: true
-
-  GoogleOAuthClientSecret:
-    Type: String
-    Description: Google OAuth Client Secret
-    NoEcho: true
-
   # Web parameters
   WebContainerImage:
     Type: String
@@ -133,8 +122,6 @@ Resources:
         IsPrimaryRegion: !Ref IsPrimaryRegion
         AuroraGlobalClusterId: !Ref AuroraGlobalClusterId
         KmsKeyArn: !Ref KmsKeyArn
-        GoogleOAuthClientId: !Ref GoogleOAuthClientId
-        GoogleOAuthClientSecret: !Ref GoogleOAuthClientSecret
 
   ApplicationStack:
     Type: AWS::CloudFormation::Stack
@@ -145,8 +132,6 @@ Resources:
         TemplateBucket: !ImportValue TemplatesBucketName
         GitHubActionsUserArn: !ImportValue GitHubActionsUserArn
         BranchName: !Ref BranchName
-        GoogleOAuthClientId: !Ref GoogleOAuthClientId
-        GoogleOAuthClientSecret: !Ref GoogleOAuthClientSecret
         WebContainerImage: !Ref WebContainerImage
         DeploymentToken: !Ref DeploymentToken
         DomainName: !Ref DomainName
@@ -172,7 +157,6 @@ Resources:
         ALBSecurityGroupId: !GetAtt BackendStack.Outputs.ALBSecurityGroupId
         ECSTaskSecurityGroupId: !GetAtt BackendStack.Outputs.ECSTaskSecurityGroupId
         ECSClusterName: !GetAtt BackendStack.Outputs.ECSClusterName
-        GoogleOAuthSecretArn: !GetAtt BackendStack.Outputs.GoogleOAuthSecretArn
         IsPrimaryRegion: !Ref IsPrimaryRegion
 
 Outputs:
@@ -269,10 +253,6 @@ Outputs:
   ECSClusterName:
     Description: ECS cluster name
     Value: !GetAtt BackendStack.Outputs.ECSClusterName
-
-  GoogleOAuthSecretArn:
-    Description: ARN of the Google OAuth secrets
-    Value: !GetAtt BackendStack.Outputs.GoogleOAuthSecretArn
 
   # API outputs
   ApiEndpoint:

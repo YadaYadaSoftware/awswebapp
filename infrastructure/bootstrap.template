@@ -16,6 +16,16 @@ Parameters:
     Default: ""
     Description: "Existing GitHub Actions IAM user name (leave empty to create new user)"
 
+  GoogleOAuthClientId:
+    Type: String
+    Description: "Google OAuth Client ID"
+    NoEcho: true
+
+  GoogleOAuthClientSecret:
+    Type: String
+    Description: "Google OAuth Client Secret"
+    NoEcho: true
+
 Conditions:
   CreateGitHubActionsUser: !Equals [!Ref GitHubActionsUserName, ""]
 
@@ -213,6 +223,17 @@ Resources:
               }
             ]
           }
+
+  # Google OAuth Secrets
+  GoogleOAuthSecrets:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: "Google OAuth credentials for TaskManager web application"
+      SecretString: !Sub |
+        {
+          "clientId": "${GoogleOAuthClientId}",
+          "clientSecret": "${GoogleOAuthClientSecret}"
+        }
 
   # API Gateway CloudWatch Logs Role
   ApiGatewayCloudWatchLogsRole:
@@ -517,6 +538,12 @@ Outputs:
     Value: !GetAtt ApiGatewayCloudWatchLogsRole.Arn
     Export:
       Name: ApiGatewayCloudWatchLogsRoleArn
+
+  GoogleOAuthSecretArn:
+    Description: "ARN of the Google OAuth secrets"
+    Value: !Ref GoogleOAuthSecrets
+    Export:
+      Name: GoogleOAuthSecretArn
 
   SetupInstructions:
     Description: "Instructions for GitHub Secrets setup"

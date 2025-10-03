@@ -3,16 +3,6 @@ AWSTemplateFormatVersion: "2010-09-09"
 Description: "TaskManager Regional Infrastructure - VPC, RDS, ECS"
 
 Parameters:
-  GoogleOAuthClientId:
-    Type: String
-    Description: "Google OAuth Client ID"
-    NoEcho: true
-
-  GoogleOAuthClientSecret:
-    Type: String
-    Description: "Google OAuth Client Secret"
-    NoEcho: true
-
   BranchName:
     Type: String
     Description: Branch name for resource naming
@@ -22,22 +12,7 @@ Resources:
   ECSCluster:
     Type: AWS::ECS::Cluster
 
-  # Google OAuth Secrets
-  GoogleOAuthSecrets:
-    Type: AWS::SecretsManager::Secret
-    Properties:
-      Description: "Google OAuth credentials for TaskManager web application"
-      SecretString: !Sub |
-        {
-          "clientId": "${GoogleOAuthClientId}",
-          "clientSecret": "${GoogleOAuthClientSecret}"
-        }
-
 Outputs:
   ECSClusterName:
     Description: "ECS cluster name"
     Value: !GetAtt ECSCluster.Arn
-
-  GoogleOAuthSecretArn:
-    Description: "ARN of the Google OAuth secrets"
-    Value: !Ref GoogleOAuthSecrets

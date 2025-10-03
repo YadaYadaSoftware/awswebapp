@@ -58,17 +58,6 @@ Parameters:
     Description: ARN of the primary KMS key (for secondary regions)
     Default: ""
 
-  # Google OAuth parameters
-  GoogleOAuthClientId:
-    Type: String
-    Description: Google OAuth Client ID
-    NoEcho: true
-
-  GoogleOAuthClientSecret:
-    Type: String
-    Description: Google OAuth Client Secret
-    NoEcho: true
-
 Conditions:
   IsPrimary: !Equals [!Ref IsPrimaryRegion, "true"]
   IsSecondary: !Equals [!Ref IsPrimaryRegion, "false"]
@@ -139,8 +128,6 @@ Resources:
       TemplateURL: ./infrastructure.template
       Parameters:
         BranchName: !Ref BranchName
-        GoogleOAuthClientId: !Ref GoogleOAuthClientId
-        GoogleOAuthClientSecret: !Ref GoogleOAuthClientSecret
 
 Outputs:
   # KMS outputs
@@ -236,7 +223,3 @@ Outputs:
   ECSClusterName:
     Description: ECS cluster name
     Value: !GetAtt InfrastructureStack.Outputs.ECSClusterName
-
-  GoogleOAuthSecretArn:
-    Description: ARN of the Google OAuth secrets
-    Value: !GetAtt InfrastructureStack.Outputs.GoogleOAuthSecretArn
