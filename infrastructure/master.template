@@ -156,7 +156,6 @@ Resources:
         LambdaSecurityGroupId: !GetAtt BackendStack.Outputs.LambdaSecurityGroupId
         ALBSecurityGroupId: !GetAtt BackendStack.Outputs.ALBSecurityGroupId
         ECSTaskSecurityGroupId: !GetAtt BackendStack.Outputs.ECSTaskSecurityGroupId
-        ECSClusterName: !GetAtt BackendStack.Outputs.ECSClusterName
         IsPrimaryRegion: !Ref IsPrimaryRegion
 
 Outputs:
@@ -248,11 +247,6 @@ Outputs:
   VpcFlowLogsRoleArn:
     Description: VPC Flow Logs role ARN
     Value: !GetAtt BackendStack.Outputs.VpcFlowLogsRoleArn
-
-  # Infrastructure outputs
-  ECSClusterName:
-    Description: ECS cluster name
-    Value: !GetAtt BackendStack.Outputs.ECSClusterName
 
   # API outputs
   ApiEndpoint:

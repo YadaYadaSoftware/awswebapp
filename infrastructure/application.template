@@ -115,10 +115,6 @@ Parameters:
     Type: String
     Description: ECS task security group ID
 
-  ECSClusterName:
-    Type: String
-    Description: ECS cluster name
-
   # Region-specific parameters
   IsPrimaryRegion:
     Type: String
@@ -182,7 +178,6 @@ Resources:
         PublicSubnet2Id: !Ref PublicSubnet2Id
         PrivateSubnet1Id: !Ref PrivateSubnet1Id
         PrivateSubnet2Id: !Ref PrivateSubnet2Id
-        ECSClusterName: !Ref ECSClusterName
         DatabaseHost: !Ref DatabaseHost
         DatabaseUsername: !Ref DatabaseUsername
         DatabaseEngine: !Ref DatabaseEngine

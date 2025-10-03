@@ -120,15 +120,6 @@ Resources:
         EnableGlobalCluster: !Ref EnableGlobalCluster
         LogRetentionDays: 7
 
-  # Regional Infrastructure
-  InfrastructureStack:
-    Type: AWS::CloudFormation::Stack
-    DependsOn: DbStack
-    Properties:
-      TemplateURL: ./infrastructure.template
-      Parameters:
-        BranchName: !Ref BranchName
-
 Outputs:
   # KMS outputs
   AuroraKmsKeyArn:
@@ -218,8 +209,3 @@ Outputs:
   VpcFlowLogsRoleArn:
     Description: VPC Flow Logs role ARN
     Value: !GetAtt SecurityStack.Outputs.VpcFlowLogsRoleArn
-
-  # Infrastructure outputs
-  ECSClusterName:
-    Description: ECS cluster name
-    Value: !GetAtt InfrastructureStack.Outputs.ECSClusterName

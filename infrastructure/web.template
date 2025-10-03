@@ -86,10 +86,6 @@ Parameters:
     Type: String
     Description: "Private subnet 2 ID"
 
-  ECSClusterName:
-    Type: String
-    Description: "ECS cluster name"
-
   DatabaseHost:
     Type: String
     Description: "Database host endpoint"
@@ -124,6 +120,10 @@ Parameters:
     Description: Number of days to retain CloudWatch logs
 
 Resources:
+  # ECS Cluster
+  ECSCluster:
+    Type: AWS::ECS::Cluster
+
   # CloudWatch Log Group for ECS
   WebECSLogGroup:
     Type: AWS::Logs::LogGroup
@@ -256,7 +256,7 @@ Resources:
       - WebListener
       - WebTaskDefinition
     Properties:
-      Cluster: !Ref ECSClusterName
+      Cluster: !Ref ECSCluster
       TaskDefinition: !Ref WebTaskDefinition
       DesiredCount: 1
       LaunchType: FARGATE
