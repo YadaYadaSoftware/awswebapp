@@ -537,8 +537,6 @@ jobs:
         APP_PARAMS="$APP_PARAMS,LambdaSecurityGroupId=${{ steps.get-dev-backend-outputs.outputs.lambda-security-group-id }}"
         APP_PARAMS="$APP_PARAMS,ALBSecurityGroupId=${{ steps.get-dev-backend-outputs.outputs.alb-security-group-id }}"
         APP_PARAMS="$APP_PARAMS,ECSTaskSecurityGroupId=${{ steps.get-dev-backend-outputs.outputs.ecs-task-security-group-id }}"
-        APP_PARAMS="$APP_PARAMS,ECSClusterName=${{ steps.get-dev-backend-outputs.outputs.ecs-cluster-name }}"
-        APP_PARAMS="$APP_PARAMS,GoogleOAuthSecretArn=${{ steps.get-dev-backend-outputs.outputs.google-oauth-secret-arn }}"
 
         # Add AuroraGlobalClusterId for secondary region if available
         if [[ "${{ matrix.is_primary }}" == "false" ]] && [[ -f "../aurora-global-cluster-id.txt" ]]; then
