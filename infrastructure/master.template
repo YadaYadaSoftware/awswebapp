@@ -135,6 +135,7 @@ Resources:
         KmsKeyArn: !Ref KmsKeyArn
         GoogleOAuthClientId: !Ref GoogleOAuthClientId
         GoogleOAuthClientSecret: !Ref GoogleOAuthClientSecret
+        VpcFlowLogsRoleArn: !GetAtt BackendStack.Outputs.VpcFlowLogsRoleArn
 
   ApplicationStack:
     Type: AWS::CloudFormation::Stack
@@ -173,7 +174,6 @@ Resources:
         ECSTaskSecurityGroupId: !GetAtt BackendStack.Outputs.ECSTaskSecurityGroupId
         ECSClusterName: !GetAtt BackendStack.Outputs.ECSClusterName
         GoogleOAuthSecretArn: !GetAtt BackendStack.Outputs.GoogleOAuthSecretArn
-        VpcFlowLogsRoleArn: !GetAtt BackendStack.Outputs.VpcFlowLogsRoleArn
         IsPrimaryRegion: !Ref IsPrimaryRegion
 
 Outputs:
