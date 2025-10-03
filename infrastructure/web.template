@@ -138,7 +138,6 @@ Resources:
   WebLoadBalancer:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:
-      Name: !Sub "web-${Environment}"
       Type: application
       Scheme: internet-facing
       SecurityGroups:
@@ -151,7 +150,6 @@ Resources:
   WebTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
-      Name: !Sub "webtg-${Environment}"
       Protocol: HTTP
       Port: 80
       VpcId: !Ref VPCId
@@ -197,10 +195,10 @@ Resources:
   WebSSLCertificate:
     Type: AWS::CertificateManager::Certificate
     Properties:
-      DomainName: !Sub "${Environment}.${DomainName}"
+      DomainName: !Ref DomainName
       ValidationMethod: DNS
       DomainValidationOptions:
-        - DomainName: !Sub "${Environment}.${DomainName}"
+        - DomainName: !Ref DomainName
           HostedZoneId: !Ref HostedZoneId
 
   # ECS Task Definition
@@ -262,7 +260,6 @@ Resources:
       - WebListener
       - WebTaskDefinition
     Properties:
-      ServiceName: !Sub "websvc-${Environment}"
       Cluster: !Ref ECSClusterName
       TaskDefinition: !Ref WebTaskDefinition
       DesiredCount: 1

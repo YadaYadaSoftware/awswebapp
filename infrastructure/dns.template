@@ -100,7 +100,7 @@ Resources:
     Type: AWS::Route53::RecordSet
     Properties:
       HostedZoneId: !Ref HostedZoneId
-      Name: !Sub "${Environment}.${DomainName}"
+      Name: !Ref DomainName
       Type: A
       AliasTarget:
         DNSName: !Ref PrimaryWebLoadBalancerDNS
@@ -112,7 +112,7 @@ Resources:
     Type: AWS::Route53::RecordSet
     Properties:
       HostedZoneId: !Ref HostedZoneId
-      Name: !Sub "${Environment}.${DomainName}"
+      Name: !Ref DomainName
       Type: A
       SetIdentifier: !Sub "primary-${Environment}"
       Failover: PRIMARY
@@ -127,7 +127,7 @@ Resources:
     Type: AWS::Route53::RecordSet
     Properties:
       HostedZoneId: !Ref HostedZoneId
-      Name: !Sub "${Environment}.${DomainName}"
+      Name: !Ref DomainName
       Type: A
       SetIdentifier: !Sub "secondary-${Environment}"
       Failover: SECONDARY
@@ -139,7 +139,7 @@ Resources:
 Outputs:
   WebEndpoint:
     Description: "Web application endpoint URL"
-    Value: !Sub "https://${Environment}.${DomainName}"
+    Value: !Sub "https://${DomainName}"
 
   PrimaryHealthCheckId:
     Description: "Primary health check ID"

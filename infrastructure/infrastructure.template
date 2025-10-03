@@ -26,7 +26,6 @@ Resources:
   GoogleOAuthSecrets:
     Type: AWS::SecretsManager::Secret
     Properties:
-      Name: !Sub "taskmanager/google-oauth/${BranchName}"
       Description: "Google OAuth credentials for TaskManager web application"
       SecretString: !Sub |
         {
