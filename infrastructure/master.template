@@ -135,7 +135,6 @@ Resources:
         KmsKeyArn: !Ref KmsKeyArn
         GoogleOAuthClientId: !Ref GoogleOAuthClientId
         GoogleOAuthClientSecret: !Ref GoogleOAuthClientSecret
-        VpcFlowLogsRoleArn: !GetAtt BackendStack.Outputs.VpcFlowLogsRoleArn
 
   ApplicationStack:
     Type: AWS::CloudFormation::Stack
