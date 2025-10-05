@@ -21,7 +21,11 @@ jobs:
     - name: Get branch name
       id: get-branch
       run: |
-        BRANCH_NAME=${GITHUB_REF#refs/heads/}
+        FULL_BRANCH_NAME=${GITHUB_REF#refs/heads/}
+        # Extract only the last part after "/" (e.g., "system/xyz" becomes "xyz")
+        BRANCH_NAME=${FULL_BRANCH_NAME##*/}
+        echo "Original branch: $FULL_BRANCH_NAME"
+        echo "Stack name branch: $BRANCH_NAME"
         echo "branch-name=$BRANCH_NAME" >> $GITHUB_OUTPUT
 
   build:
