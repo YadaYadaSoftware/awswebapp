@@ -328,3 +328,125 @@ jobs:
         capabilities: "CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND"
         no-fail-on-empty-changeset: "1"
         timeout-in-minutes: 30
+
+  changelog-update:
+    name: Update Changelog
+    runs-on: ubuntu-latest
+    needs: [build, deploy, get-branch-name]
+    if: github.ref == 'refs/heads/dev' && needs.deploy.result == 'success'
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Check for merge commit from categorized branch
+      id: check-merge
+      run: |
+        # Get the latest commit message
+        COMMIT_MSG=$(git log --format=%B -n 1)
+
+        # Check if this is a merge commit from a categorized branch
+        if echo "$COMMIT_MSG" | grep -q "Merge.*into dev"; then
+          echo "merge-commit=true" >> $GITHUB_OUTPUT
+
+          # Extract branch name from merge commit message
+          BRANCH_NAME=$(echo "$COMMIT_MSG" | grep -oP "(?<=Merge branch ')[^']+(?=')" || echo "$COMMIT_MSG" | grep -oP "(?<=Merge )[a-z]+/[^ ]+")
+          echo "merged-branch=$BRANCH_NAME" >> $GITHUB_OUTPUT
+
+          # Check if it's a categorized branch (build/, deploy/, system/, feature/, fix/)
+          if echo "$BRANCH_NAME" | grep -qE "^(build|deploy|system|feature|fix)/"; then
+            echo "categorized-branch=true" >> $GITHUB_OUTPUT
+          else
+            echo "categorized-branch=false" >> $GITHUB_OUTPUT
+          fi
+        else
+          echo "merge-commit=false" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Validate changes.md exists
+      id: validate-changes
+      if: steps.check-merge.outputs.merge-commit == 'true' && steps.check-merge.outputs.categorized-branch == 'true'
+      run: |
+        BRANCH_NAME="${{ steps.check-merge.outputs.merged-branch }}"
+
+        # Check if changes.md exists in the repository
+        if [ -f "changes.md" ]; then
+          echo "changes-file-exists=true" >> $GITHUB_OUTPUT
+          echo "✅ changes.md found for branch: $BRANCH_NAME"
+        else
+          echo "❌ changes.md not found for branch: $BRANCH_NAME"
+          echo "changes-file-exists=false" >> $GITHUB_OUTPUT
+          exit 1
+        fi
+
+    - name: Update changelog
+      if: steps.validate-changes.outputs.changes-file-exists == 'true'
+      run: |
+        BRANCH_NAME="${{ steps.check-merge.outputs.merged-branch }}"
+        TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
+
+        echo "🔄 Updating changelog for branch: $BRANCH_NAME"
+        echo "📅 Timestamp: $TIMESTAMP"
+
+        # Extract first line from changes.md as synopsis
+        SYNOPSIS=$(head -n 20 changes.md | grep -v '^#' | grep -v '^$' | head -n 1 | cut -c1-100)
+
+        if [ -z "$SYNOPSIS" ]; then
+          echo "❌ Could not extract synopsis from changes.md"
+          exit 1
+        fi
+
+        echo "📝 Extracted synopsis: $SYNOPSIS"
+
+        # Create or update changelog.md
+        if [ -f "changelog.md" ]; then
+          # Update existing changelog
+          {
+            echo ""
+            echo "## [$TIMESTAMP] $BRANCH_NAME"
+            echo "- $SYNOPSIS"
+            echo ""
+            cat changelog.md
+          } > changelog_new.md
+
+          mv changelog_new.md changelog.md
+        else
+          # Create new changelog
+          cat > changelog.md << EOF
+# Changelog
+
+## [$TIMESTAMP] $BRANCH_NAME
+- $SYNOPSIS
+EOF
+        fi
+
+        echo "✅ Changelog updated successfully"
+
+    - name: Commit and push changelog
+      if: steps.validate-changes.outputs.changes-file-exists == 'true'
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+
+        # Check if there are changes to commit
+        if git diff --quiet changelog.md; then
+          echo "ℹ️ No changes to changelog.md"
+        else
+          git add changelog.md
+          git commit -m "docs: update changelog with changes from ${{ steps.check-merge.outputs.merged-branch }}"
+
+          # Push without triggering builds by using a different branch or method
+          git push origin HEAD:${{ github.ref }}
+
+          echo "✅ Changelog pushed to dev branch"
+        fi
+
+    - name: Cleanup changes.md
+      if: steps.validate-changes.outputs.changes-file-exists == 'true'
+      run: |
+        # Remove changes.md after processing to avoid conflicts with future merges
+        rm -f changes.md
+        echo "🧹 Cleaned up changes.md file"
