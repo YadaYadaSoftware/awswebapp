@@ -100,9 +100,24 @@ jobs:
     - name: Run UI Tests
       run: |
         echo "Running UI tests..."
+        echo "Current working directory: $(pwd)"
+        echo "GITHUB_WORKSPACE: $GITHUB_WORKSPACE"
         cd src/TaskManager.UiTests
+        echo "Changed to: $(pwd)"
         dotnet test --verbosity normal --configuration Release
       continue-on-error: false
+
+    - name: List all files for debugging
+      if: always()
+      run: |
+        echo "Current working directory: $(pwd)"
+        echo "GITHUB_WORKSPACE: $GITHUB_WORKSPACE"
+        echo "Listing TestResults directory:"
+        find . -name "TestResults" -type d
+        find . -name "*.png" -type f | head -20
+        echo "Listing src/TaskManager.UiTests/TestResults:"
+        ls -la src/TaskManager.UiTests/TestResults/ 2>/dev/null || echo "Directory not found"
+        ls -la src/TaskManager.UiTests/TestResults/Screenshots/ 2>/dev/null || echo "Screenshots directory not found"
 
     - name: Upload UI test screenshots (if any)
       uses: actions/upload-artifact@v4
@@ -112,12 +127,6 @@ jobs:
         path: |
           src/TaskManager.UiTests/TestResults/**/*.png
         retention-days: 3
-
-    - name: List all files for debugging
-      if: always()
-      run: |
-        echo "Listing TestResults directory:"
-        find src/TaskManager.UiTests/TestResults -type f -name "*.png" | head -20
 
     - name: Validate changes folder is empty
       if: contains(fromJson('["dev", "alpha", "beta", "app"]'), needs.get-branch-name.outputs.branch-name)

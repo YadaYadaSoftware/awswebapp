@@ -50,10 +50,8 @@ public class BaseTest : IAsyncLifetime
         await DataManager.EnsureTestUserExistsAsync();
 
         // Ensure TestResults directory structure exists
-        var assemblyLocation = System.Reflection.Assembly.GetExecutingAssembly().Location;
-        var assemblyDir = Path.GetDirectoryName(assemblyLocation);
-        var projectRoot = Directory.GetParent(assemblyDir)?.Parent?.Parent?.Parent?.FullName ?? assemblyDir;
-        var testResultsDir = Path.Combine(projectRoot, "src", "TaskManager.UiTests", "TestResults");
+        var workingDirectory = System.Environment.GetEnvironmentVariable("GITHUB_WORKSPACE") ?? Directory.GetCurrentDirectory();
+        var testResultsDir = Path.Combine(workingDirectory, "src", "TaskManager.UiTests", "TestResults");
         var screenshotsDir = Path.Combine(testResultsDir, "Screenshots");
         Directory.CreateDirectory(screenshotsDir);
     }
@@ -134,10 +132,37 @@ public class BaseTest : IAsyncLifetime
 
         try
         {
-            // Get the project root directory using assembly location
-            var assemblyLocation = System.Reflection.Assembly.GetExecutingAssembly().Location;
-            var assemblyDir = Path.GetDirectoryName(assemblyLocation);
-            var projectRoot = Directory.GetParent(assemblyDir)?.Parent?.Parent?.Parent?.FullName ?? assemblyDir;
+            // Use GITHUB_WORKSPACE for GitHub Actions, fallback to project root for local
+            var workingDirectory = System.Environment.GetEnvironmentVariable("GITHUB_WORKSPACE");
+            if (string.IsNullOrEmpty(workingDirectory))
+            {
+                // For local development, find the project root by looking for the .csproj file
+                var currentDir = Directory.GetCurrentDirectory();
+
+                // If we're in bin/Debug/net8.0, go up to find the project root
+                if (currentDir.Contains("bin" + Path.DirectorySeparatorChar + "Debug" + Path.DirectorySeparatorChar + "net8.0"))
+                {
+                    workingDirectory = currentDir.Substring(0, currentDir.IndexOf("bin" + Path.DirectorySeparatorChar + "Debug"));
+                }
+                else if (currentDir.Contains("src" + Path.DirectorySeparatorChar + "TaskManager.UiTests"))
+                {
+                    workingDirectory = currentDir.Substring(0, currentDir.IndexOf("src" + Path.DirectorySeparatorChar + "TaskManager.UiTests"));
+                }
+                else
+                {
+                    workingDirectory = currentDir;
+                }
+            }
+
+            // Ensure we're using the correct project root path
+            var projectRoot = workingDirectory.TrimEnd(Path.DirectorySeparatorChar);
+
+            // Remove the extra "src\TaskManager.UiTests" if it exists in the path
+            if (projectRoot.EndsWith("src" + Path.DirectorySeparatorChar + "TaskManager.UiTests"))
+            {
+                projectRoot = projectRoot.Substring(0, projectRoot.Length - ("src" + Path.DirectorySeparatorChar + "TaskManager.UiTests").Length);
+            }
+
             var testResultsDir = Path.Combine(projectRoot, "src", "TaskManager.UiTests", "TestResults");
             var screenshotsDir = Path.Combine(testResultsDir, "Screenshots");
             Directory.CreateDirectory(screenshotsDir);
@@ -153,10 +178,14 @@ public class BaseTest : IAsyncLifetime
             });
 
             Console.WriteLine($"Screenshot saved: {filepath}");
+            Console.WriteLine($"Working directory: {workingDirectory}");
+            Console.WriteLine($"Screenshots directory: {screenshotsDir}");
+            Console.WriteLine($"Current test name: {_currentTestName}");
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Failed to capture screenshot: {ex.Message}");
+            Console.WriteLine($"Stack trace: {ex.StackTrace}");
         }
     }
 

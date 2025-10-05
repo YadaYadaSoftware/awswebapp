@@ -13,10 +13,8 @@ public class TestReporter
 
     public TestReporter()
     {
-        var assemblyLocation = System.Reflection.Assembly.GetExecutingAssembly().Location;
-        var assemblyDir = Path.GetDirectoryName(assemblyLocation);
-        var projectRoot = Directory.GetParent(assemblyDir)?.Parent?.Parent?.Parent?.FullName ?? assemblyDir;
-        _outputDirectory = Path.Combine(projectRoot, "src", "TaskManager.UiTests", "TestResults");
+        var workingDirectory = System.Environment.GetEnvironmentVariable("GITHUB_WORKSPACE") ?? Directory.GetCurrentDirectory();
+        _outputDirectory = Path.Combine(workingDirectory, "src", "TaskManager.UiTests", "TestResults");
         _results = new List<TestResult>();
 
         // Ensure output directory exists
@@ -48,10 +46,8 @@ public class TestReporter
             // Add screenshot information for failed tests
             if (status == TestStatus.Failed)
             {
-                var assemblyLocation = System.Reflection.Assembly.GetExecutingAssembly().Location;
-                var assemblyDir = Path.GetDirectoryName(assemblyLocation);
-                var projectRoot = Directory.GetParent(assemblyDir)?.Parent?.Parent?.Parent?.FullName ?? assemblyDir;
-                var screenshotsDir = Path.Combine(projectRoot, "src", "TaskManager.UiTests", "TestResults", "Screenshots");
+                var workingDirectory = System.Environment.GetEnvironmentVariable("GITHUB_WORKSPACE") ?? Directory.GetCurrentDirectory();
+                var screenshotsDir = Path.Combine(workingDirectory, "src", "TaskManager.UiTests", "TestResults", "Screenshots");
                 var screenshotFiles = Directory.Exists(screenshotsDir)
                     ? Directory.GetFiles(screenshotsDir, $"{testName}_*.png")
                     : Array.Empty<string>();
