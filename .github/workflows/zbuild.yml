@@ -149,8 +149,9 @@ jobs:
     - name: Upload Test Results and Screenshots
       if: always()
       uses: actions/upload-artifact@v4
+      id: upload-test-results
       with:
-        name: ui-test-results-${{ matrix.region || 'build' }}
+        name: ui-test-results-build
         path: |
           src/TaskManager.UiTests/TestResults/
         retention-days: 7
@@ -200,7 +201,7 @@ jobs:
         # Add link to detailed test results
         echo "**📋 Download Test Results and Screenshots:**" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "🔗 **[Download UI Test Results Artifact](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts)**" >> $GITHUB_STEP_SUMMARY
+        echo "🔗 **[Download UI Test Results Artifact](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts/${{ steps.upload-test-results.outputs.artifact-id }})**" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "The artifact contains:" >> $GITHUB_STEP_SUMMARY
         echo "- Test execution reports (JSON and text format)" >> $GITHUB_STEP_SUMMARY
