@@ -415,12 +415,10 @@ jobs:
           mv changelog_new.md changelog.md
         else
           # Create new changelog
-          cat > changelog.md << EOF
-# Changelog
-
-## [$TIMESTAMP] $BRANCH_NAME
-- $SYNOPSIS
-EOF
+          echo "# Changelog" > changelog.md
+          echo "" >> changelog.md
+          echo "## [$TIMESTAMP] $BRANCH_NAME" >> changelog.md
+          echo "- $SYNOPSIS" >> changelog.md
         fi
 
         echo "✅ Changelog updated successfully"
