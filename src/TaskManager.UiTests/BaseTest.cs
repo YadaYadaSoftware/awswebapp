@@ -4,6 +4,7 @@ using System;
 using System.Threading.Tasks;
 using System.Collections.Generic;
 using System.IO;
+using TaskManager.UiTests;
 
 namespace TaskManager.UiTests;
 
@@ -123,6 +124,14 @@ public class BaseTest : IAsyncLifetime
             }
         }
 
+        // Record test failure in reporter
+        if (_currentTestName != null)
+        {
+            var className = this.GetType().Name;
+            Reporter.RecordTestEnd(_currentTestName, className, TestStatus.Failed,
+                $"Action failed after {maxAttempts} attempts: {exceptions.Last().Message}");
+        }
+
         throw new AggregateException($"Action failed after {maxAttempts} attempts", exceptions);
     }
 
@@ -192,6 +201,10 @@ public class BaseTest : IAsyncLifetime
     protected void SetCurrentTestName(string testName)
     {
         _currentTestName = testName;
+
+        // Record test start in reporter
+        var className = this.GetType().Name;
+        Reporter.RecordTestStart(testName, className);
     }
 
     protected async Task CaptureFinalScreenshotAsync(string testStatus)
@@ -199,6 +212,15 @@ public class BaseTest : IAsyncLifetime
         if (Page != null && _currentTestName != null)
         {
             await CaptureScreenshotAsync($"final_{testStatus}");
+        }
+    }
+
+    protected void RecordTestSuccess()
+    {
+        if (_currentTestName != null)
+        {
+            var className = this.GetType().Name;
+            Reporter.RecordTestEnd(_currentTestName, className, TestStatus.Passed);
         }
     }
 }

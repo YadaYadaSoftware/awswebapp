@@ -83,6 +83,26 @@ jobs:
           **/*.trx
         retention-days: 7
 
+    - name: Upload detailed test report
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: ui-test-detailed-report
+        path: |
+          src/TaskManager.UiTests/TestResults/ui-test-report-*.json
+          src/TaskManager.UiTests/TestResults/test-summary.txt
+        retention-days: 7
+
+    - name: Display test summary
+      if: always()
+      run: |
+        echo "=== UI Test Summary ==="
+        if [ -f "src/TaskManager.UiTests/TestResults/test-summary.txt" ]; then
+          cat src/TaskManager.UiTests/TestResults/test-summary.txt
+        else
+          echo "No test summary found"
+        fi
+
     - name: Comment PR with results
       uses: dorny/test-reporter@v1
       if: github.event_name == 'pull_request'
