@@ -181,24 +181,31 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
         fi
 
-        # Add links to screenshots if they exist
+        # List available screenshots for failed tests
         if [ -d "src/TaskManager.UiTests/TestResults/Screenshots" ] && [ "$(ls -A src/TaskManager.UiTests/TestResults/Screenshots 2>/dev/null)" ]; then
-          echo "**📸 Test Failure Screenshots:**" >> $GITHUB_STEP_SUMMARY
+          echo "**📸 Test Failure Screenshots Available:**" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
-          # List screenshot files and create links
+          # List screenshot files that were captured
+          echo "The following screenshots were captured during test failures:" >> $GITHUB_STEP_SUMMARY
           for screenshot in src/TaskManager.UiTests/TestResults/Screenshots/*.png; do
             if [ -f "$screenshot" ]; then
               filename=$(basename "$screenshot")
-              echo "![$filename](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts/$(echo $filename | sed 's/ /%20/g'))" >> $GITHUB_STEP_SUMMARY
-              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "- \`$filename\`" >> $GITHUB_STEP_SUMMARY
             fi
           done
+          echo "" >> $GITHUB_STEP_SUMMARY
         fi
 
         # Add link to detailed test results
-        echo "**📋 Detailed Test Results:**" >> $GITHUB_STEP_SUMMARY
-        echo "Download test artifacts: [UI Test Results](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts)" >> $GITHUB_STEP_SUMMARY
+        echo "**📋 Download Test Results and Screenshots:**" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "🔗 **[Download UI Test Results Artifact](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts)**" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "The artifact contains:" >> $GITHUB_STEP_SUMMARY
+        echo "- Test execution reports (JSON and text format)" >> $GITHUB_STEP_SUMMARY
+        echo "- Screenshots from failed tests" >> $GITHUB_STEP_SUMMARY
+        echo "- Detailed test logs" >> $GITHUB_STEP_SUMMARY
 
     - name: Publish Web for Container
       run: |
