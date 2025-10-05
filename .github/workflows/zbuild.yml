@@ -97,6 +97,23 @@ jobs:
     - name: Test
       run: dotnet test --no-build --verbosity normal --configuration Release
 
+    - name: Run UI Tests
+      run: |
+        echo "Running UI tests..."
+        cd src/TaskManager.UiTests
+        dotnet test --verbosity normal --configuration Release
+      continue-on-error: false
+
+    - name: Upload UI test screenshots (if any)
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: ui-test-screenshots-${{ needs.get-branch-name.outputs.branch-name }}
+        path: |
+          src/TaskManager.UiTests/TestResults/Screenshots/
+          **/*.png
+        retention-days: 3
+
     - name: Validate changes folder is empty
       if: contains(fromJson('["dev", "alpha", "beta", "app"]'), needs.get-branch-name.outputs.branch-name)
       run: |

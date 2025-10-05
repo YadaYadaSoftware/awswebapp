@@ -1,0 +1,79 @@
+name: UI Tests
+
+on:
+  push:
+    branches: [ main, dev, app, beta, alpha ]
+    paths:
+      - 'src/TaskManager.Web2/**'
+      - 'src/TaskManager.UiTests/**'
+      - '.github/workflows/ui-tests.yml'
+  pull_request:
+    branches: [ main, dev ]
+    paths:
+      - 'src/TaskManager.Web2/**'
+      - 'src/TaskManager.UiTests/**'
+      - '.github/workflows/ui-tests.yml'
+  workflow_dispatch: # Allow manual triggering
+
+jobs:
+  ui-tests:
+    name: Run UI Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 8.0.x
+
+    - name: Cache NuGet packages
+      uses: actions/cache@v4
+      with:
+        path: ~/.nuget/packages
+        key: ${{ runner.os }}-nuget-uitests-${{ hashFiles('**/TaskManager.UiTests.csproj') }}
+        restore-keys: |
+          ${{ runner.os }}-nuget-uitests-
+
+    - name: Restore dependencies
+      run: dotnet restore src/TaskManager.UiTests/TaskManager.UiTests.csproj
+
+    - name: Build UI Tests
+      run: dotnet build src/TaskManager.UiTests/TaskManager.UiTests.csproj --configuration Release --no-restore
+
+    - name: Install Playwright browsers
+      run: |
+        cd src/TaskManager.UiTests
+        dotnet build
+      shell: bash
+
+    - name: Run UI Tests
+      run: |
+        echo "Running UI tests against deployed environment..."
+        cd src/TaskManager.UiTests
+        dotnet test --verbosity normal --configuration Release --logger "trx;LogFileName=test-results.trx"
+
+    - name: Upload test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: ui-test-results
+        path: |
+          src/TaskManager.UiTests/TestResults/
+          **/*.trx
+          **/*.json
+          **/*.txt
+          **/*.png
+        retention-days: 7
+
+    - name: Comment PR with results
+      uses: dorny/test-reporter@v1
+      if: github.event_name == 'pull_request'
+      with:
+        name: UI Test Results
+        path: '**/*.trx'
+        reporter: dotnet-trx
+        fail-on-error: true
