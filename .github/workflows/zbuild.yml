@@ -37,6 +37,50 @@ jobs:
       with:
         fetch-depth: 0
 
+    - name: Validate changes.md for feature branches
+      run: |
+        BRANCH_NAME="${{ needs.get-branch-name.outputs.branch-name }}"
+
+        # Skip validation for protected branches
+        if [[ "$BRANCH_NAME" =~ ^(main|dev|app|beta)$ ]]; then
+          echo "✅ Protected branch '$BRANCH_NAME', skipping changes.md validation"
+          exit 0
+        fi
+
+        # Check if this is a feature or fix branch
+        if [[ "$BRANCH_NAME" =~ ^feature/ ]] || [[ "$BRANCH_NAME" =~ ^fix/ ]]; then
+          echo "🔍 Feature/fix branch detected: $BRANCH_NAME"
+
+          # Check if changes.md exists
+          if [[ ! -f "changes.md" ]]; then
+            echo "❌ Missing changes.md file"
+            echo ""
+            echo "Feature and fix branches must include a changes.md file in the repository root."
+            echo "This file should contain a description of what the branch implements or fixes."
+            echo ""
+            echo "Example changes.md content:"
+            echo "Add user authentication system with JWT tokens for API security"
+            echo ""
+            echo "This file will be automatically consumed and deleted when the branch is merged to dev."
+            exit 1
+          fi
+
+          # Check if changes.md has content
+          if [[ ! -s "changes.md" ]]; then
+            echo "❌ changes.md file exists but is empty"
+            echo ""
+            echo "Please add content to the changes.md file describing the purpose of this branch."
+            exit 1
+          fi
+
+          # Read and display the changes.md content
+          CHANGES_CONTENT=$(cat changes.md)
+          echo "✅ changes.md found with content:"
+          echo "$CHANGES_CONTENT"
+        else
+          echo "ℹ️ Branch '$BRANCH_NAME' does not require changes.md (not a feature/fix branch)"
+        fi
+
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
