@@ -48,6 +48,14 @@ public class BaseTest : IAsyncLifetime
 
         // Ensure test environment is ready
         await DataManager.EnsureTestUserExistsAsync();
+
+        // Ensure TestResults directory structure exists
+        var assemblyLocation = System.Reflection.Assembly.GetExecutingAssembly().Location;
+        var assemblyDir = Path.GetDirectoryName(assemblyLocation);
+        var projectRoot = Directory.GetParent(assemblyDir)?.Parent?.Parent?.Parent?.FullName ?? assemblyDir;
+        var testResultsDir = Path.Combine(projectRoot, "src", "TaskManager.UiTests", "TestResults");
+        var screenshotsDir = Path.Combine(testResultsDir, "Screenshots");
+        Directory.CreateDirectory(screenshotsDir);
     }
 
     public async Task DisposeAsync()
@@ -126,7 +134,12 @@ public class BaseTest : IAsyncLifetime
 
         try
         {
-            var screenshotsDir = Path.Combine(Directory.GetCurrentDirectory(), "TestResults", "Screenshots");
+            // Get the project root directory using assembly location
+            var assemblyLocation = System.Reflection.Assembly.GetExecutingAssembly().Location;
+            var assemblyDir = Path.GetDirectoryName(assemblyLocation);
+            var projectRoot = Directory.GetParent(assemblyDir)?.Parent?.Parent?.Parent?.FullName ?? assemblyDir;
+            var testResultsDir = Path.Combine(projectRoot, "src", "TaskManager.UiTests", "TestResults");
+            var screenshotsDir = Path.Combine(testResultsDir, "Screenshots");
             Directory.CreateDirectory(screenshotsDir);
 
             var timestamp = DateTime.UtcNow.ToString("yyyy-MM-dd_HH-mm-ss");
@@ -150,5 +163,13 @@ public class BaseTest : IAsyncLifetime
     protected void SetCurrentTestName(string testName)
     {
         _currentTestName = testName;
+    }
+
+    protected async Task CaptureFinalScreenshotAsync(string testStatus)
+    {
+        if (Page != null && _currentTestName != null)
+        {
+            await CaptureScreenshotAsync($"final_{testStatus}");
+        }
     }
 }

@@ -47,5 +47,24 @@ public class LoginNavigationTests : BaseTest
         // Assert - Verify Google login option is available
         var isGoogleVisible = await loginPage.IsGoogleLoginVisibleAsync();
         isGoogleVisible.Should().BeTrue("Google login option should be visible on login page");
+
+        // Capture a screenshot for verification
+        await CaptureScreenshotAsync("login_page_success");
+    }
+
+    [Fact]
+    public async Task ForceFailure_ShouldCaptureScreenshot()
+    {
+        // Arrange
+        var mainPage = new MainPage(Page!, Config.BaseUrl);
+
+        // Act
+        await mainPage.NavigateAsync();
+
+        // Force a failure to test screenshot capture
+        var elementExists = await Page!.IsVisibleAsync("non-existent-element");
+
+        // Assert - This will fail and trigger screenshot capture
+        elementExists.Should().BeTrue("This test is designed to fail to test screenshot functionality");
     }
 }

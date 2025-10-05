@@ -110,9 +110,14 @@ jobs:
       with:
         name: ui-test-screenshots-${{ needs.get-branch-name.outputs.branch-name }}
         path: |
-          src/TaskManager.UiTests/TestResults/Screenshots/
-          **/*.png
+          src/TaskManager.UiTests/TestResults/**/*.png
         retention-days: 3
+
+    - name: List all files for debugging
+      if: always()
+      run: |
+        echo "Listing TestResults directory:"
+        find src/TaskManager.UiTests/TestResults -type f -name "*.png" | head -20
 
     - name: Validate changes folder is empty
       if: contains(fromJson('["dev", "alpha", "beta", "app"]'), needs.get-branch-name.outputs.branch-name)

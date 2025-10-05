@@ -56,17 +56,22 @@ jobs:
         cd src/TaskManager.UiTests
         dotnet test --verbosity normal --configuration Release --logger "trx;LogFileName=test-results.trx"
 
+    - name: List generated files for debugging
+      if: always()
+      run: |
+        echo "Listing TestResults directory:"
+        find src/TaskManager.UiTests/TestResults -type f | head -20
+
     - name: Upload test results
       uses: actions/upload-artifact@v4
       if: always()
       with:
         name: ui-test-results
         path: |
-          src/TaskManager.UiTests/TestResults/
+          src/TaskManager.UiTests/TestResults/**/*.png
+          src/TaskManager.UiTests/TestResults/**/*.json
+          src/TaskManager.UiTests/TestResults/**/*.txt
           **/*.trx
-          **/*.json
-          **/*.txt
-          **/*.png
         retention-days: 7
 
     - name: Comment PR with results
