@@ -59,7 +59,7 @@ if ($branchExists) {
     git checkout -b $fullBranchName
 }
 
-# Create changes.md file
+# Create branch-specific changes file in changes folder
 $changesContent = @"
 # Changes for $fullBranchName
 
@@ -82,11 +82,18 @@ Provide detailed information about the changes being made in this branch.
 - Any special deployment considerations
 "@
 
-$changesPath = "changes.md"
+# Create changes folder if it doesn't exist
+if (!(Test-Path "changes")) {
+    New-Item -ItemType Directory -Path "changes" | Out-Null
+    Write-Host "Created changes/ directory" -ForegroundColor Green
+}
+
+$changesFileName = $fullBranchName -replace "/", "-"
+$changesPath = "changes\$changesFileName.md"
 if (Test-Path $changesPath) {
-    Write-Host "changes.md already exists. Updating content..." -ForegroundColor Yellow
+    Write-Host "changes/$fullBranchName.md already exists. Updating content..." -ForegroundColor Yellow
 } else {
-    Write-Host "Creating changes.md..." -ForegroundColor Green
+    Write-Host "Creating changes/$fullBranchName.md..." -ForegroundColor Green
 }
 
 $changesContent | Out-File -FilePath $changesPath -Encoding UTF8
