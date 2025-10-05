@@ -1,0 +1,82 @@
+name: Validate Branch Naming
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  validate-branch-name:
+    name: Validate Branch Naming Convention
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Get branch name
+      id: branch-name
+      run: |
+        BRANCH_NAME="${{ github.head_ref }}"
+        echo "branch-name=$BRANCH_NAME" >> $GITHUB_OUTPUT
+        echo "Validating branch name: $BRANCH_NAME"
+
+    - name: Validate branch naming convention
+      run: |
+        BRANCH_NAME="${{ steps.branch-name.outputs.branch-name }}"
+
+        # Allow main, dev, app, beta branches
+        if [[ "$BRANCH_NAME" =~ ^(main|dev|app|beta)$ ]]; then
+          echo "✅ Branch '$BRANCH_NAME' is a protected branch, validation skipped"
+          exit 0
+        fi
+
+        # Check if branch follows naming convention
+        if [[ "$BRANCH_NAME" =~ ^feature/ ]] || [[ "$BRANCH_NAME" =~ ^fix/ ]]; then
+          echo "✅ Branch '$BRANCH_NAME' follows naming convention"
+        else
+          echo "❌ Branch '$BRANCH_NAME' does not follow naming convention"
+          echo ""
+          echo "Branch naming convention rules:"
+          echo "- Feature branches must follow pattern: 'feature/description'"
+          echo "- Fix branches must follow pattern: 'fix/description'"
+          echo "- Examples:"
+          echo "  - ✅ feature/user-authentication"
+          echo "  - ✅ fix/memory-leak-issue"
+          echo "  - ❌ user-authentication"
+          echo "  - ❌ bugfix"
+          echo ""
+          echo "Please rename your branch to follow the convention and update this PR."
+          exit 1
+        fi
+
+    - name: Check for branch description
+      run: |
+        BRANCH_NAME="${{ steps.branch-name.outputs.branch-name }}"
+
+        # Skip for protected branches
+        if [[ "$BRANCH_NAME" =~ ^(main|dev|app|beta)$ ]]; then
+          echo "✅ Protected branch, description check skipped"
+          exit 0
+        fi
+
+        # Get PR description
+        PR_BODY="${{ github.event.pull_request.body }}"
+
+        if [ -z "$PR_BODY" ] || [ "$PR_BODY" = "null" ]; then
+          echo "❌ Pull request description is empty"
+          echo ""
+          echo "Please provide a description for your PR that explains:"
+          echo "- What the branch implements or fixes"
+          echo "- Why the change is needed"
+          echo "- Any important notes or breaking changes"
+          echo ""
+          echo "Example description:"
+          echo "'Add user authentication system with JWT tokens for API security'"
+          exit 1
+        else
+          echo "✅ PR description found"
+          # Check if description is meaningful (more than just branch name)
+          DESCRIPTION_LENGTH=$(echo -n "$PR_BODY" | wc -c)
+          if [ "$DESCRIPTION_LENGTH" -lt 20 ]; then
+            echo "⚠️ PR description seems too short. Please provide more details."
+            echo "Current description: $PR_BODY"
+            exit 1
+          fi
+        fi

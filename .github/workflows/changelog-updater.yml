@@ -1,0 +1,122 @@
+name: Update Changelog on Merge
+
+on:
+  push:
+    branches:
+      - dev
+
+jobs:
+  update-changelog:
+    name: Update Changelog
+    runs-on: ubuntu-latest
+    if: contains(github.event.head_commit.message, 'Merge pull request')
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Get branch information
+      id: branch-info
+      run: |
+        COMMIT_MSG="${{ github.event.head_commit.message }}"
+        echo "Commit message: $COMMIT_MSG"
+        if [[ "$COMMIT_MSG" =~ Merge\ pull\ request\ #[0-9]+\ from\ ([^[:space:]]+) ]]; then
+          BRANCH_NAME="${BASH_REMATCH[1]}"
+          echo "branch-name=$BRANCH_NAME" >> $GITHUB_OUTPUT
+          echo "Extracted branch name: $BRANCH_NAME"
+        else
+          echo "No branch name found in commit message"
+          exit 1
+        fi
+
+    - name: Get PR description
+      id: pr-description
+      run: |
+        BRANCH_NAME="${{ steps.branch-info.outputs.branch-name }}"
+        PR_NUMBER=$(curl -s \
+          -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+          -H "Accept: application/vnd.github.v3+json" \
+          "https://api.github.com/repos/${{ github.repository }}/pulls?head=${{ github.repository_owner }}:$BRANCH_NAME" \
+          | jq -r '.[0].number // empty')
+        if [ -n "$PR_NUMBER" ] && [ "$PR_NUMBER" != "null" ]; then
+          echo "Found PR #$PR_NUMBER"
+          PR_BODY=$(curl -s \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            "https://api.github.com/repos/${{ github.repository }}/pulls/$PR_NUMBER" \
+            | jq -r '.body // empty')
+          if [ -n "$PR_BODY" ] && [ "$PR_BODY" != "null" ]; then
+            CLEAN_BODY=$(echo "$PR_BODY" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | head -10)
+            echo "pr-description=$CLEAN_BODY" >> $GITHUB_OUTPUT
+            echo "Extracted PR description with length: ${#CLEAN_BODY}"
+          else
+            echo "pr-description=Merged branch: $BRANCH_NAME" >> $GITHUB_OUTPUT
+          fi
+        else
+          echo "pr-description=Merged branch: $BRANCH_NAME" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Validate feature branch naming
+      id: validate-branch
+      run: |
+        BRANCH_NAME="${{ steps.branch-info.outputs.branch-name }}"
+        if [[ "$BRANCH_NAME" =~ ^feature/ ]] || [[ "$BRANCH_NAME" =~ ^fix/ ]]; then
+          echo "✅ Branch follows naming convention: $BRANCH_NAME"
+          echo "valid=true" >> $GITHUB_OUTPUT
+        else
+          echo "❌ Branch does not follow naming convention: $BRANCH_NAME"
+          echo "Expected pattern: feature/* or fix/*"
+          echo "valid=false" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Update changelog
+      if: steps.validate-branch.outputs.valid == 'true'
+      run: |
+        BRANCH_NAME="${{ steps.branch-info.outputs.branch-name }}"
+        PR_DESCRIPTION="${{ steps.pr-description.outputs.pr-description }}"
+        CURRENT_DATE=$(date -u '+%Y-%m-%d')
+        echo "Updating changelog for branch: $BRANCH_NAME"
+        echo "PR Description: $PR_DESCRIPTION"
+
+        # Create new changelog content
+        NEW_CONTENT="# Changelog\n\nAll notable changes to this project will be documented in this file.\n\nThe format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),\nand this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).\n\n## [Unreleased]\n\n### Added\n- **$BRANCH_NAME**: $PR_DESCRIPTION ($CURRENT_DATE)\n"
+
+        # Save existing content (excluding header if present)
+        if [ -f "changelog.md" ]; then
+          tail -n +2 changelog.md > temp_content.md 2>/dev/null || echo "No existing content"
+        fi
+
+        # Write new content
+        echo "$NEW_CONTENT" > changelog.md
+
+        # Append existing content
+        if [ -f "temp_content.md" ]; then
+          cat temp_content.md >> changelog.md
+          rm temp_content.md
+        fi
+
+        echo "✅ Changelog updated successfully"
+
+    - name: Commit and push changelog
+      if: steps.validate-branch.outputs.valid == 'true'
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        if git diff --quiet && git diff --staged --quiet; then
+          echo "No changes to commit"
+        else
+          git add changelog.md
+          git commit -m "docs: update changelog for merged branch ${{ steps.branch-info.outputs.branch-name }}"
+          git push
+          echo "✅ Changes committed and pushed"
+        fi
+
+    - name: Fail on invalid branch naming
+      if: steps.validate-branch.outputs.valid == 'false'
+      run: |
+        echo "Warning: Feature branch '${{ steps.branch-info.outputs.branch-name }}' does not follow the required naming convention."
+        echo "Please ensure feature branches follow the pattern: 'feature/description' or 'fix/description'"
+        echo "The changelog was not updated for this merge."
+        exit 1
