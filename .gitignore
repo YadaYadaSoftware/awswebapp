@@ -474,3 +474,9 @@ logs/
 .aws-sam/
 taskmanager-bastion-key
 taskmanager-bastion-key.pub
+
+# Playwright
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/playwright/.auth/
