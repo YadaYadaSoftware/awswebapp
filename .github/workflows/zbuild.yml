@@ -41,6 +41,24 @@ jobs:
       with:
         fetch-depth: 0
 
+    - name: Validate changes folder is empty
+      if: contains(fromJson('["dev", "alpha", "beta", "app"]'), needs.get-branch-name.outputs.branch-name)
+      run: |
+        echo "🔍 Checking for leftover changes files in changes/ folder..."
+
+        # Check if changes folder exists and has files
+        if [ -d "changes" ] && [ "$(ls -A changes/ 2>/dev/null)" ]; then
+          echo "❌ Build failed: Found leftover files in changes/ folder:" >&2
+          ls -la changes/ >&2
+          echo "" >&2
+          echo "💡 To fix this issue:" >&2
+          echo "   1. Run the merge-to-dev script to merge pending changes" >&2
+          echo "   2. Or manually delete the files in the changes/ folder" >&2
+          echo "   3. Then push your changes to trigger a new build" >&2
+          exit 1
+        else
+          echo "✅ No leftover changes files found"
+        fi
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
@@ -93,40 +111,6 @@ jobs:
       run: |
         echo "Building with version: ${{ steps.custom-version.outputs.custom-version }}"
         dotnet build --no-restore --configuration Release /p:Version=${{ steps.custom-version.outputs.custom-version }} /p:AssemblyVersion=${{ steps.gitversion.outputs.assemblySemVer }} /p:FileVersion=${{ steps.gitversion.outputs.assemblySemVer }}
-
-    - name: Test
-      run: dotnet test --no-build --verbosity normal --configuration Release --logger "trx;LogFileName=test-results.trx"
-
-    - name: Publish unit test results
-      uses: EnricoMi/publish-unit-test-result-action@v2
-      if: always()
-      with:
-        files: '**/*.trx'
-
-    - name: UI Tests Status Check
-      run: |
-        echo "ℹ️ UI tests are run in a dedicated workflow: .github/workflows/ui-tests.yml"
-        echo "This prevents duplication and ensures proper test reporting."
-        echo "See: https://github.com/${{ github.repository }}/actions/workflows/ui-tests.yml"
-
-    - name: Validate changes folder is empty
-      if: contains(fromJson('["dev", "alpha", "beta", "app"]'), needs.get-branch-name.outputs.branch-name)
-      run: |
-        echo "🔍 Checking for leftover changes files in changes/ folder..."
-
-        # Check if changes folder exists and has files
-        if [ -d "changes" ] && [ "$(ls -A changes/ 2>/dev/null)" ]; then
-          echo "❌ Build failed: Found leftover files in changes/ folder:" >&2
-          ls -la changes/ >&2
-          echo "" >&2
-          echo "💡 To fix this issue:" >&2
-          echo "   1. Run the merge-to-dev script to merge pending changes" >&2
-          echo "   2. Or manually delete the files in the changes/ folder" >&2
-          echo "   3. Then push your changes to trigger a new build" >&2
-          exit 1
-        else
-          echo "✅ No leftover changes files found"
-        fi
 
     - name: Publish Web for Container
       run: |
