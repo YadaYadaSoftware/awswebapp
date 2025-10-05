@@ -112,6 +112,94 @@ jobs:
         echo "Building with version: ${{ steps.custom-version.outputs.custom-version }}"
         dotnet build --no-restore --configuration Release /p:Version=${{ steps.custom-version.outputs.custom-version }} /p:AssemblyVersion=${{ steps.gitversion.outputs.assemblySemVer }} /p:FileVersion=${{ steps.gitversion.outputs.assemblySemVer }}
 
+    - name: Install Playwright Browsers
+      run: |
+        cd src/TaskManager.UiTests
+        dotnet build
+        pwsh -Command "& {dotnet tool install --global Microsoft.Playwright.CLI; playwright install --with-deps chromium}"
+
+    - name: Run UI Tests
+      id: ui-tests
+      continue-on-error: true
+      run: |
+        cd src/TaskManager.UiTests
+        echo "Running UI tests..."
+        dotnet test --configuration Release --logger "trx;LogFileName=test-results.trx" --results-directory ./TestResults
+
+        # Check if tests passed or failed
+        if [ $? -eq 0 ]; then
+          echo "✅ All UI tests passed"
+          echo "ui-tests-passed=true" >> $GITHUB_OUTPUT
+        else
+          echo "❌ Some UI tests failed"
+          echo "ui-tests-passed=false" >> $GITHUB_OUTPUT
+        fi
+
+        # Count test results
+        if [ -f "./TestResults/test-results.trx" ]; then
+          echo "Test results file found"
+          # Extract basic stats from TRX file (you might need to adjust this based on actual TRX format)
+          TOTAL_TESTS=$(grep -o 'testId=' ./TestResults/test-results.trx | wc -l)
+          echo "total-tests=$TOTAL_TESTS" >> $GITHUB_OUTPUT
+        else
+          echo "No test results file found"
+          echo "total-tests=0" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Upload Test Results and Screenshots
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: ui-test-results-${{ matrix.region || 'build' }}
+        path: |
+          src/TaskManager.UiTests/TestResults/
+        retention-days: 7
+
+    - name: Generate Test Summary
+      if: always()
+      run: |
+        echo "## UI Test Results" >> $GITHUB_STEP_SUMMARY
+
+        if [ "${{ steps.ui-tests.outputs.ui-tests-passed }}" = "true" ]; then
+          echo "✅ **All UI tests passed successfully!**" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ **Some UI tests failed.**" >> $GITHUB_STEP_SUMMARY
+        fi
+
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Test Statistics:**" >> $GITHUB_STEP_SUMMARY
+        echo "- Total Tests: ${{ steps.ui-tests.outputs.total-tests }}" >> $GITHUB_STEP_SUMMARY
+
+        echo "" >> $GITHUB_STEP_SUMMARY
+
+        # Check for test summary file and include its contents
+        if [ -f "src/TaskManager.UiTests/TestResults/test-summary.txt" ]; then
+          echo "**📊 Detailed Test Summary:**" >> $GITHUB_STEP_SUMMARY
+          echo '```text' >> $GITHUB_STEP_SUMMARY
+          cat src/TaskManager.UiTests/TestResults/test-summary.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+        fi
+
+        # Add links to screenshots if they exist
+        if [ -d "src/TaskManager.UiTests/TestResults/Screenshots" ] && [ "$(ls -A src/TaskManager.UiTests/TestResults/Screenshots 2>/dev/null)" ]; then
+          echo "**📸 Test Failure Screenshots:**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # List screenshot files and create links
+          for screenshot in src/TaskManager.UiTests/TestResults/Screenshots/*.png; do
+            if [ -f "$screenshot" ]; then
+              filename=$(basename "$screenshot")
+              echo "![$filename](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts/$(echo $filename | sed 's/ /%20/g'))" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+            fi
+          done
+        fi
+
+        # Add link to detailed test results
+        echo "**📋 Detailed Test Results:**" >> $GITHUB_STEP_SUMMARY
+        echo "Download test artifacts: [UI Test Results](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts)" >> $GITHUB_STEP_SUMMARY
+
     - name: Publish Web for Container
       run: |
         echo "Publishing Web with version: ${{ steps.custom-version.outputs.custom-version }}"
