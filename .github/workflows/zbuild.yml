@@ -95,7 +95,13 @@ jobs:
         dotnet build --no-restore --configuration Release /p:Version=${{ steps.custom-version.outputs.custom-version }} /p:AssemblyVersion=${{ steps.gitversion.outputs.assemblySemVer }} /p:FileVersion=${{ steps.gitversion.outputs.assemblySemVer }}
 
     - name: Test
-      run: dotnet test --no-build --verbosity normal --configuration Release
+      run: dotnet test --no-build --verbosity normal --configuration Release --logger "trx;LogFileName=test-results.trx"
+
+    - name: Publish unit test results
+      uses: EnricoMi/publish-unit-test-result-action@v2
+      if: always()
+      with:
+        files: '**/*.trx'
 
     - name: Run UI Tests
       run: |

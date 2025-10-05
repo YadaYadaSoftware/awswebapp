@@ -103,6 +103,12 @@ jobs:
           echo "No test summary found"
         fi
 
+    - name: Publish test results to workflow dashboard
+      uses: EnricoMi/publish-unit-test-result-action@v2
+      if: always()
+      with:
+        files: '**/*.trx'
+
     - name: Comment PR with results
       uses: dorny/test-reporter@v1
       if: github.event_name == 'pull_request'
