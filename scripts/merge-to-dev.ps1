@@ -9,14 +9,18 @@ function Get-ValidatedInput {
     param(
         [string]$Prompt,
         [string[]]$ValidOptions = $null,
-        [switch]$Required
+        [switch]$Required,
+        [switch]$AllowEmptyForCurrent
     )
 
     do {
         $input = Read-Host -Prompt $Prompt
-        if ($Required -and [string]::IsNullOrWhiteSpace($input)) {
+        if ($Required -and [string]::IsNullOrWhiteSpace($input) -and -not $AllowEmptyForCurrent) {
             Write-Host "This field is required. Please try again." -ForegroundColor Red
             continue
+        }
+        if ($AllowEmptyForCurrent -and [string]::IsNullOrWhiteSpace($input)) {
+            return ""
         }
         if ($ValidOptions -and $ValidOptions -notcontains $input) {
             Write-Host "Invalid option. Valid options are: $($ValidOptions -join ', ')" -ForegroundColor Red
@@ -52,9 +56,9 @@ function Get-BranchesByType {
 
     Write-Host "Fetching $BranchType branches..." -ForegroundColor Green
 
-    # Get all branches of the specified type
-    $branches = git branch -r | Where-Object { $_ -match "origin/$BranchType/" } | ForEach-Object {
-        $branchName = $_.Trim() -replace "origin/", ""
+    # Get all local branches of the specified type
+    $branches = git branch | Where-Object { $_ -match "^\s*$BranchType/" } | ForEach-Object {
+        $branchName = $_.Trim() -replace "^\s*\*?\s*", ""
         return $branchName
     }
 
@@ -164,13 +168,6 @@ $changesContent
 Write-Host "🔄 Merge to Dev Script" -ForegroundColor Cyan
 Write-Host "====================" -ForegroundColor Cyan
 
-# Check if we're on dev branch
-$currentBranch = git branch --show-current
-if ($currentBranch -ne "dev") {
-    Write-Host "⚠️  Not currently on dev branch. Switching to dev..." -ForegroundColor Yellow
-    git checkout dev
-}
-
 # Get branch type selection
 if (-not $NonInteractive) {
     if ([string]::IsNullOrWhiteSpace($BranchType)) {
@@ -186,19 +183,49 @@ if (-not $NonInteractive) {
         exit 1
     }
 
+    # Get current branch for reference
+    $currentBranch = git branch --show-current
+
     # Get branch selection
     do {
-        $selection = Read-Host -Prompt "Select branch to merge (1-$($branches.Count))"
+        $input = Read-Host -Prompt "Select branch to merge (1-$($branches.Count)), or press Enter for current branch '$currentBranch'"
+        $selection = $input.Trim()
+
+        # Check if user pressed Enter (empty input) - use current branch
+        if ([string]::IsNullOrWhiteSpace($selection)) {
+            # Check if current branch matches the selected branch type
+            if ($currentBranch -like "$selectedBranchType/*") {
+                $fullBranchName = $currentBranch
+                $branchDisplayName = $currentBranch -replace "$selectedBranchType/", ""
+
+                # Check if changes file exists for current branch
+                $changesFileName = $fullBranchName -replace "/", "-"
+                $changesFile = "changes\$changesFileName.md"
+                if (Test-Path $changesFile) {
+                    Write-Host "Using current branch: $fullBranchName" -ForegroundColor Green
+                    break
+                } else {
+                    Write-Host "Current branch '$currentBranch' doesn't have a changes file. Please select a different branch." -ForegroundColor Red
+                    continue
+                }
+            } elseif ($currentBranch -eq "dev" -or $currentBranch -eq "main") {
+                Write-Host "Current branch '$currentBranch' is not a $selectedBranchType branch. Please select a valid branch." -ForegroundColor Red
+                continue
+            } else {
+                Write-Host "Current branch '$currentBranch' is not a $selectedBranchType branch. Please select a valid branch." -ForegroundColor Red
+                continue
+            }
+        }
+
         $selectionNum = [int]::TryParse($selection, [ref]$null) ? [int]$selection : 0
         if ($selectionNum -ge 1 -and $selectionNum -le $branches.Count) {
             $selectedBranch = $branches[$selectionNum - 1]
+            $fullBranchName = $selectedBranch.Branch
+            $branchDisplayName = $selectedBranch.DisplayName
             break
         }
-        Write-Host "Invalid selection. Please enter a number between 1 and $($branches.Count)" -ForegroundColor Red
+        Write-Host "Invalid selection. Please enter a number between 1 and $($branches.Count), or press Enter for current branch" -ForegroundColor Red
     } while ($true)
-
-    $fullBranchName = $selectedBranch.Branch
-    $branchDisplayName = $selectedBranch.DisplayName
 } else {
     # Non-interactive mode
     if ([string]::IsNullOrWhiteSpace($BranchType) -or [string]::IsNullOrWhiteSpace($BranchName)) {
@@ -219,6 +246,13 @@ if (-not $NonInteractive) {
         Write-Host "Merge cancelled." -ForegroundColor Yellow
         exit 0
     }
+}
+
+# Check if we're on dev branch and switch if needed
+$currentBranch = git branch --show-current
+if ($currentBranch -ne "dev") {
+    Write-Host "⚠️  Not currently on dev branch. Switching to dev..." -ForegroundColor Yellow
+    git checkout dev
 }
 
 # Perform the merge and update changelog
