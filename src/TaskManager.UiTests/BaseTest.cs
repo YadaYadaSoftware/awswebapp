@@ -125,12 +125,14 @@ public class BaseTest : IAsyncLifetime
             }
         }
 
-        // Record test failure in reporter
+        // Record test failure in reporter with screenshot info
         if (_currentTestName != null)
         {
             var className = this.GetType().Name;
-            Reporter.RecordTestEnd(_currentTestName, className, TestStatus.Failed,
-                $"Action failed after {maxAttempts} attempts: {exceptions.Last().Message}");
+            var baseMessage = $"Action failed after {maxAttempts} attempts: {exceptions.Last().Message}";
+            var screenshotInfo = "Screenshots were captured for debugging.";
+            var fullMessage = $"{baseMessage} ({screenshotInfo})";
+            Reporter.RecordTestEnd(_currentTestName, className, TestStatus.Failed, fullMessage);
         }
 
         throw new AggregateException($"Action failed after {maxAttempts} attempts", exceptions);

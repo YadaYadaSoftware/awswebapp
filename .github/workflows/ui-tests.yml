@@ -83,6 +83,14 @@ jobs:
           **/*.trx
         retention-days: 7
 
+    - name: Upload failed test screenshots
+      uses: actions/upload-artifact@v4
+      if: failure()
+      with:
+        name: failed-test-screenshots
+        path: src/TaskManager.UiTests/TestResults/**/*.png
+        retention-days: 7
+
     - name: Upload detailed test report
       uses: actions/upload-artifact@v4
       if: always()
@@ -101,6 +109,37 @@ jobs:
           cat src/TaskManager.UiTests/TestResults/test-summary.txt
         else
           echo "No test summary found"
+        fi
+
+    - name: Create screenshot links for failed tests
+      if: failure()
+      run: |
+        echo "## 🔍 Failed Test Screenshots" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+
+        # Find all screenshot files
+        if [ -d "src/TaskManager.UiTests/TestResults/Screenshots" ]; then
+          echo "Screenshot files found:"
+          ls -la src/TaskManager.UiTests/TestResults/Screenshots/
+
+          # Create links to screenshot artifacts
+          echo "📸 **Screenshot Artifacts:**" >> $GITHUB_STEP_SUMMARY
+          echo "- View all screenshots in the [ui-test-results artifact](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}#artifacts)" >> $GITHUB_STEP_SUMMARY
+          if [ -n "$(find src/TaskManager.UiTests/TestResults/Screenshots -name '*.png' | head -1)" ]; then
+            echo "- View failed test screenshots in the [failed-test-screenshots artifact](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}#artifacts)" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # List individual screenshot files for reference
+          echo "**Available screenshots:**" >> $GITHUB_STEP_SUMMARY
+          for screenshot in src/TaskManager.UiTests/TestResults/Screenshots/*.png; do
+            if [ -f "$screenshot" ]; then
+              filename=$(basename "$screenshot")
+              echo "- \`$filename\`" >> $GITHUB_STEP_SUMMARY
+            fi
+          done
+        else
+          echo "No screenshots directory found"
         fi
 
     - name: Publish test results to workflow dashboard

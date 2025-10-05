@@ -53,6 +53,13 @@ public class TestReporter
                     : Array.Empty<string>();
 
                 result.ScreenshotFiles = screenshotFiles.Select(Path.GetFileName).Where(f => f != null).ToList()!;
+
+                // Enhance error message with screenshot information
+                if (result.ScreenshotFiles.Any() && !string.IsNullOrEmpty(errorMessage))
+                {
+                    var screenshotLinks = string.Join(", ", result.ScreenshotFiles.Select(f => $"[Screenshot: {f}]({f})"));
+                    result.ErrorMessage = $"{errorMessage}\n\n**Screenshots:** {screenshotLinks}";
+                }
             }
         }
     }
