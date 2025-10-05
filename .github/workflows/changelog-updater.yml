@@ -31,31 +31,27 @@ jobs:
           exit 1
         fi
 
-    - name: Get PR description
-      id: pr-description
+    - name: Get changes from changes.md
+      id: get-changes
       run: |
         BRANCH_NAME="${{ steps.branch-info.outputs.branch-name }}"
-        PR_NUMBER=$(curl -s \
+
+        # Download the changes.md file from the feature branch
+        curl -s \
           -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
           -H "Accept: application/vnd.github.v3+json" \
-          "https://api.github.com/repos/${{ github.repository }}/pulls?head=${{ github.repository_owner }}:$BRANCH_NAME" \
-          | jq -r '.[0].number // empty')
-        if [ -n "$PR_NUMBER" ] && [ "$PR_NUMBER" != "null" ]; then
-          echo "Found PR #$PR_NUMBER"
-          PR_BODY=$(curl -s \
-            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-            -H "Accept: application/vnd.github.v3+json" \
-            "https://api.github.com/repos/${{ github.repository }}/pulls/$PR_NUMBER" \
-            | jq -r '.body // empty')
-          if [ -n "$PR_BODY" ] && [ "$PR_BODY" != "null" ]; then
-            CLEAN_BODY=$(echo "$PR_BODY" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | head -10)
-            echo "pr-description=$CLEAN_BODY" >> $GITHUB_OUTPUT
-            echo "Extracted PR description with length: ${#CLEAN_BODY}"
-          else
-            echo "pr-description=Merged branch: $BRANCH_NAME" >> $GITHUB_OUTPUT
-          fi
+          -o changes.md \
+          "https://raw.githubusercontent.com/${{ github.repository }}/$BRANCH_NAME/changes.md"
+
+        if [ -f "changes.md" ] && [ -s "changes.md" ]; then
+          # Read and clean the changes.md content
+          CHANGES_CONTENT=$(cat changes.md | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | head -20)
+          echo "changes-content=$CHANGES_CONTENT" >> $GITHUB_OUTPUT
+          echo "Found changes.md with content length: ${#CHANGES_CONTENT}"
         else
-          echo "pr-description=Merged branch: $BRANCH_NAME" >> $GITHUB_OUTPUT
+          echo "❌ No changes.md file found in branch $BRANCH_NAME"
+          echo "changes-content=" >> $GITHUB_OUTPUT
+          exit 1
         fi
 
     - name: Validate feature branch naming
@@ -74,14 +70,14 @@ jobs:
     - name: Update changelog
       if: steps.validate-branch.outputs.valid == 'true'
       run: |
-        BRANCH_NAME="${{ steps.branch-info.outputs.branch-name }}"
-        PR_DESCRIPTION="${{ steps.pr-description.outputs.pr-description }}"
-        CURRENT_DATE=$(date -u '+%Y-%m-%d')
-        echo "Updating changelog for branch: $BRANCH_NAME"
-        echo "PR Description: $PR_DESCRIPTION"
+       BRANCH_NAME="${{ steps.branch-info.outputs.branch-name }}"
+       CHANGES_CONTENT="${{ steps.get-changes.outputs.changes-content }}"
+       CURRENT_DATE=$(date -u '+%Y-%m-%d')
+       echo "Updating changelog for branch: $BRANCH_NAME"
+       echo "Changes content: $CHANGES_CONTENT"
 
         # Create new changelog content
-        NEW_CONTENT="# Changelog\n\nAll notable changes to this project will be documented in this file.\n\nThe format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),\nand this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).\n\n## [Unreleased]\n\n### Added\n- **$BRANCH_NAME**: $PR_DESCRIPTION ($CURRENT_DATE)\n"
+        NEW_CONTENT="# Changelog\n\nAll notable changes to this project will be documented in this file.\n\nThe format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),\nand this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).\n\n## [Unreleased]\n\n### Added\n- **$BRANCH_NAME**: $CHANGES_CONTENT ($CURRENT_DATE)\n"
 
         # Save existing content (excluding header if present)
         if [ -f "changelog.md" ]; then
@@ -98,6 +94,34 @@ jobs:
         fi
 
         echo "✅ Changelog updated successfully"
+
+    - name: Delete changes.md from branch
+      if: steps.validate-branch.outputs.valid == 'true'
+      run: |
+        BRANCH_NAME="${{ steps.branch-info.outputs.branch-name }}"
+
+        # Create a commit that deletes the changes.md file
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+
+        # Fetch the latest changes from the branch
+        git fetch origin $BRANCH_NAME
+
+        # Switch to the branch
+        git checkout $BRANCH_NAME
+
+        # Delete the changes.md file if it exists
+        if [ -f "changes.md" ]; then
+          git rm changes.md
+          git commit -m "docs: remove changes.md after merge to dev"
+          git push origin $BRANCH_NAME
+          echo "✅ Deleted changes.md from branch $BRANCH_NAME"
+        else
+          echo "ℹ️ No changes.md file found to delete"
+        fi
+
+        # Switch back to dev branch
+        git checkout dev
 
     - name: Commit and push changelog
       if: steps.validate-branch.outputs.valid == 'true'

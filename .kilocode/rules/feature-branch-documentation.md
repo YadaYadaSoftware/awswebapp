@@ -7,12 +7,13 @@ All feature branches must include a clear purpose description that explains what
 Feature branches must follow the naming pattern: `feature/meaningful-description` or `fix/issue-description`
 
 ## Purpose documentation requirement
-- Every feature branch must have a documented purpose in its branch description or PR description
-- The purpose should clearly explain what the branch implements or fixes
-- The purpose should be concise but informative enough for other developers to understand
+- Every feature branch must include a `changes.md` file in the root of the branch
+- The `changes.md` file should clearly explain what the branch implements or fixes
+- The file should be concise but informative enough for other developers to understand
+- The `changes.md` file will be automatically consumed and deleted when the branch is merged to dev
 
 ## Branch purpose format
-The branch purpose should include:
+The `changes.md` file should include:
 - **What**: Brief description of the feature or fix
 - **Why**: Reason for the change (if not obvious)
 - **Impact**: Any breaking changes or important notes
