@@ -88,8 +88,8 @@ $changesContent
             Write-Host "✅ Changes content added to changelog.md" -ForegroundColor Green
             Write-Host "🗑️  Changes file deleted: $changesFile" -ForegroundColor Green
 
-            # Commit the changelog update
-            git add changelog.md
+            # Commit the changelog update and file deletion
+            git add .
             git commit -m "docs: update changelog with changes from $BranchDisplayName"
 
             Write-Host "✅ Changelog update committed" -ForegroundColor Green
