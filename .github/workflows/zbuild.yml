@@ -425,6 +425,7 @@ jobs:
           # Application template parameters (imports backend infrastructure from dev)
           BASE_PARAMS="BranchName=${BRANCH_NAME}"
           BASE_PARAMS="$BASE_PARAMS,EnvironmentToImport=${ENVIRONMENT_TO_IMPORT}"
+          BASE_PARAMS="$BASE_PARAMS,IsPrimaryRegion=${{ matrix.is_primary }}"
           BASE_PARAMS="$BASE_PARAMS,GoogleOAuthClientId=${{ secrets.GOOGLE_CLIENT_ID }}"
           BASE_PARAMS="$BASE_PARAMS,GoogleOAuthClientSecret=${{ secrets.GOOGLE_CLIENT_SECRET }}"
           BASE_PARAMS="$BASE_PARAMS,WebContainerImage=${{ env.CONTAINER_IMAGE }}"
