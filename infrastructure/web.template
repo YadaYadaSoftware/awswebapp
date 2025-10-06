@@ -299,19 +299,29 @@ Outputs:
   WebEndpoint:
     Description: "Web application endpoint URL"
     Value: !Sub "https://${BranchName}.${DomainName}"
+    Export:
+      Name: !Sub "WebEndpoint-${BranchName}"
 
   WebLoadBalancerDNS:
     Description: "Web Load Balancer DNS name"
     Value: !GetAtt WebLoadBalancer.DNSName
+    Export:
+      Name: !Sub "WebLoadBalancerDNS-${BranchName}"
 
   WebLoadBalancerHostedZoneId:
     Description: "Web Load Balancer hosted zone ID"
     Value: !FindInMap [RegionMap, !Ref AWS::Region, ALBHostedZoneId]
+    Export:
+      Name: !Sub "WebLoadBalancerHostedZoneId-${BranchName}"
 
   WebTaskDefinition:
     Description: "Web ECS task definition"
     Value: !Ref WebTaskDefinition
+    Export:
+      Name: !Sub "WebTaskDefinition-${BranchName}"
 
   WebServiceName:
     Description: "Web ECS service name"
     Value: !Ref WebService
+    Export:
+      Name: !Sub "WebServiceName-${BranchName}"

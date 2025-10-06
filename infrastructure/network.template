@@ -214,39 +214,59 @@ Outputs:
   VPCId:
     Description: VPC ID for regional database
     Value: !Ref TaskManagerVPC
+    Export:
+      Name: !Sub "VPCId-${BranchName}"
 
   PrivateSubnet1Id:
     Description: Private subnet 1 ID
     Value: !Ref PrivateSubnet1
+    Export:
+      Name: !Sub "PrivateSubnet1Id-${BranchName}"
 
   PrivateSubnet2Id:
     Description: Private subnet 2 ID
     Value: !Ref PrivateSubnet2
+    Export:
+      Name: !Sub "PrivateSubnet2Id-${BranchName}"
 
   PublicSubnet1Id:
     Description: Public subnet 1 ID
     Value: !Ref PublicSubnet1
+    Export:
+      Name: !Sub "PublicSubnet1Id-${BranchName}"
 
   PublicSubnet2Id:
     Description: Public subnet 2 ID
     Value: !Ref PublicSubnet2
+    Export:
+      Name: !Sub "PublicSubnet2Id-${BranchName}"
 
   LambdaSecurityGroupId:
     Description: Security group for Lambda functions
     Value: !Ref LambdaSecurityGroup
+    Export:
+      Name: !Sub "LambdaSecurityGroupId-${BranchName}"
 
   ALBSecurityGroupId:
     Description: Security group for Application Load Balancer
     Value: !Ref ALBSecurityGroup
+    Export:
+      Name: !Sub "ALBSecurityGroupId-${BranchName}"
 
   ECSTaskSecurityGroupId:
     Description: Security group for ECS tasks
     Value: !Ref ECSTaskSecurityGroup
+    Export:
+      Name: !Sub "ECSTaskSecurityGroupId-${BranchName}"
 
   RDSSecurityGroupId:
     Description: Security group for RDS access
     Value: !Ref RDSSecurityGroup
+    Export:
+      Name: !Sub "RDSSecurityGroupId-${BranchName}"
 
   VpcFlowLogsRoleArn:
     Description: VPC Flow Logs role ARN
     Value: !GetAtt VPCFlowLogsRole.Arn
+    Export:
+      Name: !Sub "VpcFlowLogsRoleArn-${BranchName}"

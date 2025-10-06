@@ -244,55 +244,79 @@ Outputs:
   ApiEndpoint:
     Description: "API Gateway endpoint URL"
     Value: !GetAtt ApiStack.Outputs.ApiEndpoint
+    Export:
+      Name: !Sub "ApiEndpoint-${BranchName}"
 
   ApiLambdaFunctionName:
     Description: "API Lambda function name"
     Value: !GetAtt ApiStack.Outputs.ApiLambdaFunctionName
+    Export:
+      Name: !Sub "ApiLambdaFunctionName-${BranchName}"
 
   # Web outputs
   WebEndpoint:
     Description: "Web application endpoint URL"
     Value: !GetAtt WebStack.Outputs.WebEndpoint
+    Export:
+      Name: !Sub "WebEndpoint-${BranchName}"
 
   WebLoadBalancerDNS:
     Description: "Web Load Balancer DNS name"
     Value: !GetAtt WebStack.Outputs.WebLoadBalancerDNS
+    Export:
+      Name: !Sub "WebLoadBalancerDNS-${BranchName}"
 
   WebLoadBalancerHostedZoneId:
     Description: "Web Load Balancer hosted zone ID"
     Value: !GetAtt WebStack.Outputs.WebLoadBalancerHostedZoneId
+    Export:
+      Name: !Sub "WebLoadBalancerHostedZoneId-${BranchName}"
 
   WebTaskDefinition:
     Description: "Web ECS task definition"
     Value: !GetAtt WebStack.Outputs.WebTaskDefinition
+    Export:
+      Name: !Sub "WebTaskDefinition-${BranchName}"
 
   WebServiceName:
     Description: "Web ECS service name"
     Value: !GetAtt WebStack.Outputs.WebServiceName
+    Export:
+      Name: !Sub "WebServiceName-${BranchName}"
 
   # DNS outputs for primary region (single region only)
   PrimaryWebEndpoint:
     Condition: IsPrimarySingleRegion
     Description: "Web application endpoint URL"
     Value: !GetAtt PrimaryDnsStack.Outputs.WebEndpoint
+    Export:
+      Name: !Sub "PrimaryWebEndpoint-${BranchName}"
 
   # DNS outputs for secondary region (failover setup)
   SecondaryWebEndpoint:
     Condition: IsSecondary
     Description: "Web application endpoint URL"
     Value: !GetAtt SecondaryDnsStack.Outputs.WebEndpoint
+    Export:
+      Name: !Sub "SecondaryWebEndpoint-${BranchName}"
 
   PrimaryHealthCheckId:
     Condition: IsPrimarySingleRegion
     Description: "Primary health check ID"
     Value: !GetAtt PrimaryDnsStack.Outputs.PrimaryHealthCheckId
+    Export:
+      Name: !Sub "PrimaryHealthCheckId-${BranchName}"
 
   PrimaryHealthCheckIdSecondary:
     Condition: IsSecondary
     Description: "Primary health check ID"
     Value: !GetAtt SecondaryDnsStack.Outputs.PrimaryHealthCheckId
+    Export:
+      Name: !Sub "PrimaryHealthCheckIdSecondary-${BranchName}"
 
   SecondaryHealthCheckId:
     Condition: IsSecondary
     Description: "Secondary health check ID"
     Value: !GetAtt SecondaryDnsStack.Outputs.SecondaryHealthCheckId
+    Export:
+      Name: !Sub "SecondaryHealthCheckId-${BranchName}"

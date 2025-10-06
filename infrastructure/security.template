@@ -246,7 +246,11 @@ Outputs:
         !GetAtt AuroraKmsKey.Arn,
         !GetAtt AuroraKmsKeyReplica.Arn,
       ]
+    Export:
+      Name: !Sub "AuroraKmsKeyArn-${BranchName}"
 
   SharedLambdaRoleArn:
     Description: Shared Lambda execution role ARN
     Value: !GetAtt SharedLambdaExecutionRole.Arn
+    Export:
+      Name: !Sub "SharedLambdaRoleArn-${BranchName}"

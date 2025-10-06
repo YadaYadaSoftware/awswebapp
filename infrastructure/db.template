@@ -166,44 +166,66 @@ Outputs:
   AuroraClusterId:
     Description: Aurora Regional Cluster ID
     Value: !Ref AuroraCluster
+    Export:
+      Name: !Sub "AuroraClusterId-${BranchName}"
 
   DatabaseEndpoint:
     Description: Aurora MySQL cluster endpoint
     Value: !GetAtt AuroraCluster.Endpoint.Address
+    Export:
+      Name: !Sub "DatabaseEndpoint-${BranchName}"
 
   DatabaseReaderEndpoint:
     Description: Aurora MySQL reader endpoint
     Value: !GetAtt AuroraCluster.ReadEndpoint.Address
+    Export:
+      Name: !Sub "DatabaseReaderEndpoint-${BranchName}"
 
   DatabaseUsername:
     Description: Database username
     Value: "taskmanager_admin"
+    Export:
+      Name: !Sub "DatabaseUsername-${BranchName}"
 
   DatabaseEngine:
     Description: Database engine
     Value: "aurora-mysql"
+    Export:
+      Name: !Sub "DatabaseEngine-${BranchName}"
 
   DatabaseHost:
     Description: Database host endpoint
     Value: !GetAtt AuroraCluster.Endpoint.Address
+    Export:
+      Name: !Sub "DatabaseHost-${BranchName}"
 
   DatabasePort:
     Description: Database port
     Value: !GetAtt AuroraCluster.Endpoint.Port
+    Export:
+      Name: !Sub "DatabasePort-${BranchName}"
 
   DatabaseName:
     Description: Database name
     Value: "taskmanager"
+    Export:
+      Name: !Sub "DatabaseName-${BranchName}"
 
   DatabaseClusterArn:
     Description: Database cluster ARN
     Value: !Ref AuroraCluster
+    Export:
+      Name: !Sub "DatabaseClusterArn-${BranchName}"
 
   DatabasePasswordSecretArn:
     Description: Database password secret ARN
     Value: !Ref DatabasePasswordSecret
+    Export:
+      Name: !Sub "DatabasePasswordSecretArn-${BranchName}"
 
   AuroraGlobalClusterId:
     Condition: ShouldCreateGlobalCluster
     Description: Aurora Global Database cluster identifier
     Value: !Ref AuroraGlobalCluster
+    Export:
+      Name: !Sub "AuroraGlobalClusterId-${BranchName}"

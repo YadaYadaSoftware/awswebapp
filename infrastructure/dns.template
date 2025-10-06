@@ -135,12 +135,18 @@ Outputs:
   WebEndpoint:
     Description: "Web application endpoint URL"
     Value: !Sub "https://${BranchName}.${DomainName}"
+    Export:
+      Name: !Sub "WebEndpoint-${BranchName}"
 
   PrimaryHealthCheckId:
     Description: "Primary health check ID"
     Value: !Ref PrimaryHealthCheck
+    Export:
+      Name: !Sub "PrimaryHealthCheckId-${BranchName}"
 
   SecondaryHealthCheckId:
     Condition: HasSecondaryLoadBalancer
     Description: "Secondary health check ID"
     Value: !Ref SecondaryHealthCheck
+    Export:
+      Name: !Sub "SecondaryHealthCheckId-${BranchName}"

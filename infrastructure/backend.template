@@ -145,96 +145,142 @@ Outputs:
   AuroraKmsKeyArn:
     Description: ARN of the KMS key
     Value: !GetAtt SecurityStack.Outputs.AuroraKmsKeyArn
+    Export:
+      Name: !Sub "AuroraKmsKeyArn-${BranchName}"
 
   # Global outputs
   AuroraGlobalClusterId:
     Condition: ShouldCreateGlobalCluster
     Description: ID of the Aurora global cluster
     Value: !GetAtt DbStack.Outputs.AuroraGlobalClusterId
+    Export:
+      Name: !Sub "AuroraGlobalClusterId-${BranchName}"
 
   SharedLambdaRoleArn:
     Description: ARN of the shared Lambda role
     Value: !GetAtt SecurityStack.Outputs.SharedLambdaRoleArn
+    Export:
+      Name: !Sub "SharedLambdaRoleArn-${BranchName}"
 
   # Database outputs
   DatabaseEndpoint:
     Description: Aurora MySQL cluster endpoint
     Value: !GetAtt DbStack.Outputs.DatabaseEndpoint
+    Export:
+      Name: !Sub "DatabaseEndpoint-${BranchName}"
 
   DatabaseReaderEndpoint:
     Description: Aurora MySQL reader endpoint
     Value: !GetAtt DbStack.Outputs.DatabaseReaderEndpoint
+    Export:
+      Name: !Sub "DatabaseReaderEndpoint-${BranchName}"
 
   DatabaseUsername:
     Description: Database username
     Value: !GetAtt DbStack.Outputs.DatabaseUsername
+    Export:
+      Name: !Sub "DatabaseUsername-${BranchName}"
 
   DatabaseEngine:
     Description: Database engine
     Value: !GetAtt DbStack.Outputs.DatabaseEngine
+    Export:
+      Name: !Sub "DatabaseEngine-${BranchName}"
 
   DatabaseHost:
     Description: Database host endpoint
     Value: !GetAtt DbStack.Outputs.DatabaseHost
+    Export:
+      Name: !Sub "DatabaseHost-${BranchName}"
 
   DatabasePort:
     Description: Database port
     Value: !GetAtt DbStack.Outputs.DatabasePort
+    Export:
+      Name: !Sub "DatabasePort-${BranchName}"
 
   DatabaseName:
     Description: Database name
     Value: !GetAtt DbStack.Outputs.DatabaseName
+    Export:
+      Name: !Sub "DatabaseName-${BranchName}"
 
   DatabaseClusterArn:
     Description: Database cluster ARN
     Value: !GetAtt DbStack.Outputs.DatabaseClusterArn
+    Export:
+      Name: !Sub "DatabaseClusterArn-${BranchName}"
 
   DatabasePasswordSecretArn:
     Description: Database password secret ARN
     Value: !GetAtt DbStack.Outputs.DatabasePasswordSecretArn
+    Export:
+      Name: !Sub "DatabasePasswordSecretArn-${BranchName}"
 
   # VPC outputs
   VpcId:
     Description: VPC ID
     Value: !GetAtt NetworkingStack.Outputs.VPCId
+    Export:
+      Name: !Sub "VpcId-${BranchName}"
 
   PrivateSubnet1Id:
     Description: Private subnet 1 ID
     Value: !GetAtt NetworkingStack.Outputs.PrivateSubnet1Id
+    Export:
+      Name: !Sub "PrivateSubnet1Id-${BranchName}"
 
   PrivateSubnet2Id:
     Description: Private subnet 2 ID
     Value: !GetAtt NetworkingStack.Outputs.PrivateSubnet2Id
+    Export:
+      Name: !Sub "PrivateSubnet2Id-${BranchName}"
 
   PublicSubnet1Id:
     Description: Public subnet 1 ID
     Value: !GetAtt NetworkingStack.Outputs.PublicSubnet1Id
+    Export:
+      Name: !Sub "PublicSubnet1Id-${BranchName}"
 
   PublicSubnet2Id:
     Description: Public subnet 2 ID
     Value: !GetAtt NetworkingStack.Outputs.PublicSubnet2Id
+    Export:
+      Name: !Sub "PublicSubnet2Id-${BranchName}"
 
   LambdaSecurityGroupId:
     Description: Lambda security group ID
     Value: !GetAtt NetworkingStack.Outputs.LambdaSecurityGroupId
+    Export:
+      Name: !Sub "LambdaSecurityGroupId-${BranchName}"
 
   ALBSecurityGroupId:
     Description: ALB security group ID
     Value: !GetAtt NetworkingStack.Outputs.ALBSecurityGroupId
+    Export:
+      Name: !Sub "ALBSecurityGroupId-${BranchName}"
 
   ECSTaskSecurityGroupId:
     Description: ECS task security group ID
     Value: !GetAtt NetworkingStack.Outputs.ECSTaskSecurityGroupId
+    Export:
+      Name: !Sub "ECSTaskSecurityGroupId-${BranchName}"
 
   VpcFlowLogsRoleArn:
     Description: VPC Flow Logs role ARN
     Value: !GetAtt NetworkingStack.Outputs.VpcFlowLogsRoleArn
+    Export:
+      Name: !Sub "VpcFlowLogsRoleArn-${BranchName}"
 
   # Infrastructure outputs
   ECSClusterName:
     Description: ECS cluster name
     Value: !GetAtt InfrastructureStack.Outputs.ECSClusterName
+    Export:
+      Name: !Sub "ECSClusterName-${BranchName}"
 
   GoogleOAuthSecretArn:
     Description: ARN of the Google OAuth secrets
     Value: !GetAtt InfrastructureStack.Outputs.GoogleOAuthSecretArn
+    Export:
+      Name: !Sub "GoogleOAuthSecretArn-${BranchName}"
