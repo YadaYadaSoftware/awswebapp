@@ -94,6 +94,11 @@ Parameters:
     Type: String
     Description: "ARN of the Google OAuth secrets in Secrets Manager"
 
+  Environment:
+    Type: String
+    Default: "Development"
+    Description: "ASP.NET Core environment (Production, Staging, Development)"
+
   DatabaseHost:
     Type: String
     Description: "Database host endpoint"
@@ -221,7 +226,7 @@ Resources:
               Protocol: tcp
           Environment:
             - Name: ASPNETCORE_ENVIRONMENT
-              Value: "Production"
+              Value: !Ref Environment
             - Name: ConnectionStrings__DefaultConnection
               Value: !Sub
                 - "Server=${DatabaseHost};Database=${DatabaseName};User Id=${DatabaseUsername};Password=${DatabasePassword};SslMode=Required;"

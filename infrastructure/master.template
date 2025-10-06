@@ -79,6 +79,11 @@ Parameters:
     Type: String
     Description: "Route 53 hosted zone ID for the domain"
 
+  Environment:
+    Type: String
+    Default: "Development"
+    Description: "ASP.NET Core environment (Production, Staging, Development)"
+
   # DNS parameters (for secondary region)
   PrimaryRegion:
     Type: String
@@ -169,6 +174,7 @@ Resources:
         ECSClusterName: !GetAtt BackendStack.Outputs.ECSClusterName
         GoogleOAuthSecretArn: !GetAtt BackendStack.Outputs.GoogleOAuthSecretArn
         IsPrimaryRegion: !Ref IsPrimaryRegion
+        Environment: !Ref Environment
 
 Outputs:
   # KMS outputs

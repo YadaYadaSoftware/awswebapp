@@ -141,6 +141,11 @@ Parameters:
     AllowedValues: ["true", "false"]
     Description: Whether this region hosts the primary cluster
 
+  Environment:
+    Type: String
+    Default: "Development"
+    Description: "ASP.NET Core environment (Production, Staging, Development)"
+
 Conditions:
   IsPrimarySingleRegion: !And [
       !Equals [!Ref IsPrimaryRegion, "true"],
@@ -166,6 +171,7 @@ Resources:
         LambdaSecurityGroupId: !Ref LambdaSecurityGroupId
         PrivateSubnet1Id: !Ref PrivateSubnet1Id
         PrivateSubnet2Id: !Ref PrivateSubnet2Id
+        Environment: !Ref Environment
 
   # Regional Web
   WebStack:
@@ -196,6 +202,7 @@ Resources:
         DatabaseClusterArn: !Ref DatabaseClusterArn
         DatabasePasswordSecretArn: !Ref DatabasePasswordSecretArn
         LogRetentionDays: 7
+        Environment: !Ref Environment
 
   # DNS for primary region (simple record for single region)
   PrimaryDnsStack:

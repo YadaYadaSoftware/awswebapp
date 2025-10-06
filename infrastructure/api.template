@@ -53,6 +53,11 @@ Parameters:
     AllowedPattern: "^subnet-[0-9a-z]+$"
     MinLength: 1
 
+  Environment:
+    Type: String
+    Default: "Development"
+    Description: "ASP.NET Core environment (Production, Staging, Development)"
+
 Globals:
   Function:
     Runtime: dotnet8
@@ -60,7 +65,7 @@ Globals:
     MemorySize: 512
     Environment:
       Variables:
-        ASPNETCORE_ENVIRONMENT: !Ref BranchName
+        ASPNETCORE_ENVIRONMENT: !Ref Environment
   Api:
     AccessLogSetting:
       Format: '{"requestId":"$context.requestId","ip":"$context.identity.sourceIp","caller":"$context.identity.caller","user":"$context.identity.user","requestTime":"$context.requestTime","httpMethod":"$context.httpMethod","resourcePath":"$context.resourcePath","status":"$context.status","protocol":"$context.protocol","responseLength":"$context.responseLength"}'
@@ -83,7 +88,7 @@ Resources:
       Role: !Ref SharedLambdaRoleArn
       Environment:
         Variables:
-          ASPNETCORE_ENVIRONMENT: !Ref BranchName
+          ASPNETCORE_ENVIRONMENT: !Ref Environment
           ConnectionStrings__DefaultConnection: !Sub
             - "Server=${DatabaseHost};Database=${DatabaseName};User Id=${DatabaseUsername};Password=${DatabasePassword};SslMode=Required;"
             - DatabaseHost: !Ref DatabaseHost
