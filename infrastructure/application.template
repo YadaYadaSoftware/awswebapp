@@ -88,19 +88,6 @@ Resources:
       TemplateURL: ./api.template
       Parameters:
         BranchName: !Ref BranchName
-        SharedLambdaRoleArn:
-          !ImportValue [!Sub "SharedLambdaRoleArn-${BranchName}"]
-        DatabaseHost: !ImportValue [!Sub "DatabaseHost-${BranchName}"]
-        DatabaseUsername: !ImportValue [!Sub "DatabaseUsername-${BranchName}"]
-        DatabaseEngine: !ImportValue [!Sub "DatabaseEngine-${BranchName}"]
-        DatabasePort: !ImportValue [!Sub "DatabasePort-${BranchName}"]
-        DatabaseName: !ImportValue [!Sub "DatabaseName-${BranchName}"]
-        DatabaseClusterArn:
-          !ImportValue [!Sub "DatabaseClusterArn-${BranchName}"]
-        LambdaSecurityGroupId:
-          !ImportValue [!Sub "LambdaSecurityGroupId-${BranchName}"]
-        PrivateSubnet1Id: !ImportValue [!Sub "PrivateSubnet1Id-${BranchName}"]
-        PrivateSubnet2Id: !ImportValue [!Sub "PrivateSubnet2Id-${BranchName}"]
         Environment: !Ref Environment
 
   # Regional Web
@@ -114,29 +101,6 @@ Resources:
         DeploymentToken: !Ref DeploymentToken
         DomainName: !Ref DomainName
         HostedZoneId: !Ref HostedZoneId
-        SharedLambdaRoleArn:
-          !ImportValue [!Sub "SharedLambdaRoleArn-${BranchName}"]
-        VPCId: !ImportValue [!Sub "VPCId-${BranchName}"]
-        ALBSecurityGroupId:
-          !ImportValue [!Sub "ALBSecurityGroupId-${BranchName}"]
-        ECSTaskSecurityGroupId:
-          !ImportValue [!Sub "ECSTaskSecurityGroupId-${BranchName}"]
-        PublicSubnet1Id: !ImportValue [!Sub "PublicSubnet1Id-${BranchName}"]
-        PublicSubnet2Id: !ImportValue [!Sub "PublicSubnet2Id-${BranchName}"]
-        PrivateSubnet1Id: !ImportValue [!Sub "PrivateSubnet1Id-${BranchName}"]
-        PrivateSubnet2Id: !ImportValue [!Sub "PrivateSubnet2Id-${BranchName}"]
-        ECSClusterName: !ImportValue [!Sub "ECSClusterName-${BranchName}"]
-        GoogleOAuthSecretArn:
-          !ImportValue [!Sub "GoogleOAuthSecretArn-${BranchName}"]
-        DatabaseHost: !ImportValue [!Sub "DatabaseHost-${BranchName}"]
-        DatabaseUsername: !ImportValue [!Sub "DatabaseUsername-${BranchName}"]
-        DatabaseEngine: !ImportValue [!Sub "DatabaseEngine-${BranchName}"]
-        DatabasePort: !ImportValue [!Sub "DatabasePort-${BranchName}"]
-        DatabaseName: !ImportValue [!Sub "DatabaseName-${BranchName}"]
-        DatabaseClusterArn:
-          !ImportValue [!Sub "DatabaseClusterArn-${BranchName}"]
-        DatabasePasswordSecretArn:
-          !ImportValue [!Sub "DatabasePasswordSecretArn-${BranchName}"]
         LogRetentionDays: 7
         Environment: !Ref Environment
 
@@ -152,10 +116,6 @@ Resources:
         DomainName: !Ref DomainName
         HostedZoneId: !Ref HostedZoneId
         PrimaryRegion: !Ref "AWS::Region"
-        PrimaryWebLoadBalancerDNS: !GetAtt WebStack.Outputs.WebLoadBalancerDNS
-        PrimaryWebLoadBalancerHostedZoneId: !GetAtt WebStack.Outputs.WebLoadBalancerHostedZoneId
-        SecondaryWebLoadBalancerDNS: !Ref "AWS::NoValue"
-        SecondaryWebLoadBalancerHostedZoneId: !Ref "AWS::NoValue"
 
   # Global DNS (only in secondary region - failover setup)
   SecondaryDnsStack:
@@ -170,10 +130,6 @@ Resources:
         HostedZoneId: !Ref HostedZoneId
         PrimaryRegion: !Ref PrimaryRegion
         SecondaryRegion: !Ref "AWS::Region"
-        PrimaryWebLoadBalancerDNS: !Ref PrimaryWebLoadBalancerDNS
-        PrimaryWebLoadBalancerHostedZoneId: !Ref PrimaryWebLoadBalancerHostedZoneId
-        SecondaryWebLoadBalancerDNS: !GetAtt WebStack.Outputs.WebLoadBalancerDNS
-        SecondaryWebLoadBalancerHostedZoneId: !GetAtt WebStack.Outputs.WebLoadBalancerHostedZoneId
 
 Outputs:
   # API outputs (for orchestration, not exported)

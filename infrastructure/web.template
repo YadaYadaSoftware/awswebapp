@@ -54,78 +54,10 @@ Parameters:
     Type: String
     Description: "Route 53 hosted zone ID for the domain"
 
-  SharedLambdaRoleArn:
-    Type: String
-    Description: "ARN of the shared Lambda execution role"
-
-  VPCId:
-    Type: String
-    Description: "VPC ID"
-
-  ALBSecurityGroupId:
-    Type: String
-    Description: "Security group ID for ALB"
-
-  ECSTaskSecurityGroupId:
-    Type: String
-    Description: "Security group ID for ECS tasks"
-
-  PublicSubnet1Id:
-    Type: String
-    Description: "Public subnet 1 ID"
-
-  PublicSubnet2Id:
-    Type: String
-    Description: "Public subnet 2 ID"
-
-  PrivateSubnet1Id:
-    Type: String
-    Description: "Private subnet 1 ID"
-
-  PrivateSubnet2Id:
-    Type: String
-    Description: "Private subnet 2 ID"
-
-  ECSClusterName:
-    Type: String
-    Description: "ECS cluster name"
-
-  GoogleOAuthSecretArn:
-    Type: String
-    Description: "ARN of the Google OAuth secrets in Secrets Manager"
-
   Environment:
     Type: String
     Default: "Development"
     Description: "ASP.NET Core environment (Production, Staging, Development)"
-
-  DatabaseHost:
-    Type: String
-    Description: "Database host endpoint"
-
-  DatabaseUsername:
-    Type: String
-    Description: "Database username"
-
-  DatabaseEngine:
-    Type: String
-    Description: "Database engine"
-
-  DatabasePort:
-    Type: String
-    Description: "Database port"
-
-  DatabaseName:
-    Type: String
-    Description: "Database name"
-
-  DatabaseClusterArn:
-    Type: String
-    Description: "Database cluster ARN"
-
-  DatabasePasswordSecretArn:
-    Type: String
-    Description: "Database password secret ARN"
 
   LogRetentionDays:
     Type: Number
@@ -145,17 +77,17 @@ Resources:
       Type: application
       Scheme: internet-facing
       SecurityGroups:
-        - !Ref ALBSecurityGroupId
+        - !ImportValue [!Sub "ALBSecurityGroupId-${BranchName}"]
       Subnets:
-        - !Ref PublicSubnet1Id
-        - !Ref PublicSubnet2Id
+        - !ImportValue [!Sub "PublicSubnet1Id-${BranchName}"]
+        - !ImportValue [!Sub "PublicSubnet2Id-${BranchName}"]
   # Target Group
   WebTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
       Protocol: HTTP
       Port: 80
-      VpcId: !Ref VPCId
+      VpcId: !ImportValue [!Sub "VPCId-${BranchName}"]
       TargetType: ip
       HealthCheckPath: /health
       HealthCheckIntervalSeconds: 30
@@ -213,8 +145,8 @@ Resources:
         - FARGATE
       Cpu: "512"
       Memory: "1024"
-      ExecutionRoleArn: !Ref SharedLambdaRoleArn
-      TaskRoleArn: !Ref SharedLambdaRoleArn
+      ExecutionRoleArn: !ImportValue [!Sub "SharedLambdaRoleArn-${BranchName}"]
+      TaskRoleArn: !ImportValue [!Sub "SharedLambdaRoleArn-${BranchName}"]
       ContainerDefinitions:
         - Name: web
           Image: !Ref WebContainerImage
@@ -230,10 +162,11 @@ Resources:
             - Name: ConnectionStrings__DefaultConnection
               Value: !Sub
                 - "Server=${DatabaseHost};Database=${DatabaseName};User Id=${DatabaseUsername};Password=${DatabasePassword};SslMode=Required;"
-                - DatabaseHost: !Ref DatabaseHost
-                  DatabaseName: !Ref DatabaseName
-                  DatabaseUsername: !Ref DatabaseUsername
-                  DatabasePassword: !Sub "{{resolve:secretsmanager:${DatabasePasswordSecretArn}:SecretString}}"
+                - DatabaseHost: !ImportValue [!Sub "DatabaseHost-${BranchName}"]
+                  DatabaseName: !ImportValue [!Sub "DatabaseName-${BranchName}"]
+                  DatabaseUsername:
+                    !ImportValue [!Sub "DatabaseUsername-${BranchName}"]
+                  DatabasePassword: !Sub "{{resolve:secretsmanager:taskmanager/database/${BranchName}/regional/${AWS::Region}/password:SecretString}}"
             - Name: ASPNETCORE_URLS
               Value: "http://*:80"
             - Name: DOTNET_RUNNING_IN_CONTAINER
@@ -245,9 +178,9 @@ Resources:
             - Name: DEPLOYMENT_TOKEN
               Value: !Ref DeploymentToken
             - Name: Authentication__Google__ClientId
-              Value: !Sub "{{resolve:secretsmanager:${GoogleOAuthSecretArn}:SecretString:clientId}}"
+              Value: !Sub "{{resolve:secretsmanager:taskmanager/oauth/${BranchName}/global/google:SecretString:clientId}}"
             - Name: Authentication__Google__ClientSecret
-              Value: !Sub "{{resolve:secretsmanager:${GoogleOAuthSecretArn}:SecretString:clientSecret}}"
+              Value: !Sub "{{resolve:secretsmanager:taskmanager/oauth/${BranchName}/global/google:SecretString:clientSecret}}"
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -262,17 +195,17 @@ Resources:
       - WebListener
       - WebTaskDefinition
     Properties:
-      Cluster: !Ref ECSClusterName
+      Cluster: !ImportValue [!Sub "ECSClusterName-${BranchName}"]
       TaskDefinition: !Ref WebTaskDefinition
       DesiredCount: 1
       LaunchType: FARGATE
       NetworkConfiguration:
         AwsvpcConfiguration:
           SecurityGroups:
-            - !Ref ECSTaskSecurityGroupId
+            - !ImportValue [!Sub "ECSTaskSecurityGroupId-${BranchName}"]
           Subnets:
-            - !Ref PrivateSubnet1Id
-            - !Ref PrivateSubnet2Id
+            - !ImportValue [!Sub "PrivateSubnet1Id-${BranchName}"]
+            - !ImportValue [!Sub "PrivateSubnet2Id-${BranchName}"]
       LoadBalancers:
         - TargetGroupArn: !Ref WebTargetGroup
           ContainerName: web
