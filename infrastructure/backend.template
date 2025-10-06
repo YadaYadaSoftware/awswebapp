@@ -141,12 +141,12 @@ Resources:
         GoogleOAuthClientSecret: !Ref GoogleOAuthClientSecret
 
 Outputs:
-  # KMS outputs
+  # KMS outputs (for orchestration, not exported)
   AuroraKmsKeyArn:
     Description: ARN of the KMS key
     Value: !GetAtt SecurityStack.Outputs.AuroraKmsKeyArn
 
-  # Global outputs
+  # Global outputs (for orchestration, not exported)
   AuroraGlobalClusterId:
     Condition: ShouldCreateGlobalCluster
     Description: ID of the Aurora global cluster
@@ -156,7 +156,7 @@ Outputs:
     Description: ARN of the shared Lambda role
     Value: !GetAtt SecurityStack.Outputs.SharedLambdaRoleArn
 
-  # Database outputs
+  # Database outputs (for orchestration, not exported)
   DatabaseEndpoint:
     Description: Aurora MySQL cluster endpoint
     Value: !GetAtt DbStack.Outputs.DatabaseEndpoint
@@ -193,7 +193,7 @@ Outputs:
     Description: Database password secret ARN
     Value: !GetAtt DbStack.Outputs.DatabasePasswordSecretArn
 
-  # VPC outputs
+  # VPC outputs (for orchestration, not exported)
   VpcId:
     Description: VPC ID
     Value: !GetAtt NetworkingStack.Outputs.VPCId
@@ -230,7 +230,7 @@ Outputs:
     Description: VPC Flow Logs role ARN
     Value: !GetAtt NetworkingStack.Outputs.VpcFlowLogsRoleArn
 
-  # Infrastructure outputs
+  # Infrastructure outputs (for orchestration, not exported)
   ECSClusterName:
     Description: ECS cluster name
     Value: !GetAtt InfrastructureStack.Outputs.ECSClusterName

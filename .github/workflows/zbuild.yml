@@ -17,6 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       branch-name: ${{ steps.get-branch.outputs.branch-name }}
+      environment: ${{ steps.get-branch.outputs.environment }}
     steps:
     - name: Get branch name
       id: get-branch
@@ -26,7 +27,19 @@ jobs:
         BRANCH_NAME=${FULL_BRANCH_NAME##*/}
         echo "Original branch: $FULL_BRANCH_NAME"
         echo "Stack name branch: $BRANCH_NAME"
+
+        # Determine Environment based on branch name
+        if [ "$BRANCH_NAME" = "app" ]; then
+          ENVIRONMENT="Production"
+        elif [[ "$BRANCH_NAME" = "beta" || "$BRANCH_NAME" = "alpha" ]]; then
+          ENVIRONMENT="Staging"
+        else
+          ENVIRONMENT="Development"
+        fi
+
+        echo "Environment: $ENVIRONMENT"
         echo "branch-name=$BRANCH_NAME" >> $GITHUB_OUTPUT
+        echo "environment=$ENVIRONMENT" >> $GITHUB_OUTPUT
 
   build:
     name: Build and Test Applications
@@ -331,6 +344,8 @@ jobs:
       if: matrix.deploy
       run: |
         BRANCH_NAME="${{ needs.get-branch-name.outputs.branch-name }}"
+        ENVIRONMENT="${{ needs.get-branch-name.outputs.environment }}"
+
         if [ "$BRANCH_NAME" = "app" ]; then
           MIN_CAP=0.5
           MAX_CAP=4
@@ -356,6 +371,7 @@ jobs:
         BASE_PARAMS="$BASE_PARAMS,DeploymentToken=${{ github.sha }}"
         BASE_PARAMS="$BASE_PARAMS,DomainName=${{ secrets.DOMAIN_NAME }}"
         BASE_PARAMS="$BASE_PARAMS,HostedZoneId=Z06422172SASV44F5Y8VA"
+        BASE_PARAMS="$BASE_PARAMS,Environment=$ENVIRONMENT"
         if [ "${{ matrix.is_primary }}" = "false" ]; then
           BASE_PARAMS="$BASE_PARAMS,AuroraGlobalClusterId=${{ steps.get-primary-outputs.outputs.global-cluster-id }}"
           BASE_PARAMS="$BASE_PARAMS,KmsKeyArn=${{ steps.get-primary-outputs.outputs.kms-key-arn }}"

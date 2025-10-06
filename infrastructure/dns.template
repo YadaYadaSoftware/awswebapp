@@ -3,10 +3,9 @@ AWSTemplateFormatVersion: "2010-09-09"
 Description: "Global DNS Configuration for Multi-Region Failover"
 
 Parameters:
-  Environment:
+  BranchName:
     Type: String
-    Default: main
-    Description: "Environment name (typically branch name)"
+    Description: "Branch name for resource naming"
 
   DomainName:
     Type: String
@@ -66,7 +65,7 @@ Resources:
         - Key: LogicalId
           Value: PrimaryHealthCheck
         - Key: Environment
-          Value: !Ref Environment
+          Value: !Ref BranchName
         - Key: Purpose
           Value: Primary-Web-Failover
 
@@ -86,7 +85,7 @@ Resources:
         - Key: LogicalId
           Value: SecondaryHealthCheck
         - Key: Environment
-          Value: !Ref Environment
+          Value: !Ref BranchName
         - Key: Purpose
           Value: Secondary-Web-Failover
 
@@ -96,7 +95,7 @@ Resources:
     Type: AWS::Route53::RecordSet
     Properties:
       HostedZoneId: !Ref HostedZoneId
-      Name: !Sub "${Environment}.${DomainName}"
+      Name: !Sub "${BranchName}.${DomainName}"
       Type: A
       AliasTarget:
         DNSName: !Ref PrimaryWebLoadBalancerDNS
@@ -108,9 +107,9 @@ Resources:
     Type: AWS::Route53::RecordSet
     Properties:
       HostedZoneId: !Ref HostedZoneId
-      Name: !Sub "${Environment}.${DomainName}"
+      Name: !Sub "${BranchName}.${DomainName}"
       Type: A
-      SetIdentifier: !Sub "primary-${Environment}"
+      SetIdentifier: !Sub "primary-${BranchName}"
       Failover: PRIMARY
       AliasTarget:
         DNSName: !Ref PrimaryWebLoadBalancerDNS
@@ -123,9 +122,9 @@ Resources:
     Type: AWS::Route53::RecordSet
     Properties:
       HostedZoneId: !Ref HostedZoneId
-      Name: !Sub "${Environment}.${DomainName}"
+      Name: !Sub "${BranchName}.${DomainName}"
       Type: A
-      SetIdentifier: !Sub "secondary-${Environment}"
+      SetIdentifier: !Sub "secondary-${BranchName}"
       Failover: SECONDARY
       AliasTarget:
         DNSName: !Ref SecondaryWebLoadBalancerDNS
@@ -135,13 +134,19 @@ Resources:
 Outputs:
   WebEndpoint:
     Description: "Web application endpoint URL"
-    Value: !Sub "https://${Environment}.${DomainName}"
+    Value: !Sub "https://${BranchName}.${DomainName}"
+    Export:
+      Name: !Sub "WebEndpoint-${BranchName}"
 
   PrimaryHealthCheckId:
     Description: "Primary health check ID"
     Value: !Ref PrimaryHealthCheck
+    Export:
+      Name: !Sub "PrimaryHealthCheckId-${BranchName}"
 
   SecondaryHealthCheckId:
     Condition: HasSecondaryLoadBalancer
     Description: "Secondary health check ID"
     Value: !Ref SecondaryHealthCheck
+    Export:
+      Name: !Sub "SecondaryHealthCheckId-${BranchName}"

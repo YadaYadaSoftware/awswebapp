@@ -32,10 +32,9 @@ Mappings:
       ALBHostedZoneId: Z31USIVHYNEOWT
 
 Parameters:
-  Environment:
+  BranchName:
     Type: String
-    Default: main
-    Description: "Environment name (typically branch name)"
+    Description: "Branch name for resource naming"
 
   WebContainerImage:
     Type: String
@@ -94,6 +93,11 @@ Parameters:
   GoogleOAuthSecretArn:
     Type: String
     Description: "ARN of the Google OAuth secrets in Secrets Manager"
+
+  Environment:
+    Type: String
+    Default: "Development"
+    Description: "ASP.NET Core environment (Production, Staging, Development)"
 
   DatabaseHost:
     Type: String
@@ -193,17 +197,17 @@ Resources:
   WebSSLCertificate:
     Type: AWS::CertificateManager::Certificate
     Properties:
-      DomainName: !Sub "${Environment}.${DomainName}"
+      DomainName: !Sub "${BranchName}.${DomainName}"
       ValidationMethod: DNS
       DomainValidationOptions:
-        - DomainName: !Sub "${Environment}.${DomainName}"
+        - DomainName: !Sub "${BranchName}.${DomainName}"
           HostedZoneId: !Ref HostedZoneId
 
   # ECS Task Definition
   WebTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
-      Family: !Sub "webtd-${Environment}"
+      Family: !Sub "webtd-${BranchName}"
       NetworkMode: awsvpc
       RequiresCompatibilities:
         - FARGATE
@@ -222,7 +226,7 @@ Resources:
               Protocol: tcp
           Environment:
             - Name: ASPNETCORE_ENVIRONMENT
-              Value: "Production"
+              Value: !Ref Environment
             - Name: ConnectionStrings__DefaultConnection
               Value: !Sub
                 - "Server=${DatabaseHost};Database=${DatabaseName};User Id=${DatabaseUsername};Password=${DatabasePassword};SslMode=Required;"
@@ -294,20 +298,30 @@ Resources:
 Outputs:
   WebEndpoint:
     Description: "Web application endpoint URL"
-    Value: !Sub "https://${Environment}.${DomainName}"
+    Value: !Sub "https://${BranchName}.${DomainName}"
+    Export:
+      Name: !Sub "WebEndpoint-${BranchName}"
 
   WebLoadBalancerDNS:
     Description: "Web Load Balancer DNS name"
     Value: !GetAtt WebLoadBalancer.DNSName
+    Export:
+      Name: !Sub "WebLoadBalancerDNS-${BranchName}"
 
   WebLoadBalancerHostedZoneId:
     Description: "Web Load Balancer hosted zone ID"
     Value: !FindInMap [RegionMap, !Ref AWS::Region, ALBHostedZoneId]
+    Export:
+      Name: !Sub "WebLoadBalancerHostedZoneId-${BranchName}"
 
   WebTaskDefinition:
     Description: "Web ECS task definition"
     Value: !Ref WebTaskDefinition
+    Export:
+      Name: !Sub "WebTaskDefinition-${BranchName}"
 
   WebServiceName:
     Description: "Web ECS service name"
     Value: !Ref WebService
+    Export:
+      Name: !Sub "WebServiceName-${BranchName}"

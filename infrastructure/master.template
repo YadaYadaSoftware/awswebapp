@@ -79,6 +79,11 @@ Parameters:
     Type: String
     Description: "Route 53 hosted zone ID for the domain"
 
+  Environment:
+    Type: String
+    Default: "Development"
+    Description: "ASP.NET Core environment (Production, Staging, Development)"
+
   # DNS parameters (for secondary region)
   PrimaryRegion:
     Type: String
@@ -169,14 +174,15 @@ Resources:
         ECSClusterName: !GetAtt BackendStack.Outputs.ECSClusterName
         GoogleOAuthSecretArn: !GetAtt BackendStack.Outputs.GoogleOAuthSecretArn
         IsPrimaryRegion: !Ref IsPrimaryRegion
+        Environment: !Ref Environment
 
 Outputs:
-  # KMS outputs
+  # KMS outputs (for orchestration, not exported)
   AuroraKmsKeyArn:
     Description: ARN of the KMS key
     Value: !GetAtt BackendStack.Outputs.AuroraKmsKeyArn
 
-  # Global outputs
+  # Global outputs (for orchestration, not exported)
   AuroraGlobalClusterId:
     Condition: ShouldCreateGlobalCluster
     Description: ID of the Aurora global cluster
@@ -186,7 +192,7 @@ Outputs:
     Description: ARN of the shared Lambda role
     Value: !GetAtt BackendStack.Outputs.SharedLambdaRoleArn
 
-  # Database outputs
+  # Database outputs (for orchestration, not exported)
   DatabaseEndpoint:
     Description: Aurora MySQL cluster endpoint
     Value: !GetAtt BackendStack.Outputs.DatabaseEndpoint
@@ -223,7 +229,7 @@ Outputs:
     Description: Database password secret ARN
     Value: !GetAtt BackendStack.Outputs.DatabasePasswordSecretArn
 
-  # VPC outputs
+  # VPC outputs (for orchestration, not exported)
   VpcId:
     Description: VPC ID
     Value: !GetAtt BackendStack.Outputs.VpcId
@@ -260,7 +266,7 @@ Outputs:
     Description: VPC Flow Logs role ARN
     Value: !GetAtt BackendStack.Outputs.VpcFlowLogsRoleArn
 
-  # Infrastructure outputs
+  # Infrastructure outputs (for orchestration, not exported)
   ECSClusterName:
     Description: ECS cluster name
     Value: !GetAtt BackendStack.Outputs.ECSClusterName
@@ -269,7 +275,7 @@ Outputs:
     Description: ARN of the Google OAuth secrets
     Value: !GetAtt BackendStack.Outputs.GoogleOAuthSecretArn
 
-  # API outputs
+  # API outputs (for orchestration, not exported)
   ApiEndpoint:
     Description: "API Gateway endpoint URL"
     Value: !GetAtt ApplicationStack.Outputs.ApiEndpoint
@@ -278,7 +284,7 @@ Outputs:
     Description: "API Lambda function name"
     Value: !GetAtt ApplicationStack.Outputs.ApiLambdaFunctionName
 
-  # Web outputs
+  # Web outputs (for orchestration, not exported)
   WebEndpoint:
     Description: "Web application endpoint URL"
     Value: !GetAtt ApplicationStack.Outputs.WebEndpoint
@@ -299,13 +305,12 @@ Outputs:
     Description: "Web ECS service name"
     Value: !GetAtt ApplicationStack.Outputs.WebServiceName
 
-  # DNS outputs for primary region (single region only)
+  # DNS outputs (for orchestration, not exported)
   PrimaryWebEndpoint:
     Condition: IsPrimarySingleRegion
     Description: "Web application endpoint URL"
     Value: !GetAtt ApplicationStack.Outputs.PrimaryWebEndpoint
 
-  # DNS outputs for secondary region (failover setup)
   SecondaryWebEndpoint:
     Condition: IsSecondary
     Description: "Web application endpoint URL"
