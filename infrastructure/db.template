@@ -57,11 +57,6 @@ Parameters:
     Type: String
     Description: Security group for RDS access from VPC stack
 
-  LogRetentionDays:
-    Type: Number
-    Default: 7
-    Description: Number of days to retain CloudWatch logs
-
   MinCapacity:
     Type: Number
     Default: 0
@@ -116,58 +111,8 @@ Resources:
         slow_query_log: "1"
         long_query_time: "2"
 
-  # CloudWatch Log Groups for Aurora Cluster
-  AuroraAuditLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub "/aws/rds/cluster/taskmanager-${BranchName}-aurora-cluster-${AWS::Region}/audit"
-      RetentionInDays: !Ref LogRetentionDays
-      Tags:
-        - Key: LogicalId
-          Value: AuroraAuditLogGroup
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
-
-  AuroraErrorLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub "/aws/rds/cluster/taskmanager-${BranchName}-aurora-cluster-${AWS::Region}/error"
-      RetentionInDays: !Ref LogRetentionDays
-      Tags:
-        - Key: LogicalId
-          Value: AuroraErrorLogGroup
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
-
-  AuroraGeneralLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub "/aws/rds/cluster/taskmanager-${BranchName}-aurora-cluster-${AWS::Region}/general"
-      RetentionInDays: !Ref LogRetentionDays
-      Tags:
-        - Key: LogicalId
-          Value: AuroraGeneralLogGroup
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
-
-  AuroraSlowQueryLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub "/aws/rds/cluster/taskmanager-${BranchName}-aurora-cluster-${AWS::Region}/slowquery"
-      RetentionInDays: !Ref LogRetentionDays
-      Tags:
-        - Key: LogicalId
-          Value: AuroraSlowQueryLogGroup
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
-
   # Aurora Serverless v2 Cluster
   AuroraCluster:
-    DependsOn:
-      - AuroraAuditLogGroup
-      - AuroraErrorLogGroup
-      - AuroraGeneralLogGroup
-      - AuroraSlowQueryLogGroup
     Type: AWS::RDS::DBCluster
     Properties:
       GlobalClusterIdentifier:
