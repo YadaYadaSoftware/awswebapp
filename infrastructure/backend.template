@@ -128,7 +128,6 @@ Resources:
         MinCapacity: !Ref MinCapacity
         MaxCapacity: !Ref MaxCapacity
         EnableGlobalCluster: !Ref EnableGlobalCluster
-        LogRetentionDays: 7
 
   # Regional Infrastructure
   InfrastructureStack:

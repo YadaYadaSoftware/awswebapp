@@ -54,13 +54,6 @@ Parameters:
     AllowedPattern: "^subnet-[0-9a-z]+$"
     MinLength: 1
 
-  LogRetentionDays:
-    Type: Number
-    Default: 7
-    Description: Number of days to retain CloudWatch logs
-
-# Removed IsPrimaryRegion parameter and condition - no longer needed
-
 Globals:
   Function:
     Runtime: dotnet8
@@ -71,7 +64,6 @@ Globals:
         ASPNETCORE_ENVIRONMENT: !Ref Environment
   Api:
     AccessLogSetting:
-      DestinationArn: !GetAtt ApiGatewayAccessLogGroup.Arn
       Format: '{"requestId":"$context.requestId","ip":"$context.identity.sourceIp","caller":"$context.identity.caller","user":"$context.identity.user","requestTime":"$context.requestTime","httpMethod":"$context.httpMethod","resourcePath":"$context.resourcePath","status":"$context.status","protocol":"$context.protocol","responseLength":"$context.responseLength"}'
     MethodSettings:
       - HttpMethod: "*"
@@ -80,60 +72,10 @@ Globals:
         DataTraceEnabled: true
 
 Resources:
-  # CloudWatch Log Group for Database Setup - REMOVED
-  # Database creation now handled automatically by Entity Framework
-
-  # CloudWatch Log Group for API
-  ApiLambdaLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub "/aws/lambda/TaskManagerApi-${Environment}"
-      RetentionInDays: !Ref LogRetentionDays
-      Tags:
-        - Key: LogicalId
-          Value: ApiLambdaLogGroup
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
-
-  # CloudWatch Log Group for API Gateway Access Logs
-  ApiGatewayAccessLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub "/aws/apigateway/TaskManagerApi-${Environment}"
-      RetentionInDays: !Ref LogRetentionDays
-      Tags:
-        - Key: LogicalId
-          Value: ApiGatewayAccessLogGroup
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
-
-  # CloudWatch Log Group for API Gateway Execution Logs
-  ApiGatewayExecutionLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub "/aws/apigateway/${ServerlessRestApi}/Prod"
-      RetentionInDays: !Ref LogRetentionDays
-      Tags:
-        - Key: LogicalId
-          Value: ApiGatewayExecutionLogGroup
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
-
-  # MySQL Layer removed - no longer needed for database setup
-
-  # Database creation now handled automatically by Entity Framework
-  # No need for custom Lambda function
-
-  # Database setup now handled automatically by Entity Framework
-  # No need for custom CloudFormation resource
-
   # TaskManager API Function
   TaskManagerApiFunction:
     Type: AWS::Serverless::Function
-    DependsOn:
-      - ApiLambdaLogGroup
     Properties:
-      FunctionName: !Sub "TaskManagerApi-${Environment}"
       CodeUri: ../src/TaskManager.Api/
       Handler: >-
         TaskManager.Api::TaskManager.Api.LambdaEntryPoint::FunctionHandlerAsync
@@ -168,16 +110,11 @@ Resources:
           Properties:
             Path: /api/{proxy+}
             Method: ANY
-      Tags:
-        LogicalId: TaskManagerApiFunction
-        Environment: !Ref Environment
-        Stack: !Ref "AWS::StackName"
 
   # CloudWatch Alarms for API
   LambdaErrorAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName: !Sub "TaskManager-API-Errors-${Environment}"
       AlarmDescription: "API Lambda function error rate alarm"
       MetricName: Errors
       Namespace: AWS/Lambda
@@ -189,12 +126,6 @@ Resources:
       Dimensions:
         - Name: FunctionName
           Value: !Ref TaskManagerApiFunction
-      Tags:
-        - Key: LogicalId
-          Value: LambdaErrorAlarm
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
-
 Outputs:
   ApiEndpoint:
     Description: "API Gateway endpoint URL"

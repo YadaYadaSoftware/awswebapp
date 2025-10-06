@@ -133,19 +133,11 @@ Resources:
   WebECSLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub "/ecs/TaskManagerWeb-${Environment}"
       RetentionInDays: !Ref LogRetentionDays
-      Tags:
-        - Key: LogicalId
-          Value: WebECSLogGroup
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
-
   # Application Load Balancer
   WebLoadBalancer:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:
-      Name: !Sub "web-${Environment}"
       Type: application
       Scheme: internet-facing
       SecurityGroups:
@@ -153,19 +145,10 @@ Resources:
       Subnets:
         - !Ref PublicSubnet1Id
         - !Ref PublicSubnet2Id
-      Tags:
-        - Key: LogicalId
-          Value: WebLoadBalancer
-        - Key: Environment
-          Value: !Ref Environment
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
-
   # Target Group
   WebTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
-      Name: !Sub "webtg-${Environment}"
       Protocol: HTTP
       Port: 80
       VpcId: !Ref VPCId
@@ -176,12 +159,6 @@ Resources:
       HealthyThresholdCount: 2
       UnhealthyThresholdCount: 2
       HealthCheckPort: 80
-      Tags:
-        - Key: LogicalId
-          Value: WebTargetGroup
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
-
   # ALB HTTP Listener (redirects to HTTPS)
   WebListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
@@ -281,7 +258,6 @@ Resources:
       - WebListener
       - WebTaskDefinition
     Properties:
-      ServiceName: !Sub "websvc-${Environment}"
       Cluster: !Ref ECSClusterName
       TaskDefinition: !Ref WebTaskDefinition
       DesiredCount: 1
@@ -298,19 +274,10 @@ Resources:
           ContainerName: web
           ContainerPort: 80
       HealthCheckGracePeriodSeconds: 300
-      Tags:
-        - Key: LogicalId
-          Value: WebService
-        - Key: Environment
-          Value: !Ref Environment
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
-
   # CloudWatch Alarms for Web
   WebECSServiceAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName: !Sub "TaskManager-Web-Unhealthy-${Environment}"
       AlarmDescription: "Web ECS service unhealthy targets alarm"
       MetricName: UnHealthyHostCount
       Namespace: AWS/ApplicationELB
@@ -324,12 +291,6 @@ Resources:
           Value: !GetAtt WebLoadBalancer.LoadBalancerFullName
         - Name: TargetGroup
           Value: !GetAtt WebTargetGroup.TargetGroupFullName
-      Tags:
-        - Key: LogicalId
-          Value: WebECSServiceAlarm
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
-
 Outputs:
   WebEndpoint:
     Description: "Web application endpoint URL"
