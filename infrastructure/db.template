@@ -86,7 +86,6 @@ Resources:
       SubnetIds:
         - !Ref PrivateSubnet1Id
         - !Ref PrivateSubnet2Id
-      DBSubnetGroupName: !Sub "taskmanager-${BranchName}-aurora-subnet-group-${AWS::Region}"
       Tags:
         - Key: LogicalId
           Value: AuroraDBSubnetGroup
@@ -125,14 +124,12 @@ Resources:
           ],
           !Ref AuroraGlobalClusterId,
         ]
-      DBClusterIdentifier: !Sub "taskmanager-${BranchName}-aurora-cluster-${AWS::Region}"
       Engine: aurora-mysql
       EngineVersion: !Ref EngineVersion
       MasterUsername: !If [IsPrimary, "taskmanager_admin", !Ref "AWS::NoValue"]
       MasterUserPassword:
         !If [IsPrimary, !Ref DatabasePassword, !Ref "AWS::NoValue"]
       DatabaseName: !If [IsPrimary, "taskmanager", !Ref "AWS::NoValue"]
-      DBSubnetGroupName: !Ref AuroraDBSubnetGroup
       DBClusterParameterGroupName: !Ref AuroraClusterParameterGroup
       VpcSecurityGroupIds:
         - !Ref RDSSecurityGroupId
@@ -166,7 +163,6 @@ Resources:
   AuroraInstance:
     Type: AWS::RDS::DBInstance
     Properties:
-      DBInstanceIdentifier: !Sub "taskmanager-${BranchName}-aurora-instance-${AWS::Region}"
       DBClusterIdentifier: !Ref AuroraCluster
       DBInstanceClass: db.serverless
       Engine: aurora-mysql

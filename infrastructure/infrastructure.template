@@ -22,7 +22,6 @@ Resources:
   ECSCluster:
     Type: AWS::ECS::Cluster
     Properties:
-      ClusterName: !Sub "TaskManager-Cluster-${BranchName}"
       Tags:
         - Key: LogicalId
           Value: ECSCluster

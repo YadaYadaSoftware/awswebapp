@@ -144,7 +144,6 @@ Resources:
   WebLoadBalancer:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:
-      Name: !Sub "web-${Environment}"
       Type: application
       Scheme: internet-facing
       SecurityGroups:
@@ -164,7 +163,6 @@ Resources:
   WebTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
-      Name: !Sub "webtg-${Environment}"
       Protocol: HTTP
       Port: 80
       VpcId: !Ref VPCId
@@ -280,7 +278,6 @@ Resources:
       - WebListener
       - WebTaskDefinition
     Properties:
-      ServiceName: !Sub "websvc-${Environment}"
       Cluster: !Ref ECSClusterName
       TaskDefinition: !Ref WebTaskDefinition
       DesiredCount: 1
@@ -309,7 +306,6 @@ Resources:
   WebECSServiceAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName: !Sub "TaskManager-Web-Unhealthy-${Environment}"
       AlarmDescription: "Web ECS service unhealthy targets alarm"
       MetricName: UnHealthyHostCount
       Namespace: AWS/ApplicationELB
