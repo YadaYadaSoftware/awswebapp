@@ -195,6 +195,17 @@ jobs:
         echo "AWS Account ID: $ACCOUNT_ID"
         echo "account-id=$ACCOUNT_ID" >> $GITHUB_OUTPUT
 
+    - name: Process Domain Name
+      if: matrix.deploy
+      id: process-domain
+      run: |
+        # Get domain name from secrets and process it (replace dots with hyphens)
+        RAW_DOMAIN="${{ secrets.DOMAIN_NAME }}"
+        PROCESSED_DOMAIN=$(echo $RAW_DOMAIN | tr '.' '-')
+        echo "Original domain: $RAW_DOMAIN"
+        echo "Processed domain: $PROCESSED_DOMAIN"
+        echo "processed-domain=$PROCESSED_DOMAIN" >> $GITHUB_OUTPUT
+
 
     - name: Build and package master template
       if: matrix.deploy
@@ -304,7 +315,7 @@ jobs:
       if: matrix.is_primary == 'false' && matrix.deploy
       run: |
         echo "Getting outputs from primary region stack..."
-        PRIMARY_STACK_NAME="taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-us-east-1"
+        PRIMARY_STACK_NAME="${{ needs.get-branch-name.outputs.branch-name }}-${{ steps.process-domain.outputs.processed-domain }}"
         KMS_KEY_ARN=$(aws cloudformation describe-stacks --stack-name $PRIMARY_STACK_NAME --region us-east-1 --query 'Stacks[0].Outputs[?OutputKey==`AuroraKmsKeyArn`].OutputValue' --output text)
         GLOBAL_CLUSTER_ID=$(aws cloudformation describe-stacks --stack-name $PRIMARY_STACK_NAME --region us-east-1 --query 'Stacks[0].Outputs[?OutputKey==`AuroraGlobalClusterId`].OutputValue' --output text)
         PRIMARY_LB_DNS=$(aws cloudformation describe-stacks --stack-name $PRIMARY_STACK_NAME --region us-east-1 --query 'Stacks[0].Outputs[?OutputKey==`WebLoadBalancerDNS`].OutputValue' --output text)
@@ -332,7 +343,7 @@ jobs:
         else
           ENABLE_GLOBAL=false
         fi
-        BASE_PARAMS="BranchName=${{ needs.get-branch-name.outputs.branch-name }},DatabasePassword=${{ secrets.DATABASE_PASSWORD }},EngineVersion=${{ env.ENGINE_VERSION }},IsPrimaryRegion=${{ matrix.is_primary }},MinCapacity=$MIN_CAP,MaxCapacity=$MAX_CAP,EnableGlobalCluster=$ENABLE_GLOBAL,GoogleOAuthClientId=${{ secrets.GOOGLE_CLIENT_ID }},GoogleOAuthClientSecret=${{ secrets.GOOGLE_CLIENT_SECRET }},WebContainerImage=${{ env.CONTAINER_IMAGE }},DeploymentToken=${{ github.sha }},DomainName=appcloud.systems,HostedZoneId=Z06422172SASV44F5Y8VA"
+        BASE_PARAMS="BranchName=${{ needs.get-branch-name.outputs.branch-name }},DatabasePassword=${{ secrets.DATABASE_PASSWORD }},EngineVersion=${{ env.ENGINE_VERSION }},IsPrimaryRegion=${{ matrix.is_primary }},MinCapacity=$MIN_CAP,MaxCapacity=$MAX_CAP,EnableGlobalCluster=$ENABLE_GLOBAL,GoogleOAuthClientId=${{ secrets.GOOGLE_CLIENT_ID }},GoogleOAuthClientSecret=${{ secrets.GOOGLE_CLIENT_SECRET }},WebContainerImage=${{ env.CONTAINER_IMAGE }},DeploymentToken=${{ github.sha }},DomainName=${{ secrets.DOMAIN_NAME }},HostedZoneId=Z06422172SASV44F5Y8VA"
         if [ "${{ matrix.is_primary }}" = "false" ]; then
           BASE_PARAMS="$BASE_PARAMS,AuroraGlobalClusterId=${{ steps.get-primary-outputs.outputs.global-cluster-id }},KmsKeyArn=${{ steps.get-primary-outputs.outputs.kms-key-arn }},PrimaryRegion=${{ env.AWS_REGION_PRIMARY }},PrimaryWebLoadBalancerDNS=${{ steps.get-primary-outputs.outputs.primary-lb-dns }},PrimaryWebLoadBalancerHostedZoneId=${{ steps.get-primary-outputs.outputs.primary-lb-hz }}"
         fi
@@ -344,7 +355,7 @@ jobs:
       if: matrix.deploy
       uses: aws-actions/aws-cloudformation-github-deploy@v1
       with:
-        name: taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-${{ matrix.region }}
+        name: ${{ needs.get-branch-name.outputs.branch-name }}-${{ steps.process-domain.outputs.processed-domain }}
         template: https://s3.amazonaws.com/cf-templates-${{ steps.account-id.outputs.account-id }}-${{ matrix.region }}/${{ needs.get-branch-name.outputs.branch-name }}/master-template.yaml?versionId=${{ env.TEMPLATE_VERSION_ID }}
         parameter-overrides: ${{ steps.set-params.outputs.params }}
         capabilities: "CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND"
