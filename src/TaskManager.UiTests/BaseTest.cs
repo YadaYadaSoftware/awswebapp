@@ -176,12 +176,19 @@ public class BaseTest : IAsyncLifetime
             }
 
             var testResultsDir = Path.Combine(projectRoot, "src", "TaskManager.UiTests", "TestResults");
-            var screenshotsDir = Path.Combine(testResultsDir, "Screenshots");
-            Directory.CreateDirectory(screenshotsDir);
+            var screenshotsBaseDir = Path.Combine(testResultsDir, "Screenshots");
+
+            // Get class name and test method name for folder structure
+            var className = this.GetType().Name;
+            var testMethodName = _currentTestName ?? "UnknownTest";
+
+            // Create structured folder path: Screenshots/ClassName/TestMethodName/ExceptionName/
+            var structuredDir = Path.Combine(screenshotsBaseDir, className, testMethodName, screenshotName);
+            Directory.CreateDirectory(structuredDir);
 
             var timestamp = DateTime.UtcNow.ToString("yyyy-MM-dd_HH-mm-ss");
-            var filename = $"{_currentTestName}_{screenshotName}_{timestamp}.png";
-            var filepath = Path.Combine(screenshotsDir, filename);
+            var filename = $"{timestamp}.png";
+            var filepath = Path.Combine(structuredDir, filename);
 
             await Page.ScreenshotAsync(new PageScreenshotOptions
             {
@@ -191,7 +198,7 @@ public class BaseTest : IAsyncLifetime
 
             Console.WriteLine($"Screenshot saved: {filepath}");
             Console.WriteLine($"Working directory: {workingDirectory}");
-            Console.WriteLine($"Screenshots directory: {screenshotsDir}");
+            Console.WriteLine($"Screenshots directory: {structuredDir}");
             Console.WriteLine($"Current test name: {_currentTestName}");
         }
         catch (Exception ex)

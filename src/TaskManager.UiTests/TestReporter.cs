@@ -47,12 +47,35 @@ public class TestReporter
             if (status == TestStatus.Failed)
             {
                 var workingDirectory = System.Environment.GetEnvironmentVariable("GITHUB_WORKSPACE") ?? Directory.GetCurrentDirectory();
-                var screenshotsDir = Path.Combine(workingDirectory, "src", "TaskManager.UiTests", "TestResults", "Screenshots");
-                var screenshotFiles = Directory.Exists(screenshotsDir)
-                    ? Directory.GetFiles(screenshotsDir, $"{testName}_*.png")
-                    : Array.Empty<string>();
+                var screenshotsBaseDir = Path.Combine(workingDirectory, "src", "TaskManager.UiTests", "TestResults", "Screenshots");
 
-                result.ScreenshotFiles = screenshotFiles.Select(Path.GetFileName).Where(f => f != null).ToList()!;
+                var screenshotFiles = new List<string>();
+
+                if (Directory.Exists(screenshotsBaseDir))
+                {
+                    // Look for screenshots in the structured folder hierarchy: Screenshots/ClassName/TestName/ExceptionName/
+                    var classDir = Path.Combine(screenshotsBaseDir, className);
+                    if (Directory.Exists(classDir))
+                    {
+                        var testDir = Path.Combine(classDir, testName);
+                        if (Directory.Exists(testDir))
+                        {
+                            // Get all PNG files from all exception subdirectories
+                            var exceptionDirs = Directory.GetDirectories(testDir);
+                            foreach (var exceptionDir in exceptionDirs)
+                            {
+                                var pngFiles = Directory.GetFiles(exceptionDir, "*.png");
+                                screenshotFiles.AddRange(pngFiles.Select(Path.GetFileName));
+                            }
+                        }
+                    }
+
+                    // Fallback: also check for old flat structure files for backward compatibility
+                    var oldFormatFiles = Directory.GetFiles(screenshotsBaseDir, $"{testName}_*.png", SearchOption.TopDirectoryOnly);
+                    screenshotFiles.AddRange(oldFormatFiles.Select(Path.GetFileName));
+                }
+
+                result.ScreenshotFiles = screenshotFiles.Where(f => f != null).ToList()!;
 
                 // Enhance error message with screenshot information
                 if (result.ScreenshotFiles.Any() && !string.IsNullOrEmpty(errorMessage))
