@@ -343,9 +343,25 @@ jobs:
         else
           ENABLE_GLOBAL=false
         fi
-        BASE_PARAMS="BranchName=${{ needs.get-branch-name.outputs.branch-name }},DatabasePassword=${{ secrets.DATABASE_PASSWORD }},EngineVersion=${{ env.ENGINE_VERSION }},IsPrimaryRegion=${{ matrix.is_primary }},MinCapacity=$MIN_CAP,MaxCapacity=$MAX_CAP,EnableGlobalCluster=$ENABLE_GLOBAL,GoogleOAuthClientId=${{ secrets.GOOGLE_CLIENT_ID }},GoogleOAuthClientSecret=${{ secrets.GOOGLE_CLIENT_SECRET }},WebContainerImage=${{ env.CONTAINER_IMAGE }},DeploymentToken=${{ github.sha }},DomainName=${{ secrets.DOMAIN_NAME }},HostedZoneId=Z06422172SASV44F5Y8VA"
+        BASE_PARAMS="BranchName=${{ needs.get-branch-name.outputs.branch-name }}"
+        BASE_PARAMS="$BASE_PARAMS,DatabasePassword=${{ secrets.DATABASE_PASSWORD }}"
+        BASE_PARAMS="$BASE_PARAMS,EngineVersion=${{ env.ENGINE_VERSION }}"
+        BASE_PARAMS="$BASE_PARAMS,IsPrimaryRegion=${{ matrix.is_primary }}"
+        BASE_PARAMS="$BASE_PARAMS,MinCapacity=$MIN_CAP"
+        BASE_PARAMS="$BASE_PARAMS,MaxCapacity=$MAX_CAP"
+        BASE_PARAMS="$BASE_PARAMS,EnableGlobalCluster=$ENABLE_GLOBAL"
+        BASE_PARAMS="$BASE_PARAMS,GoogleOAuthClientId=${{ secrets.GOOGLE_CLIENT_ID }}"
+        BASE_PARAMS="$BASE_PARAMS,GoogleOAuthClientSecret=${{ secrets.GOOGLE_CLIENT_SECRET }}"
+        BASE_PARAMS="$BASE_PARAMS,WebContainerImage=${{ env.CONTAINER_IMAGE }}"
+        BASE_PARAMS="$BASE_PARAMS,DeploymentToken=${{ github.sha }}"
+        BASE_PARAMS="$BASE_PARAMS,DomainName=${{ secrets.DOMAIN_NAME }}"
+        BASE_PARAMS="$BASE_PARAMS,HostedZoneId=Z06422172SASV44F5Y8VA"
         if [ "${{ matrix.is_primary }}" = "false" ]; then
-          BASE_PARAMS="$BASE_PARAMS,AuroraGlobalClusterId=${{ steps.get-primary-outputs.outputs.global-cluster-id }},KmsKeyArn=${{ steps.get-primary-outputs.outputs.kms-key-arn }},PrimaryRegion=${{ env.AWS_REGION_PRIMARY }},PrimaryWebLoadBalancerDNS=${{ steps.get-primary-outputs.outputs.primary-lb-dns }},PrimaryWebLoadBalancerHostedZoneId=${{ steps.get-primary-outputs.outputs.primary-lb-hz }}"
+          BASE_PARAMS="$BASE_PARAMS,AuroraGlobalClusterId=${{ steps.get-primary-outputs.outputs.global-cluster-id }}"
+          BASE_PARAMS="$BASE_PARAMS,KmsKeyArn=${{ steps.get-primary-outputs.outputs.kms-key-arn }}"
+          BASE_PARAMS="$BASE_PARAMS,PrimaryRegion=${{ env.AWS_REGION_PRIMARY }}"
+          BASE_PARAMS="$BASE_PARAMS,PrimaryWebLoadBalancerDNS=${{ steps.get-primary-outputs.outputs.primary-lb-dns }}"
+          BASE_PARAMS="$BASE_PARAMS,PrimaryWebLoadBalancerHostedZoneId=${{ steps.get-primary-outputs.outputs.primary-lb-hz }}"
         fi
         PARAMS="$BASE_PARAMS"
         echo "params=$PARAMS" >> $GITHUB_OUTPUT
