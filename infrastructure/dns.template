@@ -7,6 +7,10 @@ Parameters:
     Type: String
     Description: "Branch name for resource naming"
 
+  EnvironmentToImport:
+    Type: String
+    Description: "Branch name to import infrastructure values from"
+
   DomainName:
     Type: String
     Default: "appcloud.systems"
@@ -58,7 +62,7 @@ Resources:
         Type: HTTPS
         ResourcePath: /health
         FullyQualifiedDomainName:
-          !ImportValue [!Sub "WebLoadBalancerDNS-${BranchName}"]
+          !ImportValue [!Sub "WebLoadBalancerDNS-${EnvironmentToImport}"]
         Port: 443
         RequestInterval: 30
         FailureThreshold: 2
@@ -79,7 +83,7 @@ Resources:
         Type: HTTPS
         ResourcePath: /health
         FullyQualifiedDomainName:
-          !ImportValue [!Sub "WebLoadBalancerDNS-${BranchName}"]
+          !ImportValue [!Sub "WebLoadBalancerDNS-${EnvironmentToImport}"]
         Port: 443
         RequestInterval: 30
         FailureThreshold: 2
@@ -100,9 +104,11 @@ Resources:
       Name: !Sub "${BranchName}.${DomainName}"
       Type: A
       AliasTarget:
-        DNSName: !ImportValue [!Sub "WebLoadBalancerDNS-${BranchName}"]
+        DNSName: !ImportValue [!Sub "WebLoadBalancerDNS-${EnvironmentToImport}"]
         HostedZoneId:
-          !ImportValue [!Sub "WebLoadBalancerHostedZoneId-${BranchName}"]
+          !ImportValue [
+            !Sub "WebLoadBalancerHostedZoneId-${EnvironmentToImport}",
+          ]
 
   # Primary DNS Record for multi-region (failover record)
   PrimaryDNSRecordFailover:
@@ -130,9 +136,11 @@ Resources:
       SetIdentifier: !Sub "secondary-${BranchName}"
       Failover: SECONDARY
       AliasTarget:
-        DNSName: !ImportValue [!Sub "WebLoadBalancerDNS-${BranchName}"]
+        DNSName: !ImportValue [!Sub "WebLoadBalancerDNS-${EnvironmentToImport}"]
         HostedZoneId:
-          !ImportValue [!Sub "WebLoadBalancerHostedZoneId-${BranchName}"]
+          !ImportValue [
+            !Sub "WebLoadBalancerHostedZoneId-${EnvironmentToImport}",
+          ]
       HealthCheckId: !Ref SecondaryHealthCheck
 
 Outputs:

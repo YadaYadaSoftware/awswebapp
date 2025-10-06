@@ -7,6 +7,10 @@ Parameters:
     Type: String
     Description: "Branch name for resource naming"
 
+  EnvironmentToImport:
+    Type: String
+    Description: "Branch name to import infrastructure values from"
+
   Environment:
     Type: String
     Default: "Development"
@@ -39,23 +43,25 @@ Resources:
         TaskManager.Api::TaskManager.Api.LambdaEntryPoint::FunctionHandlerAsync
       Runtime: dotnet8
       PackageType: Zip
-      Role: !ImportValue [!Sub "SharedLambdaRoleArn-${BranchName}"]
+      Role: !ImportValue [!Sub "SharedLambdaRoleArn-${EnvironmentToImport}"]
       Environment:
         Variables:
           ASPNETCORE_ENVIRONMENT: !Ref Environment
           ConnectionStrings__DefaultConnection: !Sub
             - "Server=${DatabaseHost};Database=${DatabaseName};User Id=${DatabaseUsername};Password=${DatabasePassword};SslMode=Required;"
-            - DatabaseHost: !ImportValue [!Sub "DatabaseHost-${BranchName}"]
-              DatabaseName: !ImportValue [!Sub "DatabaseName-${BranchName}"]
+            - DatabaseHost:
+                !ImportValue [!Sub "DatabaseHost-${EnvironmentToImport}"]
+              DatabaseName:
+                !ImportValue [!Sub "DatabaseName-${EnvironmentToImport}"]
               DatabaseUsername:
-                !ImportValue [!Sub "DatabaseUsername-${BranchName}"]
-              DatabasePassword: !Sub "{{resolve:secretsmanager:taskmanager/database/${BranchName}/regional/${AWS::Region}/password:SecretString}}"
+                !ImportValue [!Sub "DatabaseUsername-${EnvironmentToImport}"]
+              DatabasePassword: !Sub "{{resolve:secretsmanager:taskmanager/database/${EnvironmentToImport}/regional/${AWS::Region}/password:SecretString}}"
       VpcConfig:
         SecurityGroupIds:
-          - !ImportValue [!Sub "LambdaSecurityGroupId-${BranchName}"]
+          - !ImportValue [!Sub "LambdaSecurityGroupId-${EnvironmentToImport}"]
         SubnetIds:
-          - !ImportValue [!Sub "PrivateSubnet1Id-${BranchName}"]
-          - !ImportValue [!Sub "PrivateSubnet2Id-${BranchName}"]
+          - !ImportValue [!Sub "PrivateSubnet1Id-${EnvironmentToImport}"]
+          - !ImportValue [!Sub "PrivateSubnet2Id-${EnvironmentToImport}"]
       Events:
         # Health check endpoint for deployment verification
         HealthCheck:

@@ -15,6 +15,9 @@ Parameters:
   BranchName:
     Type: String
     Description: Branch name for resource naming
+  EnvironmentToImport:
+    Type: String
+    Description: "Branch name to import infrastructure values from"
   GoogleOAuthClientId:
     Type: String
     Description: Google OAuth Client ID

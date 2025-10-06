@@ -375,6 +375,13 @@ jobs:
         BRANCH_NAME="${{ needs.get-branch-name.outputs.branch-name }}"
         ENVIRONMENT="${{ needs.get-branch-name.outputs.environment }}"
 
+        # Determine EnvironmentToImport value
+        if [[ " app beta alpha dev " == *" $BRANCH_NAME "* ]]; then
+          ENVIRONMENT_TO_IMPORT="$BRANCH_NAME"
+        else
+          ENVIRONMENT_TO_IMPORT="dev"
+        fi
+
         # Set parameters based on branch name
         if [[ " app beta alpha dev " == *" $BRANCH_NAME "* ]]; then
           # Master template parameters (includes backend infrastructure)
@@ -392,6 +399,7 @@ jobs:
           fi
 
           BASE_PARAMS="BranchName=${BRANCH_NAME}"
+          BASE_PARAMS="$BASE_PARAMS,EnvironmentToImport=${ENVIRONMENT_TO_IMPORT}"
           BASE_PARAMS="$BASE_PARAMS,DatabasePassword=${{ secrets.DATABASE_PASSWORD }}"
           BASE_PARAMS="$BASE_PARAMS,EngineVersion=${{ env.ENGINE_VERSION }}"
           BASE_PARAMS="$BASE_PARAMS,IsPrimaryRegion=${{ matrix.is_primary }}"
@@ -416,6 +424,7 @@ jobs:
         else
           # Application template parameters (imports backend infrastructure from dev)
           BASE_PARAMS="BranchName=${BRANCH_NAME}"
+          BASE_PARAMS="$BASE_PARAMS,EnvironmentToImport=${ENVIRONMENT_TO_IMPORT}"
           BASE_PARAMS="$BASE_PARAMS,GoogleOAuthClientId=${{ secrets.GOOGLE_CLIENT_ID }}"
           BASE_PARAMS="$BASE_PARAMS,GoogleOAuthClientSecret=${{ secrets.GOOGLE_CLIENT_SECRET }}"
           BASE_PARAMS="$BASE_PARAMS,WebContainerImage=${{ env.CONTAINER_IMAGE }}"
