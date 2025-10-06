@@ -66,20 +66,6 @@ $changesContent = @"
 **Purpose:** $ChangesDescription
 
 **Date Created:** $(Get-Date -Format "yyyy-MM-dd HH:mm:ss")
-
-**Branch Type:** $BranchType
-
-## Description
-Provide detailed information about the changes being made in this branch.
-
-## Files Modified
-- List files that will be modified
-
-## Testing
-- Describe testing approach
-
-## Deployment Notes
-- Any special deployment considerations
 "@
 
 # Create changes folder if it doesn't exist
