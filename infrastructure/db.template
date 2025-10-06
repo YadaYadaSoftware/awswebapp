@@ -86,16 +86,6 @@ Resources:
       SubnetIds:
         - !Ref PrivateSubnet1Id
         - !Ref PrivateSubnet2Id
-      Tags:
-        - Key: LogicalId
-          Value: AuroraDBSubnetGroup
-        - Key: Name
-          Value: "TaskManager-Aurora-SubnetGroup"
-        - Key: Region
-          Value: !Ref AWS::Region
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
-
   # Aurora DB Cluster Parameter Group
   AuroraClusterParameterGroup:
     Type: AWS::RDS::DBClusterParameterGroup
@@ -147,18 +137,6 @@ Resources:
         - error
         - general
         - slowquery
-      Tags:
-        - Key: LogicalId
-          Value: AuroraCluster
-        - Key: Name
-          Value: !Sub "TaskManager-Aurora-Cluster-${AWS::Region}"
-        - Key: Purpose
-          Value: !Sub "${IsPrimaryRegion} Aurora Cluster"
-        - Key: Region
-          Value: !Ref AWS::Region
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
-
   # Aurora Serverless v2 Instance
   AuroraInstance:
     Type: AWS::RDS::DBInstance
@@ -167,18 +145,6 @@ Resources:
       DBInstanceClass: db.serverless
       Engine: aurora-mysql
       PubliclyAccessible: false
-      Tags:
-        - Key: LogicalId
-          Value: AuroraInstance
-        - Key: Name
-          Value: !Sub "TaskManager-Aurora-Instance-${AWS::Region}"
-        - Key: Purpose
-          Value: "Regional Aurora Instance"
-        - Key: Region
-          Value: !Ref AWS::Region
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
-
   AuroraGlobalCluster:
     Condition: ShouldCreateGlobalCluster
     Type: AWS::RDS::GlobalCluster
@@ -188,11 +154,6 @@ Resources:
       EngineVersion: !Ref EngineVersion
       DeletionProtection: false
       StorageEncrypted: true
-      Tags:
-        - Key: LogicalId
-          Value: AuroraGlobalCluster
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
   # Database Password Secret (only password remains sensitive)
   DatabasePasswordSecret:
     Type: AWS::SecretsManager::Secret
@@ -200,12 +161,6 @@ Resources:
       Name: !Sub "taskmanager/database/${BranchName}/regional/${AWS::Region}/password"
       Description: Database password for Aurora Regional Cluster
       SecretString: !Ref DatabasePassword
-      Tags:
-        - Key: LogicalId
-          Value: DatabasePasswordSecret
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
-
 Outputs:
   AuroraClusterId:
     Description: Aurora Regional Cluster ID

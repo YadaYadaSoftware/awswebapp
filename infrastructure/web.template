@@ -134,12 +134,6 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties:
       RetentionInDays: !Ref LogRetentionDays
-      Tags:
-        - Key: LogicalId
-          Value: WebECSLogGroup
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
-
   # Application Load Balancer
   WebLoadBalancer:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
@@ -151,14 +145,6 @@ Resources:
       Subnets:
         - !Ref PublicSubnet1Id
         - !Ref PublicSubnet2Id
-      Tags:
-        - Key: LogicalId
-          Value: WebLoadBalancer
-        - Key: Environment
-          Value: !Ref Environment
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
-
   # Target Group
   WebTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
@@ -173,12 +159,6 @@ Resources:
       HealthyThresholdCount: 2
       UnhealthyThresholdCount: 2
       HealthCheckPort: 80
-      Tags:
-        - Key: LogicalId
-          Value: WebTargetGroup
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
-
   # ALB HTTP Listener (redirects to HTTPS)
   WebListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
@@ -294,14 +274,6 @@ Resources:
           ContainerName: web
           ContainerPort: 80
       HealthCheckGracePeriodSeconds: 300
-      Tags:
-        - Key: LogicalId
-          Value: WebService
-        - Key: Environment
-          Value: !Ref Environment
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
-
   # CloudWatch Alarms for Web
   WebECSServiceAlarm:
     Type: AWS::CloudWatch::Alarm
@@ -319,12 +291,6 @@ Resources:
           Value: !GetAtt WebLoadBalancer.LoadBalancerFullName
         - Name: TargetGroup
           Value: !GetAtt WebTargetGroup.TargetGroupFullName
-      Tags:
-        - Key: LogicalId
-          Value: WebECSServiceAlarm
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
-
 Outputs:
   WebEndpoint:
     Description: "Web application endpoint URL"

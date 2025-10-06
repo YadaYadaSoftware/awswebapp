@@ -110,10 +110,6 @@ Resources:
           Properties:
             Path: /api/{proxy+}
             Method: ANY
-      Tags:
-        LogicalId: TaskManagerApiFunction
-        Environment: !Ref Environment
-        Stack: !Ref "AWS::StackName"
 
   # CloudWatch Alarms for API
   LambdaErrorAlarm:
@@ -130,12 +126,6 @@ Resources:
       Dimensions:
         - Name: FunctionName
           Value: !Ref TaskManagerApiFunction
-      Tags:
-        - Key: LogicalId
-          Value: LambdaErrorAlarm
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
-
 Outputs:
   ApiEndpoint:
     Description: "API Gateway endpoint URL"
