@@ -177,26 +177,20 @@ Resources:
         Environment: !Ref Environment
 
 Outputs:
-  # KMS outputs
+  # KMS outputs (for orchestration, not exported)
   AuroraKmsKeyArn:
     Description: ARN of the KMS key
     Value: !GetAtt BackendStack.Outputs.AuroraKmsKeyArn
-    Export:
-      Name: !Sub "AuroraKmsKeyArn-${BranchName}"
 
-  # Global outputs
+  # Global outputs (for orchestration, not exported)
   AuroraGlobalClusterId:
     Condition: ShouldCreateGlobalCluster
     Description: ID of the Aurora global cluster
     Value: !GetAtt BackendStack.Outputs.AuroraGlobalClusterId
-    Export:
-      Name: !Sub "AuroraGlobalClusterId-${BranchName}"
 
   SharedLambdaRoleArn:
     Description: ARN of the shared Lambda role
     Value: !GetAtt BackendStack.Outputs.SharedLambdaRoleArn
-    Export:
-      Name: !Sub "SharedLambdaRoleArn-${BranchName}"
 
   # Database outputs (for orchestration, not exported)
   DatabaseEndpoint:
