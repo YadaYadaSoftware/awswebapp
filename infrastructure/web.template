@@ -32,10 +32,9 @@ Mappings:
       ALBHostedZoneId: Z31USIVHYNEOWT
 
 Parameters:
-  Environment:
+  BranchName:
     Type: String
-    Default: main
-    Description: "Environment name (typically branch name)"
+    Description: "Branch name for resource naming"
 
   WebContainerImage:
     Type: String
@@ -193,17 +192,17 @@ Resources:
   WebSSLCertificate:
     Type: AWS::CertificateManager::Certificate
     Properties:
-      DomainName: !Sub "${Environment}.${DomainName}"
+      DomainName: !Sub "${BranchName}.${DomainName}"
       ValidationMethod: DNS
       DomainValidationOptions:
-        - DomainName: !Sub "${Environment}.${DomainName}"
+        - DomainName: !Sub "${BranchName}.${DomainName}"
           HostedZoneId: !Ref HostedZoneId
 
   # ECS Task Definition
   WebTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
-      Family: !Sub "webtd-${Environment}"
+      Family: !Sub "webtd-${BranchName}"
       NetworkMode: awsvpc
       RequiresCompatibilities:
         - FARGATE
@@ -294,7 +293,7 @@ Resources:
 Outputs:
   WebEndpoint:
     Description: "Web application endpoint URL"
-    Value: !Sub "https://${Environment}.${DomainName}"
+    Value: !Sub "https://${BranchName}.${DomainName}"
 
   WebLoadBalancerDNS:
     Description: "Web Load Balancer DNS name"

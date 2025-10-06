@@ -3,10 +3,9 @@ Transform: AWS::Serverless-2016-10-31
 Description: "TaskManager API - Lambda Function with Branch-Specific Database"
 
 Parameters:
-  Environment:
+  BranchName:
     Type: String
-    Default: main
-    Description: "Environment name (typically branch name)"
+    Description: "Branch name for resource naming"
 
   SharedLambdaRoleArn:
     Type: String
@@ -61,7 +60,7 @@ Globals:
     MemorySize: 512
     Environment:
       Variables:
-        ASPNETCORE_ENVIRONMENT: !Ref Environment
+        ASPNETCORE_ENVIRONMENT: !Ref BranchName
   Api:
     AccessLogSetting:
       Format: '{"requestId":"$context.requestId","ip":"$context.identity.sourceIp","caller":"$context.identity.caller","user":"$context.identity.user","requestTime":"$context.requestTime","httpMethod":"$context.httpMethod","resourcePath":"$context.resourcePath","status":"$context.status","protocol":"$context.protocol","responseLength":"$context.responseLength"}'
@@ -84,13 +83,13 @@ Resources:
       Role: !Ref SharedLambdaRoleArn
       Environment:
         Variables:
-          ASPNETCORE_ENVIRONMENT: !Ref Environment
+          ASPNETCORE_ENVIRONMENT: !Ref BranchName
           ConnectionStrings__DefaultConnection: !Sub
             - "Server=${DatabaseHost};Database=${DatabaseName};User Id=${DatabaseUsername};Password=${DatabasePassword};SslMode=Required;"
             - DatabaseHost: !Ref DatabaseHost
               DatabaseName: !Ref DatabaseName
               DatabaseUsername: !Ref DatabaseUsername
-              DatabasePassword: !Sub "{{resolve:secretsmanager:taskmanager/database/${Environment}/regional/${AWS::Region}/password:SecretString}}"
+              DatabasePassword: !Sub "{{resolve:secretsmanager:taskmanager/database/${BranchName}/regional/${AWS::Region}/password:SecretString}}"
       VpcConfig:
         SecurityGroupIds:
           - !Ref LambdaSecurityGroupId
@@ -144,4 +143,4 @@ Outputs:
 
   BranchEnvironment:
     Description: "Branch environment name"
-    Value: !Ref Environment
+    Value: !Ref BranchName

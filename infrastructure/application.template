@@ -155,7 +155,7 @@ Resources:
     Properties:
       TemplateURL: ./api.template
       Parameters:
-        Environment: !Ref BranchName
+        BranchName: !Ref BranchName
         SharedLambdaRoleArn: !Ref SharedLambdaRoleArn
         DatabaseHost: !Ref DatabaseHost
         DatabaseUsername: !Ref DatabaseUsername
@@ -173,7 +173,7 @@ Resources:
     Properties:
       TemplateURL: ./web.template
       Parameters:
-        Environment: !Ref BranchName
+        BranchName: !Ref BranchName
         WebContainerImage: !Ref WebContainerImage
         DeploymentToken: !Ref DeploymentToken
         DomainName: !Ref DomainName
@@ -205,7 +205,7 @@ Resources:
     Properties:
       TemplateURL: ./dns.template
       Parameters:
-        Environment: !Ref BranchName
+        BranchName: !Ref BranchName
         DomainName: !Ref DomainName
         HostedZoneId: !Ref HostedZoneId
         PrimaryRegion: !Ref "AWS::Region"
@@ -222,7 +222,7 @@ Resources:
     Properties:
       TemplateURL: ./dns.template
       Parameters:
-        Environment: !Ref BranchName
+        BranchName: !Ref BranchName
         DomainName: !Ref DomainName
         HostedZoneId: !Ref HostedZoneId
         PrimaryRegion: !Ref PrimaryRegion
