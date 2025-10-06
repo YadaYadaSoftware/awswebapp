@@ -121,6 +121,7 @@ Resources:
         !If [IsPrimary, !Ref DatabasePassword, !Ref "AWS::NoValue"]
       DatabaseName: !If [IsPrimary, "taskmanager", !Ref "AWS::NoValue"]
       DBClusterParameterGroupName: !Ref AuroraClusterParameterGroup
+      DBSubnetGroupName: !Ref AuroraDBSubnetGroup
       VpcSecurityGroupIds:
         - !Ref RDSSecurityGroupId
       BackupRetentionPeriod: 7
