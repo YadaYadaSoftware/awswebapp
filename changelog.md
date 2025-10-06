@@ -1,3 +1,12 @@
+## [2025-10-06 10:47:53 UTC] get-rid-of-names (system)
+
+# Changes for system/get-rid-of-names
+
+**Purpose:** get rid of all optional names in cloud resources
+
+**Date Created:** 2025-10-06 09:28:59
+
+
 ## [2025-10-06 09:10:00 UTC] shorten-stack-name (system)
 
 # Changes for system/shorten-stack-name
@@ -67,6 +76,7 @@ Provide detailed information about the changes being made in this branch.
 
 ## Deployment Notes
 - Any special deployment considerations
+
 
 
 
