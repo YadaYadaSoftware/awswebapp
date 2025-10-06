@@ -149,11 +149,7 @@ Outputs:
   DatabaseName:
     Description: "Database name"
     Value: !Ref DatabaseName
-    Export:
-      Name: !Sub "DatabaseName-${BranchName}"
 
   BranchEnvironment:
     Description: "Branch environment name"
     Value: !Ref BranchName
-    Export:
-      Name: !Sub "BranchEnvironment-${BranchName}"
