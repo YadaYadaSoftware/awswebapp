@@ -21,13 +21,22 @@ public class MainPage
 
     public async Task ClickLoginLinkAsync()
     {
-        await _page.ClickAsync("a[href*='/Identity/Account/Login']");
+        // Try multiple possible login link selectors for better reliability
+        try
+        {
+            // First try the specific href pattern
+            await _page.ClickAsync("a[href*='Identity/Account/Login']");
+        }
+        catch
+        {
+            // Fallback to text-based selector if href-based fails
+            await _page.ClickAsync("a:has-text('Log in')");
+        }
     }
 
     public async Task<bool> IsLoginLinkVisibleAsync()
     {
-        var x = _page.Locator("a:has-text('Log in')");
-        return await _page.IsVisibleAsync("a:has-text('Log in')");
+        return await _page.IsVisibleAsync("a[href*='Identity/Account/Login']");
     }
 
     public async Task<bool> IsUserLoggedInAsync()
