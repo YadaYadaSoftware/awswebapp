@@ -177,9 +177,9 @@ Resources:
                     Fn::ImportValue: !Sub "DatabaseUsername-${EnvironmentToImport}"
                   DatabasePassword: !Join
                     - ""
-                    - - "x:"
+                    - - "{{resolve:secretsmanager:"
                       - Fn::ImportValue: !Sub "DatabasePasswordSecretArn-${EnvironmentToImport}"
-                      - ":x"
+                      - ":SecretString}}"
             - Name: ASPNETCORE_URLS
               Value: "http://*:80"
             - Name: DOTNET_RUNNING_IN_CONTAINER
@@ -191,9 +191,9 @@ Resources:
             - Name: DEPLOYMENT_TOKEN
               Value: !Ref DeploymentToken
             - Name: Authentication__Google__ClientId
-              Value: !Sub "{{resolve:secretsmanager:taskmanager/oauth/${BranchName}/global/google:SecretString:clientId}}"
+              Value: !Sub "{{resolve:secretsmanager:taskmanager/oauth/${EnvironmentToImport}/global/google:SecretString:clientId}}"
             - Name: Authentication__Google__ClientSecret
-              Value: !Sub "{{resolve:secretsmanager:taskmanager/oauth/${BranchName}/global/google:SecretString:clientSecret}}"
+              Value: !Sub "{{resolve:secretsmanager:taskmanager/oauth/${EnvironmentToImport}/global/google:SecretString:clientSecret}}"
           LogConfiguration:
             LogDriver: awslogs
             Options:
