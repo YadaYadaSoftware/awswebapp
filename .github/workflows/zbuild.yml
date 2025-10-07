@@ -221,6 +221,12 @@ jobs:
         echo "- Screenshots from failed tests" >> $GITHUB_STEP_SUMMARY
         echo "- Detailed test logs" >> $GITHUB_STEP_SUMMARY
 
+    - name: Fail build if UI tests failed
+      if: steps.ui-tests.outputs.ui-tests-passed == 'false'
+      run: |
+        echo "❌ UI tests failed - failing the build"
+        exit 1
+
     - name: Publish Web for Container
       run: |
         echo "Publishing Web with version: ${{ steps.custom-version.outputs.custom-version }}"
