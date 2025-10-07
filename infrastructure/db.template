@@ -68,8 +68,8 @@ Resources:
     Properties:
       DBSubnetGroupDescription: "Subnet group for Aurora cluster in this region"
       SubnetIds:
-        - !ImportValue !Sub "PrivateSubnet1Id-${EnvironmentToImport}"
-        - !ImportValue !Sub "PrivateSubnet2Id-${EnvironmentToImport}"
+        - Fn::ImportValue: !Sub "PrivateSubnet1Id-${EnvironmentToImport}"
+        - Fn::ImportValue: !Sub "PrivateSubnet2Id-${EnvironmentToImport}"
   # Aurora DB Cluster Parameter Group
   AuroraClusterParameterGroup:
     Type: AWS::RDS::DBClusterParameterGroup
@@ -107,7 +107,7 @@ Resources:
       DBClusterParameterGroupName: !Ref AuroraClusterParameterGroup
       DBSubnetGroupName: !Ref AuroraDBSubnetGroup
       VpcSecurityGroupIds:
-        - !ImportValue !Sub "RDSSecurityGroupId-${EnvironmentToImport}"
+        - Fn::ImportValue !Sub "RDSSecurityGroupId-${EnvironmentToImport}"
       BackupRetentionPeriod: 7
       PreferredBackupWindow: "03:00-04:00"
       PreferredMaintenanceWindow: "sun:04:00-sun:05:00"
