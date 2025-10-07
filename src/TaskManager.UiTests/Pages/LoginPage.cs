@@ -1,5 +1,6 @@
 using Microsoft.Playwright;
 using System.Threading.Tasks;
+using System;
 
 namespace TaskManager.UiTests.Pages;
 
@@ -14,12 +15,18 @@ public class LoginPage
 
     public async Task<bool> IsOnLoginPageAsync()
     {
-        return _page.Url.Contains("/Identity/Account/Login");
+        return _page.Url.Contains("Identity/Account/Login");
     }
 
     public async Task ClickGoogleLoginAsync()
     {
-        await _page.ClickAsync("button, a, div:has-text('Google'), [data-provider='Google']");
+        var button = _page.Locator("button:has-text('Google'), a:has-text('Google')");
+        if (button == null)
+        {
+            throw new Exception("Google login button not found on the login page.");
+        }
+        await button.ClickAsync();
+        // await _page.ClickAsync("button, a, div:has-text('Google'), [data-provider='Google']");
     }
 
     public async Task<bool> IsGoogleLoginVisibleAsync()
