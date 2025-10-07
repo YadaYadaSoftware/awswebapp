@@ -81,17 +81,17 @@ Resources:
       Type: application
       Scheme: internet-facing
       SecurityGroups:
-        - !ImportValue [!Sub "ALBSecurityGroupId-${EnvironmentToImport}"]
+        - !ImportValue !Sub "ALBSecurityGroupId-${EnvironmentToImport}"
       Subnets:
-        - !ImportValue [!Sub "PublicSubnet1Id-${EnvironmentToImport}"]
-        - !ImportValue [!Sub "PublicSubnet2Id-${EnvironmentToImport}"]
+        - !ImportValue !Sub "PublicSubnet1Id-${EnvironmentToImport}"
+        - !ImportValue !Sub "PublicSubnet2Id-${EnvironmentToImport}"
   # Target Group
   WebTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
       Protocol: HTTP
       Port: 80
-      VpcId: !ImportValue [!Sub "VPCId-${EnvironmentToImport}"]
+      VpcId: !ImportValue !Sub "VPCId-${EnvironmentToImport}"
       TargetType: ip
       HealthCheckPath: /health
       HealthCheckIntervalSeconds: 30
@@ -150,9 +150,9 @@ Resources:
       Cpu: "512"
       Memory: "1024"
       ExecutionRoleArn:
-        !ImportValue [!Sub "SharedLambdaRoleArn-${EnvironmentToImport}"]
+        !ImportValue !Sub "SharedLambdaRoleArn-${EnvironmentToImport}"
       TaskRoleArn:
-        !ImportValue [!Sub "SharedLambdaRoleArn-${EnvironmentToImport}"]
+        !ImportValue !Sub "SharedLambdaRoleArn-${EnvironmentToImport}"
       ContainerDefinitions:
         - Name: web
           Image: !Ref WebContainerImage
@@ -169,13 +169,11 @@ Resources:
               Value: !Sub
                 - "Server=${DatabaseHost};Database=${DatabaseName};User Id=${DatabaseUsername};Password=${DatabasePassword};SslMode=Required;"
                 - DatabaseHost:
-                    !ImportValue [!Sub "DatabaseHost-${EnvironmentToImport}"]
+                    !ImportValue !Sub "DatabaseHost-${EnvironmentToImport}"
                   DatabaseName:
-                    !ImportValue [!Sub "DatabaseName-${EnvironmentToImport}"]
+                    !ImportValue !Sub "DatabaseName-${EnvironmentToImport}"
                   DatabaseUsername:
-                    !ImportValue [
-                      !Sub "DatabaseUsername-${EnvironmentToImport}",
-                    ]
+                    !ImportValue !Sub "DatabaseUsername-${EnvironmentToImport}"
                   DatabasePassword: !Sub "{{resolve:secretsmanager:taskmanager/database/${EnvironmentToImport}/regional/${AWS::Region}/password:SecretString}}"
             - Name: ASPNETCORE_URLS
               Value: "http://*:80"
@@ -205,19 +203,17 @@ Resources:
       - WebListener
       - WebTaskDefinition
     Properties:
-      Cluster: !ImportValue [!Sub "ECSClusterName-${EnvironmentToImport}"]
+      Cluster: !ImportValue !Sub "ECSClusterName-${EnvironmentToImport}"
       TaskDefinition: !Ref WebTaskDefinition
       DesiredCount: 1
       LaunchType: FARGATE
       NetworkConfiguration:
         AwsvpcConfiguration:
           SecurityGroups:
-            - !ImportValue [
-                !Sub "ECSTaskSecurityGroupId-${EnvironmentToImport}",
-              ]
+            - !ImportValue !Sub "ECSTaskSecurityGroupId-${EnvironmentToImport}"
           Subnets:
-            - !ImportValue [!Sub "PrivateSubnet1Id-${EnvironmentToImport}"]
-            - !ImportValue [!Sub "PrivateSubnet2Id-${EnvironmentToImport}"]
+            - !ImportValue !Sub "PrivateSubnet1Id-${EnvironmentToImport}"
+            - !ImportValue !Sub "PrivateSubnet2Id-${EnvironmentToImport}"
       LoadBalancers:
         - TargetGroupArn: !Ref WebTargetGroup
           ContainerName: web

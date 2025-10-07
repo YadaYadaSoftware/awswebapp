@@ -62,7 +62,7 @@ Resources:
         Type: HTTPS
         ResourcePath: /health
         FullyQualifiedDomainName:
-          !ImportValue [!Sub "WebLoadBalancerDNS-${EnvironmentToImport}"]
+          !ImportValue !Sub "WebLoadBalancerDNS-${EnvironmentToImport}"
         Port: 443
         RequestInterval: 30
         FailureThreshold: 2
@@ -83,7 +83,7 @@ Resources:
         Type: HTTPS
         ResourcePath: /health
         FullyQualifiedDomainName:
-          !ImportValue [!Sub "WebLoadBalancerDNS-${EnvironmentToImport}"]
+          !ImportValue !Sub "WebLoadBalancerDNS-${EnvironmentToImport}"
         Port: 443
         RequestInterval: 30
         FailureThreshold: 2
@@ -104,11 +104,9 @@ Resources:
       Name: !Sub "${BranchName}.${DomainName}"
       Type: A
       AliasTarget:
-        DNSName: !ImportValue [!Sub "WebLoadBalancerDNS-${EnvironmentToImport}"]
+        DNSName: !ImportValue !Sub "WebLoadBalancerDNS-${EnvironmentToImport}"
         HostedZoneId:
-          !ImportValue [
-            !Sub "WebLoadBalancerHostedZoneId-${EnvironmentToImport}",
-          ]
+          !ImportValue !Sub "WebLoadBalancerHostedZoneId-${EnvironmentToImport}"
 
   # Primary DNS Record for multi-region (failover record)
   PrimaryDNSRecordFailover:
@@ -136,11 +134,9 @@ Resources:
       SetIdentifier: !Sub "secondary-${BranchName}"
       Failover: SECONDARY
       AliasTarget:
-        DNSName: !ImportValue [!Sub "WebLoadBalancerDNS-${EnvironmentToImport}"]
+        DNSName: !ImportValue !Sub "WebLoadBalancerDNS-${EnvironmentToImport}"
         HostedZoneId:
-          !ImportValue [
-            !Sub "WebLoadBalancerHostedZoneId-${EnvironmentToImport}",
-          ]
+          !ImportValue !Sub "WebLoadBalancerHostedZoneId-${EnvironmentToImport}"
       HealthCheckId: !Ref SecondaryHealthCheck
 
 Outputs:
