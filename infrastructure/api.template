@@ -107,7 +107,3 @@ Outputs:
     Value: !Ref TaskManagerApiFunction
     Export:
       Name: !Sub "ApiLambdaFunctionName-${BranchName}"
-
-  BranchEnvironment:
-    Description: "Branch environment name"
-    Value: !Ref BranchName
