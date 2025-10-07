@@ -177,6 +177,7 @@ Resources:
         GoogleOAuthSecretArn: !GetAtt BackendStack.Outputs.GoogleOAuthSecretArn
         IsPrimaryRegion: !Ref IsPrimaryRegion
         Environment: !Ref Environment
+        EnvironmentToImport: !Ref BranchName
 
 Outputs:
   # KMS outputs (for orchestration, not exported)
