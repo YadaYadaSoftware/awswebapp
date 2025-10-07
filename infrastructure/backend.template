@@ -4,14 +4,6 @@ Description: "TaskManager Backend Infrastructure Template - Includes security, n
 
 Parameters:
   # Common parameters
-  TemplateBucket:
-    Type: String
-    Description: S3 bucket name containing the CloudFormation templates
-
-  GitHubActionsUserArn:
-    Type: String
-    Description: ARN of the GitHub Actions IAM user
-
   BranchName:
     Type: String
     Description: Branch name for resource naming
@@ -93,7 +85,6 @@ Resources:
     Properties:
       TemplateURL: ./security.template
       Parameters:
-        GitHubActionsUserArn: !Ref GitHubActionsUserArn
         BranchName: !Ref BranchName
         KmsKeyArn: !If [HasKmsKeyArn, !Ref KmsKeyArn, !Ref "AWS::NoValue"]
         IsPrimaryRegion: !Ref IsPrimaryRegion
@@ -119,7 +110,6 @@ Resources:
         AuroraGlobalClusterId: !Ref AuroraGlobalClusterId
         AuroraKmsKeyArn: !GetAtt SecurityStack.Outputs.AuroraKmsKeyArn
         IsPrimaryRegion: !Ref IsPrimaryRegion
-        GitHubActionsUserArn: !Ref GitHubActionsUserArn
         BranchName: !Ref BranchName
         VPCId: !GetAtt NetworkingStack.Outputs.VPCId
         PrivateSubnet1Id: !GetAtt NetworkingStack.Outputs.PrivateSubnet1Id
