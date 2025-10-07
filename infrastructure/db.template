@@ -33,10 +33,6 @@ Parameters:
     Default: "true"
     Description: Whether to enable Aurora global cluster (for multi-region deployments)
 
-  GitHubActionsUserArn:
-    Type: String
-    Description: ARN of the GitHub Actions IAM user from IAM setup stack
-
   BranchName:
     Type: String
     Description: Branch name for resource naming
