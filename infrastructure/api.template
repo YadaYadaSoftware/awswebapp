@@ -108,10 +108,6 @@ Outputs:
     Export:
       Name: !Sub "ApiLambdaFunctionName-${BranchName}"
 
-  DatabaseName:
-    Description: "Database name"
-    Value: !Ref DatabaseName
-
   BranchEnvironment:
     Description: "Branch environment name"
     Value: !Ref BranchName
