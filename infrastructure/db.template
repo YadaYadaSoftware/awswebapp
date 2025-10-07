@@ -119,7 +119,7 @@ Resources:
       MasterUsername: !If [IsPrimary, "taskmanager_admin", !Ref "AWS::NoValue"]
       MasterUserPassword:
         !If [IsPrimary, !Ref DatabasePassword, !Ref "AWS::NoValue"]
-      DatabaseName: !If [IsPrimary, "taskmanager", !Ref "AWS::NoValue"]
+      DatabaseName: !If [IsPrimary, !Ref BranchName, !Ref "AWS::NoValue"]
       DBClusterParameterGroupName: !Ref AuroraClusterParameterGroup
       DBSubnetGroupName: !Ref AuroraDBSubnetGroup
       VpcSecurityGroupIds:
@@ -207,7 +207,7 @@ Outputs:
 
   DatabaseName:
     Description: Database name
-    Value: "taskmanager"
+    Value: !Ref BranchName
     Export:
       Name: !Sub "DatabaseName-${BranchName}"
 
