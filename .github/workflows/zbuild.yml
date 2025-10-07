@@ -382,7 +382,25 @@ jobs:
           ENVIRONMENT_TO_IMPORT="dev"
         fi
 
-        # Set parameters based on branch name
+        # Build common BASE_PARAMS for all templates
+        BASE_PARAMS="BranchName=${BRANCH_NAME}"
+        BASE_PARAMS="$BASE_PARAMS,GoogleOAuthClientId=${{ secrets.GOOGLE_CLIENT_ID }}"
+        BASE_PARAMS="$BASE_PARAMS,GoogleOAuthClientSecret=${{ secrets.GOOGLE_CLIENT_SECRET }}"
+        BASE_PARAMS="$BASE_PARAMS,WebContainerImage=${{ env.CONTAINER_IMAGE }}"
+        BASE_PARAMS="$BASE_PARAMS,DeploymentToken=${{ github.sha }}"
+        BASE_PARAMS="$BASE_PARAMS,DomainName=${{ secrets.DOMAIN_NAME }}"
+        BASE_PARAMS="$BASE_PARAMS,HostedZoneId=Z06422172SASV44F5Y8VA"
+        BASE_PARAMS="$BASE_PARAMS,Environment=$ENVIRONMENT"
+        BASE_PARAMS="$BASE_PARAMS,IsPrimaryRegion=${{ matrix.is_primary }}"
+
+        # Add secondary region parameters if needed
+        if [ "${{ matrix.is_primary }}" = "false" ]; then
+          BASE_PARAMS="$BASE_PARAMS,PrimaryRegion=${{ env.AWS_REGION_PRIMARY }}"
+          BASE_PARAMS="$BASE_PARAMS,PrimaryWebLoadBalancerDNS=${{ steps.get-primary-outputs.outputs.primary-lb-dns }}"
+          BASE_PARAMS="$BASE_PARAMS,PrimaryWebLoadBalancerHostedZoneId=${{ steps.get-primary-outputs.outputs.primary-lb-hz }}"
+        fi
+
+        # Set parameters based on branch name and template type
         if [[ " app beta alpha dev " == *" $BRANCH_NAME "* ]]; then
           # Master template parameters (includes backend infrastructure)
           if [ "$BRANCH_NAME" = "app" ]; then
@@ -398,46 +416,21 @@ jobs:
             ENABLE_GLOBAL=false
           fi
 
-          BASE_PARAMS="BranchName=${BRANCH_NAME}"
+          # Add master template specific parameters
           BASE_PARAMS="$BASE_PARAMS,DatabasePassword=${{ secrets.DATABASE_PASSWORD }}"
           BASE_PARAMS="$BASE_PARAMS,EngineVersion=${{ env.ENGINE_VERSION }}"
-          BASE_PARAMS="$BASE_PARAMS,IsPrimaryRegion=${{ matrix.is_primary }}"
           BASE_PARAMS="$BASE_PARAMS,MinCapacity=$MIN_CAP"
           BASE_PARAMS="$BASE_PARAMS,MaxCapacity=$MAX_CAP"
           BASE_PARAMS="$BASE_PARAMS,EnableGlobalCluster=$ENABLE_GLOBAL"
-          BASE_PARAMS="$BASE_PARAMS,GoogleOAuthClientId=${{ secrets.GOOGLE_CLIENT_ID }}"
-          BASE_PARAMS="$BASE_PARAMS,GoogleOAuthClientSecret=${{ secrets.GOOGLE_CLIENT_SECRET }}"
-          BASE_PARAMS="$BASE_PARAMS,WebContainerImage=${{ env.CONTAINER_IMAGE }}"
-          BASE_PARAMS="$BASE_PARAMS,DeploymentToken=${{ github.sha }}"
-          BASE_PARAMS="$BASE_PARAMS,DomainName=${{ secrets.DOMAIN_NAME }}"
-          BASE_PARAMS="$BASE_PARAMS,HostedZoneId=Z06422172SASV44F5Y8VA"
-          BASE_PARAMS="$BASE_PARAMS,Environment=$ENVIRONMENT"
 
+          # Add secondary region specific parameters for master template
           if [ "${{ matrix.is_primary }}" = "false" ]; then
             BASE_PARAMS="$BASE_PARAMS,AuroraGlobalClusterId=${{ steps.get-primary-outputs.outputs.global-cluster-id }}"
             BASE_PARAMS="$BASE_PARAMS,KmsKeyArn=${{ steps.get-primary-outputs.outputs.kms-key-arn }}"
-            BASE_PARAMS="$BASE_PARAMS,PrimaryRegion=${{ env.AWS_REGION_PRIMARY }}"
-            BASE_PARAMS="$BASE_PARAMS,PrimaryWebLoadBalancerDNS=${{ steps.get-primary-outputs.outputs.primary-lb-dns }}"
-            BASE_PARAMS="$BASE_PARAMS,PrimaryWebLoadBalancerHostedZoneId=${{ steps.get-primary-outputs.outputs.primary-lb-hz }}"
           fi
         else
           # Application template parameters (imports backend infrastructure from dev)
-          BASE_PARAMS="BranchName=${BRANCH_NAME}"
           BASE_PARAMS="$BASE_PARAMS,EnvironmentToImport=${ENVIRONMENT_TO_IMPORT}"
-          BASE_PARAMS="$BASE_PARAMS,IsPrimaryRegion=${{ matrix.is_primary }}"
-          BASE_PARAMS="$BASE_PARAMS,GoogleOAuthClientId=${{ secrets.GOOGLE_CLIENT_ID }}"
-          BASE_PARAMS="$BASE_PARAMS,GoogleOAuthClientSecret=${{ secrets.GOOGLE_CLIENT_SECRET }}"
-          BASE_PARAMS="$BASE_PARAMS,WebContainerImage=${{ env.CONTAINER_IMAGE }}"
-          BASE_PARAMS="$BASE_PARAMS,DeploymentToken=${{ github.sha }}"
-          BASE_PARAMS="$BASE_PARAMS,DomainName=${{ secrets.DOMAIN_NAME }}"
-          BASE_PARAMS="$BASE_PARAMS,HostedZoneId=Z06422172SASV44F5Y8VA"
-          BASE_PARAMS="$BASE_PARAMS,Environment=$ENVIRONMENT"
-
-          if [ "${{ matrix.is_primary }}" = "false" ]; then
-            BASE_PARAMS="$BASE_PARAMS,PrimaryRegion=${{ env.AWS_REGION_PRIMARY }}"
-            BASE_PARAMS="$BASE_PARAMS,PrimaryWebLoadBalancerDNS=${{ steps.get-primary-outputs.outputs.primary-lb-dns }}"
-            BASE_PARAMS="$BASE_PARAMS,PrimaryWebLoadBalancerHostedZoneId=${{ steps.get-primary-outputs.outputs.primary-lb-hz }}"
-          fi
         fi
 
         PARAMS="$BASE_PARAMS"
