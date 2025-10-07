@@ -36,6 +36,10 @@ Parameters:
     Type: String
     Description: "Branch name for resource naming"
 
+  EnvironmentToImport:
+    Type: String
+    Description: "Branch name to import infrastructure values from"
+
   WebContainerImage:
     Type: String
     Description: "Container image URI for the web application"
@@ -54,78 +58,10 @@ Parameters:
     Type: String
     Description: "Route 53 hosted zone ID for the domain"
 
-  SharedLambdaRoleArn:
-    Type: String
-    Description: "ARN of the shared Lambda execution role"
-
-  VPCId:
-    Type: String
-    Description: "VPC ID"
-
-  ALBSecurityGroupId:
-    Type: String
-    Description: "Security group ID for ALB"
-
-  ECSTaskSecurityGroupId:
-    Type: String
-    Description: "Security group ID for ECS tasks"
-
-  PublicSubnet1Id:
-    Type: String
-    Description: "Public subnet 1 ID"
-
-  PublicSubnet2Id:
-    Type: String
-    Description: "Public subnet 2 ID"
-
-  PrivateSubnet1Id:
-    Type: String
-    Description: "Private subnet 1 ID"
-
-  PrivateSubnet2Id:
-    Type: String
-    Description: "Private subnet 2 ID"
-
-  ECSClusterName:
-    Type: String
-    Description: "ECS cluster name"
-
-  GoogleOAuthSecretArn:
-    Type: String
-    Description: "ARN of the Google OAuth secrets in Secrets Manager"
-
   Environment:
     Type: String
     Default: "Development"
     Description: "ASP.NET Core environment (Production, Staging, Development)"
-
-  DatabaseHost:
-    Type: String
-    Description: "Database host endpoint"
-
-  DatabaseUsername:
-    Type: String
-    Description: "Database username"
-
-  DatabaseEngine:
-    Type: String
-    Description: "Database engine"
-
-  DatabasePort:
-    Type: String
-    Description: "Database port"
-
-  DatabaseName:
-    Type: String
-    Description: "Database name"
-
-  DatabaseClusterArn:
-    Type: String
-    Description: "Database cluster ARN"
-
-  DatabasePasswordSecretArn:
-    Type: String
-    Description: "Database password secret ARN"
 
   LogRetentionDays:
     Type: Number
@@ -145,17 +81,18 @@ Resources:
       Type: application
       Scheme: internet-facing
       SecurityGroups:
-        - !Ref ALBSecurityGroupId
+        - Fn::ImportValue: !Sub "ALBSecurityGroupId-${EnvironmentToImport}"
       Subnets:
-        - !Ref PublicSubnet1Id
-        - !Ref PublicSubnet2Id
+        - Fn::ImportValue: !Sub "PublicSubnet1Id-${EnvironmentToImport}"
+        - Fn::ImportValue: !Sub "PublicSubnet2Id-${EnvironmentToImport}"
   # Target Group
   WebTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
       Protocol: HTTP
       Port: 80
-      VpcId: !Ref VPCId
+      VpcId:
+        Fn::ImportValue: !Sub "VPCId-${EnvironmentToImport}"
       TargetType: ip
       HealthCheckPath: /health
       HealthCheckIntervalSeconds: 30
@@ -213,8 +150,10 @@ Resources:
         - FARGATE
       Cpu: "512"
       Memory: "1024"
-      ExecutionRoleArn: !Ref SharedLambdaRoleArn
-      TaskRoleArn: !Ref SharedLambdaRoleArn
+      ExecutionRoleArn:
+        Fn::ImportValue: !Sub "SharedLambdaRoleArn-${EnvironmentToImport}"
+      TaskRoleArn:
+        Fn::ImportValue: !Sub "SharedLambdaRoleArn-${EnvironmentToImport}"
       ContainerDefinitions:
         - Name: web
           Image: !Ref WebContainerImage
@@ -230,10 +169,17 @@ Resources:
             - Name: ConnectionStrings__DefaultConnection
               Value: !Sub
                 - "Server=${DatabaseHost};Database=${DatabaseName};User Id=${DatabaseUsername};Password=${DatabasePassword};SslMode=Required;"
-                - DatabaseHost: !Ref DatabaseHost
-                  DatabaseName: !Ref DatabaseName
-                  DatabaseUsername: !Ref DatabaseUsername
-                  DatabasePassword: !Sub "{{resolve:secretsmanager:${DatabasePasswordSecretArn}:SecretString}}"
+                - DatabaseHost:
+                    Fn::ImportValue: !Sub "DatabaseHost-${EnvironmentToImport}"
+                  DatabaseName:
+                    Fn::ImportValue: !Sub "DatabaseName-${EnvironmentToImport}"
+                  DatabaseUsername:
+                    Fn::ImportValue: !Sub "DatabaseUsername-${EnvironmentToImport}"
+                  DatabasePassword: !Join
+                    - ""
+                    - - "{{resolve:secretsmanager:"
+                      - Fn::ImportValue: !Sub "DatabasePasswordSecretArn-${EnvironmentToImport}"
+                      - ":SecretString}}"
             - Name: ASPNETCORE_URLS
               Value: "http://*:80"
             - Name: DOTNET_RUNNING_IN_CONTAINER
@@ -245,9 +191,9 @@ Resources:
             - Name: DEPLOYMENT_TOKEN
               Value: !Ref DeploymentToken
             - Name: Authentication__Google__ClientId
-              Value: !Sub "{{resolve:secretsmanager:${GoogleOAuthSecretArn}:SecretString:clientId}}"
+              Value: !Sub "{{resolve:secretsmanager:taskmanager/google-oauth/${EnvironmentToImport}:SecretString:clientId}}"
             - Name: Authentication__Google__ClientSecret
-              Value: !Sub "{{resolve:secretsmanager:${GoogleOAuthSecretArn}:SecretString:clientSecret}}"
+              Value: !Sub "{{resolve:secretsmanager:taskmanager/google-oauth/${EnvironmentToImport}:SecretString:clientSecret}}"
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -262,17 +208,18 @@ Resources:
       - WebListener
       - WebTaskDefinition
     Properties:
-      Cluster: !Ref ECSClusterName
+      Cluster:
+        Fn::ImportValue: !Sub "ECSClusterName-${EnvironmentToImport}"
       TaskDefinition: !Ref WebTaskDefinition
       DesiredCount: 1
       LaunchType: FARGATE
       NetworkConfiguration:
         AwsvpcConfiguration:
           SecurityGroups:
-            - !Ref ECSTaskSecurityGroupId
+            - Fn::ImportValue: !Sub "ECSTaskSecurityGroupId-${EnvironmentToImport}"
           Subnets:
-            - !Ref PrivateSubnet1Id
-            - !Ref PrivateSubnet2Id
+            - Fn::ImportValue: !Sub "PrivateSubnet1Id-${EnvironmentToImport}"
+            - Fn::ImportValue: !Sub "PrivateSubnet2Id-${EnvironmentToImport}"
       LoadBalancers:
         - TargetGroupArn: !Ref WebTargetGroup
           ContainerName: web

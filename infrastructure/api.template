@@ -7,51 +7,9 @@ Parameters:
     Type: String
     Description: "Branch name for resource naming"
 
-  SharedLambdaRoleArn:
+  EnvironmentToImport:
     Type: String
-    Description: "ARN of the shared Lambda execution role"
-
-  DatabaseHost:
-    Type: String
-    Description: "Database host endpoint"
-
-  DatabaseUsername:
-    Type: String
-    Description: "Database username"
-
-  DatabaseEngine:
-    Type: String
-    Description: "Database engine"
-
-  DatabasePort:
-    Type: String
-    Description: "Database port"
-
-  DatabaseName:
-    Type: String
-    Description: "Database name"
-
-  DatabaseClusterArn:
-    Type: String
-    Description: "Database cluster ARN"
-
-  LambdaSecurityGroupId:
-    Type: String
-    Description: "Security group ID for Lambda functions"
-    AllowedPattern: "^sg-[0-9a-zA-Z]+$"
-    MinLength: 1
-
-  PrivateSubnet1Id:
-    Type: String
-    Description: "Private subnet 1 ID"
-    AllowedPattern: "^subnet-[0-9a-z]+$"
-    MinLength: 1
-
-  PrivateSubnet2Id:
-    Type: String
-    Description: "Private subnet 2 ID"
-    AllowedPattern: "^subnet-[0-9a-z]+$"
-    MinLength: 1
+    Description: "Branch name to import infrastructure values from"
 
   Environment:
     Type: String
@@ -85,22 +43,30 @@ Resources:
         TaskManager.Api::TaskManager.Api.LambdaEntryPoint::FunctionHandlerAsync
       Runtime: dotnet8
       PackageType: Zip
-      Role: !Ref SharedLambdaRoleArn
+      Role:
+        Fn::ImportValue: !Sub "SharedLambdaRoleArn-${EnvironmentToImport}"
       Environment:
         Variables:
           ASPNETCORE_ENVIRONMENT: !Ref Environment
           ConnectionStrings__DefaultConnection: !Sub
             - "Server=${DatabaseHost};Database=${DatabaseName};User Id=${DatabaseUsername};Password=${DatabasePassword};SslMode=Required;"
-            - DatabaseHost: !Ref DatabaseHost
-              DatabaseName: !Ref DatabaseName
-              DatabaseUsername: !Ref DatabaseUsername
-              DatabasePassword: !Sub "{{resolve:secretsmanager:taskmanager/database/${BranchName}/regional/${AWS::Region}/password:SecretString}}"
+            - DatabaseHost:
+                Fn::ImportValue: !Sub "DatabaseHost-${EnvironmentToImport}"
+              DatabaseName:
+                Fn::ImportValue: !Sub "DatabaseName-${EnvironmentToImport}"
+              DatabaseUsername:
+                Fn::ImportValue: !Sub "DatabaseUsername-${EnvironmentToImport}"
+              DatabasePassword: !Join
+                - ""
+                - - "{{resolve:secretsmanager:"
+                  - Fn::ImportValue: !Sub "DatabasePasswordSecretArn-${EnvironmentToImport}"
+                  - ":SecretString}}"
       VpcConfig:
         SecurityGroupIds:
-          - !Ref LambdaSecurityGroupId
+          - Fn::ImportValue: !Sub "LambdaSecurityGroupId-${EnvironmentToImport}"
         SubnetIds:
-          - !Ref PrivateSubnet1Id
-          - !Ref PrivateSubnet2Id
+          - Fn::ImportValue: !Sub "PrivateSubnet1Id-${EnvironmentToImport}"
+          - Fn::ImportValue: !Sub "PrivateSubnet2Id-${EnvironmentToImport}"
       Events:
         # Health check endpoint for deployment verification
         HealthCheck:
@@ -145,11 +111,3 @@ Outputs:
     Value: !Ref TaskManagerApiFunction
     Export:
       Name: !Sub "ApiLambdaFunctionName-${BranchName}"
-
-  DatabaseName:
-    Description: "Database name"
-    Value: !Ref DatabaseName
-
-  BranchEnvironment:
-    Description: "Branch environment name"
-    Value: !Ref BranchName
