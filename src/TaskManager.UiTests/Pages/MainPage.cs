@@ -26,7 +26,8 @@ public class MainPage
 
     public async Task<bool> IsLoginLinkVisibleAsync()
     {
-        return await _page.IsVisibleAsync("a[href*='/Identity/Account/Login']");
+        var x = _page.Locator("a:has-text('Log in')");
+        return await _page.IsVisibleAsync("a:has-text('Log in')");
     }
 
     public async Task<bool> IsUserLoggedInAsync()

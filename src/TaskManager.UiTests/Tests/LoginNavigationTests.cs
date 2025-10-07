@@ -26,6 +26,7 @@ public class LoginNavigationTests : BaseTest
                 await mainPage.NavigateAsync();
             });
 
+
             // Assert - Verify we're on the main page and login link is visible
             var isLoginVisible = await mainPage.IsLoginLinkVisibleAsync();
             isLoginVisible.Should().BeTrue("Login link should be visible on main page");
