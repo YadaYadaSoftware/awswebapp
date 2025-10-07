@@ -399,7 +399,6 @@ jobs:
           fi
 
           BASE_PARAMS="BranchName=${BRANCH_NAME}"
-          BASE_PARAMS="$BASE_PARAMS,EnvironmentToImport=${ENVIRONMENT_TO_IMPORT}"
           BASE_PARAMS="$BASE_PARAMS,DatabasePassword=${{ secrets.DATABASE_PASSWORD }}"
           BASE_PARAMS="$BASE_PARAMS,EngineVersion=${{ env.ENGINE_VERSION }}"
           BASE_PARAMS="$BASE_PARAMS,IsPrimaryRegion=${{ matrix.is_primary }}"
