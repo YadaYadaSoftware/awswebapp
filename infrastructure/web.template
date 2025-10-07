@@ -177,9 +177,9 @@ Resources:
                     Fn::ImportValue: !Sub "DatabaseUsername-${EnvironmentToImport}"
                   DatabasePassword: !Join
                     - ""
-                    - - "{{resolve:secretsmanager:"
+                    - - "x:"
                       - Fn::ImportValue: !Sub "DatabasePasswordSecretArn-${EnvironmentToImport}"
-                      - ":SecretString}}"
+                      - ":x"
             - Name: ASPNETCORE_URLS
               Value: "http://*:80"
             - Name: DOTNET_RUNNING_IN_CONTAINER
