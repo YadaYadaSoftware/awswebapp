@@ -16,14 +16,7 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
 
-// Register ApplicationDbContext for Identity
-builder.Services.AddDbContext<ApplicationDbContext>(options =>
-{
-    // Use MySQL for both development and production
-    options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString));
-});
-
-// Register TaskManagerDbContext for shared data access
+// Register TaskManagerDbContext for both Identity and application data
 builder.Services.AddDbContext<TaskManagerDbContext>(options =>
 {
     if (string.IsNullOrEmpty(connectionString))
@@ -43,7 +36,7 @@ builder.Services.AddDefaultIdentity<IdentityUser>(options =>
 {
     options.SignIn.RequireConfirmedAccount = true;
 })
-.AddEntityFrameworkStores<ApplicationDbContext>();
+.AddEntityFrameworkStores<TaskManagerDbContext>();
 
 builder.Services.ConfigureApplicationCookie(options =>
 {
@@ -93,7 +86,7 @@ builder.Services.AddAuthentication().AddGoogle(googleOptions =>
         try
         {
             // Test database connectivity
-            var dbContext = context.HttpContext.RequestServices.GetRequiredService<ApplicationDbContext>();
+            var dbContext = context.HttpContext.RequestServices.GetRequiredService<TaskManagerDbContext>();
             var canConnect = await dbContext.Database.CanConnectAsync();
             logger.LogInformation("Database connectivity check: {CanConnect}", canConnect);
 
@@ -200,27 +193,15 @@ async Task ApplyDatabaseMigrations(WebApplication app)
 
     try
     {
-        // Apply migrations for ApplicationDbContext (Identity)
-        logger.LogInformation("Ensuring database exists and applying migrations for ApplicationDbContext...");
-        var identityContext = services.GetRequiredService<ApplicationDbContext>();
-
-        // This will create the database if it doesn't exist
-        await identityContext.Database.EnsureCreatedAsync();
-
-        // This will apply all pending migrations
-        await identityContext.Database.MigrateAsync();
-
-        logger.LogInformation("ApplicationDbContext migrations applied successfully.");
-
-        // Apply migrations for TaskManagerDbContext (shared data)
+        // Apply migrations for TaskManagerDbContext (Identity + application data)
         logger.LogInformation("Ensuring database exists and applying migrations for TaskManagerDbContext...");
-        var taskManagerContext = services.GetRequiredService<TaskManagerDbContext>();
+        var context = services.GetRequiredService<TaskManagerDbContext>();
 
         // This will create the database if it doesn't exist
-        await taskManagerContext.Database.EnsureCreatedAsync();
+        await context.Database.EnsureCreatedAsync();
 
         // This will apply all pending migrations
-        await taskManagerContext.Database.MigrateAsync();
+        await context.Database.MigrateAsync();
 
         logger.LogInformation("TaskManagerDbContext migrations applied successfully.");
     }
