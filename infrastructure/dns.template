@@ -7,10 +7,6 @@ Parameters:
     Type: String
     Description: "Branch name for resource naming"
 
-  EnvironmentToImport:
-    Type: String
-    Description: "Branch name to import infrastructure values from"
-
   DomainName:
     Type: String
     Default: "appcloud.systems"
@@ -29,14 +25,6 @@ Parameters:
     Type: String
     Default: "us-east-2"
     Description: "Secondary region for failover"
-
-  PrimaryWebLoadBalancerDNS:
-    Type: String
-    Description: "DNS name of the primary web load balancer"
-
-  PrimaryWebLoadBalancerHostedZoneId:
-    Type: String
-    Description: "Hosted zone ID of the primary web load balancer"
 
   SecondaryWebLoadBalancerDNS:
     Type: String
@@ -62,7 +50,7 @@ Resources:
         Type: HTTPS
         ResourcePath: /health
         FullyQualifiedDomainName:
-          Fn::ImportValue: !Sub "WebLoadBalancerDNS-${EnvironmentToImport}"
+          Fn::ImportValue: !Sub "WebLoadBalancerDNS-${BranchName}"
         Port: 443
         RequestInterval: 30
         FailureThreshold: 2
@@ -83,7 +71,7 @@ Resources:
         Type: HTTPS
         ResourcePath: /health
         FullyQualifiedDomainName:
-          Fn::ImportValue: !Sub "WebLoadBalancerDNS-${EnvironmentToImport}"
+          Fn::ImportValue: !Sub "WebLoadBalancerDNS-${BranchName}"
         Port: 443
         RequestInterval: 30
         FailureThreshold: 2
@@ -105,9 +93,9 @@ Resources:
       Type: A
       AliasTarget:
         DNSName:
-          Fn::ImportValue: !Sub "WebLoadBalancerDNS-${EnvironmentToImport}"
+          Fn::ImportValue: !Sub "WebLoadBalancerDNS-${BranchName}"
         HostedZoneId:
-          Fn::ImportValue: !Sub "WebLoadBalancerHostedZoneId-${EnvironmentToImport}"
+          Fn::ImportValue: !Sub "WebLoadBalancerHostedZoneId-${BranchName}"
 
   # Primary DNS Record for multi-region (failover record)
   PrimaryDNSRecordFailover:
@@ -120,8 +108,8 @@ Resources:
       SetIdentifier: !Sub "primary-${BranchName}"
       Failover: PRIMARY
       AliasTarget:
-        DNSName: !Ref PrimaryWebLoadBalancerDNS
-        HostedZoneId: !Ref PrimaryWebLoadBalancerHostedZoneId
+        DNSName: !ImportValue "WebLoadBalancerDNS-${BranchName}"
+        HostedZoneId: !ImportValue "WebLoadBalancerHostedZoneId-${BranchName}"
       HealthCheckId: !Ref PrimaryHealthCheck
 
   # Secondary Failover Record (only when secondary load balancer is provided)
@@ -136,9 +124,9 @@ Resources:
       Failover: SECONDARY
       AliasTarget:
         DNSName:
-          Fn::ImportValue: !Sub "WebLoadBalancerDNS-${EnvironmentToImport}"
+          Fn::ImportValue: !Sub "WebLoadBalancerDNS-${BranchName}"
         HostedZoneId:
-          Fn::ImportValue: !Sub "WebLoadBalancerHostedZoneId-${EnvironmentToImport}"
+          Fn::ImportValue: !Sub "WebLoadBalancerHostedZoneId-${BranchName}"
       HealthCheckId: !Ref SecondaryHealthCheck
 
 Outputs:

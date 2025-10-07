@@ -109,7 +109,6 @@ Resources:
       TemplateURL: ./dns.template
       Parameters:
         BranchName: !Ref BranchName
-        EnvironmentToImport: !Ref EnvironmentToImport
         DomainName: !Ref DomainName
         HostedZoneId: !Ref HostedZoneId
         PrimaryRegion: !Ref "AWS::Region"
