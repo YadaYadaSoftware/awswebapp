@@ -191,9 +191,9 @@ Resources:
             - Name: DEPLOYMENT_TOKEN
               Value: !Ref DeploymentToken
             - Name: Authentication__Google__ClientId
-              Value: !Sub "{{resolve:secretsmanager:taskmanager/oauth/${EnvironmentToImport}/global/google:SecretString:clientId}}"
+              Value: !Sub "{{resolve:secretsmanager:taskmanager/google-oauth/${EnvironmentToImport}:SecretString:clientId}}"
             - Name: Authentication__Google__ClientSecret
-              Value: !Sub "{{resolve:secretsmanager:taskmanager/oauth/${EnvironmentToImport}/global/google:SecretString:clientSecret}}"
+              Value: !Sub "{{resolve:secretsmanager:taskmanager/google-oauth/${EnvironmentToImport}:SecretString:clientSecret}}"
           LogConfiguration:
             LogDriver: awslogs
             Options:
