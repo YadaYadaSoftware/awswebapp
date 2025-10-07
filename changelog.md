@@ -1,3 +1,12 @@
+## [2025-10-07 15:06:23 UTC] merge-databases (system)
+
+# Changes for system/merge-databases
+
+**Purpose:** The web project is not automatically creating its database and applying the migrations.  Also, merge the web database and the api database
+
+**Date Created:** 2025-10-07 14:33:42
+
+
 ## [2025-10-06 14:22:48 UTC] share-dev-env (deploy)
 
 # Changes for deploy/share-dev-env
@@ -85,6 +94,7 @@ Provide detailed information about the changes being made in this branch.
 
 ## Deployment Notes
 - Any special deployment considerations
+
 
 
 
