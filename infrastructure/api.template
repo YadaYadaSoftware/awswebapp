@@ -43,25 +43,26 @@ Resources:
         TaskManager.Api::TaskManager.Api.LambdaEntryPoint::FunctionHandlerAsync
       Runtime: dotnet8
       PackageType: Zip
-      Role: !ImportValue !Sub "SharedLambdaRoleArn-${EnvironmentToImport}"
+      Role:
+        Fn::ImportValue: !Sub "SharedLambdaRoleArn-${EnvironmentToImport}"
       Environment:
         Variables:
           ASPNETCORE_ENVIRONMENT: !Ref Environment
           ConnectionStrings__DefaultConnection: !Sub
             - "Server=${DatabaseHost};Database=${DatabaseName};User Id=${DatabaseUsername};Password=${DatabasePassword};SslMode=Required;"
             - DatabaseHost:
-                !ImportValue !Sub "DatabaseHost-${EnvironmentToImport}"
+                Fn::ImportValue: !Sub "DatabaseHost-${EnvironmentToImport}"
               DatabaseName:
-                !ImportValue !Sub "DatabaseName-${EnvironmentToImport}"
+                Fn::ImportValue: !Sub "DatabaseName-${EnvironmentToImport}"
               DatabaseUsername:
-                !ImportValue !Sub "DatabaseUsername-${EnvironmentToImport}"
+                Fn::ImportValue: !Sub "DatabaseUsername-${EnvironmentToImport}"
               DatabasePassword: !Sub "{{resolve:secretsmanager:taskmanager/database/${EnvironmentToImport}/regional/${AWS::Region}/password:SecretString}}"
       VpcConfig:
         SecurityGroupIds:
-          - !ImportValue !Sub "LambdaSecurityGroupId-${EnvironmentToImport}"
+          - Fn::ImportValue: !Sub "LambdaSecurityGroupId-${EnvironmentToImport}"
         SubnetIds:
-          - !ImportValue !Sub "PrivateSubnet1Id-${EnvironmentToImport}"
-          - !ImportValue !Sub "PrivateSubnet2Id-${EnvironmentToImport}"
+          - Fn::ImportValue: !Sub "PrivateSubnet1Id-${EnvironmentToImport}"
+          - Fn::ImportValue: !Sub "PrivateSubnet2Id-${EnvironmentToImport}"
       Events:
         # Health check endpoint for deployment verification
         HealthCheck:
