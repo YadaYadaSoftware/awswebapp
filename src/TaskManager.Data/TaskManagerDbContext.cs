@@ -1,15 +1,28 @@
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Pomelo.EntityFrameworkCore.MySql;
 using TaskManager.Data.Entities;
 
 namespace TaskManager.Data;
 
-public class TaskManagerDbContext : DbContext
+public class TaskManagerDbContext : IdentityDbContext<IdentityUser>
 {
     public TaskManagerDbContext(DbContextOptions<TaskManagerDbContext> options) : base(options)
     {
     }
 
-    public DbSet<User> Users { get; set; }
+    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+    {
+        if (!optionsBuilder.IsConfigured)
+        {
+            var connectionString = "Server=localhost;Database=TaskManagerDb;User=root;Password=password;";
+            optionsBuilder.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString), mysqlOptions =>
+                mysqlOptions.MigrationsAssembly("TaskManager.Migrations"));
+        }
+    }
+
+    public new DbSet<User> Users { get; set; }
     public DbSet<Project> Projects { get; set; }
     public DbSet<Entities.Task> Tasks { get; set; }
     public DbSet<ProjectMember> ProjectMembers { get; set; }

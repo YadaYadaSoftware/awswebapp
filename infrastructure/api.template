@@ -3,63 +3,18 @@ Transform: AWS::Serverless-2016-10-31
 Description: "TaskManager API - Lambda Function with Branch-Specific Database"
 
 Parameters:
+  BranchName:
+    Type: String
+    Description: "Branch name for resource naming"
+
+  EnvironmentToImport:
+    Type: String
+    Description: "Branch name to import infrastructure values from"
+
   Environment:
     Type: String
-    Default: main
-    Description: "Environment name (typically branch name)"
-
-  SharedLambdaRoleArn:
-    Type: String
-    Description: "ARN of the shared Lambda execution role"
-
-  DatabaseHost:
-    Type: String
-    Description: "Database host endpoint"
-
-  DatabaseUsername:
-    Type: String
-    Description: "Database username"
-
-  DatabaseEngine:
-    Type: String
-    Description: "Database engine"
-
-  DatabasePort:
-    Type: String
-    Description: "Database port"
-
-  DatabaseName:
-    Type: String
-    Description: "Database name"
-
-  DatabaseClusterArn:
-    Type: String
-    Description: "Database cluster ARN"
-
-  LambdaSecurityGroupId:
-    Type: String
-    Description: "Security group ID for Lambda functions"
-    AllowedPattern: "^sg-[0-9a-zA-Z]+$"
-    MinLength: 1
-
-  PrivateSubnet1Id:
-    Type: String
-    Description: "Private subnet 1 ID"
-    AllowedPattern: "^subnet-[0-9a-z]+$"
-    MinLength: 1
-
-  PrivateSubnet2Id:
-    Type: String
-    Description: "Private subnet 2 ID"
-    AllowedPattern: "^subnet-[0-9a-z]+$"
-    MinLength: 1
-
-  LogRetentionDays:
-    Type: Number
-    Default: 7
-    Description: Number of days to retain CloudWatch logs
-
-# Removed IsPrimaryRegion parameter and condition - no longer needed
+    Default: "Development"
+    Description: "ASP.NET Core environment (Production, Staging, Development)"
 
 Globals:
   Function:
@@ -71,7 +26,6 @@ Globals:
         ASPNETCORE_ENVIRONMENT: !Ref Environment
   Api:
     AccessLogSetting:
-      DestinationArn: !GetAtt ApiGatewayAccessLogGroup.Arn
       Format: '{"requestId":"$context.requestId","ip":"$context.identity.sourceIp","caller":"$context.identity.caller","user":"$context.identity.user","requestTime":"$context.requestTime","httpMethod":"$context.httpMethod","resourcePath":"$context.resourcePath","status":"$context.status","protocol":"$context.protocol","responseLength":"$context.responseLength"}'
     MethodSettings:
       - HttpMethod: "*"
@@ -80,81 +34,39 @@ Globals:
         DataTraceEnabled: true
 
 Resources:
-  # CloudWatch Log Group for Database Setup - REMOVED
-  # Database creation now handled automatically by Entity Framework
-
-  # CloudWatch Log Group for API
-  ApiLambdaLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub "/aws/lambda/TaskManagerApi-${Environment}"
-      RetentionInDays: !Ref LogRetentionDays
-      Tags:
-        - Key: LogicalId
-          Value: ApiLambdaLogGroup
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
-
-  # CloudWatch Log Group for API Gateway Access Logs
-  ApiGatewayAccessLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub "/aws/apigateway/TaskManagerApi-${Environment}"
-      RetentionInDays: !Ref LogRetentionDays
-      Tags:
-        - Key: LogicalId
-          Value: ApiGatewayAccessLogGroup
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
-
-  # CloudWatch Log Group for API Gateway Execution Logs
-  ApiGatewayExecutionLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub "/aws/apigateway/${ServerlessRestApi}/Prod"
-      RetentionInDays: !Ref LogRetentionDays
-      Tags:
-        - Key: LogicalId
-          Value: ApiGatewayExecutionLogGroup
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
-
-  # MySQL Layer removed - no longer needed for database setup
-
-  # Database creation now handled automatically by Entity Framework
-  # No need for custom Lambda function
-
-  # Database setup now handled automatically by Entity Framework
-  # No need for custom CloudFormation resource
-
   # TaskManager API Function
   TaskManagerApiFunction:
     Type: AWS::Serverless::Function
-    DependsOn:
-      - ApiLambdaLogGroup
     Properties:
-      FunctionName: !Sub "TaskManagerApi-${Environment}"
       CodeUri: ../src/TaskManager.Api/
       Handler: >-
         TaskManager.Api::TaskManager.Api.LambdaEntryPoint::FunctionHandlerAsync
       Runtime: dotnet8
       PackageType: Zip
-      Role: !Ref SharedLambdaRoleArn
+      Role:
+        Fn::ImportValue: !Sub "SharedLambdaRoleArn-${EnvironmentToImport}"
       Environment:
         Variables:
           ASPNETCORE_ENVIRONMENT: !Ref Environment
           ConnectionStrings__DefaultConnection: !Sub
             - "Server=${DatabaseHost};Database=${DatabaseName};User Id=${DatabaseUsername};Password=${DatabasePassword};SslMode=Required;"
-            - DatabaseHost: !Ref DatabaseHost
-              DatabaseName: !Ref DatabaseName
-              DatabaseUsername: !Ref DatabaseUsername
-              DatabasePassword: !Sub "{{resolve:secretsmanager:taskmanager/database/${Environment}/regional/${AWS::Region}/password:SecretString}}"
+            - DatabaseHost:
+                Fn::ImportValue: !Sub "DatabaseHost-${EnvironmentToImport}"
+              DatabaseName:
+                Fn::ImportValue: !Sub "DatabaseName-${EnvironmentToImport}"
+              DatabaseUsername:
+                Fn::ImportValue: !Sub "DatabaseUsername-${EnvironmentToImport}"
+              DatabasePassword: !Join
+                - ""
+                - - "{{resolve:secretsmanager:"
+                  - Fn::ImportValue: !Sub "DatabasePasswordSecretArn-${EnvironmentToImport}"
+                  - ":SecretString}}"
       VpcConfig:
         SecurityGroupIds:
-          - !Ref LambdaSecurityGroupId
+          - Fn::ImportValue: !Sub "LambdaSecurityGroupId-${EnvironmentToImport}"
         SubnetIds:
-          - !Ref PrivateSubnet1Id
-          - !Ref PrivateSubnet2Id
+          - Fn::ImportValue: !Sub "PrivateSubnet1Id-${EnvironmentToImport}"
+          - Fn::ImportValue: !Sub "PrivateSubnet2Id-${EnvironmentToImport}"
       Events:
         # Health check endpoint for deployment verification
         HealthCheck:
@@ -168,16 +80,11 @@ Resources:
           Properties:
             Path: /api/{proxy+}
             Method: ANY
-      Tags:
-        LogicalId: TaskManagerApiFunction
-        Environment: !Ref Environment
-        Stack: !Ref "AWS::StackName"
 
   # CloudWatch Alarms for API
   LambdaErrorAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName: !Sub "TaskManager-API-Errors-${Environment}"
       AlarmDescription: "API Lambda function error rate alarm"
       MetricName: Errors
       Namespace: AWS/Lambda
@@ -189,12 +96,6 @@ Resources:
       Dimensions:
         - Name: FunctionName
           Value: !Ref TaskManagerApiFunction
-      Tags:
-        - Key: LogicalId
-          Value: LambdaErrorAlarm
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
-
 Outputs:
   ApiEndpoint:
     Description: "API Gateway endpoint URL"
@@ -202,15 +103,11 @@ Outputs:
       - "https://${ApiId}.execute-api.${Region}.amazonaws.com/Prod/"
       - ApiId: !Ref ServerlessRestApi
         Region: !Ref AWS::Region
+    Export:
+      Name: !Sub "ApiEndpoint-${BranchName}"
 
   ApiLambdaFunctionName:
     Description: "API Lambda function name"
     Value: !Ref TaskManagerApiFunction
-
-  DatabaseName:
-    Description: "Database name"
-    Value: !Ref DatabaseName
-
-  BranchEnvironment:
-    Description: "Branch environment name"
-    Value: !Ref Environment
+    Export:
+      Name: !Sub "ApiLambdaFunctionName-${BranchName}"

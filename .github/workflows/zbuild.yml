@@ -17,6 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       branch-name: ${{ steps.get-branch.outputs.branch-name }}
+      environment: ${{ steps.get-branch.outputs.environment }}
     steps:
     - name: Get branch name
       id: get-branch
@@ -26,7 +27,19 @@ jobs:
         BRANCH_NAME=${FULL_BRANCH_NAME##*/}
         echo "Original branch: $FULL_BRANCH_NAME"
         echo "Stack name branch: $BRANCH_NAME"
+
+        # Determine Environment based on branch name
+        if [ "$BRANCH_NAME" = "app" ]; then
+          ENVIRONMENT="Production"
+        elif [[ "$BRANCH_NAME" = "beta" || "$BRANCH_NAME" = "alpha" ]]; then
+          ENVIRONMENT="Staging"
+        else
+          ENVIRONMENT="Development"
+        fi
+
+        echo "Environment: $ENVIRONMENT"
         echo "branch-name=$BRANCH_NAME" >> $GITHUB_OUTPUT
+        echo "environment=$ENVIRONMENT" >> $GITHUB_OUTPUT
 
   build:
     name: Build and Test Applications
@@ -248,7 +261,7 @@ jobs:
             deploy: true
           - region: us-west-2
             is_primary: "false"
-            deploy: ${{ contains(fromJson('["app","beta"]'), needs.get-branch-name.outputs.branch-name) }}
+            deploy: ${{ contains(fromJson('["app","beta","dev"]'), needs.get-branch-name.outputs.branch-name) }}
       max-parallel: 1
     steps:
     - name: Checkout code
@@ -287,21 +300,48 @@ jobs:
         echo "AWS Account ID: $ACCOUNT_ID"
         echo "account-id=$ACCOUNT_ID" >> $GITHUB_OUTPUT
 
+    - name: Process Domain Name
+      if: matrix.deploy
+      id: process-domain
+      run: |
+        # Get domain name from secrets and process it (replace dots with hyphens)
+        RAW_DOMAIN="${{ secrets.DOMAIN_NAME }}"
+        PROCESSED_DOMAIN=$(echo $RAW_DOMAIN | tr '.' '-')
+        echo "Original domain: $RAW_DOMAIN"
+        echo "Processed domain: $PROCESSED_DOMAIN"
+        echo "processed-domain=$PROCESSED_DOMAIN" >> $GITHUB_OUTPUT
 
-    - name: Build and package master template
+
+    - name: Build and package template
       if: matrix.deploy
       run: |
         BUCKET_NAME="cf-templates-${{ steps.account-id.outputs.account-id }}-${{ matrix.region }}"
         BRANCH_NAME="${{ needs.get-branch-name.outputs.branch-name }}"
+        ENVIRONMENT="${{ needs.get-branch-name.outputs.environment }}"
         echo "BUCKET_NAME=$BUCKET_NAME" >> $GITHUB_ENV
 
-        echo "Building and packaging master template to S3 bucket: $BUCKET_NAME"
-        sam build --template infrastructure/master.template --region ${{ matrix.region }}
-        sam package --template-file .aws-sam/build/template.yaml --s3-bucket $BUCKET_NAME --s3-prefix $BRANCH_NAME --output-template-file packaged-master-template.yaml --region ${{ matrix.region }}
+        # Choose template based on branch name
+        # Deploy master template for shared infrastructure branches
+        if [[ " app beta alpha dev " == *" $BRANCH_NAME "* ]]; then
+          TEMPLATE_FILE="infrastructure/master.template"
+          TEMPLATE_NAME="master"
+          echo "Using master template for shared infrastructure branch: $BRANCH_NAME"
+        else
+          TEMPLATE_FILE="infrastructure/application.template"
+          TEMPLATE_NAME="application"
+          echo "Using application template for feature branch: $BRANCH_NAME"
+        fi
 
-        # Upload the packaged template as master-template.yaml for compatibility
-        aws s3 cp packaged-master-template.yaml s3://$BUCKET_NAME/$BRANCH_NAME/master-template.yaml --region ${{ matrix.region }}
-        TEMPLATE_VERSION_ID=$(aws s3api head-object --bucket $BUCKET_NAME --key $BRANCH_NAME/master-template.yaml --query VersionId --output text)
+        echo "TEMPLATE_FILE=$TEMPLATE_FILE" >> $GITHUB_ENV
+        echo "TEMPLATE_NAME=$TEMPLATE_NAME" >> $GITHUB_ENV
+
+        echo "Building and packaging $TEMPLATE_NAME template to S3 bucket: $BUCKET_NAME"
+        sam build --template $TEMPLATE_FILE --region ${{ matrix.region }}
+        sam package --template-file .aws-sam/build/template.yaml --s3-bucket $BUCKET_NAME --s3-prefix $BRANCH_NAME --output-template-file packaged-${TEMPLATE_NAME}-template.yaml --region ${{ matrix.region }}
+
+        # Upload the packaged template with appropriate name
+        aws s3 cp packaged-${TEMPLATE_NAME}-template.yaml s3://$BUCKET_NAME/$BRANCH_NAME/${TEMPLATE_NAME}-template.yaml --region ${{ matrix.region }}
+        TEMPLATE_VERSION_ID=$(aws s3api head-object --bucket $BUCKET_NAME --key $BRANCH_NAME/${TEMPLATE_NAME}-template.yaml --query VersionId --output text)
         echo "TEMPLATE_VERSION_ID=$TEMPLATE_VERSION_ID" >> $GITHUB_ENV
 
     - name: Check if Web Container Image Exists
@@ -395,8 +435,21 @@ jobs:
       id: get-primary-outputs
       if: matrix.is_primary == 'false' && matrix.deploy
       run: |
+        BRANCH_NAME="${{ needs.get-branch-name.outputs.branch-name }}"
+
         echo "Getting outputs from primary region stack..."
-        PRIMARY_STACK_NAME="taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-us-east-1"
+        # For feature branches, get exports from dev branch
+        # For shared infrastructure branches, get from current branch
+        if [[ " app beta alpha dev " == *" $BRANCH_NAME "* ]]; then
+          SOURCE_BRANCH="$BRANCH_NAME"
+        else
+          SOURCE_BRANCH="dev"
+        fi
+
+        PRIMARY_STACK_NAME="$SOURCE_BRANCH-${{ steps.process-domain.outputs.processed-domain }}"
+        echo "Source branch: $SOURCE_BRANCH"
+        echo "Primary stack name: $PRIMARY_STACK_NAME"
+
         KMS_KEY_ARN=$(aws cloudformation describe-stacks --stack-name $PRIMARY_STACK_NAME --region us-east-1 --query 'Stacks[0].Outputs[?OutputKey==`AuroraKmsKeyArn`].OutputValue' --output text)
         GLOBAL_CLUSTER_ID=$(aws cloudformation describe-stacks --stack-name $PRIMARY_STACK_NAME --region us-east-1 --query 'Stacks[0].Outputs[?OutputKey==`AuroraGlobalClusterId`].OutputValue' --output text)
         PRIMARY_LB_DNS=$(aws cloudformation describe-stacks --stack-name $PRIMARY_STACK_NAME --region us-east-1 --query 'Stacks[0].Outputs[?OutputKey==`WebLoadBalancerDNS`].OutputValue' --output text)
@@ -406,38 +459,93 @@ jobs:
         echo "primary-lb-dns=$PRIMARY_LB_DNS" >> $GITHUB_OUTPUT
         echo "primary-lb-hz=$PRIMARY_LB_HZ" >> $GITHUB_OUTPUT
 
+    - name: Get GitHub Actions User ARN
+      id: get-github-user-arn
+      if: matrix.deploy
+      run: |
+        # Get GitHub Actions User ARN from bootstrap stack or exports
+        GITHUB_USER_ARN=$(aws cloudformation describe-stacks --stack-name bootstrap --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`GitHubActionsUserArn`].OutputValue' --output text 2>/dev/null || echo "")
+        if [ -z "$GITHUB_USER_ARN" ]; then
+          # Fallback: try to get from exports if not in bootstrap stack
+          GITHUB_USER_ARN=$(aws cloudformation list-exports --region ${{ matrix.region }} --query "Exports[?Name==\`GitHubActionsUserArn\`].Value" --output text 2>/dev/null || echo "")
+        fi
+        echo "GitHub Actions User ARN: $GITHUB_USER_ARN"
+        echo "github-user-arn=$GITHUB_USER_ARN" >> $GITHUB_OUTPUT
+
 
     - name: Set parameter overrides
       id: set-params
       if: matrix.deploy
       run: |
         BRANCH_NAME="${{ needs.get-branch-name.outputs.branch-name }}"
-        if [ "$BRANCH_NAME" = "app" ]; then
-          MIN_CAP=0.5
-          MAX_CAP=4
+        ENVIRONMENT="${{ needs.get-branch-name.outputs.environment }}"
+
+        # Determine EnvironmentToImport value
+        if [[ " app beta alpha dev " == *" $BRANCH_NAME "* ]]; then
+          ENVIRONMENT_TO_IMPORT="$BRANCH_NAME"
         else
-          MIN_CAP=0
-          MAX_CAP=1
+          ENVIRONMENT_TO_IMPORT="dev"
         fi
-        if [[ " app beta " == *" $BRANCH_NAME "* ]]; then
-          ENABLE_GLOBAL=true
-        else
-          ENABLE_GLOBAL=false
-        fi
-        BASE_PARAMS="BranchName=${{ needs.get-branch-name.outputs.branch-name }},DatabasePassword=${{ secrets.DATABASE_PASSWORD }},EngineVersion=${{ env.ENGINE_VERSION }},IsPrimaryRegion=${{ matrix.is_primary }},MinCapacity=$MIN_CAP,MaxCapacity=$MAX_CAP,EnableGlobalCluster=$ENABLE_GLOBAL,GoogleOAuthClientId=${{ secrets.GOOGLE_CLIENT_ID }},GoogleOAuthClientSecret=${{ secrets.GOOGLE_CLIENT_SECRET }},WebContainerImage=${{ env.CONTAINER_IMAGE }},DeploymentToken=${{ github.sha }},DomainName=appcloud.systems,HostedZoneId=Z06422172SASV44F5Y8VA"
+
+        # Build common BASE_PARAMS for all templates
+        BASE_PARAMS="BranchName=${BRANCH_NAME}"
+        BASE_PARAMS="$BASE_PARAMS,GoogleOAuthClientId=${{ secrets.GOOGLE_CLIENT_ID }}"
+        BASE_PARAMS="$BASE_PARAMS,GoogleOAuthClientSecret=${{ secrets.GOOGLE_CLIENT_SECRET }}"
+        BASE_PARAMS="$BASE_PARAMS,WebContainerImage=${{ env.CONTAINER_IMAGE }}"
+        BASE_PARAMS="$BASE_PARAMS,DeploymentToken=${{ github.sha }}"
+        BASE_PARAMS="$BASE_PARAMS,DomainName=${{ secrets.DOMAIN_NAME }}"
+        BASE_PARAMS="$BASE_PARAMS,HostedZoneId=Z06422172SASV44F5Y8VA"
+        BASE_PARAMS="$BASE_PARAMS,Environment=$ENVIRONMENT"
+        BASE_PARAMS="$BASE_PARAMS,IsPrimaryRegion=${{ matrix.is_primary }}"
+
+        # Add secondary region parameters if needed
         if [ "${{ matrix.is_primary }}" = "false" ]; then
-          BASE_PARAMS="$BASE_PARAMS,AuroraGlobalClusterId=${{ steps.get-primary-outputs.outputs.global-cluster-id }},KmsKeyArn=${{ steps.get-primary-outputs.outputs.kms-key-arn }},PrimaryRegion=${{ env.AWS_REGION_PRIMARY }},PrimaryWebLoadBalancerDNS=${{ steps.get-primary-outputs.outputs.primary-lb-dns }},PrimaryWebLoadBalancerHostedZoneId=${{ steps.get-primary-outputs.outputs.primary-lb-hz }}"
+          BASE_PARAMS="$BASE_PARAMS,PrimaryRegion=${{ env.AWS_REGION_PRIMARY }}"
+          BASE_PARAMS="$BASE_PARAMS,PrimaryWebLoadBalancerDNS=${{ steps.get-primary-outputs.outputs.primary-lb-dns }}"
+          BASE_PARAMS="$BASE_PARAMS,PrimaryWebLoadBalancerHostedZoneId=${{ steps.get-primary-outputs.outputs.primary-lb-hz }}"
         fi
+
+        # Set parameters based on branch name and template type
+        if [[ " app beta alpha dev " == *" $BRANCH_NAME "* ]]; then
+          # Master template parameters (includes backend infrastructure)
+          if [ "$BRANCH_NAME" = "app" ]; then
+            MIN_CAP=0.5
+            MAX_CAP=4
+          else
+            MIN_CAP=0
+            MAX_CAP=1
+          fi
+          if [[ " app beta " == *" $BRANCH_NAME "* ]]; then
+            ENABLE_GLOBAL=true
+          else
+            ENABLE_GLOBAL=false
+          fi
+
+          # Add master template specific parameters
+          BASE_PARAMS="$BASE_PARAMS,DatabasePassword=${{ secrets.DATABASE_PASSWORD }}"
+          BASE_PARAMS="$BASE_PARAMS,EngineVersion=${{ env.ENGINE_VERSION }}"
+          BASE_PARAMS="$BASE_PARAMS,MinCapacity=$MIN_CAP"
+          BASE_PARAMS="$BASE_PARAMS,MaxCapacity=$MAX_CAP"
+          BASE_PARAMS="$BASE_PARAMS,EnableGlobalCluster=$ENABLE_GLOBAL"
+          BASE_PARAMS="$BASE_PARAMS,GitHubActionsUserArn=${{ steps.get-github-user-arn.outputs.github-user-arn }}"
+          BASE_PARAMS="$BASE_PARAMS,AuroraGlobalClusterId=${{ steps.get-primary-outputs.outputs.global-cluster-id }}"
+          BASE_PARAMS="$BASE_PARAMS,KmsKeyArn=${{ steps.get-primary-outputs.outputs.kms-key-arn }}"
+
+        else
+          # Application template parameters (imports backend infrastructure from dev)
+          BASE_PARAMS="$BASE_PARAMS,EnvironmentToImport=${ENVIRONMENT_TO_IMPORT}"
+        fi
+
         PARAMS="$BASE_PARAMS"
         echo "params=$PARAMS" >> $GITHUB_OUTPUT
 
-    - name: Deploy master template
-      id: deploy-master
+    - name: Deploy template
+      id: deploy-template
       if: matrix.deploy
       uses: aws-actions/aws-cloudformation-github-deploy@v1
       with:
-        name: taskmanager-${{ needs.get-branch-name.outputs.branch-name }}-${{ matrix.region }}
-        template: https://s3.amazonaws.com/cf-templates-${{ steps.account-id.outputs.account-id }}-${{ matrix.region }}/${{ needs.get-branch-name.outputs.branch-name }}/master-template.yaml?versionId=${{ env.TEMPLATE_VERSION_ID }}
+        name: ${{ needs.get-branch-name.outputs.branch-name }}-${{ steps.process-domain.outputs.processed-domain }}
+        template: https://s3.amazonaws.com/cf-templates-${{ steps.account-id.outputs.account-id }}-${{ matrix.region }}/${{ needs.get-branch-name.outputs.branch-name }}/${{ env.TEMPLATE_NAME }}-template.yaml?versionId=${{ env.TEMPLATE_VERSION_ID }}
         parameter-overrides: ${{ steps.set-params.outputs.params }}
         capabilities: "CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND"
         no-fail-on-empty-changeset: "1"

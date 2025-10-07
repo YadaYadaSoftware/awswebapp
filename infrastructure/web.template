@@ -32,10 +32,13 @@ Mappings:
       ALBHostedZoneId: Z31USIVHYNEOWT
 
 Parameters:
-  Environment:
+  BranchName:
     Type: String
-    Default: main
-    Description: "Environment name (typically branch name)"
+    Description: "Branch name for resource naming"
+
+  EnvironmentToImport:
+    Type: String
+    Description: "Branch name to import infrastructure values from"
 
   WebContainerImage:
     Type: String
@@ -55,73 +58,10 @@ Parameters:
     Type: String
     Description: "Route 53 hosted zone ID for the domain"
 
-  SharedLambdaRoleArn:
+  Environment:
     Type: String
-    Description: "ARN of the shared Lambda execution role"
-
-  VPCId:
-    Type: String
-    Description: "VPC ID"
-
-  ALBSecurityGroupId:
-    Type: String
-    Description: "Security group ID for ALB"
-
-  ECSTaskSecurityGroupId:
-    Type: String
-    Description: "Security group ID for ECS tasks"
-
-  PublicSubnet1Id:
-    Type: String
-    Description: "Public subnet 1 ID"
-
-  PublicSubnet2Id:
-    Type: String
-    Description: "Public subnet 2 ID"
-
-  PrivateSubnet1Id:
-    Type: String
-    Description: "Private subnet 1 ID"
-
-  PrivateSubnet2Id:
-    Type: String
-    Description: "Private subnet 2 ID"
-
-  ECSClusterName:
-    Type: String
-    Description: "ECS cluster name"
-
-  GoogleOAuthSecretArn:
-    Type: String
-    Description: "ARN of the Google OAuth secrets in Secrets Manager"
-
-  DatabaseHost:
-    Type: String
-    Description: "Database host endpoint"
-
-  DatabaseUsername:
-    Type: String
-    Description: "Database username"
-
-  DatabaseEngine:
-    Type: String
-    Description: "Database engine"
-
-  DatabasePort:
-    Type: String
-    Description: "Database port"
-
-  DatabaseName:
-    Type: String
-    Description: "Database name"
-
-  DatabaseClusterArn:
-    Type: String
-    Description: "Database cluster ARN"
-
-  DatabasePasswordSecretArn:
-    Type: String
-    Description: "Database password secret ARN"
+    Default: "Development"
+    Description: "ASP.NET Core environment (Production, Staging, Development)"
 
   LogRetentionDays:
     Type: Number
@@ -133,42 +73,26 @@ Resources:
   WebECSLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Sub "/ecs/TaskManagerWeb-${Environment}"
       RetentionInDays: !Ref LogRetentionDays
-      Tags:
-        - Key: LogicalId
-          Value: WebECSLogGroup
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
-
   # Application Load Balancer
   WebLoadBalancer:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:
-      Name: !Sub "web-${Environment}"
       Type: application
       Scheme: internet-facing
       SecurityGroups:
-        - !Ref ALBSecurityGroupId
+        - Fn::ImportValue: !Sub "ALBSecurityGroupId-${EnvironmentToImport}"
       Subnets:
-        - !Ref PublicSubnet1Id
-        - !Ref PublicSubnet2Id
-      Tags:
-        - Key: LogicalId
-          Value: WebLoadBalancer
-        - Key: Environment
-          Value: !Ref Environment
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
-
+        - Fn::ImportValue: !Sub "PublicSubnet1Id-${EnvironmentToImport}"
+        - Fn::ImportValue: !Sub "PublicSubnet2Id-${EnvironmentToImport}"
   # Target Group
   WebTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
-      Name: !Sub "webtg-${Environment}"
       Protocol: HTTP
       Port: 80
-      VpcId: !Ref VPCId
+      VpcId:
+        Fn::ImportValue: !Sub "VPCId-${EnvironmentToImport}"
       TargetType: ip
       HealthCheckPath: /health
       HealthCheckIntervalSeconds: 30
@@ -176,12 +100,6 @@ Resources:
       HealthyThresholdCount: 2
       UnhealthyThresholdCount: 2
       HealthCheckPort: 80
-      Tags:
-        - Key: LogicalId
-          Value: WebTargetGroup
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
-
   # ALB HTTP Listener (redirects to HTTPS)
   WebListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
@@ -216,24 +134,26 @@ Resources:
   WebSSLCertificate:
     Type: AWS::CertificateManager::Certificate
     Properties:
-      DomainName: !Sub "${Environment}.${DomainName}"
+      DomainName: !Sub "${BranchName}.${DomainName}"
       ValidationMethod: DNS
       DomainValidationOptions:
-        - DomainName: !Sub "${Environment}.${DomainName}"
+        - DomainName: !Sub "${BranchName}.${DomainName}"
           HostedZoneId: !Ref HostedZoneId
 
   # ECS Task Definition
   WebTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
-      Family: !Sub "webtd-${Environment}"
+      Family: !Sub "webtd-${BranchName}"
       NetworkMode: awsvpc
       RequiresCompatibilities:
         - FARGATE
       Cpu: "512"
       Memory: "1024"
-      ExecutionRoleArn: !Ref SharedLambdaRoleArn
-      TaskRoleArn: !Ref SharedLambdaRoleArn
+      ExecutionRoleArn:
+        Fn::ImportValue: !Sub "SharedLambdaRoleArn-${EnvironmentToImport}"
+      TaskRoleArn:
+        Fn::ImportValue: !Sub "SharedLambdaRoleArn-${EnvironmentToImport}"
       ContainerDefinitions:
         - Name: web
           Image: !Ref WebContainerImage
@@ -245,14 +165,21 @@ Resources:
               Protocol: tcp
           Environment:
             - Name: ASPNETCORE_ENVIRONMENT
-              Value: "Production"
+              Value: !Ref Environment
             - Name: ConnectionStrings__DefaultConnection
               Value: !Sub
                 - "Server=${DatabaseHost};Database=${DatabaseName};User Id=${DatabaseUsername};Password=${DatabasePassword};SslMode=Required;"
-                - DatabaseHost: !Ref DatabaseHost
-                  DatabaseName: !Ref DatabaseName
-                  DatabaseUsername: !Ref DatabaseUsername
-                  DatabasePassword: !Sub "{{resolve:secretsmanager:${DatabasePasswordSecretArn}:SecretString}}"
+                - DatabaseHost:
+                    Fn::ImportValue: !Sub "DatabaseHost-${EnvironmentToImport}"
+                  DatabaseName:
+                    Fn::ImportValue: !Sub "DatabaseName-${EnvironmentToImport}"
+                  DatabaseUsername:
+                    Fn::ImportValue: !Sub "DatabaseUsername-${EnvironmentToImport}"
+                  DatabasePassword: !Join
+                    - ""
+                    - - "{{resolve:secretsmanager:"
+                      - Fn::ImportValue: !Sub "DatabasePasswordSecretArn-${EnvironmentToImport}"
+                      - ":SecretString}}"
             - Name: ASPNETCORE_URLS
               Value: "http://*:80"
             - Name: DOTNET_RUNNING_IN_CONTAINER
@@ -264,9 +191,9 @@ Resources:
             - Name: DEPLOYMENT_TOKEN
               Value: !Ref DeploymentToken
             - Name: Authentication__Google__ClientId
-              Value: !Sub "{{resolve:secretsmanager:${GoogleOAuthSecretArn}:SecretString:clientId}}"
+              Value: !Sub "{{resolve:secretsmanager:taskmanager/google-oauth/${EnvironmentToImport}:SecretString:clientId}}"
             - Name: Authentication__Google__ClientSecret
-              Value: !Sub "{{resolve:secretsmanager:${GoogleOAuthSecretArn}:SecretString:clientSecret}}"
+              Value: !Sub "{{resolve:secretsmanager:taskmanager/google-oauth/${EnvironmentToImport}:SecretString:clientSecret}}"
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -281,36 +208,27 @@ Resources:
       - WebListener
       - WebTaskDefinition
     Properties:
-      ServiceName: !Sub "websvc-${Environment}"
-      Cluster: !Ref ECSClusterName
+      Cluster:
+        Fn::ImportValue: !Sub "ECSClusterName-${EnvironmentToImport}"
       TaskDefinition: !Ref WebTaskDefinition
       DesiredCount: 1
       LaunchType: FARGATE
       NetworkConfiguration:
         AwsvpcConfiguration:
           SecurityGroups:
-            - !Ref ECSTaskSecurityGroupId
+            - Fn::ImportValue: !Sub "ECSTaskSecurityGroupId-${EnvironmentToImport}"
           Subnets:
-            - !Ref PrivateSubnet1Id
-            - !Ref PrivateSubnet2Id
+            - Fn::ImportValue: !Sub "PrivateSubnet1Id-${EnvironmentToImport}"
+            - Fn::ImportValue: !Sub "PrivateSubnet2Id-${EnvironmentToImport}"
       LoadBalancers:
         - TargetGroupArn: !Ref WebTargetGroup
           ContainerName: web
           ContainerPort: 80
       HealthCheckGracePeriodSeconds: 300
-      Tags:
-        - Key: LogicalId
-          Value: WebService
-        - Key: Environment
-          Value: !Ref Environment
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
-
   # CloudWatch Alarms for Web
   WebECSServiceAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName: !Sub "TaskManager-Web-Unhealthy-${Environment}"
       AlarmDescription: "Web ECS service unhealthy targets alarm"
       MetricName: UnHealthyHostCount
       Namespace: AWS/ApplicationELB
@@ -324,29 +242,33 @@ Resources:
           Value: !GetAtt WebLoadBalancer.LoadBalancerFullName
         - Name: TargetGroup
           Value: !GetAtt WebTargetGroup.TargetGroupFullName
-      Tags:
-        - Key: LogicalId
-          Value: WebECSServiceAlarm
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
-
 Outputs:
   WebEndpoint:
     Description: "Web application endpoint URL"
-    Value: !Sub "https://${Environment}.${DomainName}"
+    Value: !Sub "https://${BranchName}.${DomainName}"
+    Export:
+      Name: !Sub "WebEndpoint-${BranchName}"
 
   WebLoadBalancerDNS:
     Description: "Web Load Balancer DNS name"
     Value: !GetAtt WebLoadBalancer.DNSName
+    Export:
+      Name: !Sub "WebLoadBalancerDNS-${BranchName}"
 
   WebLoadBalancerHostedZoneId:
     Description: "Web Load Balancer hosted zone ID"
     Value: !FindInMap [RegionMap, !Ref AWS::Region, ALBHostedZoneId]
+    Export:
+      Name: !Sub "WebLoadBalancerHostedZoneId-${BranchName}"
 
   WebTaskDefinition:
     Description: "Web ECS task definition"
     Value: !Ref WebTaskDefinition
+    Export:
+      Name: !Sub "WebTaskDefinition-${BranchName}"
 
   WebServiceName:
     Description: "Web ECS service name"
     Value: !Ref WebService
+    Export:
+      Name: !Sub "WebServiceName-${BranchName}"

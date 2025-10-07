@@ -33,34 +33,13 @@ Parameters:
     Default: "true"
     Description: Whether to enable Aurora global cluster (for multi-region deployments)
 
-  GitHubActionsUserArn:
-    Type: String
-    Description: ARN of the GitHub Actions IAM user from IAM setup stack
-
   BranchName:
     Type: String
     Description: Branch name for resource naming
 
-  VPCId:
+  EnvironmentToImport:
     Type: String
-    Description: VPC ID from VPC stack
-
-  PrivateSubnet1Id:
-    Type: String
-    Description: Private subnet 1 ID from VPC stack
-
-  PrivateSubnet2Id:
-    Type: String
-    Description: Private subnet 2 ID from VPC stack
-
-  RDSSecurityGroupId:
-    Type: String
-    Description: Security group for RDS access from VPC stack
-
-  LogRetentionDays:
-    Type: Number
-    Default: 7
-    Description: Number of days to retain CloudWatch logs
+    Description: Branch name to import infrastructure values from
 
   MinCapacity:
     Type: Number
@@ -81,6 +60,12 @@ Conditions:
       !Equals [!Ref IsPrimaryRegion, "true"],
       !Equals [!Ref EnableGlobalCluster, "true"],
     ]
+  IsDevBetaOrAlpha:
+    !Or [
+      !Equals [!Ref EnvironmentToImport, "dev"],
+      !Equals [!Ref EnvironmentToImport, "beta"],
+      !Equals [!Ref EnvironmentToImport, "alpha"],
+    ]
 
 Resources:
   # Aurora DB Subnet Group
@@ -89,19 +74,8 @@ Resources:
     Properties:
       DBSubnetGroupDescription: "Subnet group for Aurora cluster in this region"
       SubnetIds:
-        - !Ref PrivateSubnet1Id
-        - !Ref PrivateSubnet2Id
-      DBSubnetGroupName: !Sub "taskmanager-${BranchName}-aurora-subnet-group-${AWS::Region}"
-      Tags:
-        - Key: LogicalId
-          Value: AuroraDBSubnetGroup
-        - Key: Name
-          Value: "TaskManager-Aurora-SubnetGroup"
-        - Key: Region
-          Value: !Ref AWS::Region
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
-
+        - Fn::ImportValue: !Sub "PrivateSubnet1Id-${EnvironmentToImport}"
+        - Fn::ImportValue: !Sub "PrivateSubnet2Id-${EnvironmentToImport}"
   # Aurora DB Cluster Parameter Group
   AuroraClusterParameterGroup:
     Type: AWS::RDS::DBClusterParameterGroup
@@ -116,58 +90,8 @@ Resources:
         slow_query_log: "1"
         long_query_time: "2"
 
-  # CloudWatch Log Groups for Aurora Cluster
-  AuroraAuditLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub "/aws/rds/cluster/taskmanager-${BranchName}-aurora-cluster-${AWS::Region}/audit"
-      RetentionInDays: !Ref LogRetentionDays
-      Tags:
-        - Key: LogicalId
-          Value: AuroraAuditLogGroup
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
-
-  AuroraErrorLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub "/aws/rds/cluster/taskmanager-${BranchName}-aurora-cluster-${AWS::Region}/error"
-      RetentionInDays: !Ref LogRetentionDays
-      Tags:
-        - Key: LogicalId
-          Value: AuroraErrorLogGroup
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
-
-  AuroraGeneralLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub "/aws/rds/cluster/taskmanager-${BranchName}-aurora-cluster-${AWS::Region}/general"
-      RetentionInDays: !Ref LogRetentionDays
-      Tags:
-        - Key: LogicalId
-          Value: AuroraGeneralLogGroup
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
-
-  AuroraSlowQueryLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub "/aws/rds/cluster/taskmanager-${BranchName}-aurora-cluster-${AWS::Region}/slowquery"
-      RetentionInDays: !Ref LogRetentionDays
-      Tags:
-        - Key: LogicalId
-          Value: AuroraSlowQueryLogGroup
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
-
   # Aurora Serverless v2 Cluster
   AuroraCluster:
-    DependsOn:
-      - AuroraAuditLogGroup
-      - AuroraErrorLogGroup
-      - AuroraGeneralLogGroup
-      - AuroraSlowQueryLogGroup
     Type: AWS::RDS::DBCluster
     Properties:
       GlobalClusterIdentifier:
@@ -180,17 +104,16 @@ Resources:
           ],
           !Ref AuroraGlobalClusterId,
         ]
-      DBClusterIdentifier: !Sub "taskmanager-${BranchName}-aurora-cluster-${AWS::Region}"
       Engine: aurora-mysql
       EngineVersion: !Ref EngineVersion
       MasterUsername: !If [IsPrimary, "taskmanager_admin", !Ref "AWS::NoValue"]
       MasterUserPassword:
         !If [IsPrimary, !Ref DatabasePassword, !Ref "AWS::NoValue"]
-      DatabaseName: !If [IsPrimary, "taskmanager", !Ref "AWS::NoValue"]
-      DBSubnetGroupName: !Ref AuroraDBSubnetGroup
+      DatabaseName: !If [IsPrimary, !Ref BranchName, !Ref "AWS::NoValue"]
       DBClusterParameterGroupName: !Ref AuroraClusterParameterGroup
+      DBSubnetGroupName: !Ref AuroraDBSubnetGroup
       VpcSecurityGroupIds:
-        - !Ref RDSSecurityGroupId
+        - Fn::ImportValue: !Sub "RDSSecurityGroupId-${EnvironmentToImport}"
       BackupRetentionPeriod: 7
       PreferredBackupWindow: "03:00-04:00"
       PreferredMaintenanceWindow: "sun:04:00-sun:05:00"
@@ -205,39 +128,15 @@ Resources:
         - error
         - general
         - slowquery
-      Tags:
-        - Key: LogicalId
-          Value: AuroraCluster
-        - Key: Name
-          Value: !Sub "TaskManager-Aurora-Cluster-${AWS::Region}"
-        - Key: Purpose
-          Value: !Sub "${IsPrimaryRegion} Aurora Cluster"
-        - Key: Region
-          Value: !Ref AWS::Region
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
-
+      EnableHttpEndpoint: !If [IsDevBetaOrAlpha, true, false]
   # Aurora Serverless v2 Instance
   AuroraInstance:
     Type: AWS::RDS::DBInstance
     Properties:
-      DBInstanceIdentifier: !Sub "taskmanager-${BranchName}-aurora-instance-${AWS::Region}"
       DBClusterIdentifier: !Ref AuroraCluster
       DBInstanceClass: db.serverless
       Engine: aurora-mysql
       PubliclyAccessible: false
-      Tags:
-        - Key: LogicalId
-          Value: AuroraInstance
-        - Key: Name
-          Value: !Sub "TaskManager-Aurora-Instance-${AWS::Region}"
-        - Key: Purpose
-          Value: "Regional Aurora Instance"
-        - Key: Region
-          Value: !Ref AWS::Region
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
-
   AuroraGlobalCluster:
     Condition: ShouldCreateGlobalCluster
     Type: AWS::RDS::GlobalCluster
@@ -247,11 +146,6 @@ Resources:
       EngineVersion: !Ref EngineVersion
       DeletionProtection: false
       StorageEncrypted: true
-      Tags:
-        - Key: LogicalId
-          Value: AuroraGlobalCluster
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
   # Database Password Secret (only password remains sensitive)
   DatabasePasswordSecret:
     Type: AWS::SecretsManager::Secret
@@ -259,54 +153,70 @@ Resources:
       Name: !Sub "taskmanager/database/${BranchName}/regional/${AWS::Region}/password"
       Description: Database password for Aurora Regional Cluster
       SecretString: !Ref DatabasePassword
-      Tags:
-        - Key: LogicalId
-          Value: DatabasePasswordSecret
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
-
 Outputs:
   AuroraClusterId:
     Description: Aurora Regional Cluster ID
     Value: !Ref AuroraCluster
+    Export:
+      Name: !Sub "AuroraClusterId-${BranchName}"
 
   DatabaseEndpoint:
     Description: Aurora MySQL cluster endpoint
     Value: !GetAtt AuroraCluster.Endpoint.Address
+    Export:
+      Name: !Sub "DatabaseEndpoint-${BranchName}"
 
   DatabaseReaderEndpoint:
     Description: Aurora MySQL reader endpoint
     Value: !GetAtt AuroraCluster.ReadEndpoint.Address
+    Export:
+      Name: !Sub "DatabaseReaderEndpoint-${BranchName}"
 
   DatabaseUsername:
     Description: Database username
     Value: "taskmanager_admin"
+    Export:
+      Name: !Sub "DatabaseUsername-${BranchName}"
 
   DatabaseEngine:
     Description: Database engine
     Value: "aurora-mysql"
+    Export:
+      Name: !Sub "DatabaseEngine-${BranchName}"
 
   DatabaseHost:
     Description: Database host endpoint
     Value: !GetAtt AuroraCluster.Endpoint.Address
+    Export:
+      Name: !Sub "DatabaseHost-${BranchName}"
 
   DatabasePort:
     Description: Database port
     Value: !GetAtt AuroraCluster.Endpoint.Port
+    Export:
+      Name: !Sub "DatabasePort-${BranchName}"
 
   DatabaseName:
     Description: Database name
-    Value: "taskmanager"
+    Value: !Ref BranchName
+    Export:
+      Name: !Sub "DatabaseName-${BranchName}"
 
   DatabaseClusterArn:
     Description: Database cluster ARN
     Value: !Ref AuroraCluster
+    Export:
+      Name: !Sub "DatabaseClusterArn-${BranchName}"
 
   DatabasePasswordSecretArn:
     Description: Database password secret ARN
     Value: !Ref DatabasePasswordSecret
+    Export:
+      Name: !Sub "DatabasePasswordSecretArn-${BranchName}"
 
   AuroraGlobalClusterId:
     Condition: ShouldCreateGlobalCluster
     Description: Aurora Global Database cluster identifier
     Value: !Ref AuroraGlobalCluster
+    Export:
+      Name: !Sub "AuroraGlobalClusterId-${BranchName}"

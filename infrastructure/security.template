@@ -83,12 +83,6 @@ Resources:
               - kms:ListGrants
               - kms:RevokeGrant
             Resource: "*"
-      Tags:
-        - Key: LogicalId
-          Value: AuroraKmsKey
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
-
   AuroraKmsKeyReplica:
     Type: AWS::KMS::ReplicaKey
     Condition: IsReplicaKey
@@ -142,12 +136,6 @@ Resources:
               - kms:ListGrants
               - kms:RevokeGrant
             Resource: "*"
-      Tags:
-        - Key: LogicalId
-          Value: AuroraKmsKeyReplica
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
-
   SharedLambdaExecutionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -249,12 +237,6 @@ Resources:
                   - ecr:GetDownloadUrlForLayer
                   - ecr:BatchGetImage
                 Resource: "*"
-      Tags:
-        - Key: LogicalId
-          Value: SharedLambdaExecutionRole
-        - Key: Stack
-          Value: !Ref "AWS::StackName"
-
 Outputs:
   AuroraKmsKeyArn:
     Description: ARN of the KMS key (primary or replica)
@@ -264,7 +246,11 @@ Outputs:
         !GetAtt AuroraKmsKey.Arn,
         !GetAtt AuroraKmsKeyReplica.Arn,
       ]
+    Export:
+      Name: !Sub "AuroraKmsKeyArn-${BranchName}"
 
   SharedLambdaRoleArn:
     Description: Shared Lambda execution role ARN
     Value: !GetAtt SharedLambdaExecutionRole.Arn
+    Export:
+      Name: !Sub "SharedLambdaRoleArn-${BranchName}"

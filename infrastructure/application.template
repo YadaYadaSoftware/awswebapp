@@ -3,20 +3,12 @@ AWSTemplateFormatVersion: "2010-09-09"
 Description: "TaskManager Application Infrastructure Template - Includes API, web, and DNS components"
 
 Parameters:
-  # Common parameters
-  TemplateBucket:
-    Type: String
-    Description: S3 bucket name containing the CloudFormation templates
-
-  GitHubActionsUserArn:
-    Type: String
-    Description: ARN of the GitHub Actions IAM user
-
   BranchName:
     Type: String
     Description: Branch name for resource naming
-
-  # Google OAuth parameters
+  EnvironmentToImport:
+    Type: String
+    Description: "Branch name to import infrastructure values from"
   GoogleOAuthClientId:
     Type: String
     Description: Google OAuth Client ID
@@ -62,84 +54,18 @@ Parameters:
     Default: ""
     Description: "Hosted zone ID of the primary web load balancer"
 
-  # Backend outputs as parameters
-  SharedLambdaRoleArn:
-    Type: String
-    Description: ARN of the shared Lambda role
-
-  DatabaseHost:
-    Type: String
-    Description: Database host endpoint
-
-  DatabaseUsername:
-    Type: String
-    Description: Database username
-
-  DatabaseEngine:
-    Type: String
-    Description: Database engine
-
-  DatabasePort:
-    Type: String
-    Description: Database port
-
-  DatabaseName:
-    Type: String
-    Description: Database name
-
-  DatabaseClusterArn:
-    Type: String
-    Description: Database cluster ARN
-
-  DatabasePasswordSecretArn:
-    Type: String
-    Description: Database password secret ARN
-
-  VPCId:
-    Type: String
-    Description: VPC ID
-
-  PrivateSubnet1Id:
-    Type: String
-    Description: Private subnet 1 ID
-
-  PrivateSubnet2Id:
-    Type: String
-    Description: Private subnet 2 ID
-
-  PublicSubnet1Id:
-    Type: String
-    Description: Public subnet 1 ID
-
-  PublicSubnet2Id:
-    Type: String
-    Description: Public subnet 2 ID
-
-  LambdaSecurityGroupId:
-    Type: String
-    Description: Lambda security group ID
-
-  ALBSecurityGroupId:
-    Type: String
-    Description: ALB security group ID
-
-  ECSTaskSecurityGroupId:
-    Type: String
-    Description: ECS task security group ID
-
-  ECSClusterName:
-    Type: String
-    Description: ECS cluster name
-
-  GoogleOAuthSecretArn:
-    Type: String
-    Description: ARN of the Google OAuth secrets
+  # Infrastructure exports (imported using BranchName)
 
   # Region-specific parameters
   IsPrimaryRegion:
     Type: String
     AllowedValues: ["true", "false"]
     Description: Whether this region hosts the primary cluster
+
+  Environment:
+    Type: String
+    Default: "Development"
+    Description: "ASP.NET Core environment (Production, Staging, Development)"
 
 Conditions:
   IsPrimarySingleRegion: !And [
@@ -155,18 +81,9 @@ Resources:
     Properties:
       TemplateURL: ./api.template
       Parameters:
-        Environment: !Ref BranchName
-        SharedLambdaRoleArn: !Ref SharedLambdaRoleArn
-        DatabaseHost: !Ref DatabaseHost
-        DatabaseUsername: !Ref DatabaseUsername
-        DatabaseEngine: !Ref DatabaseEngine
-        DatabasePort: !Ref DatabasePort
-        DatabaseName: !Ref DatabaseName
-        DatabaseClusterArn: !Ref DatabaseClusterArn
-        LambdaSecurityGroupId: !Ref LambdaSecurityGroupId
-        PrivateSubnet1Id: !Ref PrivateSubnet1Id
-        PrivateSubnet2Id: !Ref PrivateSubnet2Id
-        LogRetentionDays: 7
+        BranchName: !Ref BranchName
+        EnvironmentToImport: !Ref EnvironmentToImport
+        Environment: !Ref Environment
 
   # Regional Web
   WebStack:
@@ -174,29 +91,14 @@ Resources:
     Properties:
       TemplateURL: ./web.template
       Parameters:
-        Environment: !Ref BranchName
+        BranchName: !Ref BranchName
+        EnvironmentToImport: !Ref EnvironmentToImport
         WebContainerImage: !Ref WebContainerImage
         DeploymentToken: !Ref DeploymentToken
         DomainName: !Ref DomainName
         HostedZoneId: !Ref HostedZoneId
-        SharedLambdaRoleArn: !Ref SharedLambdaRoleArn
-        VPCId: !Ref VPCId
-        ALBSecurityGroupId: !Ref ALBSecurityGroupId
-        ECSTaskSecurityGroupId: !Ref ECSTaskSecurityGroupId
-        PublicSubnet1Id: !Ref PublicSubnet1Id
-        PublicSubnet2Id: !Ref PublicSubnet2Id
-        PrivateSubnet1Id: !Ref PrivateSubnet1Id
-        PrivateSubnet2Id: !Ref PrivateSubnet2Id
-        ECSClusterName: !Ref ECSClusterName
-        GoogleOAuthSecretArn: !Ref GoogleOAuthSecretArn
-        DatabaseHost: !Ref DatabaseHost
-        DatabaseUsername: !Ref DatabaseUsername
-        DatabaseEngine: !Ref DatabaseEngine
-        DatabasePort: !Ref DatabasePort
-        DatabaseName: !Ref DatabaseName
-        DatabaseClusterArn: !Ref DatabaseClusterArn
-        DatabasePasswordSecretArn: !Ref DatabasePasswordSecretArn
         LogRetentionDays: 7
+        Environment: !Ref Environment
 
   # DNS for primary region (simple record for single region)
   PrimaryDnsStack:
@@ -206,14 +108,10 @@ Resources:
     Properties:
       TemplateURL: ./dns.template
       Parameters:
-        Environment: !Ref BranchName
+        BranchName: !Ref BranchName
         DomainName: !Ref DomainName
         HostedZoneId: !Ref HostedZoneId
         PrimaryRegion: !Ref "AWS::Region"
-        PrimaryWebLoadBalancerDNS: !GetAtt WebStack.Outputs.WebLoadBalancerDNS
-        PrimaryWebLoadBalancerHostedZoneId: !GetAtt WebStack.Outputs.WebLoadBalancerHostedZoneId
-        SecondaryWebLoadBalancerDNS: !Ref "AWS::NoValue"
-        SecondaryWebLoadBalancerHostedZoneId: !Ref "AWS::NoValue"
 
   # Global DNS (only in secondary region - failover setup)
   SecondaryDnsStack:
@@ -223,18 +121,15 @@ Resources:
     Properties:
       TemplateURL: ./dns.template
       Parameters:
-        Environment: !Ref BranchName
+        BranchName: !Ref BranchName
+        EnvironmentToImport: !Ref EnvironmentToImport
         DomainName: !Ref DomainName
         HostedZoneId: !Ref HostedZoneId
         PrimaryRegion: !Ref PrimaryRegion
         SecondaryRegion: !Ref "AWS::Region"
-        PrimaryWebLoadBalancerDNS: !Ref PrimaryWebLoadBalancerDNS
-        PrimaryWebLoadBalancerHostedZoneId: !Ref PrimaryWebLoadBalancerHostedZoneId
-        SecondaryWebLoadBalancerDNS: !GetAtt WebStack.Outputs.WebLoadBalancerDNS
-        SecondaryWebLoadBalancerHostedZoneId: !GetAtt WebStack.Outputs.WebLoadBalancerHostedZoneId
 
 Outputs:
-  # API outputs
+  # API outputs (for orchestration, not exported)
   ApiEndpoint:
     Description: "API Gateway endpoint URL"
     Value: !GetAtt ApiStack.Outputs.ApiEndpoint
@@ -243,7 +138,7 @@ Outputs:
     Description: "API Lambda function name"
     Value: !GetAtt ApiStack.Outputs.ApiLambdaFunctionName
 
-  # Web outputs
+  # Web outputs (for orchestration, not exported)
   WebEndpoint:
     Description: "Web application endpoint URL"
     Value: !GetAtt WebStack.Outputs.WebEndpoint
@@ -264,13 +159,12 @@ Outputs:
     Description: "Web ECS service name"
     Value: !GetAtt WebStack.Outputs.WebServiceName
 
-  # DNS outputs for primary region (single region only)
+  # DNS outputs (for orchestration, not exported)
   PrimaryWebEndpoint:
     Condition: IsPrimarySingleRegion
     Description: "Web application endpoint URL"
     Value: !GetAtt PrimaryDnsStack.Outputs.WebEndpoint
 
-  # DNS outputs for secondary region (failover setup)
   SecondaryWebEndpoint:
     Condition: IsSecondary
     Description: "Web application endpoint URL"

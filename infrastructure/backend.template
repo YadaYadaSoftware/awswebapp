@@ -3,15 +3,10 @@ AWSTemplateFormatVersion: "2010-09-09"
 Description: "TaskManager Backend Infrastructure Template - Includes security, networking, database, and infrastructure components"
 
 Parameters:
-  # Common parameters
-  TemplateBucket:
-    Type: String
-    Description: S3 bucket name containing the CloudFormation templates
-
   GitHubActionsUserArn:
     Type: String
     Description: ARN of the GitHub Actions IAM user
-
+  # Common parameters
   BranchName:
     Type: String
     Description: Branch name for resource naming
@@ -93,10 +88,10 @@ Resources:
     Properties:
       TemplateURL: ./security.template
       Parameters:
-        GitHubActionsUserArn: !Ref GitHubActionsUserArn
         BranchName: !Ref BranchName
         KmsKeyArn: !If [HasKmsKeyArn, !Ref KmsKeyArn, !Ref "AWS::NoValue"]
         IsPrimaryRegion: !Ref IsPrimaryRegion
+        GitHubActionsUserArn: !Ref GitHubActionsUserArn
 
   # Regional VPC
   NetworkingStack:
@@ -119,16 +114,11 @@ Resources:
         AuroraGlobalClusterId: !Ref AuroraGlobalClusterId
         AuroraKmsKeyArn: !GetAtt SecurityStack.Outputs.AuroraKmsKeyArn
         IsPrimaryRegion: !Ref IsPrimaryRegion
-        GitHubActionsUserArn: !Ref GitHubActionsUserArn
         BranchName: !Ref BranchName
-        VPCId: !GetAtt NetworkingStack.Outputs.VPCId
-        PrivateSubnet1Id: !GetAtt NetworkingStack.Outputs.PrivateSubnet1Id
-        PrivateSubnet2Id: !GetAtt NetworkingStack.Outputs.PrivateSubnet2Id
-        RDSSecurityGroupId: !GetAtt NetworkingStack.Outputs.RDSSecurityGroupId
+        EnvironmentToImport: !Ref BranchName
         MinCapacity: !Ref MinCapacity
         MaxCapacity: !Ref MaxCapacity
         EnableGlobalCluster: !Ref EnableGlobalCluster
-        LogRetentionDays: 7
 
   # Regional Infrastructure
   InfrastructureStack:
@@ -142,12 +132,12 @@ Resources:
         GoogleOAuthClientSecret: !Ref GoogleOAuthClientSecret
 
 Outputs:
-  # KMS outputs
+  # KMS outputs (for orchestration, not exported)
   AuroraKmsKeyArn:
     Description: ARN of the KMS key
     Value: !GetAtt SecurityStack.Outputs.AuroraKmsKeyArn
 
-  # Global outputs
+  # Global outputs (for orchestration, not exported)
   AuroraGlobalClusterId:
     Condition: ShouldCreateGlobalCluster
     Description: ID of the Aurora global cluster
@@ -157,7 +147,7 @@ Outputs:
     Description: ARN of the shared Lambda role
     Value: !GetAtt SecurityStack.Outputs.SharedLambdaRoleArn
 
-  # Database outputs
+  # Database outputs (for orchestration, not exported)
   DatabaseEndpoint:
     Description: Aurora MySQL cluster endpoint
     Value: !GetAtt DbStack.Outputs.DatabaseEndpoint
@@ -194,7 +184,7 @@ Outputs:
     Description: Database password secret ARN
     Value: !GetAtt DbStack.Outputs.DatabasePasswordSecretArn
 
-  # VPC outputs
+  # VPC outputs (for orchestration, not exported)
   VpcId:
     Description: VPC ID
     Value: !GetAtt NetworkingStack.Outputs.VPCId
@@ -231,7 +221,7 @@ Outputs:
     Description: VPC Flow Logs role ARN
     Value: !GetAtt NetworkingStack.Outputs.VpcFlowLogsRoleArn
 
-  # Infrastructure outputs
+  # Infrastructure outputs (for orchestration, not exported)
   ECSClusterName:
     Description: ECS cluster name
     Value: !GetAtt InfrastructureStack.Outputs.ECSClusterName
