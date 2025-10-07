@@ -145,8 +145,6 @@ Resources:
     Properties:
       TemplateURL: ./application.template
       Parameters:
-        TemplateBucket: !ImportValue TemplatesBucketName
-        GitHubActionsUserArn: !ImportValue GitHubActionsUserArn
         BranchName: !Ref BranchName
         GoogleOAuthClientId: !Ref GoogleOAuthClientId
         GoogleOAuthClientSecret: !Ref GoogleOAuthClientSecret
@@ -157,24 +155,6 @@ Resources:
         PrimaryRegion: !Ref PrimaryRegion
         PrimaryWebLoadBalancerDNS: !Ref PrimaryWebLoadBalancerDNS
         PrimaryWebLoadBalancerHostedZoneId: !Ref PrimaryWebLoadBalancerHostedZoneId
-        SharedLambdaRoleArn: !GetAtt BackendStack.Outputs.SharedLambdaRoleArn
-        DatabaseHost: !GetAtt BackendStack.Outputs.DatabaseHost
-        DatabaseUsername: !GetAtt BackendStack.Outputs.DatabaseUsername
-        DatabaseEngine: !GetAtt BackendStack.Outputs.DatabaseEngine
-        DatabasePort: !GetAtt BackendStack.Outputs.DatabasePort
-        DatabaseName: !GetAtt BackendStack.Outputs.DatabaseName
-        DatabaseClusterArn: !GetAtt BackendStack.Outputs.DatabaseClusterArn
-        DatabasePasswordSecretArn: !GetAtt BackendStack.Outputs.DatabasePasswordSecretArn
-        VPCId: !GetAtt BackendStack.Outputs.VpcId
-        PrivateSubnet1Id: !GetAtt BackendStack.Outputs.PrivateSubnet1Id
-        PrivateSubnet2Id: !GetAtt BackendStack.Outputs.PrivateSubnet2Id
-        PublicSubnet1Id: !GetAtt BackendStack.Outputs.PublicSubnet1Id
-        PublicSubnet2Id: !GetAtt BackendStack.Outputs.PublicSubnet2Id
-        LambdaSecurityGroupId: !GetAtt BackendStack.Outputs.LambdaSecurityGroupId
-        ALBSecurityGroupId: !GetAtt BackendStack.Outputs.ALBSecurityGroupId
-        ECSTaskSecurityGroupId: !GetAtt BackendStack.Outputs.ECSTaskSecurityGroupId
-        ECSClusterName: !GetAtt BackendStack.Outputs.ECSClusterName
-        GoogleOAuthSecretArn: !GetAtt BackendStack.Outputs.GoogleOAuthSecretArn
         IsPrimaryRegion: !Ref IsPrimaryRegion
         Environment: !Ref Environment
         EnvironmentToImport: !Ref BranchName
