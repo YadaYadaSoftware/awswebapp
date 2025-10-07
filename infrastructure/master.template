@@ -123,8 +123,6 @@ Resources:
     Properties:
       TemplateURL: ./backend.template
       Parameters:
-        TemplateBucket: !ImportValue TemplatesBucketName
-        GitHubActionsUserArn: !ImportValue GitHubActionsUserArn
         BranchName: !Ref BranchName
         DatabasePassword: !Ref DatabasePassword
         EngineVersion: !Ref EngineVersion
