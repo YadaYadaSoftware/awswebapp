@@ -137,26 +137,48 @@ jobs:
       run: |
         cd src/TaskManager.UiTests
         echo "Running UI tests..."
-        dotnet test --configuration Release --logger "trx;LogFileName=test-results.trx" --results-directory ./TestResults
+        dotnet test --configuration Release --logger "trx;LogFileName=test-results.trx" --results-directory ./TestResults 2>&1 | tee test-output.log
 
-        # Check if tests passed or failed
-        if [ $? -eq 0 ]; then
+        # Capture the exit code
+        TEST_EXIT_CODE=${PIPESTATUS[0]}
+
+        # Parse test results from the output
+        if [ -f "./test-output.log" ]; then
+          echo "Parsing test results from output..."
+
+          # Extract the summary line (e.g., "Failed! - Failed: 3, Passed: 3, Skipped: 0, Total: 6, Duration: 11 s - TaskManager.UiTests.dll (net8.0)")
+          SUMMARY_LINE=$(grep -E "Failed:.*Passed:.*Skipped:.*Total:" ./test-output.log | tail -1)
+
+          if [ ! -z "$SUMMARY_LINE" ]; then
+            # Extract numbers using regex
+            FAILED_TESTS=$(echo "$SUMMARY_LINE" | grep -oE 'Failed: +[0-9]+' | grep -oE '[0-9]+')
+            PASSED_TESTS=$(echo "$SUMMARY_LINE" | grep -oE 'Passed: +[0-9]+' | grep -oE '[0-9]+')
+            TOTAL_TESTS=$(echo "$SUMMARY_LINE" | grep -oE 'Total: +[0-9]+' | grep -oE '[0-9]+')
+
+            echo "Parsed results: Failed=$FAILED_TESTS, Passed=$PASSED_TESTS, Total=$TOTAL_TESTS"
+            echo "failed-tests=$FAILED_TESTS" >> $GITHUB_OUTPUT
+            echo "passed-tests=$PASSED_TESTS" >> $GITHUB_OUTPUT
+            echo "total-tests=$TOTAL_TESTS" >> $GITHUB_OUTPUT
+          else
+            echo "No summary line found in test output"
+            echo "failed-tests=0" >> $GITHUB_OUTPUT
+            echo "passed-tests=0" >> $GITHUB_OUTPUT
+            echo "total-tests=0" >> $GITHUB_OUTPUT
+          fi
+        else
+          echo "No test output file found"
+          echo "failed-tests=0" >> $GITHUB_OUTPUT
+          echo "passed-tests=0" >> $GITHUB_OUTPUT
+          echo "total-tests=0" >> $GITHUB_OUTPUT
+        fi
+
+        # Check if tests passed or failed based on exit code and results
+        if [ "$TEST_EXIT_CODE" -eq 0 ] && [ "${FAILED_TESTS:-0}" -eq 0 ]; then
           echo "✅ All UI tests passed"
           echo "ui-tests-passed=true" >> $GITHUB_OUTPUT
         else
           echo "❌ Some UI tests failed"
           echo "ui-tests-passed=false" >> $GITHUB_OUTPUT
-        fi
-
-        # Count test results
-        if [ -f "./TestResults/test-results.trx" ]; then
-          echo "Test results file found"
-          # Extract basic stats from TRX file (you might need to adjust this based on actual TRX format)
-          TOTAL_TESTS=$(grep -o 'testId=' ./TestResults/test-results.trx | wc -l)
-          echo "total-tests=$TOTAL_TESTS" >> $GITHUB_OUTPUT
-        else
-          echo "No test results file found"
-          echo "total-tests=0" >> $GITHUB_OUTPUT
         fi
 
     - name: Upload Test Results and Screenshots
@@ -183,6 +205,8 @@ jobs:
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "**Test Statistics:**" >> $GITHUB_STEP_SUMMARY
         echo "- Total Tests: ${{ steps.ui-tests.outputs.total-tests }}" >> $GITHUB_STEP_SUMMARY
+        echo "- Passed Tests: ${{ steps.ui-tests.outputs.passed-tests }}" >> $GITHUB_STEP_SUMMARY
+        echo "- Failed Tests: ${{ steps.ui-tests.outputs.failed-tests }}" >> $GITHUB_STEP_SUMMARY
 
         echo "" >> $GITHUB_STEP_SUMMARY
 
