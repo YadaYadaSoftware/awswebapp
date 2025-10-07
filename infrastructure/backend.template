@@ -115,10 +115,7 @@ Resources:
         AuroraKmsKeyArn: !GetAtt SecurityStack.Outputs.AuroraKmsKeyArn
         IsPrimaryRegion: !Ref IsPrimaryRegion
         BranchName: !Ref BranchName
-        VPCId: !GetAtt NetworkingStack.Outputs.VPCId
-        PrivateSubnet1Id: !GetAtt NetworkingStack.Outputs.PrivateSubnet1Id
-        PrivateSubnet2Id: !GetAtt NetworkingStack.Outputs.PrivateSubnet2Id
-        RDSSecurityGroupId: !GetAtt NetworkingStack.Outputs.RDSSecurityGroupId
+        EnvironmentToImport: !Ref BranchName
         MinCapacity: !Ref MinCapacity
         MaxCapacity: !Ref MaxCapacity
         EnableGlobalCluster: !Ref EnableGlobalCluster

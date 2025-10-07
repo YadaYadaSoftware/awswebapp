@@ -436,12 +436,9 @@ jobs:
           BASE_PARAMS="$BASE_PARAMS,MaxCapacity=$MAX_CAP"
           BASE_PARAMS="$BASE_PARAMS,EnableGlobalCluster=$ENABLE_GLOBAL"
           BASE_PARAMS="$BASE_PARAMS,GitHubActionsUserArn=${{ steps.get-github-user-arn.outputs.github-user-arn }}"
+          BASE_PARAMS="$BASE_PARAMS,AuroraGlobalClusterId=${{ steps.get-primary-outputs.outputs.global-cluster-id }}"
+          BASE_PARAMS="$BASE_PARAMS,KmsKeyArn=${{ steps.get-primary-outputs.outputs.kms-key-arn }}"
 
-          # Add secondary region specific parameters for master template
-          if [ "${{ matrix.is_primary }}" = "false" ]; then
-            BASE_PARAMS="$BASE_PARAMS,AuroraGlobalClusterId=${{ steps.get-primary-outputs.outputs.global-cluster-id }}"
-            BASE_PARAMS="$BASE_PARAMS,KmsKeyArn=${{ steps.get-primary-outputs.outputs.kms-key-arn }}"
-          fi
         else
           # Application template parameters (imports backend infrastructure from dev)
           BASE_PARAMS="$BASE_PARAMS,EnvironmentToImport=${ENVIRONMENT_TO_IMPORT}"

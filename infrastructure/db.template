@@ -37,21 +37,9 @@ Parameters:
     Type: String
     Description: Branch name for resource naming
 
-  VPCId:
+  EnvironmentToImport:
     Type: String
-    Description: VPC ID from VPC stack
-
-  PrivateSubnet1Id:
-    Type: String
-    Description: Private subnet 1 ID from VPC stack
-
-  PrivateSubnet2Id:
-    Type: String
-    Description: Private subnet 2 ID from VPC stack
-
-  RDSSecurityGroupId:
-    Type: String
-    Description: Security group for RDS access from VPC stack
+    Description: Branch name to import infrastructure values from
 
   MinCapacity:
     Type: Number
@@ -80,8 +68,8 @@ Resources:
     Properties:
       DBSubnetGroupDescription: "Subnet group for Aurora cluster in this region"
       SubnetIds:
-        - !Ref PrivateSubnet1Id
-        - !Ref PrivateSubnet2Id
+        - !ImportValue !Sub "PrivateSubnet1Id-${EnvironmentToImport}"
+        - !ImportValue !Sub "PrivateSubnet2Id-${EnvironmentToImport}"
   # Aurora DB Cluster Parameter Group
   AuroraClusterParameterGroup:
     Type: AWS::RDS::DBClusterParameterGroup
@@ -119,7 +107,7 @@ Resources:
       DBClusterParameterGroupName: !Ref AuroraClusterParameterGroup
       DBSubnetGroupName: !Ref AuroraDBSubnetGroup
       VpcSecurityGroupIds:
-        - !Ref RDSSecurityGroupId
+        - !ImportValue !Sub "RDSSecurityGroupId-${EnvironmentToImport}"
       BackupRetentionPeriod: 7
       PreferredBackupWindow: "03:00-04:00"
       PreferredMaintenanceWindow: "sun:04:00-sun:05:00"
