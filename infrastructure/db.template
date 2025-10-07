@@ -107,7 +107,7 @@ Resources:
       DBClusterParameterGroupName: !Ref AuroraClusterParameterGroup
       DBSubnetGroupName: !Ref AuroraDBSubnetGroup
       VpcSecurityGroupIds:
-        - Fn::ImportValue !Sub "RDSSecurityGroupId-${EnvironmentToImport}"
+        - Fn::ImportValue: !Sub "RDSSecurityGroupId-${EnvironmentToImport}"
       BackupRetentionPeriod: 7
       PreferredBackupWindow: "03:00-04:00"
       PreferredMaintenanceWindow: "sun:04:00-sun:05:00"
