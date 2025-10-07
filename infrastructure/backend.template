@@ -3,6 +3,9 @@ AWSTemplateFormatVersion: "2010-09-09"
 Description: "TaskManager Backend Infrastructure Template - Includes security, networking, database, and infrastructure components"
 
 Parameters:
+  GitHubActionsUserArn:
+    Type: String
+    Description: ARN of the GitHub Actions IAM user
   # Common parameters
   BranchName:
     Type: String
@@ -88,6 +91,7 @@ Resources:
         BranchName: !Ref BranchName
         KmsKeyArn: !If [HasKmsKeyArn, !Ref KmsKeyArn, !Ref "AWS::NoValue"]
         IsPrimaryRegion: !Ref IsPrimaryRegion
+        GitHubActionsUserArn: !Ref GitHubActionsUserArn
 
   # Regional VPC
   NetworkingStack:

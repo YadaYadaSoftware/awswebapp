@@ -367,6 +367,19 @@ jobs:
         echo "primary-lb-dns=$PRIMARY_LB_DNS" >> $GITHUB_OUTPUT
         echo "primary-lb-hz=$PRIMARY_LB_HZ" >> $GITHUB_OUTPUT
 
+    - name: Get GitHub Actions User ARN
+      id: get-github-user-arn
+      if: matrix.deploy
+      run: |
+        # Get GitHub Actions User ARN from bootstrap stack or exports
+        GITHUB_USER_ARN=$(aws cloudformation describe-stacks --stack-name bootstrap --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`GitHubActionsUserArn`].OutputValue' --output text 2>/dev/null || echo "")
+        if [ -z "$GITHUB_USER_ARN" ]; then
+          # Fallback: try to get from exports if not in bootstrap stack
+          GITHUB_USER_ARN=$(aws cloudformation list-exports --region ${{ matrix.region }} --query "Exports[?Name==\`GitHubActionsUserArn\`].Value" --output text 2>/dev/null || echo "")
+        fi
+        echo "GitHub Actions User ARN: $GITHUB_USER_ARN"
+        echo "github-user-arn=$GITHUB_USER_ARN" >> $GITHUB_OUTPUT
+
 
     - name: Set parameter overrides
       id: set-params
@@ -422,6 +435,7 @@ jobs:
           BASE_PARAMS="$BASE_PARAMS,MinCapacity=$MIN_CAP"
           BASE_PARAMS="$BASE_PARAMS,MaxCapacity=$MAX_CAP"
           BASE_PARAMS="$BASE_PARAMS,EnableGlobalCluster=$ENABLE_GLOBAL"
+          BASE_PARAMS="$BASE_PARAMS,GitHubActionsUserArn=${{ steps.get-github-user-arn.outputs.github-user-arn }}"
 
           # Add secondary region specific parameters for master template
           if [ "${{ matrix.is_primary }}" = "false" ]; then
