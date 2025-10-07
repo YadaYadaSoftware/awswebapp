@@ -43,20 +43,12 @@ public class Program
                 throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
             }
 
-            // Use SQL Server in development, MySQL in production
-            if (Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") == "Development" ||
-                Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT") == "Development")
+            // Use MySQL for both development and production
+            options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString), mysqlOptions =>
             {
-                options.UseSqlServer(connectionString);
-            }
-            else
-            {
-                options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString), mysqlOptions =>
-                {
-                    // This ensures database exists before connecting
-                    mysqlOptions.EnableRetryOnFailure(3);
-                });
-            }
+                // This ensures database exists before connecting
+                mysqlOptions.EnableRetryOnFailure(3);
+            });
         });
         
         // Add migration service

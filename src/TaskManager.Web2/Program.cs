@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.UI;
 using Microsoft.EntityFrameworkCore;
 using Pomelo.EntityFrameworkCore.MySql;
+using TaskManager.Data;
 using TaskManager.Web2.Areas.Identity;
 using TaskManager.Web2.Data;
 using static Microsoft.Extensions.DependencyInjection.GoogleExtensions;
@@ -14,17 +15,28 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
-builder.Services.AddDbContext<ApplicationDbContext>(options =>
+
+// Register TaskManagerDbContext for both Identity and application data
+builder.Services.AddDbContext<TaskManagerDbContext>(options =>
 {
+    if (string.IsNullOrEmpty(connectionString))
+    {
+        throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+    }
+
     // Use MySQL for both development and production
-    options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString));
+    options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString), mysqlOptions =>
+    {
+        // This ensures database exists before connecting
+        mysqlOptions.EnableRetryOnFailure(3);
+    });
 });
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 builder.Services.AddDefaultIdentity<IdentityUser>(options =>
 {
     options.SignIn.RequireConfirmedAccount = true;
 })
-.AddEntityFrameworkStores<ApplicationDbContext>();
+.AddEntityFrameworkStores<TaskManagerDbContext>();
 
 builder.Services.ConfigureApplicationCookie(options =>
 {
@@ -74,7 +86,7 @@ builder.Services.AddAuthentication().AddGoogle(googleOptions =>
         try
         {
             // Test database connectivity
-            var dbContext = context.HttpContext.RequestServices.GetRequiredService<ApplicationDbContext>();
+            var dbContext = context.HttpContext.RequestServices.GetRequiredService<TaskManagerDbContext>();
             var canConnect = await dbContext.Database.CanConnectAsync();
             logger.LogInformation("Database connectivity check: {CanConnect}", canConnect);
 
@@ -117,11 +129,8 @@ var clientSecret = scopedConfig["Authentication:Google:ClientSecret"];
 scopedLogger.LogInformation("Google OAuth ClientId configured: {Configured}", !string.IsNullOrEmpty(clientId));
 scopedLogger.LogInformation("Google OAuth ClientSecret configured: {Configured}", !string.IsNullOrEmpty(clientSecret));
 
-// Apply database migrations on startup in production
-if (!app.Environment.IsDevelopment())
-{
-    await ApplyDatabaseMigrations(app);
-}
+// Apply database migrations on startup in all environments
+await ApplyDatabaseMigrations(app);
 
 // Configure forwarded headers for ALB
 var forwardedHeadersOptions = new ForwardedHeadersOptions
@@ -181,11 +190,12 @@ async Task ApplyDatabaseMigrations(WebApplication app)
     using var scope = app.Services.CreateScope();
     var services = scope.ServiceProvider;
     var logger = services.GetRequiredService<ILogger<Program>>();
-    var context = services.GetRequiredService<ApplicationDbContext>();
 
     try
     {
-        logger.LogInformation("Ensuring database exists and applying migrations for ApplicationDbContext...");
+        // Apply migrations for TaskManagerDbContext (Identity + application data)
+        logger.LogInformation("Ensuring database exists and applying migrations for TaskManagerDbContext...");
+        var context = services.GetRequiredService<TaskManagerDbContext>();
 
         // This will create the database if it doesn't exist
         await context.Database.EnsureCreatedAsync();
@@ -193,7 +203,7 @@ async Task ApplyDatabaseMigrations(WebApplication app)
         // This will apply all pending migrations
         await context.Database.MigrateAsync();
 
-        logger.LogInformation("Database migrations applied successfully.");
+        logger.LogInformation("TaskManagerDbContext migrations applied successfully.");
     }
     catch (Exception ex)
     {
