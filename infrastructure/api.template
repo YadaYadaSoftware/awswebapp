@@ -58,9 +58,9 @@ Resources:
                 Fn::ImportValue: !Sub "DatabaseUsername-${EnvironmentToImport}"
               DatabasePassword: !Join
                 - ""
-                - - "{{resolve:secretsmanager:"
+                - - "resolve:secretsmanager:"
                   - Fn::ImportValue: !Sub "DatabasePasswordSecretArn-${EnvironmentToImport}"
-                  - ":SecretString}}"
+                  - ":SecretString"
       VpcConfig:
         SecurityGroupIds:
           - Fn::ImportValue: !Sub "LambdaSecurityGroupId-${EnvironmentToImport}"
