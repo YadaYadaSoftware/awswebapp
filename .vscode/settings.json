@@ -58,7 +58,7 @@
   "dotnet-test-explorer.showTestDuration": true,
   "omnisharp.enableRoslynAnalyzers": true,
   "omnisharp.enableEditorConfigSupport": true,
-  "omnisharp.enableImportCompletion": true,
-  "omnisharp.organizeImportsOnFormat": true,
-  "omnisharp.enableAsyncCompletion": true
+  "omnisharp.enableAsyncCompletion": true,
+  "dotnet.completion.showCompletionItemsFromUnimportedNamespaces": true,
+  "dotnet.formatting.organizeImportsOnFormat": true
   }

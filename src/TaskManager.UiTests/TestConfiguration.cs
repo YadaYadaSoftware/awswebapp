@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Configuration;
+using System;
 using System.IO;
 
 namespace TaskManager.UiTests;
@@ -14,6 +15,15 @@ public class TestConfiguration
     public int TestTimeout { get; }
     public int RetryAttempts { get; }
 
+    // OAuth Configuration
+    public bool UseMockedOAuth { get; }
+    public string? TestGoogleEmail { get; }
+    public string? TestGooglePassword { get; }
+    public bool EnableOAuthTesting { get; }
+    public bool UseTokenBasedAuth { get; }
+    public string? GoogleTestAccessToken { get; }
+    public string? GoogleTestRefreshToken { get; }
+
     private TestConfiguration()
     {
         var configuration = new ConfigurationBuilder()
@@ -27,6 +37,39 @@ public class TestConfiguration
         GoogleLoginUrl = testSettings["GoogleLoginUrl"] ?? "https://accounts.google.com/v3/signin/identifier";
         TestTimeout = int.Parse(testSettings["TestTimeout"] ?? "30000");
         RetryAttempts = int.Parse(testSettings["RetryAttempts"] ?? "3");
+
+        // OAuth Configuration - prioritize environment variables for security
+        UseMockedOAuth = bool.Parse(Environment.GetEnvironmentVariable("USE_MOCKED_OAUTH") ?? "true");
+        EnableOAuthTesting = bool.Parse(Environment.GetEnvironmentVariable("ENABLE_OAUTH_TESTING") ?? "false");
+        UseTokenBasedAuth = bool.Parse(Environment.GetEnvironmentVariable("USE_TOKEN_BASED_AUTH") ?? "false");
+
+        // Only load credentials if OAuth testing is enabled and not using mocked OAuth
+        if (EnableOAuthTesting && !UseMockedOAuth && !UseTokenBasedAuth)
+        {
+            TestGoogleEmail = Environment.GetEnvironmentVariable("TEST_GOOGLE_EMAIL");
+            TestGooglePassword = Environment.GetEnvironmentVariable("TEST_GOOGLE_PASSWORD");
+
+            // Validate that credentials are provided
+            if (string.IsNullOrEmpty(TestGoogleEmail) || string.IsNullOrEmpty(TestGooglePassword))
+            {
+                throw new InvalidOperationException(
+                    "OAuth testing is enabled but TEST_GOOGLE_EMAIL and/or TEST_GOOGLE_PASSWORD environment variables are not set.");
+            }
+        }
+
+        // Load token for token-based authentication
+        if (UseTokenBasedAuth)
+        {
+            GoogleTestAccessToken = Environment.GetEnvironmentVariable("GOOGLE_TEST_ACCESS_TOKEN");
+            GoogleTestRefreshToken = Environment.GetEnvironmentVariable("GOOGLE_TEST_REFRESH_TOKEN");
+
+            // Either access token or refresh token must be provided
+            if (string.IsNullOrEmpty(GoogleTestAccessToken) && string.IsNullOrEmpty(GoogleTestRefreshToken))
+            {
+                throw new InvalidOperationException(
+                    "Token-based authentication is enabled but neither GOOGLE_TEST_ACCESS_TOKEN nor GOOGLE_TEST_REFRESH_TOKEN environment variables are set.");
+            }
+        }
     }
 
     public static TestConfiguration Instance

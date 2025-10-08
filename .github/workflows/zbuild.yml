@@ -1,4 +1,16 @@
 # TaskManager CI/CD Pipeline - Shared Infrastructure + Branch Applications
+#
+# Required Secrets for UI Testing with Token-Based Authentication:
+# - GOOGLE_TEST_ACCESS_TOKEN: Access token from Google OAuth Playground (optional if using refresh token)
+# - GOOGLE_TEST_REFRESH_TOKEN: Refresh token from Google OAuth Playground (recommended)
+# - GOOGLE_CLIENT_ID: OAuth Client ID from Google Cloud Console
+# - GOOGLE_CLIENT_SECRET: OAuth Client Secret from Google Cloud Console
+#
+# To set up tokens:
+# 1. Go to https://developers.google.com/oauthplayground
+# 2. Select scopes: openid, profile, email
+# 3. Authorize and exchange for tokens
+# 4. Add tokens as repository secrets in GitHub
 
 name: Deploy Everything
 
@@ -14,6 +26,10 @@ env:
   AWS_REGION_SECONDARY: us-west-2
   AWS_REGION_PRIMARY: us-east-1
   ENGINE_VERSION: 8.0.mysql_aurora.3.10.0
+  # OAuth Testing Configuration
+  USE_MOCKED_OAUTH: false
+  USE_TOKEN_BASED_AUTH: true
+  ENABLE_OAUTH_TESTING: true
 
 jobs:
   get-branch-name:
@@ -138,9 +154,19 @@ jobs:
     - name: Run UI Tests
       id: ui-tests
       continue-on-error: true
+      env:
+        # Token-based authentication for reliable UI testing
+        GOOGLE_TEST_ACCESS_TOKEN: ${{ secrets.GOOGLE_TEST_ACCESS_TOKEN }}
+        GOOGLE_TEST_REFRESH_TOKEN: ${{ secrets.GOOGLE_TEST_REFRESH_TOKEN }}
+        GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+        GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+        USE_TOKEN_BASED_AUTH: true
+        ENABLE_OAUTH_TESTING: true
+        USE_MOCKED_OAUTH: false
       run: |
         cd src/TaskManager.UiTests
-        echo "Running UI tests..."
+        echo "Running UI tests with token-based authentication..."
+        echo "Environment: USE_TOKEN_BASED_AUTH=$USE_TOKEN_BASED_AUTH, ENABLE_OAUTH_TESTING=$ENABLE_OAUTH_TESTING"
         dotnet test --configuration Release --logger "trx;LogFileName=test-results.trx" --results-directory ./TestResults 2>&1 | tee test-output.log
 
         # Capture the exit code

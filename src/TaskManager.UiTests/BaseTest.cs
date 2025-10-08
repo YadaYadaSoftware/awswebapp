@@ -40,7 +40,9 @@ public class BaseTest : IAsyncLifetime
 
         Context = await Browser.NewContextAsync(new BrowserNewContextOptions
         {
-            ViewportSize = new ViewportSize { Width = 1280, Height = 720 }
+            ViewportSize = new ViewportSize { Width = 1280, Height = 720 },
+            // Configure context for better OAuth testing
+            IgnoreHTTPSErrors = true // Handle self-signed certificates in development
         });
 
         Page = await Context.NewPageAsync();
@@ -231,6 +233,38 @@ public class BaseTest : IAsyncLifetime
         {
             var className = this.GetType().Name;
             Reporter.RecordTestEnd(_currentTestName, className, TestStatus.Passed);
+        }
+    }
+
+    protected async Task CleanupTestSessionAsync()
+    {
+        if (Page != null)
+        {
+            try
+            {
+                // Clear all browser data to ensure clean state for next test
+                await Page.Context.ClearCookiesAsync();
+                await Page.EvaluateAsync("localStorage.clear()");
+                await Page.EvaluateAsync("sessionStorage.clear()");
+
+                // Close any remaining popups or dialogs
+                var pages = Page.Context.Pages;
+                foreach (var page in pages.Skip(1)) // Skip the main page
+                {
+                    try
+                    {
+                        await page.CloseAsync();
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"Warning: Failed to close page: {ex.Message}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Warning: Error during session cleanup: {ex.Message}");
+            }
         }
     }
 }
