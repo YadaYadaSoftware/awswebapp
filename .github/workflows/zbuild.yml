@@ -176,21 +176,50 @@ jobs:
         if [ -f "./test-output.log" ]; then
           echo "Parsing test results from output..."
 
-          # Extract the summary line (e.g., "Failed! - Failed: 3, Passed: 3, Skipped: 0, Total: 6, Duration: 11 s - TaskManager.UiTests.dll (net8.0)")
-          SUMMARY_LINE=$(grep -E "Failed:.*Passed:.*Skipped:.*Total:" ./test-output.log | tail -1)
+          # Show last few lines of output for debugging
+          echo "Last 10 lines of test output:"
+          tail -10 ./test-output.log
+
+          # Try multiple patterns to find test results
+          # Pattern 1: Standard xUnit output (e.g., "Failed: 0, Passed: 1, Skipped: 0, Total: 1")
+          SUMMARY_LINE=$(grep -E "Failed: [0-9]+, Passed: [0-9]+, Skipped: [0-9]+, Total: [0-9]+" ./test-output.log | tail -1)
+
+          # Pattern 2: Alternative format with different spacing
+          if [ -z "$SUMMARY_LINE" ]; then
+            SUMMARY_LINE=$(grep -E "Failed:[[:space:]]*[0-9]+.*Passed:[[:space:]]*[0-9]+.*Total:[[:space:]]*[0-9]+" ./test-output.log | tail -1)
+          fi
+
+          # Pattern 3: Look for any line with test counts
+          if [ -z "$SUMMARY_LINE" ]; then
+            SUMMARY_LINE=$(grep -E "[0-9]+ passed.*[0-9]+ failed" ./test-output.log | tail -1)
+          fi
 
           if [ ! -z "$SUMMARY_LINE" ]; then
-            # Extract numbers using regex
-            FAILED_TESTS=$(echo "$SUMMARY_LINE" | grep -oE 'Failed: +[0-9]+' | grep -oE '[0-9]+')
-            PASSED_TESTS=$(echo "$SUMMARY_LINE" | grep -oE 'Passed: +[0-9]+' | grep -oE '[0-9]+')
-            TOTAL_TESTS=$(echo "$SUMMARY_LINE" | grep -oE 'Total: +[0-9]+' | grep -oE '[0-9]+')
+            echo "Found summary line: $SUMMARY_LINE"
 
-            echo "Parsed results: Failed=$FAILED_TESTS, Passed=$PASSED_TESTS, Total=$TOTAL_TESTS"
-            echo "failed-tests=$FAILED_TESTS" >> $GITHUB_OUTPUT
-            echo "passed-tests=$PASSED_TESTS" >> $GITHUB_OUTPUT
-            echo "total-tests=$TOTAL_TESTS" >> $GITHUB_OUTPUT
+            # Extract numbers using improved regex that handles different formats
+            FAILED_TESTS=$(echo "$SUMMARY_LINE" | grep -oE 'Failed:[[:space:]]*([0-9]+)' | grep -oE '[0-9]+')
+            PASSED_TESTS=$(echo "$SUMMARY_LINE" | grep -oE 'Passed:[[:space:]]*([0-9]+)' | grep -oE '[0-9]+')
+            TOTAL_TESTS=$(echo "$SUMMARY_LINE" | grep -oE 'Total:[[:space:]]*([0-9]+)' | grep -oE '[0-9]+')
+
+            # Fallback: try alternative patterns if standard extraction fails
+            if [ -z "$FAILED_TESTS" ]; then
+              FAILED_TESTS=$(echo "$SUMMARY_LINE" | grep -oE 'failed:[[:space:]]*([0-9]+)' | grep -oE '[0-9]+')
+            fi
+            if [ -z "$PASSED_TESTS" ]; then
+              PASSED_TESTS=$(echo "$SUMMARY_LINE" | grep -oE 'passed:[[:space:]]*([0-9]+)' | grep -oE '[0-9]+')
+            fi
+            if [ -z "$TOTAL_TESTS" ]; then
+              TOTAL_TESTS=$(echo "$SUMMARY_LINE" | grep -oE 'total:[[:space:]]*([0-9]+)' | grep -oE '[0-9]+')
+            fi
+
+            echo "Parsed results: Failed=${FAILED_TESTS:-0}, Passed=${PASSED_TESTS:-0}, Total=${TOTAL_TESTS:-0}"
+            echo "failed-tests=${FAILED_TESTS:-0}" >> $GITHUB_OUTPUT
+            echo "passed-tests=${PASSED_TESTS:-0}" >> $GITHUB_OUTPUT
+            echo "total-tests=${TOTAL_TESTS:-0}" >> $GITHUB_OUTPUT
           else
-            echo "No summary line found in test output"
+            echo "No summary line found in test output. Available lines:"
+            grep -E "(Failed|Passed|Total|failed|passed|total)" ./test-output.log | tail -5
             echo "failed-tests=0" >> $GITHUB_OUTPUT
             echo "passed-tests=0" >> $GITHUB_OUTPUT
             echo "total-tests=0" >> $GITHUB_OUTPUT
