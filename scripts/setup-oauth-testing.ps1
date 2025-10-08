@@ -27,18 +27,12 @@ $enableOAuthTesting = Get-UserInput "Enable OAuth testing? (true/false)" "true"
 $useMockedOAuth = Get-UserInput "Use mocked OAuth? (true/false) - Recommended for development" "false"
 $useTokenBasedAuth = Get-UserInput "Use token-based authentication? (true/false) - Recommended for reliable testing" "true"
 
-$testGoogleEmail = ""
-$testGooglePassword = ""
 $googleTestAccessToken = ""
 $googleTestRefreshToken = ""
 $googleOauthClientId = ""
 $googleOauthClientSecret = ""
 
-if ($useMockedOAuth -eq "false" -and $useTokenBasedAuth -eq "false") {
-    $testGoogleEmail = Get-UserInput "Test Google Email (required for browser-based OAuth)" "your-test@gmail.com"
-    $testGooglePassword = Get-UserInput "Test Google Password (required for browser-based OAuth)" "your-test-password"
-}
-elseif ($useTokenBasedAuth -eq "true") {
+if ($useTokenBasedAuth -eq "true") {
     Write-Host ""
     Write-Host "🔑 Token-Based Authentication Setup:" -ForegroundColor Yellow
     Write-Host "=====================================" -ForegroundColor Yellow
@@ -64,15 +58,7 @@ Write-Host "ENABLE_OAUTH_TESTING = $enableOAuthTesting"
 Write-Host "USE_MOCKED_OAUTH = $useMockedOAuth"
 Write-Host "USE_TOKEN_BASED_AUTH = $useTokenBasedAuth"
 
-if ($useMockedOAuth -eq "false" -and $useTokenBasedAuth -eq "false") {
-    if ($testGoogleEmail) {
-        Write-Host "TEST_GOOGLE_EMAIL = $testGoogleEmail"
-    }
-    if ($testGooglePassword) {
-        Write-Host "TEST_GOOGLE_PASSWORD = $( "*" * $testGooglePassword.Length )"
-    }
-}
-elseif ($useTokenBasedAuth -eq "true") {
+if ($useTokenBasedAuth -eq "true") {
     if ($googleTestAccessToken) {
         Write-Host "GOOGLE_TEST_ACCESS_TOKEN = $( "*" * $googleTestAccessToken.Length )"
     }
@@ -102,16 +88,7 @@ try {
     $env:USE_MOCKED_OAUTH = $useMockedOAuth
     $env:USE_TOKEN_BASED_AUTH = $useTokenBasedAuth
 
-    if ($useMockedOAuth -eq "false" -and $useTokenBasedAuth -eq "false") {
-        if ($testGoogleEmail) {
-            $env:TEST_GOOGLE_EMAIL = $testGoogleEmail
-        }
-
-        if ($testGooglePassword) {
-            $env:TEST_GOOGLE_PASSWORD = $testGooglePassword
-        }
-    }
-    elseif ($useTokenBasedAuth -eq "true") {
+    if ($useTokenBasedAuth -eq "true") {
         if ($googleTestAccessToken) {
             $env:GOOGLE_TEST_ACCESS_TOKEN = $googleTestAccessToken
         }
@@ -139,16 +116,7 @@ try {
     [Environment]::SetEnvironmentVariable("USE_MOCKED_OAUTH", $useMockedOAuth, "User")
     [Environment]::SetEnvironmentVariable("USE_TOKEN_BASED_AUTH", $useTokenBasedAuth, "User")
 
-    if ($useMockedOAuth -eq "false" -and $useTokenBasedAuth -eq "false") {
-        if ($testGoogleEmail) {
-            [Environment]::SetEnvironmentVariable("TEST_GOOGLE_EMAIL", $testGoogleEmail, "User")
-        }
-
-        if ($testGooglePassword) {
-            [Environment]::SetEnvironmentVariable("TEST_GOOGLE_PASSWORD", $testGooglePassword, "User")
-        }
-    }
-    elseif ($useTokenBasedAuth -eq "true") {
+    if ($useTokenBasedAuth -eq "true") {
         if ($googleTestAccessToken) {
             [Environment]::SetEnvironmentVariable("GOOGLE_TEST_ACCESS_TOKEN", $googleTestAccessToken, "User")
         }
@@ -187,11 +155,10 @@ try {
     Write-Host ""
     Write-Host " Tips:" -ForegroundColor Cyan
     Write-Host "   - Run 'dotnet test --filter TokenBasedGoogleLogin_ShouldAuthenticateWithValidToken' to test token-based auth"
-    Write-Host "   - Run 'dotnet test --filter CompleteGoogleOAuthFlow_ShouldReturnToApplication' to test browser-based OAuth"
+    Write-Host "   - Run 'dotnet test --filter GoogleLogin_ShouldRedirectToGoogle' to test UI redirect"
     Write-Host "   - Check the Test Explorer in VS Code for all OAuth tests"
     Write-Host "   - Use token-based auth (USE_TOKEN_BASED_AUTH=true) for most reliable testing"
     Write-Host "   - Use mocked OAuth (USE_MOCKED_OAUTH=true) for fastest development testing"
-    Write-Host "   - Use browser-based OAuth (USE_MOCKED_OAUTH=false, USE_TOKEN_BASED_AUTH=false) for complete end-to-end testing"
     Write-Host ""
     Write-Host "🔑 Token-Based Authentication Setup:" -ForegroundColor Cyan
     Write-Host "   - Get tokens from: https://developers.google.com/oauthplayground"

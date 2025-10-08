@@ -17,8 +17,6 @@ public class TestConfiguration
 
     // OAuth Configuration
     public bool UseMockedOAuth { get; }
-    public string? TestGoogleEmail { get; }
-    public string? TestGooglePassword { get; }
     public bool EnableOAuthTesting { get; }
     public bool UseTokenBasedAuth { get; }
     public string? GoogleTestAccessToken { get; }
@@ -43,19 +41,7 @@ public class TestConfiguration
         EnableOAuthTesting = bool.Parse(Environment.GetEnvironmentVariable("ENABLE_OAUTH_TESTING") ?? "false");
         UseTokenBasedAuth = bool.Parse(Environment.GetEnvironmentVariable("USE_TOKEN_BASED_AUTH") ?? "false");
 
-        // Only load credentials if OAuth testing is enabled and not using mocked OAuth
-        if (EnableOAuthTesting && !UseMockedOAuth && !UseTokenBasedAuth)
-        {
-            TestGoogleEmail = Environment.GetEnvironmentVariable("TEST_GOOGLE_EMAIL");
-            TestGooglePassword = Environment.GetEnvironmentVariable("TEST_GOOGLE_PASSWORD");
-
-            // Validate that credentials are provided
-            if (string.IsNullOrEmpty(TestGoogleEmail) || string.IsNullOrEmpty(TestGooglePassword))
-            {
-                throw new InvalidOperationException(
-                    "OAuth testing is enabled but TEST_GOOGLE_EMAIL and/or TEST_GOOGLE_PASSWORD environment variables are not set.");
-            }
-        }
+        // Note: Test credentials are no longer used - we use token-based authentication instead
 
         // Load token for token-based authentication
         if (UseTokenBasedAuth)
