@@ -549,8 +549,8 @@ jobs:
        cd src/TaskManager.UiTests
 
        # Set the base URL for tests if provided
-       if [ ! -z "${{ needs.deploy.outputs.app-url }}" ]; then
-         echo "Running UI tests against deployed application: ${{ needs.deploy.outputs.app-url }}"
+       if [ ! -z $TEST_BASE_URL ]; then
+         echo "Running UI tests against deployed application: $TEST_BASE_URL"
        else
          echo "Warning: No application URL available, UI tests may fail"
        fi
