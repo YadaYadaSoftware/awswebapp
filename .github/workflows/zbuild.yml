@@ -553,6 +553,11 @@ jobs:
    - name: Restore dependencies
      run: dotnet restore
 
+   - name: Install Playwright Browsers
+     run: |
+       cd src/TaskManager.UiTests
+       dotnet build
+       pwsh -Command "& {dotnet tool install --global Microsoft.Playwright.CLI; playwright install --with-deps chromium}"
 
    - name: Wait for Application to be Ready
      run: |
