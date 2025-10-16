@@ -30,7 +30,10 @@ public class TestConfiguration
 
         var testSettings = configuration.GetSection("TestSettings");
 
-        BaseUrl = testSettings["BaseUrl"] ?? "https://dev.appcloud.systems";
+        // Prioritize environment variable for dynamic BaseUrl injection from CI/CD
+        BaseUrl = Environment.GetEnvironmentVariable("TEST_BASE_URL")
+                  ?? testSettings["BaseUrl"]
+                  ?? "https://dev.appcloud.systems";
         LoginPath = testSettings["LoginPath"] ?? "/Identity/Account/Login";
         GoogleLoginUrl = testSettings["GoogleLoginUrl"] ?? "https://accounts.google.com/v3/signin/identifier";
         TestTimeout = int.Parse(testSettings["TestTimeout"] ?? "30000");
