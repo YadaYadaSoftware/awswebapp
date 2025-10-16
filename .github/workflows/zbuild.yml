@@ -501,13 +501,21 @@ jobs:
 
         # Get the deployed application URL from CloudFormation outputs
         if [ "${{ matrix.region }}" = "us-east-1" ]; then
+          echo "🔍 Retrieving application URL from CloudFormation stack: $STACK_NAME"
           APP_URL=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`WebEndpoint`].OutputValue' --output text)
-          if [ ! -z "$APP_URL" ] && [ "$APP_URL" != "None" ]; then
-            echo "Application deployed at: $APP_URL"
+
+          if [ ! -z "$APP_URL" ] && [ "$APP_URL" != "None" ] && [ "$APP_URL" != "" ]; then
+            echo "✅ Application deployed at: $APP_URL"
             echo "app-url=$APP_URL" >> $GITHUB_OUTPUT
+            echo "🎯 UI tests will run against: $APP_URL"
           else
-            echo "Warning: Could not retrieve application URL from stack outputs"
+            echo "❌ Failed to retrieve application URL from CloudFormation outputs"
+            echo "❌ Stack: $STACK_NAME"
+            echo "❌ Region: ${{ matrix.region }}"
+            echo "❌ Raw output: '$APP_URL'"
+            echo "❌ This indicates deployment may have failed or outputs are not available"
             echo "app-url=" >> $GITHUB_OUTPUT
+            exit 1
           fi
         fi
   post-deployment-ui-tests:
