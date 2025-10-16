@@ -190,8 +190,6 @@ jobs:
     name: Deploy to AWS
     runs-on: ubuntu-latest
     needs: [build, get-branch-name]
-    outputs:
-      app-url: ${{ steps.get-app-url.outputs.app-url }}
     concurrency:
       group: deploy-${{ matrix.region }}-${{ needs.get-branch-name.outputs.branch-name }}
       cancel-in-progress: false
@@ -493,31 +491,6 @@ jobs:
         no-fail-on-empty-changeset: "1"
         timeout-in-minutes: 30
 
-    - name: Get Deployed Application URL
-      id: get-app-url
-      if: matrix.deploy && matrix.is_primary == 'true'
-      run: |
-        STACK_NAME="${{ needs.get-branch-name.outputs.branch-name }}-${{ steps.process-domain.outputs.processed-domain }}"
-
-        # Get the deployed application URL from CloudFormation outputs
-        if [ "${{ matrix.region }}" = "us-east-1" ]; then
-          echo "🔍 Retrieving application URL from CloudFormation stack: $STACK_NAME"
-          APP_URL=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`WebEndpoint`].OutputValue' --output text)
-
-          if [ ! -z "$APP_URL" ] && [ "$APP_URL" != "None" ] && [ "$APP_URL" != "" ]; then
-            echo "✅ Application deployed at: $APP_URL"
-            echo "app-url=$APP_URL" >> $GITHUB_OUTPUT
-            echo "🎯 UI tests will run against: $APP_URL"
-          else
-            echo "❌ Failed to retrieve application URL from CloudFormation outputs"
-            echo "❌ Stack: $STACK_NAME"
-            echo "❌ Region: ${{ matrix.region }}"
-            echo "❌ Raw output: '$APP_URL'"
-            echo "❌ This indicates deployment may have failed or outputs are not available"
-            echo "app-url=" >> $GITHUB_OUTPUT
-            exit 1
-          fi
-        fi
   post-deployment-ui-tests:
    name: Post-Deployment UI Tests
    runs-on: ubuntu-latest
@@ -550,6 +523,14 @@ jobs:
        cd src/TaskManager.UiTests
        dotnet build
        pwsh -Command "& {dotnet tool install --global Microsoft.Playwright.CLI; playwright install --with-deps chromium}"
+   - name: Calculate Application URL
+     id: calc-app-url
+     run: |
+       BRANCH_NAME="${{ needs.get-branch-name.outputs.branch-name }}"
+       DOMAIN_NAME="${{ secrets.DOMAIN_NAME }}"
+       APP_URL="https://${BRANCH_NAME}.${DOMAIN_NAME}"
+       echo "Calculated application URL: $APP_URL"
+       echo "app-url=$APP_URL" >> $GITHUB_OUTPUT
    - name: Run UI Tests Against Deployed Application
      id: ui-tests
      continue-on-error: true
@@ -563,7 +544,7 @@ jobs:
        ENABLE_OAUTH_TESTING: true
        USE_MOCKED_OAUTH: false
        # Override the base URL to point to deployed application
-       TEST_BASE_URL: ${{ needs.deploy.outputs.app-url }}
+       TEST_BASE_URL: ${{ steps.calc-app-url.outputs.app-url }}
      run: |
        cd src/TaskManager.UiTests
 
