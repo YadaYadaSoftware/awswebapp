@@ -501,12 +501,10 @@ jobs:
 
         # Get the deployed application URL from CloudFormation outputs
         if [ "${{ matrix.region }}" = "us-east-1" ]; then
-          APP_URL=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`WebLoadBalancerDNS`].OutputValue' --output text)
+          APP_URL=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --region ${{ matrix.region }} --query 'Stacks[0].Outputs[?OutputKey==`WebEndpoint`].OutputValue' --output text)
           if [ ! -z "$APP_URL" ] && [ "$APP_URL" != "None" ]; then
-            # Construct full URL - adjust based on your actual domain configuration
-            FULL_URL="https://$APP_URL"
-            echo "Application deployed at: $FULL_URL"
-            echo "app-url=$FULL_URL" >> $GITHUB_OUTPUT
+            echo "Application deployed at: $APP_URL"
+            echo "app-url=$APP_URL" >> $GITHUB_OUTPUT
           else
             echo "Warning: Could not retrieve application URL from stack outputs"
             echo "app-url=" >> $GITHUB_OUTPUT
@@ -544,13 +542,6 @@ jobs:
        cd src/TaskManager.UiTests
        dotnet build
        pwsh -Command "& {dotnet tool install --global Microsoft.Playwright.CLI; playwright install --with-deps chromium}"
-
-   - name: Wait for Application to be Ready
-     run: |
-       echo "Waiting for application to be fully ready..."
-       # Wait a bit for the application to start up completely
-       sleep 60
-
    - name: Run UI Tests Against Deployed Application
      id: ui-tests
      continue-on-error: true
