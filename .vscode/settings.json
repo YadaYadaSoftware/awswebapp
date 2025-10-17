@@ -52,4 +52,13 @@
   "redhat.telemetry.enabled": false,
   "files.associations": {
     "*.template": "yaml"
-  }}
+  },
+  "dotnet-test-explorer.testProjectPath": "src/TaskManager.UiTests",
+  "dotnet-test-explorer.autoExpandTree": true,
+  "dotnet-test-explorer.showTestDuration": true,
+  "omnisharp.enableRoslynAnalyzers": true,
+  "omnisharp.enableEditorConfigSupport": true,
+  "omnisharp.enableAsyncCompletion": true,
+  "dotnet.completion.showCompletionItemsFromUnimportedNamespaces": true,
+  "dotnet.formatting.organizeImportsOnFormat": true
+  }
