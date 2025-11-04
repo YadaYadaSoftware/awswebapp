@@ -9,6 +9,7 @@ Parameters:
 
   DomainName:
     Type: String
+    Default: "appcloud.systems"
     Description: "Domain name for SSL certificate"
 
   HostedZoneId:
@@ -35,15 +36,10 @@ Parameters:
     Default: ""
     Description: "Hosted zone ID of the secondary web load balancer (optional for single region)"
 
-  DeploymentType:
-    Type: String
-    AllowedValues: ["single", "multi"]
-    Description: "Type of deployment - single or multi-region"
-
 Conditions:
-  IsSingleRegionDeployment: !Equals [!Ref DeploymentType, "single"]
-  IsMultiRegionDeployment: !Equals [!Ref DeploymentType, "multi"]
-  HasSecondaryLoadBalancer: !Equals [!Ref DeploymentType, "multi"]
+  HasSecondaryLoadBalancer:
+    !Not [!Equals [!Ref SecondaryWebLoadBalancerDNS, ""]]
+  IsSingleRegion: !Equals [!Ref SecondaryWebLoadBalancerDNS, ""]
 
 Resources:
   # Health Check for Primary ALB
@@ -89,7 +85,7 @@ Resources:
 
   # Primary DNS Record for single region (simple record)
   PrimaryDNSRecordSingle:
-    Condition: IsSingleRegionDeployment
+    Condition: IsSingleRegion
     Type: AWS::Route53::RecordSet
     Properties:
       HostedZoneId: !Ref HostedZoneId
@@ -103,7 +99,7 @@ Resources:
 
   # Primary DNS Record for multi-region (failover record)
   PrimaryDNSRecordFailover:
-    Condition: IsMultiRegionDeployment
+    Condition: HasSecondaryLoadBalancer
     Type: AWS::Route53::RecordSet
     Properties:
       HostedZoneId: !Ref HostedZoneId
@@ -116,9 +112,9 @@ Resources:
         HostedZoneId: !ImportValue "WebLoadBalancerHostedZoneId-${BranchName}"
       HealthCheckId: !Ref PrimaryHealthCheck
 
-  # Secondary Failover Record (only for multi-region deployment)
+  # Secondary Failover Record (only when secondary load balancer is provided)
   SecondaryDNSRecord:
-    Condition: IsMultiRegionDeployment
+    Condition: HasSecondaryLoadBalancer
     Type: AWS::Route53::RecordSet
     Properties:
       HostedZoneId: !Ref HostedZoneId
@@ -143,6 +139,6 @@ Outputs:
     Value: !Ref PrimaryHealthCheck
 
   SecondaryHealthCheckId:
-    Condition: IsMultiRegionDeployment
+    Condition: HasSecondaryLoadBalancer
     Description: "Secondary health check ID"
     Value: !Ref SecondaryHealthCheck
