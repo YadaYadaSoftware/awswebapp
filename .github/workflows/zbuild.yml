@@ -455,7 +455,7 @@ jobs:
             MIN_CAP=0
             MAX_CAP=1
           fi
-          if [[ " app beta " == *" $BRANCH_NAME "* ]]; then
+          if [[ " app beta alpha " == *" $BRANCH_NAME "* ]]; then
             ENABLE_GLOBAL=true
           else
             ENABLE_GLOBAL=false
