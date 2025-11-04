@@ -468,7 +468,10 @@ jobs:
           BASE_PARAMS="$BASE_PARAMS,MaxCapacity=$MAX_CAP"
           BASE_PARAMS="$BASE_PARAMS,EnableGlobalCluster=$ENABLE_GLOBAL"
           BASE_PARAMS="$BASE_PARAMS,GitHubActionsUserArn=${{ steps.get-github-user-arn.outputs.github-user-arn }}"
-          BASE_PARAMS="$BASE_PARAMS,AuroraGlobalClusterId=${{ steps.get-primary-outputs.outputs.global-cluster-id }}"
+          # Only pass AuroraGlobalClusterId when global cluster is enabled
+          if [ "$ENABLE_GLOBAL" = "true" ]; then
+            BASE_PARAMS="$BASE_PARAMS,AuroraGlobalClusterId=${{ steps.get-primary-outputs.outputs.global-cluster-id }}"
+          fi
           BASE_PARAMS="$BASE_PARAMS,KmsKeyArn=${{ steps.get-primary-outputs.outputs.kms-key-arn }}"
 
         else

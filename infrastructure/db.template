@@ -102,7 +102,7 @@ Resources:
             !Ref AuroraGlobalCluster,
             !Ref "AWS::NoValue",
           ],
-          !Ref AuroraGlobalClusterId,
+          !If [EnableGlobal, !Ref AuroraGlobalClusterId, !Ref "AWS::NoValue"],
         ]
       Engine: aurora-mysql
       EngineVersion: !Ref EngineVersion
