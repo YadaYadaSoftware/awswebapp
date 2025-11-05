@@ -47,7 +47,11 @@ Conditions:
     !Not [!Equals [!Ref SecondaryWebLoadBalancerDNS, ""]]
   IsSingleRegion: !Equals [!Ref SecondaryWebLoadBalancerDNS, ""]
   IsPrimary: !Equals [!Ref IsPrimaryRegion, "true"]
-  IsSecondary: !Equals [!Ref IsPrimaryRegion, "false"]
+  HasSecondaryLoadBalancerAndIsPrimary:
+    !And [
+      !Not [!Equals [!Ref SecondaryWebLoadBalancerDNS, ""]],
+      !Equals [!Ref IsPrimaryRegion, "true"],
+    ]
 
 Resources:
   # Health Check for Primary ALB
@@ -107,7 +111,7 @@ Resources:
 
   # Primary DNS Record for multi-region (failover record) - created by primary region only
   PrimaryDNSRecordFailover:
-    Condition: !And [HasSecondaryLoadBalancer, IsPrimary]
+    Condition: HasSecondaryLoadBalancerAndIsPrimary
     Type: AWS::Route53::RecordSet
     Properties:
       HostedZoneId: !Ref HostedZoneId
@@ -122,7 +126,7 @@ Resources:
 
   # Secondary DNS Record for multi-region (failover record) - created by primary region only
   SecondaryDNSRecordFailover:
-    Condition: !And [HasSecondaryLoadBalancer, IsPrimary]
+    Condition: HasSecondaryLoadBalancerAndIsPrimary
     Type: AWS::Route53::RecordSet
     Properties:
       HostedZoneId: !Ref HostedZoneId
