@@ -120,7 +120,6 @@ Resources:
   # ALB HTTPS Listener
   WebHttpsListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
-    DependsOn: WebSSLCertificate
     Properties:
       LoadBalancerArn: !Ref WebLoadBalancer
       Protocol: HTTPS
@@ -134,7 +133,6 @@ Resources:
   # SSL Certificate for HTTPS (subdomain)
   WebSSLCertificate:
     Type: AWS::CertificateManager::Certificate
-    DeletionPolicy: Retain
     Properties:
       DomainName: !Sub "${BranchName}.${DomainName}"
       ValidationMethod: DNS
@@ -208,6 +206,7 @@ Resources:
     Type: AWS::ECS::Service
     DependsOn:
       - WebListener
+      - WebHttpsListener
       - WebTaskDefinition
     Properties:
       Cluster:
