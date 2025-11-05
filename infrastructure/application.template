@@ -68,8 +68,10 @@ Parameters:
     Description: "ASP.NET Core environment (Production, Staging, Development)"
 
 Conditions:
-  IsPrimarySingleRegion: !Equals [!Ref IsPrimaryRegion, "true"]
+  IsPrimary: !Equals [!Ref IsPrimaryRegion, "true"]
   IsSecondary: !Equals [!Ref IsPrimaryRegion, "false"]
+  IsSingleRegion: !Equals [!Ref PrimaryWebLoadBalancerDNS, ""]
+  IsPrimarySingleRegion: !And [!Ref IsPrimary, !Ref IsSingleRegion]
 
 Resources:
   # Regional API
