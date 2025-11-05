@@ -105,9 +105,9 @@ Resources:
         HostedZoneId:
           Fn::ImportValue: !Sub "WebLoadBalancerHostedZoneId-${BranchName}"
 
-  # Primary DNS Record for multi-region primary region (failover record)
+  # Primary DNS Record for multi-region (failover record) - created by primary region only
   PrimaryDNSRecordFailover:
-    Condition: HasSecondaryLoadBalancer
+    Condition: !And [HasSecondaryLoadBalancer, IsPrimary]
     Type: AWS::Route53::RecordSet
     Properties:
       HostedZoneId: !Ref HostedZoneId
@@ -120,9 +120,9 @@ Resources:
         HostedZoneId: !ImportValue "WebLoadBalancerHostedZoneId-${BranchName}"
       HealthCheckId: !Ref PrimaryHealthCheck
 
-  # Secondary DNS Record for multi-region secondary region (failover record)
+  # Secondary DNS Record for multi-region (failover record) - created by primary region only
   SecondaryDNSRecordFailover:
-    Condition: HasSecondaryLoadBalancer
+    Condition: !And [HasSecondaryLoadBalancer, IsPrimary]
     Type: AWS::Route53::RecordSet
     Properties:
       HostedZoneId: !Ref HostedZoneId
@@ -131,8 +131,8 @@ Resources:
       SetIdentifier: !Sub "secondary-${BranchName}"
       Failover: SECONDARY
       AliasTarget:
-        DNSName: !ImportValue "WebLoadBalancerDNS-${BranchName}"
-        HostedZoneId: !ImportValue "WebLoadBalancerHostedZoneId-${BranchName}"
+        DNSName: !Ref SecondaryWebLoadBalancerDNS
+        HostedZoneId: !Ref SecondaryWebLoadBalancerHostedZoneId
       HealthCheckId: !Ref SecondaryHealthCheck
 
 Outputs:
