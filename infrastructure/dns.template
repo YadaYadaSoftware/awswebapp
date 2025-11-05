@@ -26,6 +26,12 @@ Parameters:
     Default: "us-east-2"
     Description: "Secondary region for failover"
 
+  IsPrimaryRegion:
+    Type: String
+    AllowedValues: ["true", "false"]
+    Default: "true"
+    Description: "Whether this region is the primary region for DNS record creation"
+
   SecondaryWebLoadBalancerDNS:
     Type: String
     Default: ""
@@ -40,6 +46,8 @@ Conditions:
   HasSecondaryLoadBalancer:
     !Not [!Equals [!Ref SecondaryWebLoadBalancerDNS, ""]]
   IsSingleRegion: !Equals [!Ref SecondaryWebLoadBalancerDNS, ""]
+  IsPrimary: !Equals [!Ref IsPrimaryRegion, "true"]
+  IsSecondary: !Equals [!Ref IsPrimaryRegion, "false"]
 
 Resources:
   # Health Check for Primary ALB
@@ -62,7 +70,7 @@ Resources:
         - Key: Purpose
           Value: Primary-Web-Failover
 
-  # Health Check for Secondary ALB (only when secondary load balancer is provided)
+  # Health Check for Secondary ALB (only when secondary load balancer is provided and this is the primary region)
   SecondaryHealthCheck:
     Condition: HasSecondaryLoadBalancer
     Type: AWS::Route53::HealthCheck
@@ -97,7 +105,7 @@ Resources:
         HostedZoneId:
           Fn::ImportValue: !Sub "WebLoadBalancerHostedZoneId-${BranchName}"
 
-  # Primary DNS Record for multi-region (failover record)
+  # Primary DNS Record for multi-region primary region (failover record)
   PrimaryDNSRecordFailover:
     Condition: HasSecondaryLoadBalancer
     Type: AWS::Route53::RecordSet
@@ -112,8 +120,8 @@ Resources:
         HostedZoneId: !ImportValue "WebLoadBalancerHostedZoneId-${BranchName}"
       HealthCheckId: !Ref PrimaryHealthCheck
 
-  # Secondary Failover Record (only when secondary load balancer is provided)
-  SecondaryDNSRecord:
+  # Secondary DNS Record for multi-region secondary region (failover record)
+  SecondaryDNSRecordFailover:
     Condition: HasSecondaryLoadBalancer
     Type: AWS::Route53::RecordSet
     Properties:
@@ -123,10 +131,8 @@ Resources:
       SetIdentifier: !Sub "secondary-${BranchName}"
       Failover: SECONDARY
       AliasTarget:
-        DNSName:
-          Fn::ImportValue: !Sub "WebLoadBalancerDNS-${BranchName}"
-        HostedZoneId:
-          Fn::ImportValue: !Sub "WebLoadBalancerHostedZoneId-${BranchName}"
+        DNSName: !ImportValue "WebLoadBalancerDNS-${BranchName}"
+        HostedZoneId: !ImportValue "WebLoadBalancerHostedZoneId-${BranchName}"
       HealthCheckId: !Ref SecondaryHealthCheck
 
 Outputs:
