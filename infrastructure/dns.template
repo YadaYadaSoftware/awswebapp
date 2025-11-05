@@ -47,9 +47,15 @@ Conditions:
     !Not [!Equals [!Ref SecondaryWebLoadBalancerDNS, ""]]
   IsSingleRegion: !Equals [!Ref SecondaryWebLoadBalancerDNS, ""]
   IsPrimary: !Equals [!Ref IsPrimaryRegion, "true"]
+  IsSecondary: !Equals [!Ref IsPrimaryRegion, "false"]
   HasSecondaryLoadBalancerAndIsPrimary:
     !And [
       !Not [!Equals [!Ref SecondaryWebLoadBalancerDNS, ""]],
+      !Equals [!Ref IsPrimaryRegion, "true"],
+    ]
+  IsSingleRegionAndIsPrimary:
+    !And [
+      !Equals [!Ref SecondaryWebLoadBalancerDNS, ""],
       !Equals [!Ref IsPrimaryRegion, "true"],
     ]
 
@@ -94,9 +100,9 @@ Resources:
         - Key: Purpose
           Value: Secondary-Web-Failover
 
-  # Primary DNS Record for single region (simple record)
+  # Primary DNS Record for single region (simple record) - only created by primary region
   PrimaryDNSRecordSingle:
-    Condition: IsSingleRegion
+    Condition: IsSingleRegionAndIsPrimary
     Type: AWS::Route53::RecordSet
     Properties:
       HostedZoneId: !Ref HostedZoneId
