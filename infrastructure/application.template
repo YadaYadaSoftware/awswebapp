@@ -109,6 +109,7 @@ Resources:
         DomainName: !Ref DomainName
         HostedZoneId: !Ref HostedZoneId
         PrimaryRegion: !Ref "AWS::Region"
+        IsPrimaryRegion: "true"
 
   # Global DNS (only in secondary region - failover setup)
   SecondaryDnsStack:
@@ -123,6 +124,9 @@ Resources:
         HostedZoneId: !Ref HostedZoneId
         PrimaryRegion: !Ref PrimaryRegion
         SecondaryRegion: !Ref "AWS::Region"
+        IsPrimaryRegion: "false"
+        SecondaryWebLoadBalancerDNS: !Ref PrimaryWebLoadBalancerDNS
+        SecondaryWebLoadBalancerHostedZoneId: !Ref PrimaryWebLoadBalancerHostedZoneId
 
 Outputs:
   # API outputs (for orchestration, not exported)
