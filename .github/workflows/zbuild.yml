@@ -438,23 +438,8 @@ jobs:
         BASE_PARAMS="$BASE_PARAMS,Environment=$ENVIRONMENT"
         BASE_PARAMS="$BASE_PARAMS,IsPrimaryRegion=${{ matrix.is_primary }}"
 
-        # Add DNS-specific parameters for multi-region deployments
-        if [ "${{ matrix.is_primary }}" = "true" ]; then
-          # Primary region gets secondary load balancer info for DNS failover setup
-          BASE_PARAMS="$BASE_PARAMS,SecondaryWebLoadBalancerDNS=${{ steps.get-primary-outputs.outputs.primary-lb-dns }}"
-          BASE_PARAMS="$BASE_PARAMS,SecondaryWebLoadBalancerHostedZoneId=${{ steps.get-primary-outputs.outputs.primary-lb-hz }}"
-        fi
 
-        # Add DNS parameters for master template (only for shared infrastructure branches)
-        if [[ " app beta alpha dev " == *" $BRANCH_NAME "* ]]; then
-          if [ "${{ matrix.is_primary }}" = "true" ]; then
-            # Primary region gets secondary load balancer info for DNS failover setup
-            BASE_PARAMS="$BASE_PARAMS,SecondaryWebLoadBalancerDNS=${{ steps.get-primary-outputs.outputs.primary-lb-dns }}"
-            BASE_PARAMS="$BASE_PARAMS,SecondaryWebLoadBalancerHostedZoneId=${{ steps.get-primary-outputs.outputs.primary-lb-hz }}"
-          fi
-        fi
-
-        # Add secondary region parameters if needed
+        # Add primary region parameters if needed
         if [ "${{ matrix.is_primary }}" = "false" ]; then
           BASE_PARAMS="$BASE_PARAMS,PrimaryRegion=${{ env.AWS_REGION_PRIMARY }}"
           BASE_PARAMS="$BASE_PARAMS,PrimaryWebLoadBalancerDNS=${{ steps.get-primary-outputs.outputs.primary-lb-dns }}"
