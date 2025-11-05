@@ -68,10 +68,7 @@ Parameters:
     Description: "ASP.NET Core environment (Production, Staging, Development)"
 
 Conditions:
-  IsPrimarySingleRegion: !And [
-      !Equals [!Ref IsPrimaryRegion, "true"],
-      !Equals ["false", "false"], # Since EnableGlobalCluster is not here, but for single region it's false
-    ]
+  IsPrimarySingleRegion: !Equals [!Ref IsPrimaryRegion, "true"]
   IsSecondary: !Equals [!Ref IsPrimaryRegion, "false"]
 
 Resources:
