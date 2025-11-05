@@ -71,7 +71,10 @@ Conditions:
   IsPrimary: !Equals [!Ref IsPrimaryRegion, "true"]
   IsSecondary: !Equals [!Ref IsPrimaryRegion, "false"]
   IsSingleRegion: !Equals [!Ref PrimaryWebLoadBalancerDNS, ""]
-  IsPrimarySingleRegion: !And [!Ref IsPrimary, !Ref IsSingleRegion]
+  IsPrimarySingleRegion:
+    Fn::And:
+      - Condition: IsPrimary
+      - Condition: IsSingleRegion
 
 Resources:
   # Regional API
