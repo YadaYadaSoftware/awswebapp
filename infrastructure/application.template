@@ -62,6 +62,11 @@ Parameters:
     AllowedValues: ["true", "false"]
     Description: Whether this region hosts the primary cluster
 
+  IsMultiRegion:
+    Type: String
+    AllowedValues: ["true", "false"]
+    Description: Whether this is a multi-region deployment (app, beta, alpha branches)
+
   Environment:
     Type: String
     Default: "Development"
@@ -70,19 +75,19 @@ Parameters:
 Conditions:
   IsPrimary: !Equals [!Ref IsPrimaryRegion, "true"]
   IsSecondary: !Equals [!Ref IsPrimaryRegion, "false"]
-  IsSingleRegion: !Equals [!Ref PrimaryWebLoadBalancerDNS, ""]
-  IsMultiRegion: !Not [!Equals [!Ref PrimaryWebLoadBalancerDNS, ""]]
+  IsMultiRegionDeploy: !Equals [!Ref IsMultiRegion, "true"]
+  IsSingleRegionDeploy: !Equals [!Ref IsMultiRegion, "false"]
   # DNS is deployed by:
-  # - Single region: Primary region
-  # - Multi region: Secondary region only
+  # - Single region: Primary region only
+  # - Multi region: Secondary region only (after both load balancers exist)
   ShouldDeployDns:
     Fn::Or:
       - Fn::And:
           - Condition: IsPrimary
-          - Condition: IsSingleRegion
+          - Condition: IsSingleRegionDeploy
       - Fn::And:
           - Condition: IsSecondary
-          - Condition: IsMultiRegion
+          - Condition: IsMultiRegionDeploy
 
 Resources:
   # Regional API
@@ -126,6 +131,7 @@ Resources:
         PrimaryRegion: !Ref PrimaryRegion
         SecondaryRegion: !Ref "AWS::Region"
         IsPrimaryRegion: !Ref IsPrimaryRegion
+        IsMultiRegion: !Ref IsMultiRegion
         PrimaryWebLoadBalancerDNS: !Ref PrimaryWebLoadBalancerDNS
         PrimaryWebLoadBalancerHostedZoneId: !Ref PrimaryWebLoadBalancerHostedZoneId
 

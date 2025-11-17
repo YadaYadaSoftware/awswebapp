@@ -32,6 +32,12 @@ Parameters:
     Default: "true"
     Description: "Whether this region is the primary region"
 
+  IsMultiRegion:
+    Type: String
+    AllowedValues: ["true", "false"]
+    Default: "false"
+    Description: "Whether this is a multi-region deployment"
+
   PrimaryWebLoadBalancerDNS:
     Type: String
     Default: ""
@@ -43,15 +49,14 @@ Parameters:
     Description: "Hosted zone ID of the primary region's web load balancer (required for multi-region)"
 
 Conditions:
-  # Single region: PrimaryWebLoadBalancerDNS is empty
-  # Multi region: PrimaryWebLoadBalancerDNS is populated
-  IsSingleRegion: !Equals [!Ref PrimaryWebLoadBalancerDNS, ""]
-  IsMultiRegion: !Not [!Equals [!Ref PrimaryWebLoadBalancerDNS, ""]]
+  # Deployment type determined by IsMultiRegion parameter from workflow
+  IsSingleRegion: !Equals [!Ref IsMultiRegion, "false"]
+  IsMultiRegionDeploy: !Equals [!Ref IsMultiRegion, "true"]
 
 Resources:
   # Health Check for Primary Region ALB (multi-region only)
   PrimaryHealthCheck:
-    Condition: IsMultiRegion
+    Condition: IsMultiRegionDeploy
     Type: AWS::Route53::HealthCheck
     Properties:
       HealthCheckConfig:
@@ -71,7 +76,7 @@ Resources:
 
   # Health Check for Secondary Region ALB (multi-region only)
   SecondaryHealthCheck:
-    Condition: IsMultiRegion
+    Condition: IsMultiRegionDeploy
     Type: AWS::Route53::HealthCheck
     Properties:
       HealthCheckConfig:
@@ -106,7 +111,7 @@ Resources:
 
   # Multi-Region: PRIMARY failover record pointing to primary region's load balancer
   PrimaryFailoverDNSRecord:
-    Condition: IsMultiRegion
+    Condition: IsMultiRegionDeploy
     Type: AWS::Route53::RecordSet
     Properties:
       HostedZoneId: !Ref HostedZoneId
@@ -121,7 +126,7 @@ Resources:
 
   # Multi-Region: SECONDARY failover record pointing to secondary region's load balancer (current region)
   SecondaryFailoverDNSRecord:
-    Condition: IsMultiRegion
+    Condition: IsMultiRegionDeploy
     Type: AWS::Route53::RecordSet
     Properties:
       HostedZoneId: !Ref HostedZoneId
@@ -143,8 +148,8 @@ Outputs:
 
   PrimaryHealthCheckId:
     Description: "Primary health check ID (multi-region only)"
-    Value: !If [IsMultiRegion, !Ref PrimaryHealthCheck, "N/A"]
+    Value: !If [IsMultiRegionDeploy, !Ref PrimaryHealthCheck, "N/A"]
 
   SecondaryHealthCheckId:
     Description: "Secondary health check ID (multi-region only)"
-    Value: !If [IsMultiRegion, !Ref SecondaryHealthCheck, "N/A"]
+    Value: !If [IsMultiRegionDeploy, !Ref SecondaryHealthCheck, "N/A"]

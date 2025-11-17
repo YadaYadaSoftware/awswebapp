@@ -40,6 +40,11 @@ Parameters:
     AllowedValues: ["true", "false"]
     Description: Whether this region hosts the primary cluster
 
+  IsMultiRegion:
+    Type: String
+    AllowedValues: ["true", "false"]
+    Description: Whether this is a multi-region deployment (app, beta, alpha branches)
+
   # Parameters for global infrastructure outputs
   AuroraGlobalClusterId:
     Type: String
@@ -108,17 +113,24 @@ Conditions:
   IsSecondary: !Equals [!Ref IsPrimaryRegion, "false"]
   HasKmsKeyArn: !Not [!Equals [!Ref KmsKeyArn, ""]]
   HasGlobalClusterId: !Not [!Equals [!Ref AuroraGlobalClusterId, ""]]
-  IsSingleRegion: !Equals [!Ref EnableGlobalCluster, "false"]
-  IsPrimarySingleRegion:
-    !And [
-      !Equals [!Ref IsPrimaryRegion, "true"],
-      !Equals [!Ref EnableGlobalCluster, "false"],
-    ]
+  IsMultiRegionDeploy: !Equals [!Ref IsMultiRegion, "true"]
+  IsSingleRegionDeploy: !Equals [!Ref IsMultiRegion, "false"]
   ShouldCreateGlobalCluster:
     !And [
       !Equals [!Ref IsPrimaryRegion, "true"],
       !Equals [!Ref EnableGlobalCluster, "true"],
     ]
+  # DNS is deployed by:
+  # - Single region: Primary region only
+  # - Multi region: Secondary region only
+  ShouldDeployDns:
+    Fn::Or:
+      - Fn::And:
+          - Condition: IsPrimary
+          - Condition: IsSingleRegionDeploy
+      - Fn::And:
+          - Condition: IsSecondary
+          - Condition: IsMultiRegionDeploy
 
 Resources:
   BackendStack:
@@ -156,6 +168,7 @@ Resources:
         PrimaryWebLoadBalancerDNS: !Ref PrimaryWebLoadBalancerDNS
         PrimaryWebLoadBalancerHostedZoneId: !Ref PrimaryWebLoadBalancerHostedZoneId
         IsPrimaryRegion: !Ref IsPrimaryRegion
+        IsMultiRegion: !Ref IsMultiRegion
         Environment: !Ref Environment
         EnvironmentToImport: !Ref BranchName
 
@@ -289,27 +302,17 @@ Outputs:
     Value: !GetAtt ApplicationStack.Outputs.WebServiceName
 
   # DNS outputs (for orchestration, not exported)
-  PrimaryWebEndpoint:
-    Condition: IsPrimarySingleRegion
+  DnsWebEndpoint:
+    Condition: ShouldDeployDns
     Description: "Web application endpoint URL"
-    Value: !GetAtt ApplicationStack.Outputs.PrimaryWebEndpoint
+    Value: !GetAtt ApplicationStack.Outputs.DnsWebEndpoint
 
-  SecondaryWebEndpoint:
-    Condition: IsSecondary
-    Description: "Web application endpoint URL"
-    Value: !GetAtt ApplicationStack.Outputs.SecondaryWebEndpoint
-
-  PrimaryHealthCheckId:
-    Condition: IsPrimarySingleRegion
+  DnsPrimaryHealthCheckId:
+    Condition: ShouldDeployDns
     Description: "Primary health check ID"
-    Value: !GetAtt ApplicationStack.Outputs.PrimaryHealthCheckId
+    Value: !GetAtt ApplicationStack.Outputs.DnsPrimaryHealthCheckId
 
-  PrimaryHealthCheckIdSecondary:
-    Condition: IsSecondary
-    Description: "Primary health check ID"
-    Value: !GetAtt ApplicationStack.Outputs.PrimaryHealthCheckIdSecondary
-
-  SecondaryHealthCheckId:
-    Condition: IsSecondary
-    Description: "Secondary health check ID"
-    Value: !GetAtt ApplicationStack.Outputs.SecondaryHealthCheckId
+  DnsSecondaryHealthCheckId:
+    Condition: ShouldDeployDns
+    Description: "Secondary health check ID (only in multi-region)"
+    Value: !GetAtt ApplicationStack.Outputs.DnsSecondaryHealthCheckId

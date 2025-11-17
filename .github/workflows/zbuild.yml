@@ -420,6 +420,17 @@ jobs:
         BRANCH_NAME="${{ needs.get-branch-name.outputs.branch-name }}"
         ENVIRONMENT="${{ needs.get-branch-name.outputs.environment }}"
 
+        # Determine if this is a multi-region deployment
+        # Multi-region: app, beta, alpha
+        # Single-region: all other branches
+        if [[ " app beta alpha " == *" $BRANCH_NAME "* ]]; then
+          IS_MULTI_REGION="true"
+          echo "Multi-region deployment for branch: $BRANCH_NAME"
+        else
+          IS_MULTI_REGION="false"
+          echo "Single-region deployment for branch: $BRANCH_NAME"
+        fi
+
         # Determine EnvironmentToImport value
         if [[ " app beta alpha dev " == *" $BRANCH_NAME "* ]]; then
           ENVIRONMENT_TO_IMPORT="$BRANCH_NAME"
@@ -437,9 +448,10 @@ jobs:
         BASE_PARAMS="$BASE_PARAMS,HostedZoneId=Z06422172SASV44F5Y8VA"
         BASE_PARAMS="$BASE_PARAMS,Environment=$ENVIRONMENT"
         BASE_PARAMS="$BASE_PARAMS,IsPrimaryRegion=${{ matrix.is_primary }}"
+        BASE_PARAMS="$BASE_PARAMS,IsMultiRegion=$IS_MULTI_REGION"
 
 
-        # Add primary region parameters if needed
+        # Add primary region parameters if needed (for secondary region in multi-region deployment)
         if [ "${{ matrix.is_primary }}" = "false" ]; then
           BASE_PARAMS="$BASE_PARAMS,PrimaryRegion=${{ env.AWS_REGION_PRIMARY }}"
           BASE_PARAMS="$BASE_PARAMS,PrimaryWebLoadBalancerDNS=${{ steps.get-primary-outputs.outputs.primary-lb-dns }}"
