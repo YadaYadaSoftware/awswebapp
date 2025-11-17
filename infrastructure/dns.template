@@ -18,50 +18,60 @@ Parameters:
 
   PrimaryRegion:
     Type: String
-    Default: "us-east-1"
-    Description: "Primary region for failover"
+    Default: ""
+    Description: "Primary region for DNS failover (empty for single region)"
 
   SecondaryRegion:
     Type: String
-    Default: "us-east-2"
-    Description: "Secondary region for failover"
+    Default: ""
+    Description: "Secondary region for DNS failover (empty for single region)"
 
   IsPrimaryRegion:
     Type: String
     AllowedValues: ["true", "false"]
     Default: "true"
-    Description: "Whether this region is the primary region for DNS record creation"
+    Description: "Whether this region is the primary region"
 
-  SecondaryWebLoadBalancerDNS:
+  PrimaryWebLoadBalancerDNS:
     Type: String
     Default: ""
-    Description: "DNS name of the secondary web load balancer (optional for single region)"
+    Description: "DNS name of the primary region's web load balancer (required for multi-region)"
 
-  SecondaryWebLoadBalancerHostedZoneId:
+  PrimaryWebLoadBalancerHostedZoneId:
     Type: String
     Default: ""
-    Description: "Hosted zone ID of the secondary web load balancer (optional for single region)"
+    Description: "Hosted zone ID of the primary region's web load balancer (required for multi-region)"
 
 Conditions:
-  HasSecondaryLoadBalancer:
-    !Not [!Equals [!Ref SecondaryWebLoadBalancerDNS, ""]]
-  IsSingleRegion: !Equals [!Ref SecondaryWebLoadBalancerDNS, ""]
-  IsPrimary: !Equals [!Ref IsPrimaryRegion, "true"]
-  IsSecondary: !Equals [!Ref IsPrimaryRegion, "false"]
-  HasSecondaryLoadBalancerAndIsPrimary:
-    !And [
-      !Not [!Equals [!Ref SecondaryWebLoadBalancerDNS, ""]],
-      !Equals [!Ref IsPrimaryRegion, "true"],
-    ]
-  IsSingleRegionAndIsPrimary:
-    !And [
-      !Equals [!Ref SecondaryWebLoadBalancerDNS, ""],
-      !Equals [!Ref IsPrimaryRegion, "true"],
-    ]
+  # Single region: PrimaryWebLoadBalancerDNS is empty
+  # Multi region: PrimaryWebLoadBalancerDNS is populated
+  IsSingleRegion: !Equals [!Ref PrimaryWebLoadBalancerDNS, ""]
+  IsMultiRegion: !Not [!Equals [!Ref PrimaryWebLoadBalancerDNS, ""]]
 
 Resources:
-  # Health Check for Primary ALB
+  # Health Check for Primary Region ALB (multi-region only)
   PrimaryHealthCheck:
+    Condition: IsMultiRegion
+    Type: AWS::Route53::HealthCheck
+    Properties:
+      HealthCheckConfig:
+        Type: HTTPS
+        ResourcePath: /health
+        FullyQualifiedDomainName: !Ref PrimaryWebLoadBalancerDNS
+        Port: 443
+        RequestInterval: 30
+        FailureThreshold: 2
+      HealthCheckTags:
+        - Key: LogicalId
+          Value: PrimaryHealthCheck
+        - Key: Environment
+          Value: !Ref BranchName
+        - Key: Purpose
+          Value: Primary-Web-Failover
+
+  # Health Check for Secondary Region ALB (multi-region only)
+  SecondaryHealthCheck:
+    Condition: IsMultiRegion
     Type: AWS::Route53::HealthCheck
     Properties:
       HealthCheckConfig:
@@ -74,35 +84,15 @@ Resources:
         FailureThreshold: 2
       HealthCheckTags:
         - Key: LogicalId
-          Value: PrimaryHealthCheck
-        - Key: Environment
-          Value: !Ref BranchName
-        - Key: Purpose
-          Value: Primary-Web-Failover
-
-  # Health Check for Secondary ALB (only when secondary load balancer is provided)
-  SecondaryHealthCheck:
-    Condition: HasSecondaryLoadBalancer
-    Type: AWS::Route53::HealthCheck
-    Properties:
-      HealthCheckConfig:
-        Type: HTTPS
-        ResourcePath: /health
-        FullyQualifiedDomainName: !Ref SecondaryWebLoadBalancerDNS
-        Port: 443
-        RequestInterval: 30
-        FailureThreshold: 2
-      HealthCheckTags:
-        - Key: LogicalId
           Value: SecondaryHealthCheck
         - Key: Environment
           Value: !Ref BranchName
         - Key: Purpose
           Value: Secondary-Web-Failover
 
-  # Primary DNS Record for single region (simple record) - only created by primary region
-  PrimaryDNSRecordSingle:
-    Condition: IsSingleRegionAndIsPrimary
+  # Single Region: Simple A record pointing to local load balancer
+  SingleRegionDNSRecord:
+    Condition: IsSingleRegion
     Type: AWS::Route53::RecordSet
     Properties:
       HostedZoneId: !Ref HostedZoneId
@@ -114,9 +104,9 @@ Resources:
         HostedZoneId:
           Fn::ImportValue: !Sub "WebLoadBalancerHostedZoneId-${BranchName}"
 
-  # Primary DNS Record for multi-region (failover record) - created by primary region only
-  PrimaryDNSRecordFailover:
-    Condition: HasSecondaryLoadBalancerAndIsPrimary
+  # Multi-Region: PRIMARY failover record pointing to primary region's load balancer
+  PrimaryFailoverDNSRecord:
+    Condition: IsMultiRegion
     Type: AWS::Route53::RecordSet
     Properties:
       HostedZoneId: !Ref HostedZoneId
@@ -125,15 +115,13 @@ Resources:
       SetIdentifier: !Sub "primary-${BranchName}"
       Failover: PRIMARY
       AliasTarget:
-        DNSName:
-          Fn::ImportValue: !Sub "WebLoadBalancerDNS-${BranchName}"
-        HostedZoneId:
-          Fn::ImportValue: !Sub "WebLoadBalancerHostedZoneId-${BranchName}"
+        DNSName: !Ref PrimaryWebLoadBalancerDNS
+        HostedZoneId: !Ref PrimaryWebLoadBalancerHostedZoneId
       HealthCheckId: !Ref PrimaryHealthCheck
 
-  # Secondary DNS Record for multi-region (failover record) - created by secondary region only
-  SecondaryDNSRecordFailover:
-    Condition: HasSecondaryLoadBalancer
+  # Multi-Region: SECONDARY failover record pointing to secondary region's load balancer (current region)
+  SecondaryFailoverDNSRecord:
+    Condition: IsMultiRegion
     Type: AWS::Route53::RecordSet
     Properties:
       HostedZoneId: !Ref HostedZoneId
@@ -142,8 +130,10 @@ Resources:
       SetIdentifier: !Sub "secondary-${BranchName}"
       Failover: SECONDARY
       AliasTarget:
-        DNSName: !Ref SecondaryWebLoadBalancerDNS
-        HostedZoneId: !Ref SecondaryWebLoadBalancerHostedZoneId
+        DNSName:
+          Fn::ImportValue: !Sub "WebLoadBalancerDNS-${BranchName}"
+        HostedZoneId:
+          Fn::ImportValue: !Sub "WebLoadBalancerHostedZoneId-${BranchName}"
       HealthCheckId: !Ref SecondaryHealthCheck
 
 Outputs:
@@ -152,10 +142,9 @@ Outputs:
     Value: !Sub "https://${BranchName}.${DomainName}"
 
   PrimaryHealthCheckId:
-    Description: "Primary health check ID"
-    Value: !Ref PrimaryHealthCheck
+    Description: "Primary health check ID (multi-region only)"
+    Value: !If [IsMultiRegion, !Ref PrimaryHealthCheck, "N/A"]
 
   SecondaryHealthCheckId:
-    Condition: HasSecondaryLoadBalancer
-    Description: "Secondary health check ID"
-    Value: !Ref SecondaryHealthCheck
+    Description: "Secondary health check ID (multi-region only)"
+    Value: !If [IsMultiRegion, !Ref SecondaryHealthCheck, "N/A"]
