@@ -33,6 +33,8 @@ jobs:
     - name: Determine Version
       id: gitversion
       run: |
+        echo "GITVERSION=$(dotnet gitversion /output json /showvariable SemVer)"
+        echo "GITVERSION_NUGET=$(dotnet gitversion /output json /showvariable NuGetVersion)"
         echo "GITVERSION=$(dotnet gitversion /output json /showvariable SemVer)" >> $GITHUB_ENV
         echo "GITVERSION_NUGET=$(dotnet gitversion /output json /showvariable NuGetVersion)" >> $GITHUB_ENV
 
