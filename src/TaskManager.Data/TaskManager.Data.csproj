@@ -4,6 +4,17 @@
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <PackageId>TaskManager.Data</PackageId>
+    <Title>TaskManager Data Access Library</Title>
+    <Authors>Your Organization</Authors>
+    <Description>Entity Framework Core context, entities, and data access logic for TaskManager</Description>
+    <PackageTags>taskmanager;data;efcore;entityframework;database</PackageTags>
+    <RepositoryUrl>https://github.com/your-org/taskmanager</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+    <PackageProjectUrl>https://github.com/your-org/taskmanager</PackageProjectUrl>
   </PropertyGroup>
 
   <ItemGroup>
