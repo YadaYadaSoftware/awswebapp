@@ -33,6 +33,11 @@ jobs:
       environment: ${{ steps.get-branch.outputs.environment }}
       nodeploy: ${{ steps.check-commit.outputs.nodeploy }}
     steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
     - name: Get branch name
       id: get-branch
       run: |
