@@ -3,9 +3,17 @@ on:
   push:
     branches:
       - '**'
+    paths-ignore:
+      - '.vscode/**'
+      - 'scripts/**'
+      - '**/*.md'
     tags-ignore:
       - '**'
   pull_request:
+    paths-ignore:
+      - '.vscode/**'
+      - 'scripts/**'
+      - '**/*.md'
 
 env:
   AWS_REGION_SECONDARY: us-west-2
@@ -23,7 +31,13 @@ jobs:
     outputs:
       branch-name: ${{ steps.get-branch.outputs.branch-name }}
       environment: ${{ steps.get-branch.outputs.environment }}
+      nodeploy: ${{ steps.check-commit.outputs.nodeploy }}
     steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
     - name: Get branch name
       id: get-branch
       run: |
@@ -45,6 +59,23 @@ jobs:
         echo "Environment: $ENVIRONMENT"
         echo "branch-name=$BRANCH_NAME" >> $GITHUB_OUTPUT
         echo "environment=$ENVIRONMENT" >> $GITHUB_OUTPUT
+
+    - name: Check commit message for nodeploy
+      id: check-commit
+      run: |
+        # Get the latest commit message
+        COMMIT_MESSAGE=$(git log -1 --pretty=%B)
+
+        echo "Latest commit message: $COMMIT_MESSAGE"
+
+        # Check if commit message contains "nodeploy" (case insensitive)
+        if echo "$COMMIT_MESSAGE" | grep -qi "nodeploy"; then
+          echo "🚫 Found 'nodeploy' in commit message - skipping deployment"
+          echo "nodeploy=true" >> $GITHUB_OUTPUT
+        else
+          echo "✅ No 'nodeploy' found in commit message - proceeding with deployment"
+          echo "nodeploy=false" >> $GITHUB_OUTPUT
+        fi
 
   build:
     name: Build and Test Applications
@@ -198,12 +229,21 @@ jobs:
         include:
           - region: us-east-1
             is_primary: "true"
-            deploy: true
+            deploy: ${{ needs.get-branch-name.outputs.nodeploy != 'true' }}
           - region: us-west-2
             is_primary: "false"
-            deploy: ${{ contains(fromJson('["app","beta","alpha"]'), needs.get-branch-name.outputs.branch-name) }}
+            deploy: ${{ contains(fromJson('["app","beta","alpha"]'), needs.get-branch-name.outputs.branch-name) && needs.get-branch-name.outputs.nodeploy != 'true' }}
       max-parallel: 1
     steps:
+    - name: Check deployment status
+      run: |
+        if [ "${{ needs.get-branch-name.outputs.nodeploy }}" = "true" ]; then
+          echo "🚫 Deployment skipped due to 'nodeploy' in commit message"
+          echo "Commit message contained 'nodeploy' - no deployment will occur"
+        else
+          echo "✅ Proceeding with deployment"
+        fi
+
     - name: Checkout code
       if: matrix.deploy
       uses: actions/checkout@v4
@@ -510,6 +550,7 @@ jobs:
    name: Post-Deployment UI Tests
    runs-on: ubuntu-latest
    needs: [build, deploy, get-branch-name]
+   if: needs.get-branch-name.outputs.nodeploy != 'true'
 
    steps:
    - name: Checkout code
