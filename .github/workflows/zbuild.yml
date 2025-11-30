@@ -3,9 +3,17 @@ on:
   push:
     branches:
       - '**'
+    paths-ignore:
+      - '.vscode/**'
+      - 'scripts/**'
+      - '**/*.md'
     tags-ignore:
       - '**'
   pull_request:
+    paths-ignore:
+      - '.vscode/**'
+      - 'scripts/**'
+      - '**/*.md'
 
 env:
   AWS_REGION_SECONDARY: us-west-2
