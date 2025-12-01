@@ -48,10 +48,13 @@ jobs:
       run: dotnet test TaskManager.sln --configuration Release --no-build --verbosity normal
 
     - name: Pack TaskManager.Shared
-      run: dotnet pack src/TaskManager.Shared/TaskManager.Shared.csproj --configuration Release --output ./nupkgs --version-suffix ${{ env.GITVERSION_NUGET }} --include-symbols --include-source
+      run: dotnet pack src/TaskManager.Shared/TaskManager.Shared.csproj --configuration Release --output ./nupkgs --version ${{ env.GITVERSION_NUGET }} --include-symbols --include-source
 
     - name: Pack TaskManager.Data
-      run: dotnet pack src/TaskManager.Data/TaskManager.Data.csproj --configuration Release --output ./nupkgs --version-suffix ${{ env.GITVERSION_NUGET }} --include-symbols --include-source
+      run: dotnet pack src/TaskManager.Data/TaskManager.Data.csproj --configuration Release --output ./nupkgs --version ${{ env.GITVERSION_NUGET }} --include-symbols --include-source
+
+    - name: Pack TaskManager.Web2
+      run: dotnet pack src/TaskManager.Web2/TaskManager.Web2.csproj --configuration Release --output ./nupkgs --version ${{ env.GITVERSION_NUGET }} --include-symbols --include-source
 
     - name: Upload packages
       uses: actions/upload-artifact@v4
