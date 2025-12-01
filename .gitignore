@@ -480,3 +480,4 @@ taskmanager-bastion-key.pub
 /blob-report/
 /playwright/.cache/
 /playwright/.auth/
+*.nupkg
