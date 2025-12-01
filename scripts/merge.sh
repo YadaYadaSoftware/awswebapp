@@ -108,6 +108,7 @@ fi
 echo "Merging $SOURCE_BRANCH into $TARGET_BRANCH..."
 git merge "$SOURCE_BRANCH" --no-ff -m "Merge branch '$SOURCE_BRANCH' into $TARGET_BRANCH"
 
+
 if [ $? -eq 0 ]; then
     echo ""
     echo "✅ Branch merged successfully!"
