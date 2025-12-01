@@ -211,8 +211,11 @@ jobs:
         BRANCH_NAME="${{ needs.get-branch-name.outputs.branch-name }}"
         VERSION="${{ steps.custom-version.outputs.custom-version }}"
 
+        # Sanitize branch name for package ID (replace special chars with underscores)
+        SANITIZED_BRANCH=$(echo "$BRANCH_NAME" | sed 's/[^a-zA-Z0-9]/_/g')
+
         if [ "$BRANCH_NAME" != "app" ]; then
-          PACKAGE_ID_SUFFIX="-$BRANCH_NAME"
+          PACKAGE_ID_SUFFIX="-$SANITIZED_BRANCH"
         else
           PACKAGE_ID_SUFFIX=""
         fi
@@ -230,8 +233,11 @@ jobs:
         BRANCH_NAME="${{ needs.get-branch-name.outputs.branch-name }}"
         VERSION="${{ steps.custom-version.outputs.custom-version }}"
 
+        # Sanitize branch name for package ID (replace special chars with underscores)
+        SANITIZED_BRANCH=$(echo "$BRANCH_NAME" | sed 's/[^a-zA-Z0-9]/_/g')
+
         if [ "$BRANCH_NAME" != "app" ]; then
-          PACKAGE_ID_SUFFIX="-$BRANCH_NAME"
+          PACKAGE_ID_SUFFIX="-$SANITIZED_BRANCH"
         else
           PACKAGE_ID_SUFFIX=""
         fi
@@ -249,8 +255,11 @@ jobs:
         BRANCH_NAME="${{ needs.get-branch-name.outputs.branch-name }}"
         VERSION="${{ steps.custom-version.outputs.custom-version }}"
 
+        # Sanitize branch name for package ID (replace special chars with underscores)
+        SANITIZED_BRANCH=$(echo "$BRANCH_NAME" | sed 's/[^a-zA-Z0-9]/_/g')
+
         if [ "$BRANCH_NAME" != "app" ]; then
-          PACKAGE_ID_SUFFIX="-$BRANCH_NAME"
+          PACKAGE_ID_SUFFIX="-$SANITIZED_BRANCH"
         else
           PACKAGE_ID_SUFFIX=""
         fi
