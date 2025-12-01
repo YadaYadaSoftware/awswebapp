@@ -1,0 +1,83 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "build",
+            "command": "/Users/timothybassett/bin/dotnet",
+            "type": "process",
+            "args": [
+                "build",
+                "${workspaceFolder}/TaskManager.sln",
+                "/property:GenerateFullPaths=true",
+                "/consoleloggerparameters:NoSummary"
+            ],
+            "problemMatcher": "$msCompile",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "presentation": {
+                "echo": true,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": true,
+                "clear": false
+            }
+        },
+        {
+            "label": "clean",
+            "command": "/Users/timothybassett/bin/dotnet",
+            "type": "process",
+            "args": [
+                "clean",
+                "${workspaceFolder}/TaskManager.sln"
+            ],
+            "problemMatcher": "$msCompile",
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared"
+            }
+        },
+        {
+            "label": "restore",
+            "command": "/Users/timothybassett/bin/dotnet",
+            "type": "process",
+            "args": [
+                "restore",
+                "${workspaceFolder}/TaskManager.sln"
+            ],
+            "problemMatcher": "$msCompile",
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared"
+            }
+        },
+        {
+            "label": "watch",
+            "command": "/Users/timothybassett/bin/dotnet",
+            "type": "process",
+            "args": [
+                "watch",
+                "run",
+                "--project",
+                "${workspaceFolder}/src/TaskManager.Api/TaskManager.Api.csproj"
+            ],
+            "problemMatcher": "$msCompile",
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": true,
+                "panel": "shared"
+            },
+            "isBackground": true
+        }
+    ]
+}

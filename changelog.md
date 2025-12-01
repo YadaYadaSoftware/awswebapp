@@ -1,3 +1,13 @@
+# Changelog
+
+## [2025-11-30 20:02:23 UTC] mac (system)
+
+# Changes for system/mac
+
+**Purpose:** make application run on a mac
+
+**Date Created:** 2025-11-30 07:15:17
+
 ## [2025-10-17 05:16:32 UTC] test-google-login (system)
 
 # Changes for system/test-google-login
@@ -117,10 +127,4 @@ Provide detailed information about the changes being made in this branch.
 
 ## Deployment Notes
 - Any special deployment considerations
-
-
-
-
-
-
 
