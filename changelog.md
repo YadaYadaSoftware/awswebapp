@@ -1,5 +1,15 @@
 # Changelog
 
+## [2025-12-01 11:31:40 UTC] package (system)
+
+# Changes for system/package
+
+**Purpose:** attempt to make the application packagable
+
+**Date Created:** 2025-11-20 06:45:19
+
+# Changelog
+
 ## [2025-11-30 20:02:23 UTC] mac (system)
 
 # Changes for system/mac
@@ -127,4 +137,3 @@ Provide detailed information about the changes being made in this branch.
 
 ## Deployment Notes
 - Any special deployment considerations
-
