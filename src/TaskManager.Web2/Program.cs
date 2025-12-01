@@ -11,7 +11,6 @@ using TaskManager.Web2.Areas.Identity;
 using TaskManager.Web2.Data;
 using static Microsoft.Extensions.DependencyInjection.GoogleExtensions;
 
-// Version 1.0.1 trigger
 
 
 var builder = WebApplication.CreateBuilder(args);
