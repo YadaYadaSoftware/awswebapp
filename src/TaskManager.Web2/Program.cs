@@ -13,6 +13,7 @@ using static Microsoft.Extensions.DependencyInjection.GoogleExtensions;
 
 // Version 1.0.1 trigger
 
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
