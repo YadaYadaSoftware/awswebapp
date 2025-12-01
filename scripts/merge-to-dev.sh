@@ -119,8 +119,10 @@ $changes_content"
             git commit -m "docs: update changelog with changes from $branch_display_name"
 
             echo "✅ Changelog update committed"
+            CHANGES_PROCESSED=true
         else
             echo "⚠️  No changes file found for $full_branch_name"
+            CHANGES_PROCESSED=false
         fi
     else
         echo "❌ Failed to merge branch $full_branch_name"
@@ -162,17 +164,6 @@ else
     exit 1
 fi
 
-# Check if changes file exists for current branch
-changes_file_name="${full_branch_name//\//-}"
-changes_file="changes/$changes_file_name.md"
-if [[ -f "$changes_file" ]]; then
-    echo "✅ Found changes file: $changes_file_name.md"
-else
-    echo "❌ No changes file found for current branch: $changes_file_name.md"
-    echo "Please ensure your branch has a changes file in the changes/ folder"
-    exit 1
-fi
-
 echo "Ready to merge: $full_branch_name"
 
 # Confirm merge
@@ -192,5 +183,7 @@ echo "🎉 Merge completed successfully!"
 echo "📋 Summary:"
 echo "  • Merged: $full_branch_name"
 echo "  • Type: $branch_type"
-echo "  • Changelog updated with changes"
-echo "  • Changes file cleaned up"
+if [[ "$CHANGES_PROCESSED" == "true" ]]; then
+    echo "  • Changelog updated with changes"
+    echo "  • Changes file cleaned up"
+fi
