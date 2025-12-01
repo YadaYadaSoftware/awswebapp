@@ -63,17 +63,30 @@ jobs:
     - name: Check commit message for nodeploy
       id: check-commit
       run: |
-        # Get the latest commit message
-        COMMIT_MESSAGE=$(git log -1 --pretty=%B)
+        # Check up to 5 commits back, skipping merge commits
+        NODEPLOY_FOUND=false
 
-        echo "Latest commit message: $COMMIT_MESSAGE"
+        for i in {0..4}; do
+          COMMIT_MESSAGE=$(git log --skip=$i -1 --pretty=%B)
+          echo "Checking commit $((i+1)): $(echo "$COMMIT_MESSAGE" | head -1)"
 
-        # Check if commit message contains "nodeploy" (case insensitive)
-        if echo "$COMMIT_MESSAGE" | grep -qi "nodeploy"; then
-          echo "🚫 Found 'nodeploy' in commit message - skipping deployment"
+          if echo "$COMMIT_MESSAGE" | grep -qi "merge branch"; then
+            echo "Skipping merge commit"
+            continue
+          else
+            # Found a non-merge commit, check for nodeploy
+            if echo "$COMMIT_MESSAGE" | grep -qi "nodeploy"; then
+              NODEPLOY_FOUND=true
+            fi
+            break
+          fi
+        done
+
+        if [ "$NODEPLOY_FOUND" = true ]; then
+          echo "🚫 Found 'nodeploy' in non-merge commit message - skipping deployment"
           echo "nodeploy=true" >> $GITHUB_OUTPUT
         else
-          echo "✅ No 'nodeploy' found in commit message - proceeding with deployment"
+          echo "✅ No 'nodeploy' found in recent non-merge commits - proceeding with deployment"
           echo "nodeploy=false" >> $GITHUB_OUTPUT
         fi
 
