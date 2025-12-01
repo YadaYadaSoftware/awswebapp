@@ -3,7 +3,7 @@ increment: Inherit
 next-version: 1.0.0
 branches:
   main:
-    regex: ^main$
+    regex: ^app$
     mode: ContinuousDelivery
     tag: ""
     increment: Patch
