@@ -221,6 +221,7 @@ jobs:
     name: Deploy to AWS
     runs-on: ubuntu-latest
     needs: [build, get-branch-name]
+    if: needs.get-branch-name.outputs.nodeploy != 'true'
     concurrency:
       group: deploy-${{ matrix.region }}-${{ needs.get-branch-name.outputs.branch-name }}
       cancel-in-progress: false
@@ -229,10 +230,10 @@ jobs:
         include:
           - region: us-east-1
             is_primary: "true"
-            deploy: ${{ needs.get-branch-name.outputs.nodeploy != 'true' }}
+            deploy: true
           - region: us-west-2
             is_primary: "false"
-            deploy: ${{ contains(fromJson('["app","beta","alpha"]'), needs.get-branch-name.outputs.branch-name) && needs.get-branch-name.outputs.nodeploy != 'true' }}
+            deploy: ${{ contains(fromJson('["app","beta","alpha"]'), needs.get-branch-name.outputs.branch-name) }}
       max-parallel: 1
     steps:
     - name: Check deployment status
