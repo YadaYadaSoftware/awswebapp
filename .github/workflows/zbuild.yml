@@ -206,13 +206,61 @@ jobs:
         echo "**Note:** UI tests will run after deployment against the live application." >> $GITHUB_STEP_SUMMARY
 
     - name: Pack TaskManager.Shared
-      run: dotnet pack src/TaskManager.Shared/TaskManager.Shared.csproj --configuration Release --output ./nupkgs --version ${{ steps.custom-version.outputs.custom-version }} --include-symbols --include-source
+      run: |
+        BRANCH_NAME="${{ needs.get-branch-name.outputs.branch-name }}"
+        VERSION="${{ steps.custom-version.outputs.custom-version }}"
+
+        if [ "$BRANCH_NAME" != "app" ]; then
+          PACKAGE_ID_SUFFIX="-$BRANCH_NAME"
+        else
+          PACKAGE_ID_SUFFIX=""
+        fi
+
+        dotnet pack src/TaskManager.Shared/TaskManager.Shared.csproj \
+          --configuration Release \
+          --output ./nupkgs \
+          --version "$VERSION" \
+          --include-symbols \
+          --include-source \
+          /p:PackageId="TaskManager.Shared$PACKAGE_ID_SUFFIX"
 
     - name: Pack TaskManager.Data
-      run: dotnet pack src/TaskManager.Data/TaskManager.Data.csproj --configuration Release --output ./nupkgs --version ${{ steps.custom-version.outputs.custom-version }} --include-symbols --include-source
+      run: |
+        BRANCH_NAME="${{ needs.get-branch-name.outputs.branch-name }}"
+        VERSION="${{ steps.custom-version.outputs.custom-version }}"
+
+        if [ "$BRANCH_NAME" != "app" ]; then
+          PACKAGE_ID_SUFFIX="-$BRANCH_NAME"
+        else
+          PACKAGE_ID_SUFFIX=""
+        fi
+
+        dotnet pack src/TaskManager.Data/TaskManager.Data.csproj \
+          --configuration Release \
+          --output ./nupkgs \
+          --version "$VERSION" \
+          --include-symbols \
+          --include-source \
+          /p:PackageId="TaskManager.Data$PACKAGE_ID_SUFFIX"
 
     - name: Pack TaskManager.Web2
-      run: dotnet pack src/TaskManager.Web2/TaskManager.Web2.csproj --configuration Release --output ./nupkgs --version ${{ steps.custom-version.outputs.custom-version }} --include-symbols --include-source
+      run: |
+        BRANCH_NAME="${{ needs.get-branch-name.outputs.branch-name }}"
+        VERSION="${{ steps.custom-version.outputs.custom-version }}"
+
+        if [ "$BRANCH_NAME" != "app" ]; then
+          PACKAGE_ID_SUFFIX="-$BRANCH_NAME"
+        else
+          PACKAGE_ID_SUFFIX=""
+        fi
+
+        dotnet pack src/TaskManager.Web2/TaskManager.Web2.csproj \
+          --configuration Release \
+          --output ./nupkgs \
+          --version "$VERSION" \
+          --include-symbols \
+          --include-source \
+          /p:PackageId="TaskManager.Web2$PACKAGE_ID_SUFFIX"
 
     - name: Upload NuGet packages
       uses: actions/upload-artifact@v4
