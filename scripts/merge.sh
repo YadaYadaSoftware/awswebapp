@@ -112,9 +112,12 @@ if [ $? -eq 0 ]; then
     echo ""
     echo "✅ Branch merged successfully!"
 
-    # Ask about deleting the source branch
+    # Ask about deleting the source branch (only for non-protected branches)
     echo ""
-    if confirm_action "Delete the source branch '$SOURCE_BRANCH'?"; then
+    if [[ " app beta alpha dev " == *" $SOURCE_BRANCH "* ]]; then
+        echo "ℹ️  Branch '$SOURCE_BRANCH' is a protected branch and will not be deleted."
+    else
+        if confirm_action "Delete the source branch '$SOURCE_BRANCH'?"; then
         echo "Deleting branch: $SOURCE_BRANCH"
         git branch -d "$SOURCE_BRANCH"
 
