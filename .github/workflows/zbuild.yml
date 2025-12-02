@@ -215,10 +215,12 @@ jobs:
         SANITIZED_BRANCH=$(echo "$BRANCH_NAME" | sed 's/[^a-zA-Z0-9]/_/g')
 
         if [ "$BRANCH_NAME" != "app" ]; then
-          PACKAGE_ID_SUFFIX="-$SANITIZED_BRANCH"
+          NUGET_VERSION="$VERSION-$SANITIZED_BRANCH"
         else
-          PACKAGE_ID_SUFFIX=""
+          NUGET_VERSION=$VERSION
+
         fi
+
 
         dotnet pack src/TaskManager.Shared/TaskManager.Shared.csproj \
           --configuration Release \
@@ -226,7 +228,7 @@ jobs:
           --version "$VERSION" \
           --include-symbols \
           --include-source \
-          -p:PackageVersion=$PACKAGE_ID_SUFFIX
+          -p:PackageVersion=$NUGET_VERSION
     - name: Pack TaskManager.Data
       run: |
         BRANCH_NAME="${{ needs.get-branch-name.outputs.branch-name }}"
@@ -236,9 +238,9 @@ jobs:
         SANITIZED_BRANCH=$(echo "$BRANCH_NAME" | sed 's/[^a-zA-Z0-9]/_/g')
 
         if [ "$BRANCH_NAME" != "app" ]; then
-          PACKAGE_ID_SUFFIX="-$SANITIZED_BRANCH"
+          NUGET_VERSION="$VERSION-$SANITIZED_BRANCH"
         else
-          PACKAGE_ID_SUFFIX=""
+          NUGET_VERSION=$VERSION
         fi
 
         dotnet pack src/TaskManager.Data/TaskManager.Data.csproj \
@@ -247,7 +249,7 @@ jobs:
           --version "$VERSION" \
           --include-symbols \
           --include-source \
-          -p:PackageVersion=$PACKAGE_ID_SUFFIX
+          -p:PackageVersion=$NUGET_VERSION
 
     - name: Pack TaskManager.Web2
       run: |
@@ -258,9 +260,9 @@ jobs:
         SANITIZED_BRANCH=$(echo "$BRANCH_NAME" | sed 's/[^a-zA-Z0-9]/_/g')
 
         if [ "$BRANCH_NAME" != "app" ]; then
-          PACKAGE_ID_SUFFIX="-$SANITIZED_BRANCH"
+          NUGET_VERSION="$VERSION-$SANITIZED_BRANCH"
         else
-          PACKAGE_ID_SUFFIX=""
+          NUGET_VERSION=$VERSION
         fi
 
         dotnet pack src/TaskManager.Web2/TaskManager.Web2.csproj \
@@ -269,7 +271,7 @@ jobs:
           --version "$VERSION" \
           --include-symbols \
           --include-source \
-          -p:PackageVersion=$PACKAGE_ID_SUFFIX
+          -p:PackageVersion=$NUGET_VERSION
 
     - name: Upload NuGet packages
       uses: actions/upload-artifact@v4
