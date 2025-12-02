@@ -226,8 +226,7 @@ jobs:
           --version "$VERSION" \
           --include-symbols \
           --include-source \
-          --package-id "TaskManager.Shared$PACKAGE_ID_SUFFIX"
-
+          -p:PackageVersion=$PACKAGE_ID_SUFFIX
     - name: Pack TaskManager.Data
       run: |
         BRANCH_NAME="${{ needs.get-branch-name.outputs.branch-name }}"
@@ -248,7 +247,7 @@ jobs:
           --version "$VERSION" \
           --include-symbols \
           --include-source \
-          --package-id "TaskManager.Data$PACKAGE_ID_SUFFIX"
+          -p:PackageVersion=$PACKAGE_ID_SUFFIX
 
     - name: Pack TaskManager.Web2
       run: |
@@ -270,7 +269,7 @@ jobs:
           --version "$VERSION" \
           --include-symbols \
           --include-source \
-          --package-id "TaskManager.Web2$PACKAGE_ID_SUFFIX"
+          -p:PackageVersion=$PACKAGE_ID_SUFFIX
 
     - name: Upload NuGet packages
       uses: actions/upload-artifact@v4
