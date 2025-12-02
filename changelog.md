@@ -1,5 +1,15 @@
 # Changelog
 
+## [2025-12-02 11:29:08 UTC] merge-workflows (system)
+
+# Changes for system/merge-workflows
+
+**Purpose:** merge the actions together
+
+**Date Created:** 2025-12-01 10:25:16
+
+# Changelog
+
 ## [2025-12-01 11:31:40 UTC] package (system)
 
 # Changes for system/package
