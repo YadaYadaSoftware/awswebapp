@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2013/05/nuspec.xsd">
+  <metadata>
+    <id>TaskManager.Templates</id>
+    <version>1.0.0</version>
+    <title>TaskManager CloudFormation Templates</title>
+    <authors>TaskManager Team</authors>
+    <description>Reusable CloudFormation templates for TaskManager infrastructure deployment including VPC, RDS, ECS, Lambda, and API Gateway components.</description>
+    <summary>CloudFormation infrastructure templates for deploying TaskManager application stack</summary>
+    <tags>cloudformation aws infrastructure taskmanager</tags>
+    <license type="expression">MIT</license>
+    <projectUrl>https://github.com/$(GITHUB_REPOSITORY)</projectUrl>
+    <repository type="git" url="https://github.com/$(GITHUB_REPOSITORY).git" />
+    <dependencies>
+    </dependencies>
+  </metadata>
+  <files>
+    <file src="infrastructure\**" target="infrastructure" />
+  </files>
+</package>

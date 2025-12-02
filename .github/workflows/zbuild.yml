@@ -273,6 +273,24 @@ jobs:
           --include-source \
           -p:PackageVersion=$NUGET_VERSION
 
+    - name: Pack TaskManager.Templates
+      run: |
+        BRANCH_NAME="${{ needs.get-branch-name.outputs.branch-name }}"
+        VERSION="${{ steps.custom-version.outputs.custom-version }}"
+
+        # Sanitize branch name for package ID (replace special chars with hyphens)
+        SANITIZED_BRANCH=$(echo "$BRANCH_NAME" | sed 's/[^a-zA-Z0-9]/-/g')
+
+        if [ "$BRANCH_NAME" != "app" ]; then
+          NUGET_VERSION="$VERSION-$SANITIZED_BRANCH"
+        else
+          NUGET_VERSION=$VERSION
+        fi
+
+        dotnet pack TaskManager.Templates.nuspec \
+          --output ./nupkgs \
+          --version "$NUGET_VERSION"
+
     - name: Upload NuGet packages
       uses: actions/upload-artifact@v4
       with:
