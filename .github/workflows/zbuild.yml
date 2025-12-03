@@ -222,7 +222,8 @@ jobs:
         fi
 
 
-        dotnet pack src/TaskManager.Shared/TaskManager.Shared.csproj \
+        # dotnet pack src/TaskManager.Shared/TaskManager.Shared.csproj \
+        dotnet pack \
           --configuration Release \
           --output ./nupkgs \
           --version "$VERSION" \
