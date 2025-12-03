@@ -242,7 +242,7 @@ jobs:
           NUGET_VERSION=$VERSION
         fi
 
-        dotnet pack TaskManager.Templates.nuspec \
+        dotnet pack *.nuspec \
           --output ./nupkgs \
           --version "$NUGET_VERSION"
 
