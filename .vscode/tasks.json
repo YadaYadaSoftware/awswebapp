@@ -3,7 +3,7 @@
     "tasks": [
         {
             "label": "build",
-            "command": "/Users/timothybassett/bin/dotnet",
+            "command": "dotnet",
             "type": "process",
             "args": [
                 "build",
@@ -27,7 +27,7 @@
         },
         {
             "label": "clean",
-            "command": "/Users/timothybassett/bin/dotnet",
+            "command": "dotnet",
             "type": "process",
             "args": [
                 "clean",
@@ -44,7 +44,7 @@
         },
         {
             "label": "restore",
-            "command": "/Users/timothybassett/bin/dotnet",
+            "command": "dotnet",
             "type": "process",
             "args": [
                 "restore",
@@ -61,7 +61,7 @@
         },
         {
             "label": "watch",
-            "command": "/Users/timothybassett/bin/dotnet",
+            "command": "dotnet",
             "type": "process",
             "args": [
                 "watch",

@@ -2,33 +2,11 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Launch TaskManager.Api",
-            "type": "coreclr",
-            "request": "launch",
-            "preLaunchTask": "build",
-            "program": "${workspaceFolder}/src/TaskManager.Api/bin/Debug/net8.0/TaskManager.Api.dll",
-            "args": [],
-            "cwd": "${workspaceFolder}/src/TaskManager.Api",
-            "stopAtEntry": false,
-            "serverReadyAction": {
-                "pattern": "\\bNow listening on:\\s+(https?://\\S+)",
-                "uriFormat": "%s",
-                "action": "openExternally"
-            },
-            "env": {
-                "ASPNETCORE_ENVIRONMENT": "Development",
-                "ASPNETCORE_URLS": "http://localhost:5000;https://localhost:5001"
-            },
-            "sourceFileMap": {
-                "/Views": "${workspaceFolder}/Views"
-            }
-        },
-        {
             "name": "Launch TaskManager.Web2",
             "type": "coreclr",
             "request": "launch",
             "preLaunchTask": "build",
-            "program": "${workspaceFolder}/src/TaskManager.Web2/bin/Debug/net8.0/TaskManager.Web2.dll",
+            "program": "${workspaceFolder}/src/TaskManager.Web2/bin/Debug/net10.0/TaskManager.Web2.dll",
             "args": [],
             "cwd": "${workspaceFolder}/src/TaskManager.Web2",
             "stopAtEntry": false,
@@ -44,6 +22,31 @@
             "sourceFileMap": {
                 "/Views": "${workspaceFolder}/Views"
             }
+        },
+        {
+            "name": "Launch TaskManager.Api",
+            "type": "coreclr",
+            "request": "launch",
+            "preLaunchTask": "build",
+            "program": "${workspaceFolder}/src/TaskManager.Api/bin/Debug/net10.0/TaskManager.Api.dll",
+            "args": [],
+            "cwd": "${workspaceFolder}/src/TaskManager.Api",
+            "stopAtEntry": false,
+            "env": {
+                "ASPNETCORE_ENVIRONMENT": "Development",
+                "ASPNETCORE_URLS": "http://localhost:5000;https://localhost:5001"
+            },
+            "sourceFileMap": {
+                "/Views": "${workspaceFolder}/Views"
+            }
+        },
+        {
+            "name": "Launch TaskManager (API + Web)",
+            "type": "compound",
+            "configurations": [
+                "Launch TaskManager.Api",
+                "Launch TaskManager.Web2"
+            ]
         },
         {
             "name": ".NET Core Attach",
