@@ -4,10 +4,10 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <UserSecretsId>aspnet-TaskManager.Web2-8398677e-2bef-4908-bb1b-78aae0d38aed</UserSecretsId>
+    <UserSecretsId>aspnet-TaskManager.Web-8398677e-2bef-4908-bb1b-78aae0d38aed</UserSecretsId>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <IsPackable>true</IsPackable>
-    <PackageId>TaskManager.Web2</PackageId>
+    <PackageId>TaskManager.Web</PackageId>
     <Title>TaskManager Web Application</Title>
     <Authors>Your Organization</Authors>
     <Description>Blazor Server web application for task management</Description>

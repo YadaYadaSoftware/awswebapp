@@ -1,4 +1,4 @@
-namespace TaskManager.Web2.Data
+namespace TaskManager.Web.Data
 {
     public class WeatherForecast
     {

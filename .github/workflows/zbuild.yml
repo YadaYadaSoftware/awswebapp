@@ -251,7 +251,7 @@ jobs:
           --include-source \
           -p:PackageVersion=$NUGET_VERSION
 
-    - name: Pack TaskManager.Web2
+    - name: Pack TaskManager.Web
       run: |
         BRANCH_NAME="${{ needs.get-branch-name.outputs.branch-name }}"
         VERSION="${{ steps.custom-version.outputs.custom-version }}"
@@ -265,7 +265,7 @@ jobs:
           NUGET_VERSION=$VERSION
         fi
 
-        dotnet pack src/TaskManager.Web2/TaskManager.Web2.csproj \
+        dotnet pack src/TaskManager.Web/TaskManager.Web.csproj \
           --configuration Release \
           --output ./nupkgs \
           --version "$VERSION" \
@@ -282,7 +282,7 @@ jobs:
     - name: Publish Web for Container
       run: |
         echo "Publishing Web with version: ${{ steps.custom-version.outputs.custom-version }}"
-        dotnet publish src/TaskManager.Web2/TaskManager.Web2.csproj --configuration Release --output ./publish/web --runtime linux-x64 --self-contained false /p:Version=${{ steps.custom-version.outputs.custom-version }} /p:AssemblyVersion=${{ steps.gitversion.outputs.assemblySemVer }}
+        dotnet publish src/TaskManager.Web/TaskManager.Web.csproj --configuration Release --output ./publish/web --runtime linux-x64 --self-contained false /p:Version=${{ steps.custom-version.outputs.custom-version }} /p:AssemblyVersion=${{ steps.gitversion.outputs.assemblySemVer }}
 
 
 
@@ -463,7 +463,7 @@ jobs:
         echo "🌿 Branch tag: $BRANCH_TAG"
 
         # Build container image from root context
-        docker build -t taskmanager-web:$SRC_CHECKSUM -f src/TaskManager.Web2/Dockerfile . --build-arg VERSION=${{ needs.build.outputs.customVersion }} --build-arg ASSEMBLY_VERSION=${{ needs.build.outputs.assemblySemVer }}
+        docker build -t taskmanager-web:$SRC_CHECKSUM -f src/TaskManager.Web/Dockerfile . --build-arg VERSION=${{ needs.build.outputs.customVersion }} --build-arg ASSEMBLY_VERSION=${{ needs.build.outputs.assemblySemVer }}
 
         # Login to ECR
         aws ecr get-login-password --region ${{ matrix.region }} | docker login --username AWS --password-stdin $ECR_REPO

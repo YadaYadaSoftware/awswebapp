@@ -7,8 +7,8 @@ using Microsoft.AspNetCore.Identity.UI;
 using Microsoft.EntityFrameworkCore;
 using Pomelo.EntityFrameworkCore.MySql;
 using TaskManager.Data;
-using TaskManager.Web2.Areas.Identity;
-using TaskManager.Web2.Data;
+using TaskManager.Web.Areas.Identity;
+using TaskManager.Web.Data;
 using static Microsoft.Extensions.DependencyInjection.GoogleExtensions;
 
 
