@@ -326,7 +326,7 @@ jobs:
     - name: Publish Web for Container
       run: |
         echo "Publishing Web with version: ${{ steps.custom-version.outputs.custom-version }}"
-        dotnet publish src/Tjb.Web/TaskManager.Web.csproj --configuration Release --output ./publish/web --runtime linux-x64 --self-contained false /p:Version=${{ steps.custom-version.outputs.custom-version }} /p:AssemblyVersion=${{ steps.gitversion.outputs.assemblySemVer }}
+        dotnet publish src/Tjb.Web/Tjb.Web.csproj --configuration Release --output ./publish/web --runtime linux-x64 --self-contained false /p:Version=${{ steps.custom-version.outputs.custom-version }} /p:AssemblyVersion=${{ steps.gitversion.outputs.assemblySemVer }}
 
 
 
