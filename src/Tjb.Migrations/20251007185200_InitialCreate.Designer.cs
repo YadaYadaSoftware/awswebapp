@@ -4,13 +4,13 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Pomelo.EntityFrameworkCore.MySql;
-using TaskManager.Data;
+using Tjb.Data;
 
 #nullable disable
 
-namespace TaskManager.Migrations
+namespace Tjb.Migrations
 {
-    [DbContext(typeof(TaskManagerDbContext))]
+    [DbContext(typeof(TjbDbContext))]
     [Migration("20251007185200_InitialCreate")]
     partial class InitialCreate
     {
@@ -220,7 +220,7 @@ namespace TaskManager.Migrations
                     b.ToTable("AspNetUserTokens");
                 });
 
-            modelBuilder.Entity("TaskManager.Data.Entities.Invitation", b =>
+            modelBuilder.Entity("Tjb.Data.Entities.Invitation", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -257,7 +257,7 @@ namespace TaskManager.Migrations
                     b.ToTable("Invitations");
                 });
 
-            modelBuilder.Entity("TaskManager.Data.Entities.Project", b =>
+            modelBuilder.Entity("Tjb.Data.Entities.Project", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -290,7 +290,7 @@ namespace TaskManager.Migrations
                     b.ToTable("Projects");
                 });
 
-            modelBuilder.Entity("TaskManager.Data.Entities.ProjectMember", b =>
+            modelBuilder.Entity("Tjb.Data.Entities.ProjectMember", b =>
                 {
                     b.Property<Guid>("ProjectId")
                         .HasColumnType("char(36)");
@@ -311,7 +311,7 @@ namespace TaskManager.Migrations
                     b.ToTable("ProjectMembers");
                 });
 
-            modelBuilder.Entity("TaskManager.Data.Entities.Task", b =>
+            modelBuilder.Entity("Tjb.Data.Entities.Task", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -359,7 +359,7 @@ namespace TaskManager.Migrations
                     b.ToTable("Tasks");
                 });
 
-            modelBuilder.Entity("TaskManager.Data.Entities.User", b =>
+            modelBuilder.Entity("Tjb.Data.Entities.User", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -451,66 +451,66 @@ namespace TaskManager.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("TaskManager.Data.Entities.Invitation", b =>
+            modelBuilder.Entity("Tjb.Data.Entities.Invitation", b =>
                 {
-                    b.HasOne("TaskManager.Data.Entities.User", "InvitedByUser")
+                    b.HasOne("Tjb.Data.Entities.User", "InvitedByUser")
                         .WithMany()
                         .HasForeignKey("InvitedByUserId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("TaskManager.Data.Entities.Project", b =>
+            modelBuilder.Entity("Tjb.Data.Entities.Project", b =>
                 {
-                    b.HasOne("TaskManager.Data.Entities.User", "Owner")
+                    b.HasOne("Tjb.Data.Entities.User", "Owner")
                         .WithMany("OwnedProjects")
                         .HasForeignKey("OwnerId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("TaskManager.Data.Entities.ProjectMember", b =>
+            modelBuilder.Entity("Tjb.Data.Entities.ProjectMember", b =>
                 {
-                    b.HasOne("TaskManager.Data.Entities.Project", "Project")
+                    b.HasOne("Tjb.Data.Entities.Project", "Project")
                         .WithMany("Members")
                         .HasForeignKey("ProjectId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("TaskManager.Data.Entities.User", "User")
+                    b.HasOne("Tjb.Data.Entities.User", "User")
                         .WithMany("ProjectMemberships")
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("TaskManager.Data.Entities.Task", b =>
+            modelBuilder.Entity("Tjb.Data.Entities.Task", b =>
                 {
-                    b.HasOne("TaskManager.Data.Entities.User", "AssignedTo")
+                    b.HasOne("Tjb.Data.Entities.User", "AssignedTo")
                         .WithMany("AssignedTasks")
                         .HasForeignKey("AssignedToId")
                         .OnDelete(DeleteBehavior.SetNull);
 
-                    b.HasOne("TaskManager.Data.Entities.Project", "Project")
+                    b.HasOne("Tjb.Data.Entities.Project", "Project")
                         .WithMany("Tasks")
                         .HasForeignKey("ProjectId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("TaskManager.Data.Entities.User", b =>
+            modelBuilder.Entity("Tjb.Data.Entities.User", b =>
                 {
-                    b.HasMany("TaskManager.Data.Entities.Project", "OwnedProjects")
+                    b.HasMany("Tjb.Data.Entities.Project", "OwnedProjects")
                         .WithOne("Owner")
                         .HasForeignKey("OwnerId")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.HasMany("TaskManager.Data.Entities.Task", "AssignedTasks")
+                    b.HasMany("Tjb.Data.Entities.Task", "AssignedTasks")
                         .WithOne("AssignedTo")
                         .HasForeignKey("AssignedToId")
                         .OnDelete(DeleteBehavior.SetNull);
 
-                    b.HasMany("TaskManager.Data.Entities.ProjectMember", "ProjectMemberships")
+                    b.HasMany("Tjb.Data.Entities.ProjectMember", "ProjectMemberships")
                         .WithOne("User")
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade);

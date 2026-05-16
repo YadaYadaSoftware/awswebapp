@@ -1,7 +1,7 @@
 using System.ComponentModel.DataAnnotations;
-using TaskManager.Shared.Enums;
+using Tjb.Shared.Enums;
 
-namespace TaskManager.Data.Entities;
+namespace Tjb.Data.Entities;
 
 public class Task
 {

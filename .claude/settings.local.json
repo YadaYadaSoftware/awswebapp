@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git mv *)",
+      "Bash(echo \"Status: $?\")",
+      "Bash(dotnet restore *)",
+      "Bash(dotnet build *)",
+      "Bash(xargs grep -l \"TaskManager\")",
+      "Bash(dotnet pack *)",
+      "Bash(awk '{print $9, $5}')"
+    ]
+  }
+}

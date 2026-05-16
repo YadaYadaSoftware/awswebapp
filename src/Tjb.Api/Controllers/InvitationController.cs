@@ -1,10 +1,10 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
-using TaskManager.Api.Services;
-using TaskManager.Shared.Models;
+using Tjb.Api.Services;
+using Tjb.Shared.Models;
 
-namespace TaskManager.Api.Controllers;
+namespace Tjb.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]

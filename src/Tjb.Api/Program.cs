@@ -5,12 +5,12 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using Pomelo.EntityFrameworkCore.MySql;
-using TaskManager.Api.Services;
-using TaskManager.Data;
+using Tjb.Api.Services;
+using Tjb.Data;
 
 [assembly: LambdaSerializer(typeof(Amazon.Lambda.Serialization.SystemTextJson.DefaultLambdaJsonSerializer))]
 
-namespace TaskManager.Api;
+namespace Tjb.Api;
 
 public class Program
 {
@@ -35,7 +35,7 @@ public class Program
     public static void ConfigureServices(IServiceCollection services, IConfiguration configuration)
     {
         // Add Entity Framework
-        services.AddDbContext<TaskManagerDbContext>(options =>
+        services.AddDbContext<TjbDbContext>(options =>
         {
             var connectionString = configuration.GetConnectionString("DefaultConnection");
             if (string.IsNullOrEmpty(connectionString))

@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace TaskManager.UiTests;
+namespace Tjb.UiTests;
 
 public class TestEnvironment
 {

@@ -1,17 +1,17 @@
 using Microsoft.EntityFrameworkCore;
-using TaskManager.Data;
-using TaskManager.Data.Entities;
-using TaskManager.Shared.Enums;
+using Tjb.Data;
+using Tjb.Data.Entities;
+using Tjb.Shared.Enums;
 using System.Threading.Tasks;
 
-namespace TaskManager.Api.Services;
+namespace Tjb.Api.Services;
 
 public class DatabaseMigrationService : IDatabaseMigrationService
 {
-    private readonly TaskManagerDbContext _context;
+    private readonly TjbDbContext _context;
     private readonly ILogger<DatabaseMigrationService> _logger;
 
-    public DatabaseMigrationService(TaskManagerDbContext context, ILogger<DatabaseMigrationService> logger)
+    public DatabaseMigrationService(TjbDbContext context, ILogger<DatabaseMigrationService> logger)
     {
         _context = context;
         _logger = logger;

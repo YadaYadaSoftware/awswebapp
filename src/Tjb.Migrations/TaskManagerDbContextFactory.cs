@@ -2,13 +2,13 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 using Microsoft.Extensions.Configuration;
 using Pomelo.EntityFrameworkCore.MySql;
-using TaskManager.Data;
+using Tjb.Data;
 
-namespace TaskManager.Migrations;
+namespace Tjb.Migrations;
 
-public class TaskManagerDbContextFactory : IDesignTimeDbContextFactory<TaskManagerDbContext>
+public class TjbDbContextFactory : IDesignTimeDbContextFactory<TjbDbContext>
 {
-    public TaskManagerDbContext CreateDbContext(string[] args)
+    public TjbDbContext CreateDbContext(string[] args)
     {
         var configuration = new ConfigurationBuilder()
             .SetBasePath(Directory.GetCurrentDirectory())
@@ -24,9 +24,9 @@ public class TaskManagerDbContextFactory : IDesignTimeDbContextFactory<TaskManag
             throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
         }
 
-        var optionsBuilder = new DbContextOptionsBuilder<TaskManagerDbContext>();
+        var optionsBuilder = new DbContextOptionsBuilder<TjbDbContext>();
         optionsBuilder.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString));
 
-        return new TaskManagerDbContext(optionsBuilder.Options);
+        return new TjbDbContext(optionsBuilder.Options);
     }
 }

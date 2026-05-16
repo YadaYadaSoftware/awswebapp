@@ -1,7 +1,7 @@
 using Microsoft.Playwright;
 using System.Threading.Tasks;
 
-namespace TaskManager.UiTests;
+namespace Tjb.UiTests;
 
 public class PlaywrightConfig
 {

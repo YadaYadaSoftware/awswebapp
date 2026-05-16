@@ -1,10 +1,10 @@
 using FluentAssertions;
-using TaskManager.UiTests.Pages;
+using Tjb.UiTests.Pages;
 using Xunit;
 using System.Threading.Tasks;
 using System;
 
-namespace TaskManager.UiTests.Tests;
+namespace Tjb.UiTests.Tests;
 
 public class LoginNavigationTests : BaseTest
 {

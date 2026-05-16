@@ -5,17 +5,17 @@ VisualStudioVersion = 18.4.11626.88 stable
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{E4445105-23D3-415E-9840-A6B083651FD3}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TaskManager.Shared", "src\TaskManager.Shared\TaskManager.Shared.csproj", "{9CA2550B-AC3C-4790-B3D8-3A22410AA6DA}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Tjb.Shared", "src\Tjb.Shared\Tjb.Shared.csproj", "{9CA2550B-AC3C-4790-B3D8-3A22410AA6DA}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TaskManager.Data", "src\TaskManager.Data\TaskManager.Data.csproj", "{E439E92D-B049-4D66-AABA-CF9E2EF6AE98}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Tjb.Data", "src\Tjb.Data\Tjb.Data.csproj", "{E439E92D-B049-4D66-AABA-CF9E2EF6AE98}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TaskManager.Api", "src\TaskManager.Api\TaskManager.Api.csproj", "{BC60927F-30A5-4A89-BA1F-C9E7ADF03215}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Tjb.Api", "src\Tjb.Api\Tjb.Api.csproj", "{BC60927F-30A5-4A89-BA1F-C9E7ADF03215}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TaskManager.Migrations", "src\TaskManager.Migrations\TaskManager.Migrations.csproj", "{00A7CCBB-3BBC-49F6-A6F5-D72FB1324B5A}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Tjb.Migrations", "src\Tjb.Migrations\Tjb.Migrations.csproj", "{00A7CCBB-3BBC-49F6-A6F5-D72FB1324B5A}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TaskManager.UiTests", "src\TaskManager.UiTests\TaskManager.UiTests.csproj", "{A1B2C3D4-E5F6-789A-BCDE-F0123456789A}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Tjb.UiTests", "src\Tjb.UiTests\Tjb.UiTests.csproj", "{A1B2C3D4-E5F6-789A-BCDE-F0123456789A}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TaskManager.Web", "src\TaskManager.Web\TaskManager.Web.csproj", "{E654415A-919F-260B-8EA2-6C69C794F97C}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Tjb.Web", "src\Tjb.Web\Tjb.Web.csproj", "{E654415A-919F-260B-8EA2-6C69C794F97C}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

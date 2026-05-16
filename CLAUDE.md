@@ -8,8 +8,8 @@ The root `README.md` is partially out of date — trust the code over the README
 
 - **Framework**: `net10.0` (not net8). All projects target it. CI uses `dotnet-version: 10.0.x`.
 - **Database**: MySQL via `Pomelo.EntityFrameworkCore.MySql` (not PostgreSQL). Production runs Aurora MySQL Serverless v2 (Global Cluster on `app`/`beta`/`alpha`). README mentions PostgreSQL/RDS — ignore.
-- **Hosting**: Containerized — Dockerfile at [src/TaskManager.Web/Dockerfile](src/TaskManager.Web/Dockerfile) builds a `mcr.microsoft.com/dotnet/aspnet:10.0` image pushed to ECR and run behind an ALB. The README's "AWS Lambda + API Gateway" description is stale; only `TaskManager.Api` retains Lambda packaging code (`Amazon.Lambda.AspNetCoreServer`) but the deployed surface is the Web container. Treat `TaskManager.Api` as a vestigial/secondary project — `TaskManager.Web` is the live application.
-- **Auth**: All real authentication lives in `TaskManager.Web` (ASP.NET Identity + Google OAuth). [src/TaskManager.Api/Controllers/AuthController.cs](src/TaskManager.Api/Controllers/AuthController.cs) is intentionally a no-op ("authentication disabled") — don't try to "fix" it.
+- **Hosting**: Containerized — Dockerfile at [src/Tjb.Web/Dockerfile](src/Tjb.Web/Dockerfile) builds a `mcr.microsoft.com/dotnet/aspnet:10.0` image pushed to ECR and run behind an ALB. The README's "AWS Lambda + API Gateway" description is stale; only `Tjb.Api` retains Lambda packaging code (`Amazon.Lambda.AspNetCoreServer`) but the deployed surface is the Web container. Treat `Tjb.Api` as a vestigial/secondary project — `Tjb.Web` is the live application.
+- **Auth**: All real authentication lives in `Tjb.Web` (ASP.NET Identity + Google OAuth). [src/Tjb.Api/Controllers/AuthController.cs](src/Tjb.Api/Controllers/AuthController.cs) is intentionally a no-op ("authentication disabled") — don't try to "fix" it.
 
 ## Common commands
 
@@ -17,23 +17,23 @@ The root `README.md` is partially out of date — trust the code over the README
 # Build / test (run from repo root)
 dotnet restore
 dotnet build --configuration Release
-dotnet test --filter "FullyQualifiedName!~TaskManager.UiTests"   # CI runs unit tests this way; UI tests are excluded pre-deploy
+dotnet test --filter "FullyQualifiedName!~Tjb.UiTests"   # CI runs unit tests this way; UI tests are excluded pre-deploy
 
 # Run the web app locally (Blazor Server + Identity + Google OAuth)
-dotnet run --project src/TaskManager.Web
+dotnet run --project src/Tjb.Web
 
 # Run the API locally (mostly health endpoint + Swagger)
-dotnet run --project src/TaskManager.Api
+dotnet run --project src/Tjb.Api
 
 # EF Core migrations — migrations live in their OWN project, not in Data
-dotnet ef migrations add <Name> --project src/TaskManager.Migrations --startup-project src/TaskManager.Migrations
-dotnet ef database update           --project src/TaskManager.Migrations --startup-project src/TaskManager.Migrations
+dotnet ef migrations add <Name> --project src/Tjb.Migrations --startup-project src/Tjb.Migrations
+dotnet ef database update           --project src/Tjb.Migrations --startup-project src/Tjb.Migrations
 
 # Apply migrations + seed (standalone runner)
-dotnet run --project src/TaskManager.Migrations
+dotnet run --project src/Tjb.Migrations
 
 # UI tests (Playwright/xUnit) — point at a deployed env via TEST_BASE_URL
-cd src/TaskManager.UiTests
+cd src/Tjb.UiTests
 dotnet build                                # also restores Playwright browsers
 dotnet test                                 # runs against BaseUrl in appsettings.json (default: https://dev.appcloud.systems)
 dotnet test --filter "FullyQualifiedName~LoginNavigation"   # single test
@@ -44,14 +44,14 @@ dotnet test --filter "FullyQualifiedName~LoginNavigation"   # single test
 
 ## Architecture
 
-Six projects in [TaskManager.sln](TaskManager.sln):
+Six projects in [Tjb.sln](Tjb.sln):
 
-- **TaskManager.Shared** — DTOs and enums (`TaskStatus`, `TaskPriority`, `ProjectRole`). Packed as a NuGet on every CI build.
-- **TaskManager.Data** — EF Core `DbContext`, entity classes, configurations. `TaskManagerDbContext` extends `IdentityDbContext<IdentityUser>`, so Identity tables share the same DB. The DbContext is wired via `mysqlOptions.MigrationsAssembly("TaskManager.Migrations")` — migrations are NOT generated into this project.
-- **TaskManager.Migrations** — Holds EF migration files, an `IDesignTimeDbContextFactory` (so `dotnet ef` can resolve a connection string from its own `appsettings.json`), and a standalone `Program.cs` that applies migrations + seeds initial data. This is also referenced by `Api` and `Web` so they can apply migrations on startup.
-- **TaskManager.Api** — Minimal Web API. Currently exposes only `/health`, Swagger (in dev), and stub `AuthController` endpoints. Still contains Lambda hosting glue (`LambdaEntryPoint`, `Startup`) but is not the deployed front door.
-- **TaskManager.Web** — **The deployed application.** Blazor Server + Razor Pages + ASP.NET Identity + Google OAuth. On startup it calls `EnsureCreatedAsync()` then `MigrateAsync()`. Sits behind an ALB so it configures `ForwardedHeaders` (`X-Forwarded-Proto`/`-For`) with `KnownProxies`/`KnownNetworks` cleared — needed for the Google OAuth `/signin-google` callback to see HTTPS.
-- **TaskManager.UiTests** — Playwright + xUnit. Runs against a *deployed* URL, not a local server. Uses token-based Google auth in CI (`GOOGLE_TEST_ACCESS_TOKEN`/`REFRESH_TOKEN`) rather than scripting the OAuth UI.
+- **Tjb.Shared** — DTOs and enums (`TaskStatus`, `TaskPriority`, `ProjectRole`). Packed as a NuGet on every CI build.
+- **Tjb.Data** — EF Core `DbContext`, entity classes, configurations. `TjbDbContext` extends `IdentityDbContext<IdentityUser>`, so Identity tables share the same DB. The DbContext is wired via `mysqlOptions.MigrationsAssembly("Tjb.Migrations")` — migrations are NOT generated into this project.
+- **Tjb.Migrations** — Holds EF migration files, an `IDesignTimeDbContextFactory` (so `dotnet ef` can resolve a connection string from its own `appsettings.json`), and a standalone `Program.cs` that applies migrations + seeds initial data. This is also referenced by `Api` and `Web` so they can apply migrations on startup.
+- **Tjb.Api** — Minimal Web API. Currently exposes only `/health`, Swagger (in dev), and stub `AuthController` endpoints. Still contains Lambda hosting glue (`LambdaEntryPoint`, `Startup`) but is not the deployed front door.
+- **Tjb.Web** — **The deployed application.** Blazor Server + Razor Pages + ASP.NET Identity + Google OAuth. On startup it calls `EnsureCreatedAsync()` then `MigrateAsync()`. Sits behind an ALB so it configures `ForwardedHeaders` (`X-Forwarded-Proto`/`-For`) with `KnownProxies`/`KnownNetworks` cleared — needed for the Google OAuth `/signin-google` callback to see HTTPS.
+- **Tjb.UiTests** — Playwright + xUnit. Runs against a *deployed* URL, not a local server. Uses token-based Google auth in CI (`GOOGLE_TEST_ACCESS_TOKEN`/`REFRESH_TOKEN`) rather than scripting the OAuth UI.
 
 Both `Web` and `Api` apply migrations on startup but **swallow exceptions** so the app still boots if migrations fail (intentional, to avoid Lambda/cold-start crashes). Don't change this to throw without thinking through the deployment story.
 
@@ -73,8 +73,8 @@ Useful workflow controls:
 
 ## Things that will trip you up
 
-- **Don't add migrations to `TaskManager.Data`** — the `MigrationsAssembly` is `TaskManager.Migrations`. EF tooling needs `--project src/TaskManager.Migrations`.
-- **`TaskManager.Api` is mostly inert.** Adding endpoints there won't reach users; add them to `TaskManager.Web`.
+- **Don't add migrations to `Tjb.Data`** — the `MigrationsAssembly` is `Tjb.Migrations`. EF tooling needs `--project src/Tjb.Migrations`.
+- **`Tjb.Api` is mostly inert.** Adding endpoints there won't reach users; add them to `Tjb.Web`.
 - **Connection strings in `appsettings.json` are localhost defaults** (`Server=localhost;...root/password`). Real values come from environment / Secrets Manager in deployed envs and from `dotnet user-secrets` locally.
-- **Forwarded headers config in [src/TaskManager.Web/Program.cs](src/TaskManager.Web/Program.cs) clears `KnownProxies`/`KnownNetworks` on purpose** — the ALB has dynamic IPs. Don't tighten it without verifying OAuth still works.
+- **Forwarded headers config in [src/Tjb.Web/Program.cs](src/Tjb.Web/Program.cs) clears `KnownProxies`/`KnownNetworks` on purpose** — the ALB has dynamic IPs. Don't tighten it without verifying OAuth still works.
 - **NuGet package versions are branch-suffixed** for non-`app` branches (`{version}-{sanitized-branch}`) so consumers can pin to a feature branch's build.

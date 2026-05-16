@@ -3,7 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
-namespace TaskManager.UiTests;
+namespace Tjb.UiTests;
 
 public class TestDataManager
 {

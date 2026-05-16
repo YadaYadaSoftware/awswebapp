@@ -1,12 +1,12 @@
 using FluentAssertions;
-using TaskManager.UiTests.Pages;
+using Tjb.UiTests.Pages;
 using Xunit;
 using System.Threading.Tasks;
 using System;
 using System.Net.Http;
 using Microsoft.Extensions.Configuration;
 
-namespace TaskManager.UiTests.Tests;
+namespace Tjb.UiTests.Tests;
 
 public class UserAuthenticationTests : BaseTest
 {

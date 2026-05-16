@@ -2,7 +2,7 @@ using Microsoft.Playwright;
 using System.Threading.Tasks;
 using System;
 
-namespace TaskManager.UiTests.Pages;
+namespace Tjb.UiTests.Pages;
 
 public class LoginPage
 {

@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace TaskManager.Data.Entities;
+namespace Tjb.Data.Entities;
 
 public class Project
 {

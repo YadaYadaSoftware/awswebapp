@@ -1,4 +1,4 @@
-namespace TaskManager.Web.Data
+namespace Tjb.Web.Data
 {
     public class WeatherForecast
     {

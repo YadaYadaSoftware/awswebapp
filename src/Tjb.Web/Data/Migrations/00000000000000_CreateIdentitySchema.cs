@@ -2,7 +2,7 @@ using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Migrations;
 using System;
 
-namespace TaskManager.Web.Data.Migrations
+namespace Tjb.Web.Data.Migrations
 {
     public partial class CreateIdentitySchema : Migration
     {

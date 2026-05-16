@@ -7,7 +7,7 @@ using System.Net.Http;
 using System.Threading.Tasks;
 using System.Linq;
 
-namespace TaskManager.UiTests;
+namespace Tjb.UiTests;
 
 public class GoogleTokenService
 {

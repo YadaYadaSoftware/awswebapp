@@ -3,7 +3,7 @@ using Pomelo.EntityFrameworkCore.MySql;
 
 #nullable disable
 
-namespace TaskManager.Migrations
+namespace Tjb.Migrations
 {
     /// <inheritdoc />
     public partial class InitialCreate : Migration

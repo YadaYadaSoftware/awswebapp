@@ -1,9 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using TaskManager.Data.Entities;
-using TaskManager.Shared.Enums;
+using Tjb.Data.Entities;
+using Tjb.Shared.Enums;
 
-namespace TaskManager.Data.Configurations;
+namespace Tjb.Data.Configurations;
 
 public class TaskConfiguration : IEntityTypeConfiguration<Entities.Task>
 {

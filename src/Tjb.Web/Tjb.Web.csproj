@@ -7,12 +7,12 @@
     <UserSecretsId>aspnet-TaskManager.Web-8398677e-2bef-4908-bb1b-78aae0d38aed</UserSecretsId>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <IsPackable>true</IsPackable>
-    <PackageId>TaskManager.Web</PackageId>
-    <Title>TaskManager Web Application</Title>
+    <PackageId>Tjb.Web</PackageId>
+    <Title>Tjb Web Application</Title>
     <Authors>Your Organization</Authors>
-    <Description>Blazor Server web application for task management</Description>
-    <PackageTags>taskmanager;blazor;web;application</PackageTags>
-    <RepositoryUrl>https://github.com/your-org/taskmanager</RepositoryUrl>
+    <Description>Blazor Server web application for Tjb</Description>
+    <PackageTags>tjb;blazor;web;application</PackageTags>
+    <RepositoryUrl>https://github.com/your-org/tjb</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
   </PropertyGroup>
@@ -29,8 +29,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\TaskManager.Data\TaskManager.Data.csproj" />
-    <ProjectReference Include="..\TaskManager.Migrations\TaskManager.Migrations.csproj" />
+    <ProjectReference Include="..\Tjb.Data\Tjb.Data.csproj" />
+    <ProjectReference Include="..\Tjb.Migrations\Tjb.Migrations.csproj" />
   </ItemGroup>
 
 </Project>

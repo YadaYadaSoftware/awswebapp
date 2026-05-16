@@ -1,8 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using TaskManager.Data.Entities;
+using Tjb.Data.Entities;
 
-namespace TaskManager.Data.Configurations;
+namespace Tjb.Data.Configurations;
 
 public class ProjectConfiguration : IEntityTypeConfiguration<Project>
 {

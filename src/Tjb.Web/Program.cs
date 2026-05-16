@@ -6,9 +6,9 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.UI;
 using Microsoft.EntityFrameworkCore;
 using Pomelo.EntityFrameworkCore.MySql;
-using TaskManager.Data;
-using TaskManager.Web.Areas.Identity;
-using TaskManager.Web.Data;
+using Tjb.Data;
+using Tjb.Web.Areas.Identity;
+using Tjb.Web.Data;
 using static Microsoft.Extensions.DependencyInjection.GoogleExtensions;
 
 
@@ -18,8 +18,8 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
 
-// Register TaskManagerDbContext for both Identity and application data
-builder.Services.AddDbContext<TaskManagerDbContext>(options =>
+// Register TjbDbContext for both Identity and application data
+builder.Services.AddDbContext<TjbDbContext>(options =>
 {
     if (string.IsNullOrEmpty(connectionString))
     {
@@ -38,7 +38,7 @@ builder.Services.AddDefaultIdentity<IdentityUser>(options =>
 {
     options.SignIn.RequireConfirmedAccount = true;
 })
-.AddEntityFrameworkStores<TaskManagerDbContext>();
+.AddEntityFrameworkStores<TjbDbContext>();
 
 builder.Services.ConfigureApplicationCookie(options =>
 {
@@ -88,7 +88,7 @@ builder.Services.AddAuthentication().AddGoogle(googleOptions =>
         try
         {
             // Test database connectivity
-            var dbContext = context.HttpContext.RequestServices.GetRequiredService<TaskManagerDbContext>();
+            var dbContext = context.HttpContext.RequestServices.GetRequiredService<TjbDbContext>();
             var canConnect = await dbContext.Database.CanConnectAsync();
             logger.LogInformation("Database connectivity check: {CanConnect}", canConnect);
 
@@ -195,9 +195,9 @@ async Task ApplyDatabaseMigrations(WebApplication app)
 
     try
     {
-        // Apply migrations for TaskManagerDbContext (Identity + application data)
-        logger.LogInformation("Ensuring database exists and applying migrations for TaskManagerDbContext...");
-        var context = services.GetRequiredService<TaskManagerDbContext>();
+        // Apply migrations for TjbDbContext (Identity + application data)
+        logger.LogInformation("Ensuring database exists and applying migrations for TjbDbContext...");
+        var context = services.GetRequiredService<TjbDbContext>();
 
         // This will create the database if it doesn't exist
         await context.Database.EnsureCreatedAsync();
@@ -205,7 +205,7 @@ async Task ApplyDatabaseMigrations(WebApplication app)
         // This will apply all pending migrations
         await context.Database.MigrateAsync();
 
-        logger.LogInformation("TaskManagerDbContext migrations applied successfully.");
+        logger.LogInformation("TjbDbContext migrations applied successfully.");
     }
     catch (Exception ex)
     {

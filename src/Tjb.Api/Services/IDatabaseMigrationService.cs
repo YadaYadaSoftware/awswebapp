@@ -1,4 +1,4 @@
-namespace TaskManager.Api.Services;
+namespace Tjb.Api.Services;
 
 public interface IDatabaseMigrationService
 {

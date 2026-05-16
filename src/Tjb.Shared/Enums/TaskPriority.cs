@@ -1,4 +1,4 @@
-namespace TaskManager.Shared.Enums;
+namespace Tjb.Shared.Enums;
 
 public enum TaskPriority
 {

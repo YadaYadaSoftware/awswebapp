@@ -2,13 +2,13 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Pomelo.EntityFrameworkCore.MySql;
-using TaskManager.Data.Entities;
+using Tjb.Data.Entities;
 
-namespace TaskManager.Data;
+namespace Tjb.Data;
 
-public class TaskManagerDbContext : IdentityDbContext<IdentityUser>
+public class TjbDbContext : IdentityDbContext<IdentityUser>
 {
-    public TaskManagerDbContext(DbContextOptions<TaskManagerDbContext> options) : base(options)
+    public TjbDbContext(DbContextOptions<TjbDbContext> options) : base(options)
     {
     }
 
@@ -18,7 +18,7 @@ public class TaskManagerDbContext : IdentityDbContext<IdentityUser>
         {
             var connectionString = "Server=localhost;Database=TaskManagerDb;User=root;Password=password;";
             optionsBuilder.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString), mysqlOptions =>
-                mysqlOptions.MigrationsAssembly("TaskManager.Migrations"));
+                mysqlOptions.MigrationsAssembly("Tjb.Migrations"));
         }
     }
 
@@ -33,7 +33,7 @@ public class TaskManagerDbContext : IdentityDbContext<IdentityUser>
         base.OnModelCreating(modelBuilder);
 
         // Apply configurations
-        modelBuilder.ApplyConfigurationsFromAssembly(typeof(TaskManagerDbContext).Assembly);
+        modelBuilder.ApplyConfigurationsFromAssembly(typeof(TjbDbContext).Assembly);
 
         // Configure composite key for ProjectMember
         modelBuilder.Entity<ProjectMember>()

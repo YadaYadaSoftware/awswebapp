@@ -1,4 +1,4 @@
-namespace TaskManager.Shared.Models;
+namespace Tjb.Shared.Models;
 
 public class InvitationDto
 {

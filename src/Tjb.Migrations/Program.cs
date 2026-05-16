@@ -4,9 +4,9 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Pomelo.EntityFrameworkCore.MySql;
-using TaskManager.Data;
+using Tjb.Data;
 
-namespace TaskManager.Migrations;
+namespace Tjb.Migrations;
 
 public class Program
 {
@@ -19,7 +19,7 @@ public class Program
         
         try
         {
-            var context = services.GetRequiredService<TaskManagerDbContext>();
+            var context = services.GetRequiredService<TjbDbContext>();
             var logger = services.GetRequiredService<ILogger<Program>>();
             
             logger.LogInformation("Starting database migration...");
@@ -46,13 +46,13 @@ public class Program
             {
                 var connectionString = context.Configuration.GetConnectionString("DefaultConnection");
                 
-                services.AddDbContext<TaskManagerDbContext>(options =>
+                services.AddDbContext<TjbDbContext>(options =>
                     options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString)));
                 
                 services.AddLogging();
             });
 
-    private static async Task SeedData(TaskManagerDbContext context, ILogger logger)
+    private static async Task SeedData(TjbDbContext context, ILogger logger)
     {
         logger.LogInformation("Checking for seed data...");
         
@@ -66,7 +66,7 @@ public class Program
         logger.LogInformation("Seeding initial data...");
         
         // Create a sample user for testing
-        var sampleUser = new TaskManager.Data.Entities.User
+        var sampleUser = new Tjb.Data.Entities.User
         {
             Id = Guid.NewGuid(),
             Email = "admin@taskmanager.com",
@@ -81,7 +81,7 @@ public class Program
         context.Users.Add(sampleUser);
         
         // Create a sample project
-        var sampleProject = new TaskManager.Data.Entities.Project
+        var sampleProject = new Tjb.Data.Entities.Project
         {
             Id = Guid.NewGuid(),
             Name = "Welcome Project",
@@ -95,15 +95,15 @@ public class Program
         context.Projects.Add(sampleProject);
         
         // Create a sample task
-        var sampleTask = new TaskManager.Data.Entities.Task
+        var sampleTask = new Tjb.Data.Entities.Task
         {
             Id = Guid.NewGuid(),
             Title = "Welcome to TaskManager",
             Description = "This is your first task. You can edit or delete it.",
             ProjectId = sampleProject.Id,
             AssignedToId = sampleUser.Id,
-            Status = TaskManager.Shared.Enums.TaskStatus.Todo,
-            Priority = TaskManager.Shared.Enums.TaskPriority.Medium,
+            Status = Tjb.Shared.Enums.TaskStatus.Todo,
+            Priority = Tjb.Shared.Enums.TaskPriority.Medium,
             DueDate = DateTime.UtcNow.AddDays(7),
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
@@ -112,11 +112,11 @@ public class Program
         context.Tasks.Add(sampleTask);
         
         // Add project member relationship
-        var projectMember = new TaskManager.Data.Entities.ProjectMember
+        var projectMember = new Tjb.Data.Entities.ProjectMember
         {
             ProjectId = sampleProject.Id,
             UserId = sampleUser.Id,
-            Role = TaskManager.Shared.Enums.ProjectRole.Owner,
+            Role = Tjb.Shared.Enums.ProjectRole.Owner,
             JoinedAt = DateTime.UtcNow
         };
         

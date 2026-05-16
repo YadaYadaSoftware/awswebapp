@@ -1,6 +1,6 @@
-using TaskManager.Shared.Models;
+using Tjb.Shared.Models;
 
-namespace TaskManager.Api.Services;
+namespace Tjb.Api.Services;
 
 public interface IInvitationService
 {

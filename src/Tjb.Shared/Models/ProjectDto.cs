@@ -1,6 +1,6 @@
-using TaskManager.Shared.Enums;
+using Tjb.Shared.Enums;
 
-namespace TaskManager.Shared.Models;
+namespace Tjb.Shared.Models;
 
 public class ProjectDto
 {

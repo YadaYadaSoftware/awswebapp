@@ -1,16 +1,16 @@
 using Microsoft.EntityFrameworkCore;
-using TaskManager.Data;
-using TaskManager.Data.Entities;
-using TaskManager.Shared.Models;
+using Tjb.Data;
+using Tjb.Data.Entities;
+using Tjb.Shared.Models;
 
-namespace TaskManager.Api.Services;
+namespace Tjb.Api.Services;
 
 public class InvitationService : IInvitationService
 {
-    private readonly TaskManagerDbContext _context;
+    private readonly TjbDbContext _context;
     private readonly ILogger<InvitationService> _logger;
 
-    public InvitationService(TaskManagerDbContext context, ILogger<InvitationService> logger)
+    public InvitationService(TjbDbContext context, ILogger<InvitationService> logger)
     {
         _context = context;
         _logger = logger;
