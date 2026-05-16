@@ -7,7 +7,10 @@
       "Bash(dotnet build *)",
       "Bash(xargs grep -l \"TaskManager\")",
       "Bash(dotnet pack *)",
-      "Bash(awk '{print $9, $5}')"
+      "Bash(awk '{print $9, $5}')",
+      "Bash(openspec new *)",
+      "Bash(openspec status *)",
+      "Bash(openspec instructions *)"
     ]
   }
 }
