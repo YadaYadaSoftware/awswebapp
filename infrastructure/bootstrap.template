@@ -7,6 +7,11 @@ Parameters:
     Default: ""
     Description: "ARN of the primary multi-region KMS key. Leave empty (default) for the primary-region deploy; for the secondary region, pass the AuroraKmsKeyArn output from the primary-region deploy of the same scope. Presence determines IsPrimary/IsReplica."
 
+  KeyAdminPrincipalArn:
+    Type: String
+    Default: ""
+    Description: "Optional IAM principal ARN to add to the prod KMS key's NotPrincipal Deny exemption — i.e. an additional principal allowed to update the prod key policy. Required during initial setup of bootstrap-prod (the deployer isn't otherwise in the NotPrincipal exemption and KMS's lockout-safety check would reject the policy update). Once prod-kms-admin can be assumed by the deployer for ongoing changes, set this back to empty. Ignored for nonprod scope deploys."
+
 Conditions:
   # IsNonprod is true iff the stack name contains the substring "nonprod".
   # Join-after-Split is an identity transform iff the delimiter is absent, so
@@ -37,6 +42,7 @@ Conditions:
       - !Equals
         - !Join ["", !Split ["nonprod", !Ref "AWS::StackName"]]
         - !Ref "AWS::StackName"
+  HasKeyAdmin: !Not [!Equals [!Ref KeyAdminPrincipalArn, ""]]
 
 Resources:
   AuroraKmsKey:
@@ -98,6 +104,29 @@ Resources:
               Effect: Allow
               Principal:
                 AWS: !GetAtt ProdKmsAdminRole.Arn
+              Action: kms:*
+              Resource: "*"
+            # Default-deny: everyone not in the NotPrincipal list is denied all KMS
+            # actions on this key, overriding any IAM-delegation pathway that the
+            # AllowAccountRoot statement would otherwise enable. This is what stops
+            # the nonprod CI user (whose IAM policy grants kms:* on Resource:"*")
+            # from reaching the prod key. The list MUST contain every principal that
+            # should be able to use the key; adding a new authorized principal means
+            # editing this NotPrincipal too.
+            - Sid: DenyEveryoneNotAuthorized
+              Effect: Deny
+              NotPrincipal:
+                AWS: !If
+                  - HasKeyAdmin
+                  - - !Sub "arn:aws:iam::${AWS::AccountId}:root"
+                    - !GetAtt GitHubActionsUserProd.Arn
+                    - !GetAtt ProdKmsAdminRole.Arn
+                    - !Ref KeyAdminPrincipalArn
+                  - - !Sub "arn:aws:iam::${AWS::AccountId}:root"
+                    - !GetAtt GitHubActionsUserProd.Arn
+                    - !GetAtt ProdKmsAdminRole.Arn
+                Service:
+                  - rds.amazonaws.com
               Action: kms:*
               Resource: "*"
         - Version: "2012-10-17"
@@ -200,6 +229,24 @@ Resources:
               Effect: Allow
               Principal:
                 AWS: !Sub "arn:aws:iam::${AWS::AccountId}:role/prod-kms-admin"
+              Action: kms:*
+              Resource: "*"
+            # Default-deny — see comment in AuroraKmsKey for rationale.
+            # Replica uses !Sub for ARNs (IAM resources don't live in this stack).
+            - Sid: DenyEveryoneNotAuthorized
+              Effect: Deny
+              NotPrincipal:
+                AWS: !If
+                  - HasKeyAdmin
+                  - - !Sub "arn:aws:iam::${AWS::AccountId}:root"
+                    - !Sub "arn:aws:iam::${AWS::AccountId}:user/GitHubActionsUserProd"
+                    - !Sub "arn:aws:iam::${AWS::AccountId}:role/prod-kms-admin"
+                    - !Ref KeyAdminPrincipalArn
+                  - - !Sub "arn:aws:iam::${AWS::AccountId}:root"
+                    - !Sub "arn:aws:iam::${AWS::AccountId}:user/GitHubActionsUserProd"
+                    - !Sub "arn:aws:iam::${AWS::AccountId}:role/prod-kms-admin"
+                Service:
+                  - rds.amazonaws.com
               Action: kms:*
               Resource: "*"
         - Version: "2012-10-17"

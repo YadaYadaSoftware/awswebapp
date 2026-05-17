@@ -62,7 +62,17 @@ Neither IAM user appears in the legacy `bootstrap` stack — that stack is fully
 
 The `bootstrap-prod` KMS key policy SHALL grant `GitHubActionsUserProd` only the operations needed to use the key for Aurora encryption (`kms:CreateGrant`, `kms:DescribeKey`, `kms:Decrypt`, `kms:Encrypt`, `kms:GenerateDataKey`, `kms:ReEncryptFrom`, `kms:ReEncryptTo`, `kms:RetireGrant`, `kms:ListGrants`, `kms:RevokeGrant`). The policy MUST NOT grant `GitHubActionsUserProd` any of: `kms:ScheduleKeyDeletion`, `kms:DisableKey`, `kms:PutKeyPolicy`, `kms:DeleteAlias`, `kms:UpdateAlias`, `kms:ReplicateKey`, `kms:CreateAlias`.
 
-The `GitHubActionsUser` from `bootstrap-nonprod` MUST NOT appear in the `bootstrap-prod` key policy at all.
+The `bootstrap-prod` key policy SHALL include an explicit `Effect: Deny` statement with `NotPrincipal` listing only the authorized principals (account root, `GitHubActionsUserProd`, `prod-kms-admin` role, `rds.amazonaws.com` service). This denial blocks the IAM-delegation pathway that the standard `AllowAccountRoot kms:* Resource: *` statement would otherwise enable — without it, any IAM principal in the account whose own IAM policy grants `kms:*` (e.g. the broad legacy `DeploymentPolicy` that `GitHubActionsUser` carries) can reach the prod key. The `GitHubActionsUser` from `bootstrap-nonprod` MUST be among the principals blocked by this Deny.
+
+The `bootstrap.template` SHALL accept an optional `KeyAdminPrincipalArn` parameter. When non-empty, the value SHALL be added as an additional entry in the `NotPrincipal.AWS` list — i.e., that principal is also exempted from the Deny. This parameter exists to work around AWS KMS's lockout-safety check, which rejects any policy update that would prevent the calling principal from updating the policy in the future. The deployer (during initial setup) is typically not in the four built-in exemptions, so the parameter lets the operator add themselves for the duration of setup. Once `prod-kms-admin` becomes the standard admin path (e.g., the deployer can assume it), the parameter SHALL be left empty on subsequent deploys.
+
+#### Scenario: KeyAdminPrincipalArn extends the NotPrincipal exemption
+- **WHEN** `bootstrap-prod` is deployed with `--parameter-overrides KeyAdminPrincipalArn=arn:aws:iam::ACCT:user/developer-tim`
+- **THEN** the resulting prod key policy's Deny statement has a `NotPrincipal.AWS` list containing four entries: account root, `GitHubActionsUserProd`, `prod-kms-admin`, and `arn:aws:iam::ACCT:user/developer-tim`
+
+#### Scenario: KeyAdminPrincipalArn empty (post-setup state)
+- **WHEN** `bootstrap-prod` is deployed with no `KeyAdminPrincipalArn` (default empty)
+- **THEN** the resulting prod key policy's Deny statement has a `NotPrincipal.AWS` list containing exactly three entries: account root, `GitHubActionsUserProd`, `prod-kms-admin`
 
 Destructive operations on the production key SHALL be granted only to the AWS account root principal and to a dedicated IAM role named `prod-kms-admin` that is also created in the `bootstrap-prod` stack.
 
