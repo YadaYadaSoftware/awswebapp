@@ -1,0 +1,204 @@
+name: Cleanup Stack On Branch Delete
+on:
+  delete:
+
+jobs:
+  cleanup-stack:
+    name: Delete CloudFormation Stack
+    if: github.event.ref_type == 'branch'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: deploy-us-east-1-${{ github.event.ref }}
+      cancel-in-progress: false
+    env:
+      AWS_REGION: us-east-1
+      DOMAIN_NAME: ${{ secrets.DOMAIN_NAME }}
+      DELETED_REF: ${{ github.event.ref }}
+
+    steps:
+      - name: Compute branch leaf and stack name
+        id: compute
+        run: |
+          REF="$DELETED_REF"
+          BRANCH_LEAF="${REF##*/}"
+          PROCESSED_DOMAIN=$(echo "$DOMAIN_NAME" | tr '.' '-')
+          STACK_NAME="${BRANCH_LEAF}-${PROCESSED_DOMAIN}"
+
+          echo "Deleted ref:      $REF"
+          echo "Branch leaf:      $BRANCH_LEAF"
+          echo "Processed domain: $PROCESSED_DOMAIN"
+          echo "Stack name:       $STACK_NAME"
+
+          echo "BRANCH_LEAF=$BRANCH_LEAF" >> $GITHUB_ENV
+          echo "STACK_NAME=$STACK_NAME"   >> $GITHUB_ENV
+          echo "branch-leaf=$BRANCH_LEAF" >> $GITHUB_OUTPUT
+          echo "stack-name=$STACK_NAME"   >> $GITHUB_OUTPUT
+
+      - name: Protected branch guard
+        id: guard
+        run: |
+          if [[ " app beta alpha dev " == *" $BRANCH_LEAF "* ]]; then
+            echo "🛡️ Branch leaf '$BRANCH_LEAF' is protected — skipping CloudFormation deletion."
+            {
+              echo "## Branch Stack Cleanup — Skipped"
+              echo ""
+              echo "- **Deleted ref:** \`$DELETED_REF\`"
+              echo "- **Branch leaf:** \`$BRANCH_LEAF\` (protected)"
+              echo "- **Reason:** \`app\`, \`beta\`, \`alpha\`, and \`dev\` are shared infrastructure and are never auto-deleted."
+            } >> $GITHUB_STEP_SUMMARY
+            echo "protected=true" >> $GITHUB_OUTPUT
+          else
+            echo "Branch leaf '$BRANCH_LEAF' is not protected — proceeding."
+            echo "protected=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Configure AWS credentials
+        if: steps.guard.outputs.protected == 'false'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Pre-check — does the stack exist?
+        id: precheck
+        if: steps.guard.outputs.protected == 'false'
+        run: |
+          set +e
+          DESCRIBE_OUTPUT=$(aws cloudformation describe-stacks \
+            --stack-name "$STACK_NAME" \
+            --region us-east-1 \
+            --query 'Stacks[0].StackStatus' \
+            --output text 2>&1)
+          DESCRIBE_EXIT=$?
+          set -e
+
+          if [ $DESCRIBE_EXIT -eq 0 ]; then
+            echo "✅ Stack exists with status: $DESCRIBE_OUTPUT"
+            echo "stack-exists=true"                 >> $GITHUB_OUTPUT
+            echo "initial-status=$DESCRIBE_OUTPUT"   >> $GITHUB_OUTPUT
+          elif echo "$DESCRIBE_OUTPUT" | grep -qi "does not exist"; then
+            echo "ℹ️  Stack does not exist — nothing to delete."
+            echo "stack-exists=false"                >> $GITHUB_OUTPUT
+            echo "initial-status=ABSENT"             >> $GITHUB_OUTPUT
+          else
+            echo "❌ Unexpected describe-stacks error:"
+            echo "$DESCRIBE_OUTPUT"
+            exit 1
+          fi
+
+      - name: Request stack deletion
+        if: steps.guard.outputs.protected == 'false' && steps.precheck.outputs.stack-exists == 'true'
+        run: |
+          echo "Requesting deletion of stack: $STACK_NAME"
+          aws cloudformation delete-stack \
+            --stack-name "$STACK_NAME" \
+            --region us-east-1
+
+      - name: Wait for stack deletion to complete
+        id: wait
+        if: steps.guard.outputs.protected == 'false' && steps.precheck.outputs.stack-exists == 'true'
+        run: |
+          set +e
+          aws cloudformation wait stack-delete-complete \
+            --stack-name "$STACK_NAME" \
+            --region us-east-1
+          WAIT_EXIT=$?
+          set -e
+
+          if [ $WAIT_EXIT -eq 0 ]; then
+            echo "✅ Stack deletion completed."
+            echo "final-status=DELETE_COMPLETE" >> $GITHUB_OUTPUT
+            echo "wait-result=success"          >> $GITHUB_OUTPUT
+          else
+            echo "❌ Stack deletion did not complete cleanly (exit $WAIT_EXIT)."
+            FINAL_STATUS=$(aws cloudformation describe-stacks \
+              --stack-name "$STACK_NAME" \
+              --region us-east-1 \
+              --query 'Stacks[0].StackStatus' \
+              --output text 2>/dev/null || echo "UNKNOWN")
+            echo "Final stack status: $FINAL_STATUS"
+            echo "final-status=$FINAL_STATUS"   >> $GITHUB_OUTPUT
+            echo "wait-result=failure"          >> $GITHUB_OUTPUT
+
+            echo ""
+            echo "Last 25 stack events:"
+            aws cloudformation describe-stack-events \
+              --stack-name "$STACK_NAME" \
+              --region us-east-1 \
+              --max-items 25 \
+              --query 'StackEvents[].[Timestamp,LogicalResourceId,ResourceStatus,ResourceStatusReason]' \
+              --output table || true
+
+            exit 1
+          fi
+
+      - name: Clean up S3 template prefix
+        id: s3cleanup
+        if: steps.guard.outputs.protected == 'false' && steps.wait.outputs.wait-result == 'success'
+        run: |
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          BUCKET="cf-templates-${ACCOUNT_ID}-us-east-1"
+          PREFIX="$BRANCH_LEAF/"
+
+          echo "Bucket: s3://$BUCKET/$PREFIX"
+          set +e
+          RM_OUTPUT=$(aws s3 rm "s3://$BUCKET/$PREFIX" --recursive 2>&1)
+          RM_EXIT=$?
+          set -e
+          echo "$RM_OUTPUT"
+
+          OBJECTS_DELETED=$(echo "$RM_OUTPUT" | grep -c '^delete:' || true)
+          echo "Objects deleted: $OBJECTS_DELETED"
+
+          echo "bucket=$BUCKET"                       >> $GITHUB_OUTPUT
+          echo "objects-deleted=$OBJECTS_DELETED"     >> $GITHUB_OUTPUT
+
+          if [ $RM_EXIT -ne 0 ] && [ "$OBJECTS_DELETED" -eq 0 ]; then
+            echo "ℹ️  S3 rm exited non-zero but no objects were deleted — treating as empty/absent prefix."
+          fi
+
+      - name: Write workflow summary
+        if: always()
+        run: |
+          GUARD_PROTECTED="${{ steps.guard.outputs.protected }}"
+
+          # If the guard step never ran or marked protected, the dedicated summary
+          # block was already written by that step — bail out.
+          if [ "$GUARD_PROTECTED" = "true" ]; then
+            exit 0
+          fi
+
+          STACK_EXISTS="${{ steps.precheck.outputs.stack-exists }}"
+          INITIAL_STATUS="${{ steps.precheck.outputs.initial-status }}"
+          FINAL_STATUS="${{ steps.wait.outputs.final-status }}"
+          WAIT_RESULT="${{ steps.wait.outputs.wait-result }}"
+          S3_BUCKET="${{ steps.s3cleanup.outputs.bucket }}"
+          S3_DELETED="${{ steps.s3cleanup.outputs.objects-deleted }}"
+
+          if [ "$STACK_EXISTS" = "false" ]; then
+            RESULT_LINE="ℹ️ Stack did not exist — nothing to delete."
+          elif [ "$WAIT_RESULT" = "success" ]; then
+            RESULT_LINE="✅ Stack deleted successfully."
+          else
+            RESULT_LINE="❌ Stack deletion failed — see job logs and stack events."
+          fi
+
+          {
+            echo "## Branch Stack Cleanup"
+            echo ""
+            echo "$RESULT_LINE"
+            echo ""
+            echo "| Field | Value |"
+            echo "| --- | --- |"
+            echo "| Deleted ref | \`$DELETED_REF\` |"
+            echo "| Branch leaf | \`$BRANCH_LEAF\` |"
+            echo "| Stack name | \`$STACK_NAME\` |"
+            echo "| Region | \`us-east-1\` |"
+            echo "| Pre-check | \`$INITIAL_STATUS\` |"
+            echo "| Final stack status | \`${FINAL_STATUS:-N/A}\` |"
+            if [ -n "$S3_BUCKET" ]; then
+              echo "| S3 cleanup bucket | \`$S3_BUCKET\` |"
+              echo "| S3 objects removed | \`${S3_DELETED:-0}\` |"
+            fi
+          } >> $GITHUB_STEP_SUMMARY
