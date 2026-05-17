@@ -1,3 +1,5 @@
+using Amazon;
+using Amazon.SimpleEmail;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Web;
@@ -5,6 +7,7 @@ using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.UI;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Pomelo.EntityFrameworkCore.MySql;
 using Tjb.Data;
 using Tjb.Web.Areas.Identity;
@@ -77,18 +80,18 @@ builder.Services.AddScoped<AuthenticationStateProvider, RevalidatingIdentityAuth
 builder.Services.AddSingleton<WeatherForecastService>();
 builder.Services.AddHealthChecks();
 
-// AWS SES email service (Step D).
+// AWS SES email service. Region is empty in deployed envs so the SDK auto-detects from
+// Fargate task metadata; populate AwsSes:Region explicitly only for local dev.
 builder.Services.Configure<AwsSesOptions>(builder.Configuration.GetSection(AwsSesOptions.SectionName));
-builder.Services.AddSingleton<Amazon.SimpleEmail.IAmazonSimpleEmailService>(sp =>
+builder.Services.AddSingleton<IAmazonSimpleEmailService>(sp =>
 {
-    var options = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<AwsSesOptions>>().Value;
+    var options = sp.GetRequiredService<IOptions<AwsSesOptions>>().Value;
     return string.IsNullOrEmpty(options.Region)
-        ? new Amazon.SimpleEmail.AmazonSimpleEmailServiceClient()
-        : new Amazon.SimpleEmail.AmazonSimpleEmailServiceClient(Amazon.RegionEndpoint.GetBySystemName(options.Region));
+        ? new AmazonSimpleEmailServiceClient()
+        : new AmazonSimpleEmailServiceClient(RegionEndpoint.GetBySystemName(options.Region));
 });
 builder.Services.AddScoped<IEmailService, AwsSesEmailService>();
 
-// View rendering service for email templates (Step C).
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IViewRenderService, ViewRenderService>();
 builder.Services.AddAuthentication().AddGoogle(googleOptions =>
