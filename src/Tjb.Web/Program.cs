@@ -77,9 +77,16 @@ builder.Services.AddScoped<AuthenticationStateProvider, RevalidatingIdentityAuth
 builder.Services.AddSingleton<WeatherForecastService>();
 builder.Services.AddHealthChecks();
 
-// Email service — currently a stub that logs to console (Step B).
-// Will be swapped for AwsSesEmailService in Step D.
-builder.Services.AddScoped<IEmailService, LoggingEmailService>();
+// AWS SES email service (Step D).
+builder.Services.Configure<AwsSesOptions>(builder.Configuration.GetSection(AwsSesOptions.SectionName));
+builder.Services.AddSingleton<Amazon.SimpleEmail.IAmazonSimpleEmailService>(sp =>
+{
+    var options = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<AwsSesOptions>>().Value;
+    return string.IsNullOrEmpty(options.Region)
+        ? new Amazon.SimpleEmail.AmazonSimpleEmailServiceClient()
+        : new Amazon.SimpleEmail.AmazonSimpleEmailServiceClient(Amazon.RegionEndpoint.GetBySystemName(options.Region));
+});
+builder.Services.AddScoped<IEmailService, AwsSesEmailService>();
 
 // View rendering service for email templates (Step C).
 builder.Services.AddHttpContextAccessor();

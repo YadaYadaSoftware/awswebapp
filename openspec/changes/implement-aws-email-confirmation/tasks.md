@@ -8,10 +8,10 @@
 
 - [x] 2.1 Create `Services/IEmailService.cs` interface with `SendEmailAsync()` method
 - [x] 2.2 Create `SendEmailRequest.cs` DTO with `To`, `Subject`, `HtmlBody`, `TextBody` properties
-- [ ] 2.3 Create `Services/AwsSesEmailService.cs` implementing IEmailService
-- [ ] 2.4 Implement AWS SES client initialization with region and credentials from configuration
-- [ ] 2.5 Implement `SendEmailAsync()` to call SES SDK and send email with both HTML and text
-- [ ] 2.6 Add error handling and logging in AwsSesEmailService
+- [x] 2.3 Create `Services/AwsSesEmailService.cs` implementing IEmailService
+- [x] 2.4 Implement AWS SES client initialization with region and credentials from configuration
+- [x] 2.5 Implement `SendEmailAsync()` to call SES SDK and send email with both HTML and text
+- [x] 2.6 Add error handling and logging in AwsSesEmailService
 
 ## 3. Create View Rendering Service
 
@@ -24,7 +24,7 @@
 
 - [x] 4.1 Update `Program.cs` to add `IEmailService` registration as `AwsSesEmailService`
 - [x] 4.2 Update `Program.cs` to add `IViewRenderService` registration as `ViewRenderService`
-- [ ] 4.3 Ensure AWS SDK configuration is loaded from appsettings/environment
+- [x] 4.3 Ensure AWS SDK configuration is loaded from appsettings/environment
 - [ ] 4.4 Verify services are properly injected in test
 
 ## 5. Create Email Templates
@@ -54,11 +54,11 @@
 
 ## 8. Environment Configuration
 
-- [ ] 8.1 Add `AWS_REGION` to appsettings.json (or keep as environment variable)
-- [ ] 8.2 Add `AWS_SES_SENDER_EMAIL` to appsettings.json (e.g., "noreply@appcloud.systems")
-- [ ] 8.3 Add AWS credentials configuration (use DefaultAWSCredentials provider via IAM role)
+- [x] 8.1 Add `AWS_REGION` to appsettings.json (or keep as environment variable)
+- [x] 8.2 Add `AWS_SES_SENDER_EMAIL` to appsettings.json (e.g., "noreply@appcloud.systems")
+- [x] 8.3 Add AWS credentials configuration (use DefaultAWSCredentials provider via IAM role)
 - [ ] 8.4 Document environment variables needed for different deployments (dev, alpha, beta, app)
-- [ ] 8.5 Update local development appsettings.json with dummy/test values
+- [x] 8.5 Update local development appsettings.json with dummy/test values
 
 ## 9. Testing & Validation
 
