@@ -72,8 +72,8 @@
 
 ## 10. Deployment & Infrastructure
 
-- [ ] 10.1 Verify AWS SES sender identity is verified in us-east-1 region
-- [ ] 10.2 Verify AWS SES sender identity is verified in us-west-2 region
+- [x] 10.1 Verify AWS SES sender identity is verified in us-east-1 region
+- [x] 10.2 Verify AWS SES sender identity is verified in us-west-2 region
 - [ ] 10.3 Ensure CloudFormation template includes IAM permissions for SES SendEmail
 - [ ] 10.4 Set AWS_REGION environment variable in deployment for each region
 - [ ] 10.5 Set AWS_SES_SENDER_EMAIL environment variable in deployment
