@@ -2,13 +2,13 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Launch TaskManager.Web",
+            "name": "Launch Tjb.Web",
             "type": "coreclr",
             "request": "launch",
             "preLaunchTask": "build",
-            "program": "${workspaceFolder}/src/TaskManager.Web/bin/Debug/net10.0/TaskManager.Web.dll",
+            "program": "${workspaceFolder}/src/Tjb.Web/bin/Debug/net10.0/Tjb.Web.dll",
             "args": [],
-            "cwd": "${workspaceFolder}/src/TaskManager.Web",
+            "cwd": "${workspaceFolder}/src/Tjb.Web",
             "stopAtEntry": false,
             "serverReadyAction": {
                 "pattern": "\\bNow listening on:\\s+(https?://\\S+)",
@@ -17,35 +17,35 @@
             },
             "env": {
                 "ASPNETCORE_ENVIRONMENT": "Development",
-                "ASPNETCORE_URLS": "http://localhost:5002;https://localhost:5003"
+                "ASPNETCORE_URLS": "https://localhost"
             },
             "sourceFileMap": {
                 "/Views": "${workspaceFolder}/Views"
             }
         },
         {
-            "name": "Launch TaskManager.Api",
+            "name": "Launch Tjb.Api",
             "type": "coreclr",
             "request": "launch",
             "preLaunchTask": "build",
-            "program": "${workspaceFolder}/src/TaskManager.Api/bin/Debug/net10.0/TaskManager.Api.dll",
+            "program": "${workspaceFolder}/src/Tjb.Api/bin/Debug/net10.0/Tjb.Api.dll",
             "args": [],
-            "cwd": "${workspaceFolder}/src/TaskManager.Api",
+            "cwd": "${workspaceFolder}/src/Tjb.Api",
             "stopAtEntry": false,
             "env": {
                 "ASPNETCORE_ENVIRONMENT": "Development",
-                "ASPNETCORE_URLS": "http://localhost:5000;https://localhost:5001"
+                "ASPNETCORE_URLS": "https://localhost:5001"
             },
             "sourceFileMap": {
                 "/Views": "${workspaceFolder}/Views"
             }
         },
         {
-            "name": "Launch TaskManager (API + Web)",
+            "name": "Launch Tjb (API + Web)",
             "type": "compound",
             "configurations": [
-                "Launch TaskManager.Api",
-                "Launch TaskManager.Web"
+                "Launch Tjb.Api",
+                "Launch Tjb.Web"
             ]
         },
         {

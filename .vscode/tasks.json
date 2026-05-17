@@ -7,7 +7,7 @@
             "type": "process",
             "args": [
                 "build",
-                "${workspaceFolder}/TaskManager.sln",
+                "${workspaceFolder}/Tjb.sln",
                 "/property:GenerateFullPaths=true",
                 "/consoleloggerparameters:NoSummary"
             ],
@@ -31,7 +31,7 @@
             "type": "process",
             "args": [
                 "clean",
-                "${workspaceFolder}/TaskManager.sln"
+                "${workspaceFolder}/Tjb.sln"
             ],
             "problemMatcher": "$msCompile",
             "group": "build",
@@ -48,7 +48,7 @@
             "type": "process",
             "args": [
                 "restore",
-                "${workspaceFolder}/TaskManager.sln"
+                "${workspaceFolder}/Tjb.sln"
             ],
             "problemMatcher": "$msCompile",
             "group": "build",
@@ -67,7 +67,7 @@
                 "watch",
                 "run",
                 "--project",
-                "${workspaceFolder}/src/TaskManager.Api/TaskManager.Api.csproj"
+                "${workspaceFolder}/src/Tjb.Api/Tjb.Api.csproj"
             ],
             "problemMatcher": "$msCompile",
             "group": "build",
