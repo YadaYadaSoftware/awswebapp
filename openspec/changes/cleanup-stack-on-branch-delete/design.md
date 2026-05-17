@@ -91,12 +91,14 @@ The deploy job itself ran only in `us-east-1` for non-shared branches (the matri
 - **[Risk]** Someone renames a branch (delete + create with new name) while a deploy is in flight. The cleanup workflow would race the deploy. **Mitigation:** Same `concurrency:` group as the deploy job (`deploy-us-east-1-{branch-leaf}`), with `cancel-in-progress: false`. Cleanup serializes behind any active deploy.
 - **[Trade-off]** Cleanup does not delete ECR images tagged with the branch name. **Mitigation:** Out of scope by Decision; documented in proposal Impact. If image bloat becomes a problem, add an ECR lifecycle policy or a separate cleanup step.
 - **[Trade-off]** The protected-branch list is duplicated between deploy and cleanup workflows. **Mitigation:** Accepted — single bash variable in each file, easy to audit. Extracting to a shared composite action is over-engineering for a 4-element list.
+- **[Gotcha]** GitHub Actions only dispatches the `delete` event for workflow files that exist **on the default branch** at the moment the event fires. A new `cleanup-on-branch-delete.yml` sitting on a feature branch will silently do nothing for any branch deletion until it has been merged into `app`. **Mitigation:** Call this out in the Migration Plan and in `BRANCH_MANAGEMENT_README.md`. The same constraint applies to `create`, `fork`, `schedule`, and several other "repository-level" events — it is a GitHub Actions design choice, not something we can work around in the YAML.
 
 ## Migration Plan
 
-1. Merge this workflow file into `dev`. No backfill needed — workflow only acts on future branch deletions.
-2. Manually sweep existing orphaned stacks (out of scope for this change; track separately if any exist).
-3. **Rollback:** Delete the workflow file. No infrastructure state to revert.
+1. **Merge this workflow file into `app` (the default branch).** *Without this step the workflow will never fire — the `delete` event is dispatched only from the default branch's copy of the workflow file.* Going through `dev` first is fine (so the existing CI runs validate it), but the workflow does not become live until it lands on `app`.
+2. No backfill needed — workflow only acts on future branch deletions.
+3. Manually sweep existing orphaned stacks (out of scope for this change; track separately if any exist).
+4. **Rollback:** Delete the workflow file from `app`. No infrastructure state to revert.
 
 ## Open Questions
 

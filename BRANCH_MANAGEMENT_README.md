@@ -146,6 +146,8 @@ If you encounter issues:
 
 ## Automatic Stack Cleanup on Branch Delete
 
+> ⚠️ **GitHub Actions constraint:** the `delete` event only triggers workflows that exist on the **default branch** (`app`). A copy of `cleanup-on-branch-delete.yml` on a feature branch is inert — branch deletions will silently do nothing. This workflow only becomes live once it is merged into `app`.
+
 When a branch is deleted from the remote (via the GitHub UI, the REST API, or `git push origin --delete <branch>`), `.github/workflows/cleanup-on-branch-delete.yml` automatically tears down the CloudFormation stack that branch deployed:
 
 - **Trigger**: GitHub `delete` event, filtered to `ref_type == 'branch'` (tag deletions are ignored).
