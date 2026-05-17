@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
-Description: "TaskManager API - Lambda Function with Branch-Specific Database"
+Description: "Tjb API - Lambda Function with Branch-Specific Database"
 
 Parameters:
   BranchName:
@@ -38,9 +38,9 @@ Resources:
   TaskManagerApiFunction:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: ../src/TaskManager.Api/
+      CodeUri: ../src/Tjb.Api/
       Handler: >-
-        TaskManager.Api::TaskManager.Api.LambdaEntryPoint::FunctionHandlerAsync
+        Tjb.Api::Tjb.Api.LambdaEntryPoint::FunctionHandlerAsync
       Runtime: dotnet8
       PackageType: Zip
       Role:

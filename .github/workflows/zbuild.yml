@@ -179,7 +179,7 @@ jobs:
       run: |
         echo "Running unit tests for all projects except UI tests..."
         # Run tests for all test projects except UiTests
-        dotnet test --configuration Release --filter "FullyQualifiedName!~TaskManager.UiTests" --logger "trx;LogFileName=test-results.trx" --results-directory ./TestResults 2>&1 | tee test-output.log || true
+        dotnet test --configuration Release --filter "FullyQualifiedName!~Tjb.UiTests" --logger "trx;LogFileName=test-results.trx" --results-directory ./TestResults 2>&1 | tee test-output.log || true
 
         # Check if any tests were found and run
         if grep -q "Test run summary:" test-output.log; then
@@ -206,7 +206,7 @@ jobs:
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "**Note:** UI tests will run after deployment against the live application." >> $GITHUB_STEP_SUMMARY
 
-    - name: Pack TaskManager.Shared
+    - name: Pack Tjb.Shared
       run: |
         BRANCH_NAME="${{ needs.get-branch-name.outputs.branch-name }}"
         VERSION="${{ steps.custom-version.outputs.custom-version }}"
@@ -222,14 +222,14 @@ jobs:
         fi
 
 
-        dotnet pack src/TaskManager.Shared/TaskManager.Shared.csproj \
+        dotnet pack src/Tjb.Shared/Tjb.Shared.csproj \
           --configuration Release \
           --output ./nupkgs \
           --version "$VERSION" \
           --include-symbols \
           --include-source \
           -p:PackageVersion=$NUGET_VERSION
-    - name: Pack TaskManager.Data
+    - name: Pack Tjb.Data
       run: |
         BRANCH_NAME="${{ needs.get-branch-name.outputs.branch-name }}"
         VERSION="${{ steps.custom-version.outputs.custom-version }}"
@@ -243,7 +243,7 @@ jobs:
           NUGET_VERSION=$VERSION
         fi
 
-        dotnet pack src/TaskManager.Data/TaskManager.Data.csproj \
+        dotnet pack src/Tjb.Data/Tjb.Data.csproj \
           --configuration Release \
           --output ./nupkgs \
           --version "$VERSION" \
@@ -251,7 +251,7 @@ jobs:
           --include-source \
           -p:PackageVersion=$NUGET_VERSION
 
-    - name: Pack TaskManager.Web
+    - name: Pack Tjb.Api
       run: |
         BRANCH_NAME="${{ needs.get-branch-name.outputs.branch-name }}"
         VERSION="${{ steps.custom-version.outputs.custom-version }}"
@@ -265,7 +265,51 @@ jobs:
           NUGET_VERSION=$VERSION
         fi
 
-        dotnet pack src/TaskManager.Web/TaskManager.Web.csproj \
+        dotnet pack src/Tjb.Api/Tjb.Api.csproj \
+          --configuration Release \
+          --output ./nupkgs \
+          --version "$VERSION" \
+          --include-symbols \
+          --include-source \
+          -p:PackageVersion=$NUGET_VERSION
+
+    - name: Pack Tjb.Migrations
+      run: |
+        BRANCH_NAME="${{ needs.get-branch-name.outputs.branch-name }}"
+        VERSION="${{ steps.custom-version.outputs.custom-version }}"
+
+        # Sanitize branch name for package ID (replace special chars with hyphens)
+        SANITIZED_BRANCH=$(echo "$BRANCH_NAME" | sed 's/[^a-zA-Z0-9]/-/g')
+
+        if [ "$BRANCH_NAME" != "app" ]; then
+          NUGET_VERSION="$VERSION-$SANITIZED_BRANCH"
+        else
+          NUGET_VERSION=$VERSION
+        fi
+
+        dotnet pack src/Tjb.Migrations/Tjb.Migrations.csproj \
+          --configuration Release \
+          --output ./nupkgs \
+          --version "$VERSION" \
+          --include-symbols \
+          --include-source \
+          -p:PackageVersion=$NUGET_VERSION
+
+    - name: Pack Tjb.Web
+      run: |
+        BRANCH_NAME="${{ needs.get-branch-name.outputs.branch-name }}"
+        VERSION="${{ steps.custom-version.outputs.custom-version }}"
+
+        # Sanitize branch name for package ID (replace special chars with hyphens)
+        SANITIZED_BRANCH=$(echo "$BRANCH_NAME" | sed 's/[^a-zA-Z0-9]/-/g')
+
+        if [ "$BRANCH_NAME" != "app" ]; then
+          NUGET_VERSION="$VERSION-$SANITIZED_BRANCH"
+        else
+          NUGET_VERSION=$VERSION
+        fi
+
+        dotnet pack src/Tjb.Web/Tjb.Web.csproj \
           --configuration Release \
           --output ./nupkgs \
           --version "$VERSION" \
@@ -282,7 +326,7 @@ jobs:
     - name: Publish Web for Container
       run: |
         echo "Publishing Web with version: ${{ steps.custom-version.outputs.custom-version }}"
-        dotnet publish src/TaskManager.Web/TaskManager.Web.csproj --configuration Release --output ./publish/web --runtime linux-x64 --self-contained false /p:Version=${{ steps.custom-version.outputs.custom-version }} /p:AssemblyVersion=${{ steps.gitversion.outputs.assemblySemVer }}
+        dotnet publish src/Tjb.Web/Tjb.Web.csproj --configuration Release --output ./publish/web --runtime linux-x64 --self-contained false /p:Version=${{ steps.custom-version.outputs.custom-version }} /p:AssemblyVersion=${{ steps.gitversion.outputs.assemblySemVer }}
 
 
 
@@ -463,29 +507,29 @@ jobs:
         echo "🌿 Branch tag: $BRANCH_TAG"
 
         # Build container image from root context
-        docker build -t taskmanager-web:$SRC_CHECKSUM -f src/TaskManager.Web/Dockerfile . --build-arg VERSION=${{ needs.build.outputs.customVersion }} --build-arg ASSEMBLY_VERSION=${{ needs.build.outputs.assemblySemVer }}
+        docker build -t tjb-web:$SRC_CHECKSUM -f src/Tjb.Web/Dockerfile . --build-arg VERSION=${{ needs.build.outputs.customVersion }} --build-arg ASSEMBLY_VERSION=${{ needs.build.outputs.assemblySemVer }}
 
         # Login to ECR
         aws ecr get-login-password --region ${{ matrix.region }} | docker login --username AWS --password-stdin $ECR_REPO
 
         # Tag and push checksum-tagged image
-        docker tag taskmanager-web:$SRC_CHECKSUM $ECR_REPO:$SRC_CHECKSUM
+        docker tag tjb-web:$SRC_CHECKSUM $ECR_REPO:$SRC_CHECKSUM
         docker push $ECR_REPO:$SRC_CHECKSUM
         echo "✅ Pushed checksum image: $ECR_REPO:$SRC_CHECKSUM"
 
         # Also tag and push with SemVer for reference
-        docker tag taskmanager-web:$SRC_CHECKSUM $ECR_REPO:$SEMVER_TAG
+        docker tag tjb-web:$SRC_CHECKSUM $ECR_REPO:$SEMVER_TAG
         docker push $ECR_REPO:$SEMVER_TAG
         echo "✅ Pushed SemVer image: $ECR_REPO:$SEMVER_TAG"
 
         # Tag and push branch-specific image (for easy reference)
-        docker tag taskmanager-web:$SRC_CHECKSUM $ECR_REPO:$BRANCH_TAG
+        docker tag tjb-web:$SRC_CHECKSUM $ECR_REPO:$BRANCH_TAG
         docker push $ECR_REPO:$BRANCH_TAG
         echo "✅ Pushed branch image: $ECR_REPO:$BRANCH_TAG"
 
         # Also tag as latest for main branch
         if [ "$BRANCH_NAME" = "main" ]; then
-          docker tag taskmanager-web:$SRC_CHECKSUM $ECR_REPO:latest
+          docker tag tjb-web:$SRC_CHECKSUM $ECR_REPO:latest
           docker push $ECR_REPO:latest
           echo "✅ Pushed latest image: $ECR_REPO:latest"
         fi
@@ -664,7 +708,7 @@ jobs:
 
    - name: Install Playwright Browsers
      run: |
-       cd src/TaskManager.UiTests
+       cd src/Tjb.UiTests
        dotnet build
        pwsh -Command "& {dotnet tool install --global Microsoft.Playwright.CLI; playwright install --with-deps chromium}"
    - name: Calculate Application URL
@@ -690,7 +734,7 @@ jobs:
        # Override the base URL to point to deployed application
        TEST_BASE_URL: ${{ steps.calc-app-url.outputs.app-url }}
      run: |
-       cd src/TaskManager.UiTests
+       cd src/Tjb.UiTests
 
        # Set the base URL for tests if provided
        if [ ! -z $TEST_BASE_URL ]; then
@@ -781,7 +825,7 @@ jobs:
      with:
        name: ui-test-results-post-deployment
        path: |
-         src/TaskManager.UiTests/TestResults/
+         src/Tjb.UiTests/TestResults/
        retention-days: 7
 
    - name: Generate Combined Test Summary
@@ -813,22 +857,22 @@ jobs:
        echo "" >> $GITHUB_STEP_SUMMARY
 
        # Check for test summary file and include its contents
-       if [ -f "src/TaskManager.UiTests/TestResults/test-summary.txt" ]; then
+       if [ -f "src/Tjb.UiTests/TestResults/test-summary.txt" ]; then
          echo "**📊 Detailed UI Test Summary:**" >> $GITHUB_STEP_SUMMARY
          echo '```text' >> $GITHUB_STEP_SUMMARY
-         cat src/TaskManager.UiTests/TestResults/test-summary.txt >> $GITHUB_STEP_SUMMARY
+         cat src/Tjb.UiTests/TestResults/test-summary.txt >> $GITHUB_STEP_SUMMARY
          echo '```' >> $GITHUB_STEP_SUMMARY
          echo "" >> $GITHUB_STEP_SUMMARY
        fi
 
        # List available screenshots for failed tests
-       if [ -d "src/TaskManager.UiTests/TestResults/Screenshots" ] && [ "$(ls -A src/TaskManager.UiTests/TestResults/Screenshots 2>/dev/null)" ]; then
+       if [ -d "src/Tjb.UiTests/TestResults/Screenshots" ] && [ "$(ls -A src/Tjb.UiTests/TestResults/Screenshots 2>/dev/null)" ]; then
          echo "**📸 UI Test Failure Screenshots Available:**" >> $GITHUB_STEP_SUMMARY
          echo "" >> $GITHUB_STEP_SUMMARY
 
          # List screenshot files that were captured
          echo "The following screenshots were captured during UI test failures:" >> $GITHUB_STEP_SUMMARY
-         for screenshot in src/TaskManager.UiTests/TestResults/Screenshots/*.png; do
+         for screenshot in src/Tjb.UiTests/TestResults/Screenshots/*.png; do
            if [ -f "$screenshot" ]; then
              filename=$(basename "$screenshot")
              echo "- \`$filename\`" >> $GITHUB_STEP_SUMMARY

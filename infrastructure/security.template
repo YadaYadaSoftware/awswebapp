@@ -237,6 +237,15 @@ Resources:
                   - ecr:GetDownloadUrlForLayer
                   - ecr:BatchGetImage
                 Resource: "*"
+        - PolicyName: SesAccess
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ses:SendEmail
+                  - ses:SendRawEmail
+                Resource: "*"
 Outputs:
   AuroraKmsKeyArn:
     Description: ARN of the KMS key (primary or replica)
