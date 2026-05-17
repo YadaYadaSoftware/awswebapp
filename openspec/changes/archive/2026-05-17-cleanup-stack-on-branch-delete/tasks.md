@@ -32,9 +32,9 @@
 >
 > ⚠️ **Important:** GitHub Actions only dispatches the `delete` event for workflow files that exist on the default branch (`app`). If you delete a branch while this workflow is still living only on a feature branch, **nothing will happen** — the event has no workflow to bind to. The workflow must be merged all the way through to `app` before any smoketest will fire. (This was hit during the first smoketest attempt.)
 
-- [ ] 4.1 Create a throwaway feature branch (`scripts/create-branch.ps1 feature/cleanup-smoketest`), let the deploy workflow create its stack, and confirm `feature/cleanup-smoketest`'s stack `cleanup-smoketest-appcloud-systems` exists in `us-east-1` CloudFormation.
-- [ ] 4.2 Delete the throwaway branch from GitHub. Watch the new workflow run.
-- [ ] 4.3 Confirm the workflow succeeds, the stack reaches `DELETE_COMPLETE`, the S3 prefix `s3://cf-templates-{account}-us-east-1/cleanup-smoketest/` is empty, and the workflow summary contains all expected fields.
+- [x] 4.1 Create a throwaway feature branch (`scripts/create-branch.ps1 feature/cleanup-smoketest`), let the deploy workflow create its stack, and confirm `feature/cleanup-smoketest`'s stack `cleanup-smoketest-appcloud-systems` exists in `us-east-1` CloudFormation.
+- [x] 4.2 Delete the throwaway branch from GitHub. Watch the new workflow run.
+- [x] 4.3 Confirm the workflow succeeds, the stack reaches `DELETE_COMPLETE`, the S3 prefix `s3://cf-templates-{account}-us-east-1/cleanup-smoketest/` is empty, and the workflow summary contains all expected fields.
 
 ## 5. Negative-path verification
 
