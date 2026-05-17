@@ -13,17 +13,20 @@ namespace Tjb.Web.Areas.Identity.Pages.Account
         private readonly SignInManager<IdentityUser> _signInManager;
         private readonly UserManager<IdentityUser> _userManager;
         private readonly IEmailService _emailService;
+        private readonly IViewRenderService _viewRenderService;
         private readonly ILogger<ExternalLoginModel> _logger;
 
         public ExternalLoginModel(
             SignInManager<IdentityUser> signInManager,
             UserManager<IdentityUser> userManager,
             IEmailService emailService,
+            IViewRenderService viewRenderService,
             ILogger<ExternalLoginModel> logger)
         {
             _signInManager = signInManager;
             _userManager = userManager;
             _emailService = emailService;
+            _viewRenderService = viewRenderService;
             _logger = logger;
         }
 
@@ -119,10 +122,10 @@ namespace Tjb.Web.Areas.Identity.Pages.Account
                 var subject = "Confirm your email";
                 var textBody =
                     $"Welcome!\n\nPlease confirm your email address by visiting this link:\n{confirmUrl}\n\nIf you did not create this account, you can ignore this email.";
-                var htmlBody =
-                    $"<p>Welcome!</p><p>Please confirm your email address by clicking the link below:</p>" +
-                    $"<p><a href=\"{confirmUrl}\">Confirm your email</a></p>" +
-                    $"<p>If you did not create this account, you can ignore this email.</p>";
+
+                var htmlBody = await _viewRenderService.RenderToStringAsync(
+                    "/Pages/EmailTemplates/ConfirmationEmail.cshtml",
+                    new ConfirmationEmailViewModel { Email = email, ConfirmationUrl = confirmUrl });
 
                 await _emailService.SendEmailAsync(new SendEmailRequest
                 {

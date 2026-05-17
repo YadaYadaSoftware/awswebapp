@@ -80,6 +80,10 @@ builder.Services.AddHealthChecks();
 // Email service — currently a stub that logs to console (Step B).
 // Will be swapped for AwsSesEmailService in Step D.
 builder.Services.AddScoped<IEmailService, LoggingEmailService>();
+
+// View rendering service for email templates (Step C).
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<IViewRenderService, ViewRenderService>();
 builder.Services.AddAuthentication().AddGoogle(googleOptions =>
 {
     googleOptions.ClientId = builder.Configuration["Authentication:Google:ClientId"];

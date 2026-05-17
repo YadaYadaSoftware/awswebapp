@@ -15,25 +15,25 @@
 
 ## 3. Create View Rendering Service
 
-- [ ] 3.1 Create `Services/IViewRenderService.cs` interface with `RenderToStringAsync()` method
-- [ ] 3.2 Create `Services/ViewRenderService.cs` implementing IViewRenderService
-- [ ] 3.3 Implement view rendering using IViewEngine and ActionContext
-- [ ] 3.4 Add proper error handling for missing views
+- [x] 3.1 Create `Services/IViewRenderService.cs` interface with `RenderToStringAsync()` method
+- [x] 3.2 Create `Services/ViewRenderService.cs` implementing IViewRenderService
+- [x] 3.3 Implement view rendering using IViewEngine and ActionContext
+- [x] 3.4 Add proper error handling for missing views
 
 ## 4. Register Services in Dependency Injection
 
 - [x] 4.1 Update `Program.cs` to add `IEmailService` registration as `AwsSesEmailService`
-- [ ] 4.2 Update `Program.cs` to add `IViewRenderService` registration as `ViewRenderService`
+- [x] 4.2 Update `Program.cs` to add `IViewRenderService` registration as `ViewRenderService`
 - [ ] 4.3 Ensure AWS SDK configuration is loaded from appsettings/environment
 - [ ] 4.4 Verify services are properly injected in test
 
 ## 5. Create Email Templates
 
-- [ ] 5.1 Create `Pages/EmailTemplates/` folder
-- [ ] 5.2 Create `Pages/EmailTemplates/ConfirmationEmail.cshtml` with model for email and token
-- [ ] 5.3 Design email template with application branding and professional styling
-- [ ] 5.4 Include confirmation button with clickable link: `/Account/ConfirmEmail?email={email}&token={token}`
-- [ ] 5.5 Test email template rendering with sample data
+- [x] 5.1 Create `Pages/EmailTemplates/` folder
+- [x] 5.2 Create `Pages/EmailTemplates/ConfirmationEmail.cshtml` with model for email and token
+- [x] 5.3 Design email template with application branding and professional styling
+- [x] 5.4 Include confirmation button with clickable link: `/Account/ConfirmEmail?email={email}&token={token}`
+- [x] 5.5 Test email template rendering with sample data
 
 ## 6. Integrate Email Sending in OAuth Flow
 
