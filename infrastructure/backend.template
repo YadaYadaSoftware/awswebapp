@@ -3,9 +3,6 @@ AWSTemplateFormatVersion: "2010-09-09"
 Description: "TaskManager Backend Infrastructure Template - Includes security, networking, database, and infrastructure components"
 
 Parameters:
-  GitHubActionsUserArn:
-    Type: String
-    Description: ARN of the GitHub Actions IAM user
   # Common parameters
   BranchName:
     Type: String
@@ -63,15 +60,6 @@ Parameters:
     NoEcho: true
 
 Conditions:
-  IsPrimary: !Equals [!Ref IsPrimaryRegion, "true"]
-  IsSecondary: !Equals [!Ref IsPrimaryRegion, "false"]
-  HasGlobalClusterId: !Not [!Equals [!Ref AuroraGlobalClusterId, ""]]
-  IsSingleRegion: !Equals [!Ref EnableGlobalCluster, "false"]
-  IsPrimarySingleRegion:
-    !And [
-      !Equals [!Ref IsPrimaryRegion, "true"],
-      !Equals [!Ref EnableGlobalCluster, "false"],
-    ]
   ShouldCreateGlobalCluster:
     !And [
       !Equals [!Ref IsPrimaryRegion, "true"],
@@ -79,18 +67,15 @@ Conditions:
     ]
 
 Resources:
-  # Security stack: provides SharedLambdaExecutionRole only. The AuroraKmsKey
-  # resources still defined inside it are vestigial (Phase 5 task 7.2 removes
-  # them) — the cluster's KmsKeyId now comes directly from the workflow via
-  # the KmsKeyArn parameter on this template.
+  # Security stack: provides SharedLambdaExecutionRole only. The cluster's
+  # KmsKeyId comes directly from the workflow via the KmsKeyArn parameter
+  # on this template (bootstrap stack's prod or nonprod key, selected by branch).
   SecurityStack:
     Type: AWS::CloudFormation::Stack
     Properties:
       TemplateURL: ./security.template
       Parameters:
         BranchName: !Ref BranchName
-        IsPrimaryRegion: !Ref IsPrimaryRegion
-        GitHubActionsUserArn: !Ref GitHubActionsUserArn
 
   # Regional VPC
   NetworkingStack:

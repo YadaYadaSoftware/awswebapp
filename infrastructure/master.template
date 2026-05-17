@@ -3,9 +3,6 @@ AWSTemplateFormatVersion: "2010-09-09"
 Description: "TaskManager Master Infrastructure Template - Includes backend and application nested stacks"
 
 Parameters:
-  GitHubActionsUserArn:
-    Type: String
-    Description: ARN of the GitHub Actions IAM user
   BranchName:
     Type: String
     Description: Branch name for resource naming
@@ -146,7 +143,6 @@ Resources:
         KmsKeyArn: !Ref KmsKeyArn
         GoogleOAuthClientId: !Ref GoogleOAuthClientId
         GoogleOAuthClientSecret: !Ref GoogleOAuthClientSecret
-        GitHubActionsUserArn: !Ref GitHubActionsUserArn
 
   ApplicationStack:
     Type: AWS::CloudFormation::Stack

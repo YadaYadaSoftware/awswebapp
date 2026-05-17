@@ -1,141 +1,13 @@
 ---
 AWSTemplateFormatVersion: 2010-09-09
-Description: TaskManager KMS Key and Replica Infrastructure
+Description: "TaskManager Shared Execution Role - per-env IAM role assumed by Lambda functions and ECS tasks in this env stack. Aurora KMS keys are owned by the bootstrap stack (not this stack) as of the centralize-aurora-kms-keys change."
 
 Parameters:
-  GitHubActionsUserArn:
-    Type: String
-    Description: ARN of the GitHub Actions IAM user
-
   BranchName:
     Type: String
-    Description: Branch name for resource naming
-
-  KmsKeyArn:
-    Type: String
-    Description: ARN of the primary KMS key to create a replica from (optional)
-    Default: ""
-
-  IsPrimaryRegion:
-    Type: String
-    AllowedValues: ["true", "false"]
-    Default: "false"
-    Description: Whether this region hosts the primary cluster
-
-Conditions:
-  IsPrimaryKey: !Equals [!Ref KmsKeyArn, ""]
-  IsReplicaKey: !Not [!Equals [!Ref KmsKeyArn, ""]]
-  IsPrimary: !Equals [!Ref IsPrimaryRegion, "true"]
+    Description: Branch name for resource naming (used in the exported output name)
 
 Resources:
-  AuroraKmsKey:
-    Type: AWS::KMS::Key
-    Condition: IsPrimaryKey
-    DeletionPolicy: Retain
-    Properties:
-      Description: !Sub "Multi-region KMS key for Aurora Global Database encryption - ${BranchName}"
-      KeyUsage: ENCRYPT_DECRYPT
-      KeySpec: SYMMETRIC_DEFAULT
-      MultiRegion: true
-      Enabled: true
-      PendingWindowInDays: 7
-      KeyPolicy:
-        Version: 2012-10-17
-        Statement:
-          - Sid: EnableIAMUserPermissions
-            Effect: Allow
-            Principal:
-              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:root"
-            Action: kms:*
-            Resource: "*"
-          - Sid: AllowRDSService
-            Effect: Allow
-            Principal:
-              Service: rds.amazonaws.com
-            Action:
-              - kms:CreateGrant
-              - kms:DescribeKey
-              - kms:Decrypt
-              - kms:Encrypt
-              - kms:GenerateDataKey
-              - kms:ReEncryptFrom
-              - kms:ReEncryptTo
-              - kms:RetireGrant
-            Resource: "*"
-          - Sid: AllowGitHubActionsUser
-            Effect: Allow
-            Principal:
-              AWS: !Ref GitHubActionsUserArn
-            Action:
-              - kms:CreateKey
-              - kms:DescribeKey
-              - kms:CreateGrant
-              - kms:Decrypt
-              - kms:Encrypt
-              - kms:GenerateDataKey
-              - kms:ReEncryptFrom
-              - kms:ReEncryptTo
-              - kms:RetireGrant
-              - kms:CreateAlias
-              - kms:DeleteAlias
-              - kms:UpdateAlias
-              - kms:ListAliases
-              - kms:ListGrants
-              - kms:RevokeGrant
-            Resource: "*"
-  AuroraKmsKeyReplica:
-    Type: AWS::KMS::ReplicaKey
-    Condition: IsReplicaKey
-    DeletionPolicy: Retain
-    Properties:
-      Description: !Sub "KMS key replica for Aurora Global Database encryption - ${BranchName}"
-      PrimaryKeyArn: !Ref KmsKeyArn
-      Enabled: true
-      PendingWindowInDays: 7
-      KeyPolicy:
-        Version: 2012-10-17
-        Statement:
-          - Sid: EnableIAMUserPermissions
-            Effect: Allow
-            Principal:
-              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:root"
-            Action: kms:*
-            Resource: "*"
-          - Sid: AllowRDSService
-            Effect: Allow
-            Principal:
-              Service: rds.amazonaws.com
-            Action:
-              - kms:CreateGrant
-              - kms:DescribeKey
-              - kms:Decrypt
-              - kms:Encrypt
-              - kms:GenerateDataKey
-              - kms:ReEncryptFrom
-              - kms:ReEncryptTo
-              - kms:RetireGrant
-            Resource: "*"
-          - Sid: AllowGitHubActionsUser
-            Effect: Allow
-            Principal:
-              AWS: !Ref GitHubActionsUserArn
-            Action:
-              - kms:CreateKey
-              - kms:DescribeKey
-              - kms:CreateGrant
-              - kms:Decrypt
-              - kms:Encrypt
-              - kms:GenerateDataKey
-              - kms:ReEncryptFrom
-              - kms:ReEncryptTo
-              - kms:RetireGrant
-              - kms:CreateAlias
-              - kms:DeleteAlias
-              - kms:UpdateAlias
-              - kms:ListAliases
-              - kms:ListGrants
-              - kms:RevokeGrant
-            Resource: "*"
   SharedLambdaExecutionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -197,24 +69,12 @@ Resources:
             Statement:
               - Effect: Allow
                 Action:
-                  - kms:CreateKey
                   - kms:DescribeKey
-                  - kms:CreateGrant
                   - kms:Decrypt
                   - kms:Encrypt
                   - kms:GenerateDataKey
                   - kms:ReEncryptFrom
                   - kms:ReEncryptTo
-                  - kms:RetireGrant
-                  - kms:CreateAlias
-                  - kms:DeleteAlias
-                  - kms:UpdateAlias
-                  - kms:ListAliases
-                  - kms:ListGrants
-                  - kms:RevokeGrant
-                  - kms:ReplicateKey
-                  - kms:DisableKey
-                  - kms:ScheduleKeyDeletion
                 Resource: "*"
         - PolicyName: SSMParameterAccess
           PolicyDocument:
@@ -246,21 +106,8 @@ Resources:
                   - ses:SendEmail
                   - ses:SendRawEmail
                 Resource: "*"
-Outputs:
-  # AuroraKmsKeyArn output is unexported as of the centralize-aurora-kms-keys
-  # change — the cluster's KmsKeyId now comes from the workflow's bootstrap
-  # SSM lookup, not from this stack's KMS resources. The output is kept for
-  # diagnostic visibility into the (now-vestigial) KMS resources in this
-  # stack; Phase 5 task 7.2 removes the resources and this output entirely.
-  AuroraKmsKeyArn:
-    Description: "ARN of the (vestigial) KMS key still owned by this stack. Not consumed by anything; remove in Phase 5."
-    Value:
-      !If [
-        IsPrimaryKey,
-        !GetAtt AuroraKmsKey.Arn,
-        !GetAtt AuroraKmsKeyReplica.Arn,
-      ]
 
+Outputs:
   SharedLambdaRoleArn:
     Description: Shared Lambda execution role ARN
     Value: !GetAtt SharedLambdaExecutionRole.Arn
