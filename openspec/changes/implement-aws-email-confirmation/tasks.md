@@ -85,3 +85,12 @@
 - [ ] 11.2 Remove any temporary test email services or stubs
 - [ ] 11.3 Verify no console.log or debug code left in email service
 - [ ] 11.4 Update CI/CD pipeline if needed for email testing
+
+## 12. Handle Existing Users in OAuth Callback
+
+- [x] 12.1 In `ExternalLogin.OnGetCallbackAsync`, after sign-in attempt fails, look up the user by Google-provided email with `FindByEmailAsync`
+- [x] 12.2 If user exists and Google login is not yet linked, call `UserManager.AddLoginAsync` to attach the external login to the existing account
+- [x] 12.3 If existing user's `EmailConfirmed` is false, resend the confirmation email and redirect to `RegisterConfirmation`
+- [x] 12.4 If existing user's `EmailConfirmed` is true, call `SignInManager.SignInAsync` and redirect to the return URL
+- [x] 12.5 Add logging at each branch (linked existing, resent confirmation, signed in existing) for debuggability
+- [ ] 12.6 Test the four scenarios: new user, existing+linked+confirmed, existing+linked+unconfirmed, existing+not-linked

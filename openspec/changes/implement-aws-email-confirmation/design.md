@@ -115,6 +115,30 @@ The user's email address is obtained from Google's OAuth token and automatically
 - Keep the default Identity form: simpler implementation, but creates the redundant "enter your email" step the user already completed via Google
 - Skip the confirmation page entirely and sign user in immediately: would bypass email verification requirement (rejected — we need email verification)
 
+### 5b. Auto-Link Google to Existing Accounts (by Email Match)
+**Decision**: When Google OAuth returns an email that matches an existing `AspNetUsers` row, automatically attach the Google `AspNetUserLogins` entry to that existing user instead of attempting to create a duplicate user.
+
+**Rationale**:
+- Without this, the OAuth callback hits a `DuplicateUserName` error from `UserManager.CreateAsync()` and silently redirects to `/Login`, which looks like a dead-end "nothing happened" to the user
+- Google verifies email ownership, so it's safe to trust the email match — anyone who can pass Google OAuth for `foo@gmail.com` has demonstrated control over that mailbox
+- This also covers the case where an account was created out-of-band (seed data, migration from another provider, manual cleanup of `AspNetUserLogins` rows during testing)
+- Also handles the related case where `ExternalLoginSignInAsync()` returns `IsNotAllowed` because `RequireConfirmedAccount = true` and the user has not yet confirmed — instead of falling through to the duplicate-user error, we resend the confirmation email and redirect to the "check your email" page
+
+**Implementation** (in `ExternalLogin.OnGetCallbackAsync`):
+1. Try `ExternalLoginSignInAsync()`. If `Succeeded` → redirect to return URL. If `IsLockedOut` → lockout page.
+2. Read the email claim from the external principal.
+3. `FindByEmailAsync(email)` → if a user exists:
+   - If no Google entry in their `AspNetUserLogins`, call `AddLoginAsync()` to link
+   - If `EmailConfirmed == false`, resend confirmation email and redirect to `RegisterConfirmation`
+   - If `EmailConfirmed == true`, call `SignInManager.SignInAsync()` and redirect to return URL
+4. Otherwise (no existing user) → existing auto-create path runs.
+
+**Trust boundary**: We trust Google's email verification. If we ever add an OAuth provider that does NOT verify emails (Twitter historically didn't), this auto-linking must be disabled or guarded for that provider only.
+
+**Alternatives Considered**:
+- Show the user a "we found an existing account, link it?" confirmation form: more conservative but adds friction for a flow that's already safe given Google's email verification
+- Always treat `FindByEmailAsync` hits as an error and force the user to log in with their original method: would leave users stuck if they no longer remember how they originally registered, and offers no security benefit when Google has already verified the email
+
 ### 6. Account Verification Persistence
 **Decision**: Rely on ASP.NET Identity's `EmailConfirmed` field to track verification status.
 

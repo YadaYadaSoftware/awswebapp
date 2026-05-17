@@ -74,7 +74,9 @@ namespace Tjb.Web.Areas.Identity.Pages.Account
                 return RedirectToPage("./Lockout");
             }
 
-            // New user — auto-register with the email from the external provider
+            // Either no linked external login OR sign-in was blocked (e.g. IsNotAllowed because
+            // EmailConfirmed = false). Either way, fall through to existing-user-by-email handling.
+
             var email = info.Principal.FindFirstValue(ClaimTypes.Email);
             if (string.IsNullOrEmpty(email))
             {
@@ -82,6 +84,41 @@ namespace Tjb.Web.Areas.Identity.Pages.Account
                 return RedirectToPage("./Login", new { ReturnUrl = returnUrl });
             }
 
+            // If a user with this email already exists, link the external login to that account
+            // (Google verifies email ownership, so this is safe).
+            var existingUser = await _userManager.FindByEmailAsync(email);
+            if (existingUser != null)
+            {
+                var existingLogins = await _userManager.GetLoginsAsync(existingUser);
+                var alreadyLinked = existingLogins.Any(l =>
+                    l.LoginProvider == info.LoginProvider && l.ProviderKey == info.ProviderKey);
+
+                if (!alreadyLinked)
+                {
+                    var linkResult = await _userManager.AddLoginAsync(existingUser, info);
+                    if (!linkResult.Succeeded)
+                    {
+                        ErrorMessage = string.Join("; ", linkResult.Errors.Select(e => e.Description));
+                        _logger.LogWarning("Failed to link {Provider} login to existing user {Email}: {Errors}",
+                            info.LoginProvider, email, ErrorMessage);
+                        return RedirectToPage("./Login", new { ReturnUrl = returnUrl });
+                    }
+                    _logger.LogInformation("Linked {Provider} login to existing user {Email}.", info.LoginProvider, email);
+                }
+
+                if (!existingUser.EmailConfirmed)
+                {
+                    _logger.LogInformation("Existing user {Email} is not confirmed; resending confirmation email.", email);
+                    await SendConfirmationEmailAsync(existingUser, email);
+                    return RedirectToPage("./RegisterConfirmation", new { email, returnUrl });
+                }
+
+                await _signInManager.SignInAsync(existingUser, isPersistent: false);
+                _logger.LogInformation("Signed in existing user {Email} after linking {Provider}.", email, info.LoginProvider);
+                return LocalRedirect(returnUrl);
+            }
+
+            // No existing user — auto-create with the email from the external provider.
             var user = new IdentityUser { UserName = email, Email = email };
             var createResult = await _userManager.CreateAsync(user);
             if (!createResult.Succeeded)

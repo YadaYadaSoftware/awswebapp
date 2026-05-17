@@ -30,6 +30,25 @@ The system SHALL automatically create the user account using the email address p
 - **WHEN** Google OAuth completes and the account is auto-created
 - **THEN** the user is redirected immediately to the confirmation instruction page (no Register button click required)
 
+### Requirement: Auto-link Google OAuth to existing accounts by email
+The system SHALL automatically link a Google OAuth login to an existing user account that matches the Google-provided email address, rather than failing with a duplicate-user error or silently returning to the login page.
+
+#### Scenario: Existing user signs in with Google for the first time (no external login linked)
+- **WHEN** a user whose `AspNetUsers` row already exists (matching the email Google returned) signs in via Google OAuth, and no Google entry exists in `AspNetUserLogins` for that user
+- **THEN** the system adds the Google external login to that existing user (no new user is created, no duplicate-user error is shown), then proceeds based on the user's email-confirmation state
+
+#### Scenario: Existing user has Google linked but email not confirmed
+- **WHEN** a user with a linked Google login signs in via Google OAuth, and the user's `EmailConfirmed` flag is false
+- **THEN** the system re-sends the confirmation email and redirects the user to the "check your email" page (instead of silently failing because `RequireConfirmedAccount` blocks sign-in)
+
+#### Scenario: Existing user has Google linked and email confirmed
+- **WHEN** a user with a linked Google login signs in via Google OAuth, and the user's `EmailConfirmed` flag is true
+- **THEN** the system signs them in and redirects to the return URL
+
+#### Scenario: Existing user becomes confirmed after first link-and-click
+- **WHEN** a user whose account predated Google linking links Google via OAuth and then clicks the confirmation link
+- **THEN** the confirmation link marks `EmailConfirmed = true` and the user can subsequently sign in via Google without re-confirmation
+
 ### Requirement: Display confirmation instructions to user
 The system SHALL show users a message instructing them to check their email for confirmation.
 
