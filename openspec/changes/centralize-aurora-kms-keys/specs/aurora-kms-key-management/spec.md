@@ -18,25 +18,31 @@ Per-branch environment stacks (`dev`, `alpha`, `beta`, `app`, and feature branch
 - **WHEN** any env stack (master.template) is deployed for any branch
 - **THEN** the resulting stack contains zero resources of type `AWS::KMS::Key` or `AWS::KMS::ReplicaKey`
 
-### Requirement: Dedicated GitHub Actions IAM user for `app` deploys
+### Requirement: Dedicated GitHub Actions IAM user per scope
 
 The `bootstrap-prod` stack SHALL create an IAM user named `GitHubActionsUserProd` with its own `AWS::IAM::AccessKey`. This user SHALL have a `DeploymentPolicy-prod` IAM policy attached that grants the minimum AWS API permissions needed to deploy the `app` env stack (CloudFormation, ECS, ECR, Aurora/RDS, IAM read/write for stack-managed roles, Secrets Manager, ELBv2, ACM, Route 53, CloudWatch Logs, SSM read).
 
-The existing CI IAM user (managed by the unscoped `bootstrap` stack) SHALL be used for every non-`app` branch and SHALL NOT be granted any permission on resources tagged `Environment=Production` or on the `bootstrap-prod` KMS key.
+The `bootstrap-nonprod` stack SHALL create an IAM user named `GitHubActionsUser` with its own `AWS::IAM::AccessKey` and a `DeploymentPolicy` IAM policy that grants the AWS API permissions needed to deploy non-`app` env stacks (the same shape as the legacy bootstrap stack's policy). This user SHALL be used for every non-`app` branch and SHALL NOT be granted any permission on the `bootstrap-prod` KMS key.
+
+Neither IAM user appears in the legacy `bootstrap` stack — that stack is fully retired by this change.
 
 #### Scenario: Prod CI user exists
 - **WHEN** `bootstrap-prod` is deployed
 - **THEN** an IAM user named `GitHubActionsUserProd` exists with an access key, and the stack outputs `GitHubActionsUserProdAccessKeyId` and `GitHubActionsUserProdSecretAccessKey`
 
+#### Scenario: Non-prod CI user exists in bootstrap-nonprod
+- **WHEN** `bootstrap-nonprod` is deployed
+- **THEN** an IAM user named `GitHubActionsUser` exists with an access key, and the stack outputs `GitHubActionsUserAccessKeyId` and `GitHubActionsUserSecretAccessKey`
+
 #### Scenario: Non-prod CI user cannot deploy app stack
-- **WHEN** the existing non-prod CI user attempts `cloudformation:UpdateStack` against the `app-appcloud-systems` stack
+- **WHEN** the `GitHubActionsUser` (from `bootstrap-nonprod`) attempts `cloudformation:UpdateStack` against the `app-appcloud-systems` stack
 - **THEN** the API call is denied
 
 ### Requirement: Production key uses restricted access policy
 
 The `bootstrap-prod` KMS key policy SHALL grant `GitHubActionsUserProd` only the operations needed to use the key for Aurora encryption (`kms:CreateGrant`, `kms:DescribeKey`, `kms:Decrypt`, `kms:Encrypt`, `kms:GenerateDataKey`, `kms:ReEncryptFrom`, `kms:ReEncryptTo`, `kms:RetireGrant`, `kms:ListGrants`, `kms:RevokeGrant`). The policy MUST NOT grant `GitHubActionsUserProd` any of: `kms:ScheduleKeyDeletion`, `kms:DisableKey`, `kms:PutKeyPolicy`, `kms:DeleteAlias`, `kms:UpdateAlias`, `kms:ReplicateKey`, `kms:CreateAlias`.
 
-The existing non-prod CI IAM user MUST NOT appear in the `bootstrap-prod` key policy at all.
+The `GitHubActionsUser` from `bootstrap-nonprod` MUST NOT appear in the `bootstrap-prod` key policy at all.
 
 Destructive operations on the production key SHALL be granted only to the AWS account root principal and to a dedicated IAM role named `prod-kms-admin` that is also created in the `bootstrap-prod` stack.
 
@@ -45,7 +51,7 @@ Destructive operations on the production key SHALL be granted only to the AWS ac
 - **THEN** the API call is denied by the key policy and returns `AccessDeniedException`
 
 #### Scenario: Non-prod CI cannot reach the prod key at all
-- **WHEN** the existing non-prod CI IAM user calls `kms:DescribeKey` against the `bootstrap-prod` key
+- **WHEN** the `GitHubActionsUser` from `bootstrap-nonprod` calls `kms:DescribeKey` against the `bootstrap-prod` key
 - **THEN** the API call is denied by the key policy
 
 #### Scenario: Prod CI can use the prod key for Aurora encryption
@@ -58,10 +64,10 @@ Destructive operations on the production key SHALL be granted only to the AWS ac
 
 ### Requirement: Non-production key keeps permissive policy
 
-The `bootstrap-nonprod` KMS key policy SHALL grant the existing CI IAM user the same broad set of operations the current `security.template` policy grants (including `kms:CreateAlias`, `kms:DeleteAlias`, `kms:UpdateAlias`, `kms:ListAliases`, `kms:CreateGrant`, `kms:Decrypt`, `kms:Encrypt`, `kms:GenerateDataKey`, `kms:ReEncryptFrom`, `kms:ReEncryptTo`, `kms:RetireGrant`, `kms:DescribeKey`, `kms:ListGrants`, `kms:RevokeGrant`).
+The `bootstrap-nonprod` KMS key policy SHALL grant the `GitHubActionsUser` (created in the same `bootstrap-nonprod` stack) the same broad set of operations the current `security.template` policy grants (including `kms:CreateAlias`, `kms:DeleteAlias`, `kms:UpdateAlias`, `kms:ListAliases`, `kms:CreateGrant`, `kms:Decrypt`, `kms:Encrypt`, `kms:GenerateDataKey`, `kms:ReEncryptFrom`, `kms:ReEncryptTo`, `kms:RetireGrant`, `kms:DescribeKey`, `kms:ListGrants`, `kms:RevokeGrant`).
 
 #### Scenario: Non-prod CI can manage nonprod aliases
-- **WHEN** the existing CI IAM user calls `kms:CreateAlias` or `kms:DeleteAlias` against the `bootstrap-nonprod` key
+- **WHEN** the `GitHubActionsUser` (from `bootstrap-nonprod`) calls `kms:CreateAlias` or `kms:DeleteAlias` against the `bootstrap-nonprod` key
 - **THEN** the call succeeds
 
 ### Requirement: Branch-to-key mapping is explicit and enforced at deploy time
@@ -98,6 +104,8 @@ The deploy workflow SHALL select GitHub Actions AWS credentials as follows:
 - For every other branch: the existing `secrets.AWS_ACCESS_KEY_ID` and `secrets.AWS_SECRET_ACCESS_KEY`.
 
 The selection MUST happen before `aws-actions/configure-aws-credentials` runs, in the same deploy job. If `AWS_ACCESS_KEY_ID_PROD` or `AWS_SECRET_ACCESS_KEY_PROD` is empty on an `app` push, the workflow SHALL fail loudly (no silent fallback to non-prod credentials).
+
+The non-prod `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` GitHub secrets in use after this change SHALL be sourced from the `GitHubActionsUser` access key in the `bootstrap-nonprod` stack — not from the legacy `bootstrap` stack (which is retired).
 
 #### Scenario: app deploy uses prod credentials
 - **WHEN** the deploy workflow runs on branch `app`

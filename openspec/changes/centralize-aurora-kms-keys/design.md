@@ -27,6 +27,8 @@ The migration constraint that drives most of the complexity: **Aurora's `KmsKeyI
 
 This change covers only the KMS centralization plus the CI credential split. The secondary-region migration (us-west-2 → us-east-2) is split into a sibling change [`shift-secondary-region-to-us-east-2`](../shift-secondary-region-to-us-east-2/proposal.md) that lands after this one. During this change the secondary region remains `us-west-2`, and the new bootstrap stacks are deployed to both `us-east-1` and `us-west-2`.
 
+The change also takes a deliberate **clean-slate** approach to the bootstrap layout: the existing single `bootstrap` stack per region is torn down rather than updated in place. This frees us from compatibility constraints, lets each template have a single clear purpose, and avoids drift surprises (the existing `bootstrap` stack contains at least one resource — `GoogleOAuthSecrets` — that no longer appears in the template). The accepted consequences of teardown are spelled out in the proposal and revisited in Risks below.
+
 ## Goals / Non-Goals
 
 **Goals:**
@@ -39,27 +41,39 @@ This change covers only the KMS centralization plus the CI credential split. The
 **Non-Goals:**
 
 - **Not** changing the secondary AWS region. us-west-2 stays. (Sibling change.)
-- **Not** duplicating the entire bootstrap stack (ECR, Config rules). Only the KMS key and the `GitHubActionsUserProd` IAM user get prod/nonprod separation. The shared resources (ECR repo, Config rules, S3 bucket policy, ApiGateway logs role) stay in the existing `bootstrap` stack.
+- **Not** splitting the ECR repository into prod and nonprod. The web container ECR repo stays single and shared — both `bootstrap-prod` and `bootstrap-nonprod` IAM users get push/pull on the same repo. (Splitting ECR for stricter image isolation is a possible future change, but is not driven by this one.)
+- **Not** preserving the existing `bootstrap` stack content. The old stack is torn down; relevant resources are re-created in `bootstrap-shared` / `bootstrap-prod` / `bootstrap-nonprod` from scratch. Consequences (ECR rebuild, GitHub-secret rotation, brief deploy quiet window) are explicitly accepted.
 - **Not** preserving the `dev` database content through migration (resolved as drop-and-recreate; see Resolved Decisions below).
 - **Not** touching `src/` application code. Infra + pipeline only.
 
 ## Decisions
 
-### D1. One bootstrap template, `BootstrapScope` parameter, three stack instances per region
+### D1. Two templates, three stack instances per region
 
-Rather than `bootstrap-prod.template` + `bootstrap-nonprod.template`, keep one `bootstrap.template` and deploy it with `BootstrapScope=prod` and `BootstrapScope=nonprod` as separate stack instances. The template uses `BootstrapScope` to:
+Split the bootstrap layer into two files:
 
-- Suffix resource names and SSM parameter paths (`/taskmanager/kms/${BootstrapScope}/aurora-key-arn`).
-- Switch the KMS key policy via a `Conditions` block (`IsProdScope`).
-- Conditionally create the `prod-kms-admin` IAM role and `GitHubActionsUserProd` IAM user only when `IsProdScope`.
+- **`infrastructure/bootstrap-shared.template`** (new file) — account-wide infrastructure that has no prod/nonprod distinction:
+  - `WebECRRepository` (with an explicit `RepositoryName: !Sub "ecr-${AWS::AccountId}-${AWS::Region}"` so the workflow's hardcoded image URI stays valid across the recreation).
+  - `ApiGatewayCloudWatchLogsRole` + `ApiGatewayAccount`.
+  - `LogRetentionConfigFunction` + `ConfigRuleRole` + `LogRetentionConfigRule` + `LogRetentionRemediationDocument` + `SSMAutomationRole` + `LogRetentionRemediation` + `ConfigInvokeLambdaPermission`.
+  - `TemplatesBucketPolicy` on the externally-managed `cf-templates-{account}-{region}` bucket.
+  - Deployed once per region as stack name **`bootstrap-shared`**.
 
-The shared bootstrap resources (`GitHubActionsUser` for non-prod, `WebECRRepository`, `ApiGatewayCloudWatchLogsRole`, Config rules, S3 bucket policy) stay in the existing unscoped `bootstrap` stack instance, with no scope suffix.
+- **`infrastructure/bootstrap.template`** (rewritten from scratch) — per-scope KMS + IAM:
+  - Parameters: `BootstrapScope` (required, `AllowedValues: [prod, nonprod]`, no default), `IsPrimaryRegion` (required, `[true, false]`), `PrimaryKeyArn` (required when `IsPrimaryRegion=false`, ignored otherwise).
+  - Conditions: `IsProd`, `IsNonprod`, `IsPrimary`.
+  - Resources: `AuroraKmsKey` (when `IsPrimary`) / `AuroraKmsKeyReplica` (when not), `AWS::KMS::Alias` `taskmanager-aurora-${BootstrapScope}`, `AWS::SSM::Parameter` `/taskmanager/kms/${BootstrapScope}/aurora-key-arn`, the scope's IAM user (`GitHubActionsUser` when `IsNonprod`, `GitHubActionsUserProd` when `IsProd`) + `AWS::IAM::AccessKey` + scope-named `DeploymentPolicy`, and (only when `IsProd`) the `prod-kms-admin` IAM role.
+  - Deployed once per scope per region as stack name **`bootstrap-prod`** or **`bootstrap-nonprod`**.
 
-Net result per region: three bootstrap stacks — `bootstrap`, `bootstrap-prod`, `bootstrap-nonprod`.
+Net result per region: three stack instances from two template files — `bootstrap-shared`, `bootstrap-prod`, `bootstrap-nonprod`. The original single `bootstrap` stack and template content is fully retired.
 
-**Alternative considered:** Separate templates per scope — rejected, 95% overlap, drift risk.
+**Alternative considered:** Single template with three scope values (`shared`, `prod`, `nonprod`) and per-resource `Conditions`. Rejected — every resource sprouts a `Condition:` line, and the file becomes a giant `if/else` ladder. Two files are clearer.
 
-**Alternative considered:** Single `bootstrap` stack with both keys side-by-side — rejected, defeats the "delete prod KMS stack independently of nonprod" property.
+**Alternative considered:** Keep the original `bootstrap` stack updated in place and only add `bootstrap-prod` / `bootstrap-nonprod` alongside it (the original approach). Rejected after the user opted to accept teardown — the in-place approach required gating every existing resource with a backwards-compat `Condition: IsUnscoped`, and a no-op changeset against the live stack surfaced unrelated pre-existing drift that complicated the deploy story.
+
+**Alternative considered:** Put `WebECRRepository` in `bootstrap-prod` and `bootstrap-nonprod` (two separate ECR repos for image isolation). Rejected as a non-goal of this change — the existing CI image-tag content-addressing assumes one ECR per region. Splitting ECR is left as a possible follow-up.
+
+**Note on the `GitHubActionsUser` move:** the non-prod CI user moves from the legacy `bootstrap` stack to `bootstrap-nonprod`. This means the access key is reissued — the existing `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` GitHub secrets must be updated from the new stack output before any non-prod CI deploy will succeed against the new layout. Treat this rotation as a hard part of the cut-over, not an afterthought.
 
 ### D2. KMS key discovery via SSM Parameter Store, not CloudFormation Exports
 
@@ -144,6 +158,9 @@ Bootstrap changes are infrequent and need human review — especially `bootstrap
 - **[Risk] `GitHubActionsUserProd` access key leaks before key rotation policy is in place.** → Mitigate: same deploy/rotation policy as the existing CI user; access key is created in CloudFormation but its secret value never appears in `$GITHUB_STEP_SUMMARY` — the operator copies it once from the stack output into GitHub secrets. Tasks.md mandates rotating the key after the initial setup.
 - **[Trade-off] Three bootstrap stacks per region instead of one** is more operationally visible — three things to keep in sync per region. We accept that for blast-radius separation.
 - **[Trade-off] Branch-conditional credentials add one moving part to the workflow.** If the `app` branch's prod secrets are missing or invalid, the deploy fails fast at the `configure-aws-credentials` step rather than silently falling back to non-prod credentials. The workflow explicitly errors if `secrets.AWS_ACCESS_KEY_ID_PROD == ''` on an `app` push.
+- **[Risk] Teardown of the existing `bootstrap` stack briefly removes `TemplatesBucketPolicy`.** During that gap, any CI deploy attempting to upload a packaged template to the S3 bucket will fail. → Mitigate: schedule the teardown for a deploy quiet window (no in-flight PRs, no pending merges), and stand `bootstrap-shared` up immediately after the delete completes.
+- **[Risk] Reissuing both non-prod and prod CI access keys at the same time risks an "all CI broken" window if the operator forgets to update GitHub secrets.** → Mitigate: the tasks list both secret updates as required gates before the next CI run; the `bootstrap-shared` / `bootstrap-nonprod` / `bootstrap-prod` stacks all expose their new access keys as `NoEcho: true` outputs the operator can copy once.
+- **[Trade-off] Loss of one ECR image cache.** When `WebECRRepository` is recreated by `bootstrap-shared`, all existing image tags are gone. The next CI deploy on any branch triggers a full Docker rebuild (~3 minutes per region). Subsequent deploys benefit from the new ECR's empty-then-populated cache normally.
 
 ## Migration Plan
 
@@ -151,12 +168,18 @@ Bootstrap changes are infrequent and need human review — especially `bootstrap
 1. Identify which existing human admin IAM user will deploy `bootstrap-prod` for the first time (Resolved Decisions Q5).
 2. Inventory existing orphaned `AuroraKmsKey` resources in `us-east-1` and `us-west-2` for the Phase 5 sweep.
 
-**Phase 1 — Bootstrap stand-up (no production impact)**
-3. Merge template changes: new `bootstrap.template` (with `BootstrapScope` parameter), updated `security.template` (KMS resources still present for now — Phase 5 removes them).
-4. Human admin deploys `bootstrap-nonprod` in `us-east-1` and `us-west-2`.
-5. Human admin deploys `bootstrap-prod` in `us-east-1` and `us-west-2`. Captures the `GitHubActionsUserProd` access key and secret from the stack outputs.
-6. Add `AWS_ACCESS_KEY_ID_PROD` and `AWS_SECRET_ACCESS_KEY_PROD` to GitHub repository secrets.
-7. Verify SSM parameters exist and contain valid key ARNs in both regions.
+**Phase 1 — Bootstrap teardown and stand-up (deploy quiet window required)**
+
+This phase replaces the legacy `bootstrap` stack with three new stacks. Schedule a deploy quiet window — no in-flight PRs, no pending merges — because the `TemplatesBucketPolicy` is briefly absent between the teardown and `bootstrap-shared` coming up.
+
+3. Merge template changes to the working branch: new `bootstrap-shared.template`, rewritten `bootstrap.template`, updated `security.template` (KMS resources still present for now — Phase 5 removes them).
+4. Quiet window opens. Human admin deletes the legacy stack: `aws cloudformation delete-stack --stack-name bootstrap --region us-east-1` and `--region us-west-2`. Wait for both `DELETE_COMPLETE`.
+5. Human admin deploys `bootstrap-shared` in `us-east-1` and `us-west-2`.
+6. Human admin deploys `bootstrap-nonprod` in `us-east-1` (primary) and `us-west-2` (replica). Captures the new `GitHubActionsUser` access key + secret from `us-east-1` stack outputs.
+7. Human admin deploys `bootstrap-prod` in `us-east-1` (primary) and `us-west-2` (replica). Captures the `GitHubActionsUserProd` access key + secret from `us-east-1` stack outputs.
+8. Update GitHub repository secrets: rotate `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` (now from `bootstrap-nonprod`), add new `AWS_ACCESS_KEY_ID_PROD` / `AWS_SECRET_ACCESS_KEY_PROD` (from `bootstrap-prod`).
+9. Verify SSM parameters exist and contain valid key ARNs in both regions.
+10. Quiet window closes — normal CI resumes.
 
 **Phase 2 — Wire workflows and templates**
 8. Merge workflow + template changes (branch-conditional credentials, SSM lookup, application.template KmsKeyArn parameter, backend.template rewiring, master.template KmsKeyArn required).
@@ -181,10 +204,11 @@ Bootstrap changes are infrequent and need human review — especially `bootstrap
 21. Rotate `GitHubActionsUserProd` access key once (security hygiene; it was visible in the stack output during Phase 1).
 
 **Rollback strategies:**
-- Phases 1-2: revert the merge; old `security.template` still owns the keys; redeploy.
+- Phase 1: the legacy `bootstrap` stack is gone after step 4 — there is no clean revert to the old layout. Recovery means re-deploying the old `bootstrap.template` content from git history as a new stack and rotating GitHub secrets back. This is mechanical but slow (~30 min). Plan the quiet window for a time when rolling forward is the only realistic option.
+- Phase 2: revert the workflow / template merge; the old `security.template` still owns the per-env KMS keys; existing env stacks continue using them. (`bootstrap-prod`/`bootstrap-nonprod` keys are unused but harmless.)
 - Phase 3: restore snapshot to a fresh stack on the old key.
-- Phase 4: restore snapshot to a fresh stack on the old key (old `bootstrap` KMS resources still live).
-- Phase 5 is the point of no return.
+- Phase 4: restore snapshot to a fresh stack on the old key (old per-env KMS resources still live in security.template until Phase 5).
+- Phase 5 is the point of no return for the KMS migration.
 
 ## Resolved Decisions
 
@@ -195,3 +219,4 @@ The original draft of this change carried five open questions. They were resolve
 - **Q3 — Single change or two?** **Split.** The us-west-2 → us-east-2 migration is the sibling change [`shift-secondary-region-to-us-east-2`](../shift-secondary-region-to-us-east-2/proposal.md). That change depends on this one landing first (it builds on the `bootstrap-prod`/`bootstrap-nonprod` pattern).
 - **Q4 — Existing orphaned keys.** **Yes, sweep in Phase 5.** Inventory in Phase 0 task 1.2; schedule deletion in Phase 5 task 7.1.
 - **Q5 — First `bootstrap-prod` deploy.** **Existing human admin IAM user.** Identify which user in Phase 0 task 1.1; that user runs the manual `aws cloudformation deploy` for `bootstrap-prod` in both regions during Phase 1. No chicken-and-egg: the admin user already has AdministratorAccess (or equivalent) independent of anything `bootstrap-prod` creates.
+- **Q6 — Backwards compatibility with the existing `bootstrap` stack?** **No.** A first attempt added `Condition: IsUnscoped` to every existing resource so the live stack could be updated in place; a `--no-execute-changeset` validation surfaced two unrelated pre-existing drift items (`GoogleOAuthSecrets` removal, `TemplatesBucketPolicy` replacement) that complicated the deploy story. The user opted to accept full teardown of the legacy `bootstrap` stack and split the content into a clean `bootstrap-shared` + `bootstrap-prod` + `bootstrap-nonprod` trio (see D1). Trade-offs (ECR rebuild, non-prod secret re-issue, brief deploy quiet window) are accepted.
