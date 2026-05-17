@@ -48,9 +48,9 @@
 
 - [x] 7.1 Update confirmation page to show "Check your email at {email} to verify your account"
 - [x] 7.2 Remove placeholder text "This app does not currently have a real email sender registered"
-- [ ] 7.3 Add success message after email confirmation: "Your account has been verified"
-- [ ] 7.4 Add error handling for invalid/expired tokens with option to resend
-- [ ] 7.5 Ensure confirmation page uses ASP.NET Identity's `ConfirmEmailAsync()` to mark user verified
+- [x] 7.3 Add success message after email confirmation: "Your account has been verified"
+- [x] 7.4 Add error handling for invalid/expired tokens with option to resend
+- [x] 7.5 Ensure confirmation page uses ASP.NET Identity's `ConfirmEmailAsync()` to mark user verified
 
 ## 8. Environment Configuration
 

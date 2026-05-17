@@ -1,0 +1,42 @@
+@page
+@using Tjb.Web.Areas.Identity.Pages.Account
+@model ConfirmEmailModel
+@{
+    ViewData["Title"] = "Confirm email";
+}
+
+<h1>@ViewData["Title"]</h1>
+
+@if (Model.State == ConfirmEmailModel.ResultState.Confirmed)
+{
+    <div class="alert alert-success">
+        <h4>Your account has been verified</h4>
+        <p>Thanks — your email address (<strong>@Model.Email</strong>) is now confirmed. You can sign in with Google to access your account.</p>
+        <p><a href="/Identity/Account/Login" class="btn btn-primary mt-2">Sign in</a></p>
+    </div>
+}
+else if (Model.State == ConfirmEmailModel.ResultState.AlreadyConfirmed)
+{
+    <div class="alert alert-info">
+        <h4>Already verified</h4>
+        <p>Your email (<strong>@Model.Email</strong>) was already verified. You can sign in.</p>
+        <p><a href="/Identity/Account/Login" class="btn btn-primary mt-2">Sign in</a></p>
+    </div>
+}
+else if (Model.State == ConfirmEmailModel.ResultState.Expired)
+{
+    <div class="alert alert-warning">
+        <h4>Confirmation link expired</h4>
+        <p>This confirmation link is no longer valid. Sign in with Google again to receive a new confirmation email.</p>
+        <p><a href="/Identity/Account/Login" class="btn btn-primary mt-2">Sign in with Google</a></p>
+    </div>
+}
+else
+{
+    <div class="alert alert-danger">
+        <h4>Invalid confirmation link</h4>
+        <p>We could not confirm your email with this link. @Model.ErrorMessage</p>
+        <p>Sign in with Google to receive a new confirmation email.</p>
+        <p><a href="/Identity/Account/Login" class="btn btn-primary mt-2">Sign in with Google</a></p>
+    </div>
+}
