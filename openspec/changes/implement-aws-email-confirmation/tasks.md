@@ -1,8 +1,8 @@
 ## 1. Setup & Dependencies
 
-- [ ] 1.1 Add AWSSDK.SimpleEmail NuGet package to Tjb.Web project
-- [ ] 1.2 Verify AWS SDK dependencies are compatible with .NET 10.0 target framework
-- [ ] 1.3 Add any required view rendering NuGet packages if not available in-box
+- [x] 1.1 Add AWSSDK.SimpleEmail NuGet package to Tjb.Web project
+- [x] 1.2 Verify AWS SDK dependencies are compatible with .NET 10.0 target framework
+- [x] 1.3 Add any required view rendering NuGet packages if not available in-box
 
 ## 2. Create Email Service Abstraction
 
