@@ -194,6 +194,8 @@ Resources:
               Value: !Sub "{{resolve:secretsmanager:taskmanager/google-oauth/${EnvironmentToImport}:SecretString:clientId}}"
             - Name: Authentication__Google__ClientSecret
               Value: !Sub "{{resolve:secretsmanager:taskmanager/google-oauth/${EnvironmentToImport}:SecretString:clientSecret}}"
+            - Name: AwsSes__SenderEmail
+              Value: noreply@appcloud.systems
           LogConfiguration:
             LogDriver: awslogs
             Options:

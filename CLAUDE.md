@@ -71,6 +71,23 @@ Useful workflow controls:
 - New branches should be created with `scripts/create-branch.ps1`, which generates a `changes.md` whose first non-empty line becomes the changelog entry on merge into `dev`.
 - The Docker image is content-addressed by a SHA256 of `src/`; if an image with that tag already exists in ECR, the build step is skipped.
 
+## Email (AWS SES)
+
+Confirmation emails sent after Google OAuth registration are delivered via AWS SES. The flow lives in [src/Tjb.Web/Areas/Identity/Pages/Account/ExternalLogin.cshtml.cs](src/Tjb.Web/Areas/Identity/Pages/Account/ExternalLogin.cshtml.cs); rendering is in [src/Tjb.Web/Services/](src/Tjb.Web/Services/) (`IEmailService` → `AwsSesEmailService`, `IViewRenderService`), template in [src/Tjb.Web/Pages/EmailTemplates/ConfirmationEmail.cshtml](src/Tjb.Web/Pages/EmailTemplates/ConfirmationEmail.cshtml).
+
+**Config** (read via `IOptions<AwsSesOptions>`, section `AwsSes`):
+- `AwsSes:Region` — leave empty in deployed envs (AWS SDK auto-detects from Fargate metadata). Set explicitly only for local dev.
+- `AwsSes:SenderEmail` — must be a verified SES identity. Hardcoded to `noreply@appcloud.systems` in [infrastructure/web.template](infrastructure/web.template) (container env var). Override locally via `dotnet user-secrets set "AwsSes:SenderEmail" "..."`.
+
+**IAM**: ECS tasks assume `SharedLambdaExecutionRole` from [infrastructure/security.template](infrastructure/security.template) which now includes a `SesAccess` policy granting `ses:SendEmail` / `ses:SendRawEmail`. Adding any other AWS SDK call from the container requires extending this role.
+
+**Per-region SES setup** (each region is independent):
+1. **Domain identity**: `aws sesv2 create-email-identity --email-identity appcloud.systems --region <region>` then add the 3 returned DKIM CNAMEs to Route53 hosted zone `Z06422172SASV44F5Y8VA`. Verify with `aws sesv2 get-email-identity --email-identity appcloud.systems --region <region>` (look for `DkimAttributes.Status: SUCCESS`).
+2. **Sandbox vs production**: new SES accounts start in sandbox (200 emails/day, recipients must also be verified). To exit, run `aws sesv2 put-account-details --production-access-enabled --mail-type TRANSACTIONAL --website-url https://appcloud.systems --use-case-description "<description>" --additional-contact-email-addresses <email> --contact-language EN --region <region>`. AWS reviews within ~24h.
+3. **Test recipients in sandbox**: each address you want to send TO must be verified via `aws ses verify-email-identity --email-address <addr> --region <region>` until production access is granted.
+
+**Currently verified** (both regions): `appcloud.systems` (domain, DKIM), `hounddog@gmail.com` (test address, sandbox-era).
+
 ## Things that will trip you up
 
 - **Don't add migrations to `Tjb.Data`** — the `MigrationsAssembly` is `Tjb.Migrations`. EF tooling needs `--project src/Tjb.Migrations`.

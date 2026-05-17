@@ -57,7 +57,7 @@
 - [x] 8.1 Add `AWS_REGION` to appsettings.json (or keep as environment variable)
 - [x] 8.2 Add `AWS_SES_SENDER_EMAIL` to appsettings.json (e.g., "noreply@appcloud.systems")
 - [x] 8.3 Add AWS credentials configuration (use DefaultAWSCredentials provider via IAM role)
-- [ ] 8.4 Document environment variables needed for different deployments (dev, alpha, beta, app)
+- [x] 8.4 Document environment variables needed for different deployments (dev, alpha, beta, app)
 - [x] 8.5 Update local development appsettings.json with dummy/test values
 
 ## 9. Testing & Validation
@@ -74,14 +74,14 @@
 
 - [x] 10.1 Verify AWS SES sender identity is verified in us-east-1 region
 - [x] 10.2 Verify AWS SES sender identity is verified in us-west-2 region
-- [ ] 10.3 Ensure CloudFormation template includes IAM permissions for SES SendEmail
-- [ ] 10.4 Set AWS_REGION environment variable in deployment for each region
-- [ ] 10.5 Set AWS_SES_SENDER_EMAIL environment variable in deployment
-- [ ] 10.6 Document SES configuration and verification steps in runbook
+- [x] 10.3 Ensure CloudFormation template includes IAM permissions for SES SendEmail
+- [x] 10.4 Set AWS_REGION environment variable in deployment for each region
+- [x] 10.5 Set AWS_SES_SENDER_EMAIL environment variable in deployment
+- [x] 10.6 Document SES configuration and verification steps in runbook
 
 ## 11. Documentation & Cleanup
 
-- [ ] 11.1 Update CLAUDE.md or project documentation with email configuration details
+- [x] 11.1 Update CLAUDE.md or project documentation with email configuration details
 - [ ] 11.2 Remove any temporary test email services or stubs
 - [ ] 11.3 Verify no console.log or debug code left in email service
 - [ ] 11.4 Update CI/CD pipeline if needed for email testing
