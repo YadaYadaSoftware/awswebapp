@@ -247,16 +247,19 @@ Resources:
                   - ses:SendRawEmail
                 Resource: "*"
 Outputs:
+  # AuroraKmsKeyArn output is unexported as of the centralize-aurora-kms-keys
+  # change — the cluster's KmsKeyId now comes from the workflow's bootstrap
+  # SSM lookup, not from this stack's KMS resources. The output is kept for
+  # diagnostic visibility into the (now-vestigial) KMS resources in this
+  # stack; Phase 5 task 7.2 removes the resources and this output entirely.
   AuroraKmsKeyArn:
-    Description: ARN of the KMS key (primary or replica)
+    Description: "ARN of the (vestigial) KMS key still owned by this stack. Not consumed by anything; remove in Phase 5."
     Value:
       !If [
         IsPrimaryKey,
         !GetAtt AuroraKmsKey.Arn,
         !GetAtt AuroraKmsKeyReplica.Arn,
       ]
-    Export:
-      Name: !Sub "AuroraKmsKeyArn-${BranchName}"
 
   SharedLambdaRoleArn:
     Description: Shared Lambda execution role ARN

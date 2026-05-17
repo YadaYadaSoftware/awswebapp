@@ -1,330 +1,645 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Description: "TaskManager Per-Scope Bootstrap - Aurora KMS key (primary or replica) plus scope-specific GitHub Actions IAM user. Scope is derived from the stack name: any stack whose name contains 'nonprod' gets the nonprod scope; all others get prod. Primary vs replica is derived from whether the PrimaryKeyArn parameter is empty (primary, default) or non-empty (replica). Intended stack names: 'bootstrap-prod' and 'bootstrap-nonprod', deployed once per region."
+Description: "TaskManager Bootstrap - account-wide infrastructure (ECR, ApiGateway logs, Config log-retention rules, S3 templates-bucket policy) plus both Aurora KMS keys (prod + nonprod) and both GitHub Actions IAM users. One stack per region: 'bootstrap'. Primary region (us-east-1) owns the multi-region KMS keys and the (global) IAM resources; the secondary region owns AWS::KMS::ReplicaKey copies for each scope."
 
 Parameters:
-  PrimaryKeyArn:
+  TemplatesBucketName:
+    Type: String
+    Description: "Name of the S3 bucket for CloudFormation templates (must already exist or be created separately)."
+
+  RetentionDays:
+    Type: Number
+    Default: 7
+    Description: "Number of days to retain CloudWatch logs (enforced by the Config rule and remediation below)."
+
+  PrimaryNonprodKeyArn:
     Type: String
     Default: ""
-    Description: "ARN of the primary multi-region KMS key. Leave empty (default) for the primary-region deploy; for the secondary region, pass the AuroraKmsKeyArn output from the primary-region deploy of the same scope. Presence determines IsPrimary/IsReplica."
+    Description: "ARN of the primary (us-east-1) nonprod multi-region KMS key. Leave empty (default) for the primary-region deploy; for the secondary region, pass the AuroraKmsKeyNonprodArn output from the primary-region deploy of this template. Presence determines IsPrimary/IsReplica."
+
+  PrimaryProdKeyArn:
+    Type: String
+    Default: ""
+    Description: "ARN of the primary (us-east-1) prod multi-region KMS key. Pass alongside PrimaryNonprodKeyArn for the secondary-region deploy."
 
   KeyAdminPrincipalArn:
     Type: String
     Default: ""
-    Description: "Optional IAM principal ARN to add to the prod KMS key's NotPrincipal Deny exemption — i.e. an additional principal allowed to update the prod key policy. Required during initial setup of bootstrap-prod (the deployer isn't otherwise in the NotPrincipal exemption and KMS's lockout-safety check would reject the policy update). Once prod-kms-admin can be assumed by the deployer for ongoing changes, set this back to empty. Ignored for nonprod scope deploys."
+    Description: "Optional IAM principal ARN to add to the prod KMS key's NotPrincipal Deny exemption — i.e. an additional principal allowed to update the prod key policy. Required during initial setup of bootstrap (the deployer isn't otherwise in the NotPrincipal exemption and KMS's lockout-safety check would reject the policy update). Once prod-kms-admin can be assumed by the deployer for ongoing changes, set this back to empty."
 
 Conditions:
-  # IsNonprod is true iff the stack name contains the substring "nonprod".
-  # Join-after-Split is an identity transform iff the delimiter is absent, so
-  # the rejoined string differs from the original exactly when "nonprod" was
-  # present (and got removed by Split). This is the CFN workaround for the
-  # missing Fn::Contains intrinsic.
-  IsNonprod:
-    !Not
-    - !Equals
-      - !Join ["", !Split ["nonprod", !Ref "AWS::StackName"]]
-      - !Ref "AWS::StackName"
-  IsProd:
-    !Equals
-    - !Join ["", !Split ["nonprod", !Ref "AWS::StackName"]]
-    - !Ref "AWS::StackName"
-  IsPrimary: !Equals [!Ref PrimaryKeyArn, ""]
-  IsReplica: !Not [!Equals [!Ref PrimaryKeyArn, ""]]
-  IsProdPrimary:
-    !And
-    - !Equals [!Ref PrimaryKeyArn, ""]
-    - !Equals
-      - !Join ["", !Split ["nonprod", !Ref "AWS::StackName"]]
-      - !Ref "AWS::StackName"
-  IsNonprodPrimary:
-    !And
-    - !Equals [!Ref PrimaryKeyArn, ""]
-    - !Not
-      - !Equals
-        - !Join ["", !Split ["nonprod", !Ref "AWS::StackName"]]
-        - !Ref "AWS::StackName"
+  IsPrimary: !Equals [!Ref PrimaryNonprodKeyArn, ""]
+  IsReplica: !Not [!Equals [!Ref PrimaryNonprodKeyArn, ""]]
   HasKeyAdmin: !Not [!Equals [!Ref KeyAdminPrincipalArn, ""]]
 
 Resources:
-  AuroraKmsKey:
+  # ---------- Shared infrastructure (always created) ----------
+
+  WebECRRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      # Explicit name so the deploy workflow's hardcoded image URI
+      # (`{account}.dkr.ecr.{region}.amazonaws.com/ecr-{account}-{region}`)
+      # keeps resolving across recreations.
+      RepositoryName: !Sub "ecr-${AWS::AccountId}-${AWS::Region}"
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      ImageTagMutability: MUTABLE
+      LifecyclePolicy:
+        LifecyclePolicyText: |
+          {
+            "rules": [
+              {
+                "rulePriority": 1,
+                "description": "Expire untagged images older than 3 days",
+                "selection": {
+                  "tagStatus": "untagged",
+                  "countType": "sinceImagePushed",
+                  "countUnit": "days",
+                  "countNumber": 3
+                },
+                "action": {
+                  "type": "expire"
+                }
+              }
+            ]
+          }
+
+  TemplatesBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref TemplatesBucketName
+      # IAM users are referenced by !Sub'd ARN so the same policy body works
+      # in both the primary and replica region deploys (the users only exist
+      # as CFN resources in the primary stack).
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowCloudFormationAccess
+            Effect: Allow
+            Principal:
+              Service: cloudformation.amazonaws.com
+            Action:
+              - s3:GetObject
+            Resource: !Sub "arn:aws:s3:::${TemplatesBucketName}/*"
+          - Sid: AllowGitHubActionsNonprodFullAccess
+            Effect: Allow
+            Principal:
+              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:user/GitHubActionsUser"
+            Action:
+              - s3:*
+            Resource:
+              - !Sub "arn:aws:s3:::${TemplatesBucketName}"
+              - !Sub "arn:aws:s3:::${TemplatesBucketName}/*"
+          - Sid: AllowGitHubActionsProdFullAccess
+            Effect: Allow
+            Principal:
+              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:user/GitHubActionsUserProd"
+            Action:
+              - s3:*
+            Resource:
+              - !Sub "arn:aws:s3:::${TemplatesBucketName}"
+              - !Sub "arn:aws:s3:::${TemplatesBucketName}/*"
+
+  ApiGatewayCloudWatchLogsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: apigateway.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: !Sub "ApiGatewayCloudWatchLogsPolicy-${AWS::Region}"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                  - logs:DescribeLogGroups
+                  - logs:DescribeLogStreams
+                  - logs:FilterLogEvents
+                  - logs:GetLogEvents
+                Resource: "*"
+
+  ApiGatewayAccount:
+    Type: AWS::ApiGateway::Account
+    Properties:
+      CloudWatchRoleArn: !GetAtt ApiGatewayCloudWatchLogsRole.Arn
+
+  LogRetentionConfigFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: python3.12
+      Handler: index.lambda_handler
+      Role: !GetAtt ConfigRuleRole.Arn
+      Code:
+        ZipFile: |
+          import boto3
+          import json
+          import os
+          from datetime import datetime
+
+          def lambda_handler(event, context):
+              print(f"Received event: {json.dumps(event)}")
+
+              if 'RetentionDays' in event:
+                  return handle_remediation(event)
+
+              return handle_evaluation(event)
+
+          def handle_evaluation(event):
+              config_client = boto3.client('config')
+              logs_client = boto3.client('logs')
+
+              retention_days = int(os.environ['RETENTION_DAYS'])
+
+              invoking_event = json.loads(event['invokingEvent'])
+              configuration_item = invoking_event['configurationItem']
+
+              log_group_name = configuration_item['resourceName']
+
+              try:
+                  response = logs_client.describe_log_groups(
+                      logGroupNamePrefix=log_group_name
+                  )
+
+                  if response['logGroups']:
+                      log_group = response['logGroups'][0]
+                      current_retention = log_group.get('retentionInDays')
+
+                      if current_retention != retention_days:
+                          return {
+                              'ComplianceType': 'NON_COMPLIANT',
+                              'Annotation': f'Log group retention is {current_retention}, should be {retention_days}'
+                          }
+                      else:
+                          return {'ComplianceType': 'COMPLIANT'}
+
+              except Exception as e:
+                  print(f"Error evaluating log group {log_group_name}: {str(e)}")
+                  return {
+                      'ComplianceType': 'NON_COMPLIANT',
+                      'Annotation': f'Error evaluating log group: {str(e)}'
+                  }
+
+              return {'ComplianceType': 'NOT_APPLICABLE'}
+
+          def handle_remediation(event):
+              logs_client = boto3.client('logs')
+
+              log_group_name = event.get('LogGroupName')
+              retention_days = int(event['RetentionDays'])
+
+              if not log_group_name:
+                  raise ValueError("LogGroupName not provided in remediation event")
+
+              try:
+                  logs_client.put_retention_policy(
+                      logGroupName=log_group_name,
+                      retentionInDays=retention_days
+                  )
+                  print(f"Set retention to {retention_days} days for {log_group_name}")
+                  return {'status': 'SUCCESS'}
+              except Exception as e:
+                  print(f"Error setting retention for {log_group_name}: {str(e)}")
+                  raise e
+      Environment:
+        Variables:
+          RETENTION_DAYS: !Ref RetentionDays
+
+  ConfigRuleRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: !Sub "ConfigRulePolicy-${AWS::Region}"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - config:PutEvaluations
+                  - logs:DescribeLogGroups
+                  - logs:PutRetentionPolicy
+                Resource: "*"
+
+  LogRetentionConfigRule:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      Description: "Checks that CloudWatch log groups have appropriate retention settings"
+      Scope:
+        ComplianceResourceTypes:
+          - AWS::Logs::LogGroup
+      Source:
+        Owner: CUSTOM_LAMBDA
+        SourceIdentifier: !GetAtt LogRetentionConfigFunction.Arn
+        SourceDetails:
+          - EventSource: aws.config
+            MessageType: ConfigurationItemChangeNotification
+
+  LogRetentionRemediationDocument:
+    Type: AWS::SSM::Document
+    Properties:
+      DocumentType: Automation
+      Content:
+        schemaVersion: "0.3"
+        assumeRole: "{{AutomationAssumeRole}}"
+        parameters:
+          LogGroupName:
+            type: String
+            description: The name of the log group to remediate
+          RetentionDays:
+            type: String
+            description: The retention period in days
+          AutomationAssumeRole:
+            type: String
+            description: The ARN of the role that allows Automation to perform actions
+        mainSteps:
+          - name: InvokeLambdaFunction
+            action: aws:invokeLambdaFunction
+            inputs:
+              FunctionName: !Ref LogRetentionConfigFunction
+              Payload: |
+                {
+                  "LogGroupName": "{{LogGroupName}}",
+                  "RetentionDays": "{{RetentionDays}}"
+                }
+
+  SSMAutomationRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ssm.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonSSMAutomationRole
+      Policies:
+        - PolicyName: !Sub "SSMAutomationLambdaInvoke-${AWS::Region}"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource: !GetAtt LogRetentionConfigFunction.Arn
+
+  LogRetentionRemediation:
+    Type: AWS::Config::RemediationConfiguration
+    Properties:
+      ConfigRuleName: !Ref LogRetentionConfigRule
+      TargetId: !Ref LogRetentionRemediationDocument
+      TargetType: SSM_DOCUMENT
+      Parameters:
+        LogGroupName:
+          ResourceValue:
+            Value: RESOURCE_ID
+        RetentionDays:
+          StaticValue:
+            Values:
+              - !Ref RetentionDays
+        AutomationAssumeRole:
+          StaticValue:
+            Values:
+              - !GetAtt SSMAutomationRole.Arn
+      Automatic: true
+      MaximumAutomaticAttempts: 5
+      RetryAttemptSeconds: 60
+
+  ConfigInvokeLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref LogRetentionConfigFunction
+      Action: lambda:InvokeFunction
+      Principal: config.amazonaws.com
+      SourceAccount: !Ref AWS::AccountId
+
+  # ---------- Nonprod KMS key (primary or replica) ----------
+
+  AuroraKmsKeyNonprod:
     Type: AWS::KMS::Key
     Condition: IsPrimary
     Properties:
-      Description: !If [IsNonprod, "TaskManager Aurora encryption key (nonprod)", "TaskManager Aurora encryption key (prod)"]
+      Description: "TaskManager Aurora encryption key (nonprod)"
       KeyUsage: ENCRYPT_DECRYPT
       KeySpec: SYMMETRIC_DEFAULT
       MultiRegion: true
       Enabled: true
       PendingWindowInDays: 7
-      # Principals referenced by !GetAtt so CFN creates the IAM resources
-      # before the key (KMS validates principal existence at key creation,
-      # unlike S3 bucket policies which defer). Only the !If branch matching
-      # the deploy scope is evaluated, so the prod-branch !GetAtt to
-      # GitHubActionsUserProd is harmless on nonprod deploys.
-      KeyPolicy: !If
-        - IsProd
-        - Version: "2012-10-17"
-          Statement:
-            - Sid: AllowAccountRoot
-              Effect: Allow
-              Principal:
-                AWS: !Sub "arn:aws:iam::${AWS::AccountId}:root"
-              Action: kms:*
-              Resource: "*"
-            - Sid: AllowRDSService
-              Effect: Allow
-              Principal:
-                Service: rds.amazonaws.com
-              Action:
-                - kms:CreateGrant
-                - kms:DescribeKey
-                - kms:Decrypt
-                - kms:Encrypt
-                - kms:GenerateDataKey
-                - kms:ReEncryptFrom
-                - kms:ReEncryptTo
-                - kms:RetireGrant
-              Resource: "*"
-            - Sid: AllowGitHubActionsUserProd
-              Effect: Allow
-              Principal:
-                AWS: !GetAtt GitHubActionsUserProd.Arn
-              Action:
-                - kms:CreateGrant
-                - kms:DescribeKey
-                - kms:Decrypt
-                - kms:Encrypt
-                - kms:GenerateDataKey
-                - kms:ReEncryptFrom
-                - kms:ReEncryptTo
-                - kms:RetireGrant
-                - kms:ListGrants
-                - kms:RevokeGrant
-              Resource: "*"
-            - Sid: AllowProdKmsAdmin
-              Effect: Allow
-              Principal:
-                AWS: !GetAtt ProdKmsAdminRole.Arn
-              Action: kms:*
-              Resource: "*"
-            # Default-deny: everyone not in the NotPrincipal list is denied all KMS
-            # actions on this key, overriding any IAM-delegation pathway that the
-            # AllowAccountRoot statement would otherwise enable. This is what stops
-            # the nonprod CI user (whose IAM policy grants kms:* on Resource:"*")
-            # from reaching the prod key. The list MUST contain every principal that
-            # should be able to use the key; adding a new authorized principal means
-            # editing this NotPrincipal too.
-            - Sid: DenyEveryoneNotAuthorized
-              Effect: Deny
-              NotPrincipal:
-                AWS: !If
-                  - HasKeyAdmin
-                  - - !Sub "arn:aws:iam::${AWS::AccountId}:root"
-                    - !GetAtt GitHubActionsUserProd.Arn
-                    - !GetAtt ProdKmsAdminRole.Arn
-                    - !Ref KeyAdminPrincipalArn
-                  - - !Sub "arn:aws:iam::${AWS::AccountId}:root"
-                    - !GetAtt GitHubActionsUserProd.Arn
-                    - !GetAtt ProdKmsAdminRole.Arn
-                Service:
-                  - rds.amazonaws.com
-              Action: kms:*
-              Resource: "*"
-        - Version: "2012-10-17"
-          Statement:
-            - Sid: AllowAccountRoot
-              Effect: Allow
-              Principal:
-                AWS: !Sub "arn:aws:iam::${AWS::AccountId}:root"
-              Action: kms:*
-              Resource: "*"
-            - Sid: AllowRDSService
-              Effect: Allow
-              Principal:
-                Service: rds.amazonaws.com
-              Action:
-                - kms:CreateGrant
-                - kms:DescribeKey
-                - kms:Decrypt
-                - kms:Encrypt
-                - kms:GenerateDataKey
-                - kms:ReEncryptFrom
-                - kms:ReEncryptTo
-                - kms:RetireGrant
-              Resource: "*"
-            - Sid: AllowGitHubActionsUser
-              Effect: Allow
-              Principal:
-                AWS: !GetAtt GitHubActionsUser.Arn
-              Action:
-                - kms:CreateGrant
-                - kms:DescribeKey
-                - kms:Decrypt
-                - kms:Encrypt
-                - kms:GenerateDataKey
-                - kms:ReEncryptFrom
-                - kms:ReEncryptTo
-                - kms:RetireGrant
-                - kms:CreateAlias
-                - kms:DeleteAlias
-                - kms:UpdateAlias
-                - kms:ListAliases
-                - kms:ListGrants
-                - kms:RevokeGrant
-              Resource: "*"
+      # IAM principal referenced via !GetAtt so CFN creates the user before
+      # the key (KMS validates principal existence at key-creation time).
+      KeyPolicy:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowAccountRoot
+            Effect: Allow
+            Principal:
+              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:root"
+            Action: kms:*
+            Resource: "*"
+          - Sid: AllowRDSService
+            Effect: Allow
+            Principal:
+              Service: rds.amazonaws.com
+            Action:
+              - kms:CreateGrant
+              - kms:DescribeKey
+              - kms:Decrypt
+              - kms:Encrypt
+              - kms:GenerateDataKey
+              - kms:ReEncryptFrom
+              - kms:ReEncryptTo
+              - kms:RetireGrant
+            Resource: "*"
+          - Sid: AllowGitHubActionsUser
+            Effect: Allow
+            Principal:
+              AWS: !GetAtt GitHubActionsUser.Arn
+            Action:
+              - kms:CreateGrant
+              - kms:DescribeKey
+              - kms:Decrypt
+              - kms:Encrypt
+              - kms:GenerateDataKey
+              - kms:ReEncryptFrom
+              - kms:ReEncryptTo
+              - kms:RetireGrant
+              - kms:CreateAlias
+              - kms:DeleteAlias
+              - kms:UpdateAlias
+              - kms:ListAliases
+              - kms:ListGrants
+              - kms:RevokeGrant
+            Resource: "*"
 
-  AuroraKmsKeyReplica:
+  AuroraKmsKeyNonprodReplica:
     Type: AWS::KMS::ReplicaKey
     Condition: IsReplica
     Properties:
-      Description: !If [IsNonprod, "TaskManager Aurora encryption key replica (nonprod)", "TaskManager Aurora encryption key replica (prod)"]
-      PrimaryKeyArn: !Ref PrimaryKeyArn
+      Description: "TaskManager Aurora encryption key replica (nonprod)"
+      PrimaryKeyArn: !Ref PrimaryNonprodKeyArn
       Enabled: true
       PendingWindowInDays: 7
-      # Principals referenced by !Sub'd ARN because the IAM users/role
-      # don't exist in this stack — they were created by the primary
-      # (us-east-1) deploy of the same scope. By the time us-west-2 is
-      # deployed, those principals already exist in IAM (which is global),
-      # so KMS principal validation passes.
-      KeyPolicy: !If
-        - IsProd
-        - Version: "2012-10-17"
-          Statement:
-            - Sid: AllowAccountRoot
-              Effect: Allow
-              Principal:
-                AWS: !Sub "arn:aws:iam::${AWS::AccountId}:root"
-              Action: kms:*
-              Resource: "*"
-            - Sid: AllowRDSService
-              Effect: Allow
-              Principal:
-                Service: rds.amazonaws.com
-              Action:
-                - kms:CreateGrant
-                - kms:DescribeKey
-                - kms:Decrypt
-                - kms:Encrypt
-                - kms:GenerateDataKey
-                - kms:ReEncryptFrom
-                - kms:ReEncryptTo
-                - kms:RetireGrant
-              Resource: "*"
-            - Sid: AllowGitHubActionsUserProd
-              Effect: Allow
-              Principal:
-                AWS: !Sub "arn:aws:iam::${AWS::AccountId}:user/GitHubActionsUserProd"
-              Action:
-                - kms:CreateGrant
-                - kms:DescribeKey
-                - kms:Decrypt
-                - kms:Encrypt
-                - kms:GenerateDataKey
-                - kms:ReEncryptFrom
-                - kms:ReEncryptTo
-                - kms:RetireGrant
-                - kms:ListGrants
-                - kms:RevokeGrant
-              Resource: "*"
-            - Sid: AllowProdKmsAdmin
-              Effect: Allow
-              Principal:
-                AWS: !Sub "arn:aws:iam::${AWS::AccountId}:role/prod-kms-admin"
-              Action: kms:*
-              Resource: "*"
-            # Default-deny — see comment in AuroraKmsKey for rationale.
-            # Replica uses !Sub for ARNs (IAM resources don't live in this stack).
-            - Sid: DenyEveryoneNotAuthorized
-              Effect: Deny
-              NotPrincipal:
-                AWS: !If
-                  - HasKeyAdmin
-                  - - !Sub "arn:aws:iam::${AWS::AccountId}:root"
-                    - !Sub "arn:aws:iam::${AWS::AccountId}:user/GitHubActionsUserProd"
-                    - !Sub "arn:aws:iam::${AWS::AccountId}:role/prod-kms-admin"
-                    - !Ref KeyAdminPrincipalArn
-                  - - !Sub "arn:aws:iam::${AWS::AccountId}:root"
-                    - !Sub "arn:aws:iam::${AWS::AccountId}:user/GitHubActionsUserProd"
-                    - !Sub "arn:aws:iam::${AWS::AccountId}:role/prod-kms-admin"
-                Service:
-                  - rds.amazonaws.com
-              Action: kms:*
-              Resource: "*"
-        - Version: "2012-10-17"
-          Statement:
-            - Sid: AllowAccountRoot
-              Effect: Allow
-              Principal:
-                AWS: !Sub "arn:aws:iam::${AWS::AccountId}:root"
-              Action: kms:*
-              Resource: "*"
-            - Sid: AllowRDSService
-              Effect: Allow
-              Principal:
-                Service: rds.amazonaws.com
-              Action:
-                - kms:CreateGrant
-                - kms:DescribeKey
-                - kms:Decrypt
-                - kms:Encrypt
-                - kms:GenerateDataKey
-                - kms:ReEncryptFrom
-                - kms:ReEncryptTo
-                - kms:RetireGrant
-              Resource: "*"
-            - Sid: AllowGitHubActionsUser
-              Effect: Allow
-              Principal:
-                AWS: !Sub "arn:aws:iam::${AWS::AccountId}:user/GitHubActionsUser"
-              Action:
-                - kms:CreateGrant
-                - kms:DescribeKey
-                - kms:Decrypt
-                - kms:Encrypt
-                - kms:GenerateDataKey
-                - kms:ReEncryptFrom
-                - kms:ReEncryptTo
-                - kms:RetireGrant
-                - kms:CreateAlias
-                - kms:DeleteAlias
-                - kms:UpdateAlias
-                - kms:ListAliases
-                - kms:ListGrants
-                - kms:RevokeGrant
-              Resource: "*"
+      KeyPolicy:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowAccountRoot
+            Effect: Allow
+            Principal:
+              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:root"
+            Action: kms:*
+            Resource: "*"
+          - Sid: AllowRDSService
+            Effect: Allow
+            Principal:
+              Service: rds.amazonaws.com
+            Action:
+              - kms:CreateGrant
+              - kms:DescribeKey
+              - kms:Decrypt
+              - kms:Encrypt
+              - kms:GenerateDataKey
+              - kms:ReEncryptFrom
+              - kms:ReEncryptTo
+              - kms:RetireGrant
+            Resource: "*"
+          - Sid: AllowGitHubActionsUser
+            Effect: Allow
+            Principal:
+              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:user/GitHubActionsUser"
+            Action:
+              - kms:CreateGrant
+              - kms:DescribeKey
+              - kms:Decrypt
+              - kms:Encrypt
+              - kms:GenerateDataKey
+              - kms:ReEncryptFrom
+              - kms:ReEncryptTo
+              - kms:RetireGrant
+              - kms:CreateAlias
+              - kms:DeleteAlias
+              - kms:UpdateAlias
+              - kms:ListAliases
+              - kms:ListGrants
+              - kms:RevokeGrant
+            Resource: "*"
 
-  AuroraKmsKeyAlias:
+  AuroraKmsKeyNonprodAlias:
     Type: AWS::KMS::Alias
     Properties:
-      AliasName: !If [IsNonprod, "alias/taskmanager-aurora-nonprod", "alias/taskmanager-aurora-prod"]
-      TargetKeyId: !If [IsPrimary, !Ref AuroraKmsKey, !Ref AuroraKmsKeyReplica]
+      AliasName: "alias/taskmanager-aurora-nonprod"
+      TargetKeyId: !If [IsPrimary, !Ref AuroraKmsKeyNonprod, !Ref AuroraKmsKeyNonprodReplica]
 
-  AuroraKmsKeyArnParameter:
+  AuroraKmsKeyNonprodArnParameter:
     Type: AWS::SSM::Parameter
     Properties:
-      Name: !If [IsNonprod, "/taskmanager/kms/nonprod/aurora-key-arn", "/taskmanager/kms/prod/aurora-key-arn"]
+      Name: "/taskmanager/kms/nonprod/aurora-key-arn"
       Type: String
-      Description: !If [IsNonprod, "ARN of the nonprod Aurora KMS key (or replica) in this region. Populated by bootstrap-nonprod; consumed by the deploy workflow's SSM lookup step.", "ARN of the prod Aurora KMS key (or replica) in this region. Populated by bootstrap-prod; consumed by the deploy workflow's SSM lookup step."]
-      Value: !If [IsPrimary, !GetAtt AuroraKmsKey.Arn, !GetAtt AuroraKmsKeyReplica.Arn]
+      Description: "ARN of the nonprod Aurora KMS key (or replica) in this region. Consumed by the deploy workflow's SSM lookup step."
+      Value: !If [IsPrimary, !GetAtt AuroraKmsKeyNonprod.Arn, !GetAtt AuroraKmsKeyNonprodReplica.Arn]
 
-  # ---------- IAM resources (primary region only; IAM is global) ----------
+  # ---------- Prod KMS key (primary or replica) — restricted policy ----------
+
+  AuroraKmsKeyProd:
+    Type: AWS::KMS::Key
+    Condition: IsPrimary
+    Properties:
+      Description: "TaskManager Aurora encryption key (prod)"
+      KeyUsage: ENCRYPT_DECRYPT
+      KeySpec: SYMMETRIC_DEFAULT
+      MultiRegion: true
+      Enabled: true
+      PendingWindowInDays: 7
+      KeyPolicy:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowAccountRoot
+            Effect: Allow
+            Principal:
+              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:root"
+            Action: kms:*
+            Resource: "*"
+          - Sid: AllowRDSService
+            Effect: Allow
+            Principal:
+              Service: rds.amazonaws.com
+            Action:
+              - kms:CreateGrant
+              - kms:DescribeKey
+              - kms:Decrypt
+              - kms:Encrypt
+              - kms:GenerateDataKey
+              - kms:ReEncryptFrom
+              - kms:ReEncryptTo
+              - kms:RetireGrant
+            Resource: "*"
+          - Sid: AllowGitHubActionsUserProd
+            Effect: Allow
+            Principal:
+              AWS: !GetAtt GitHubActionsUserProd.Arn
+            Action:
+              - kms:CreateGrant
+              - kms:DescribeKey
+              - kms:Decrypt
+              - kms:Encrypt
+              - kms:GenerateDataKey
+              - kms:ReEncryptFrom
+              - kms:ReEncryptTo
+              - kms:RetireGrant
+              - kms:ListGrants
+              - kms:RevokeGrant
+            Resource: "*"
+          - Sid: AllowProdKmsAdmin
+            Effect: Allow
+            Principal:
+              AWS: !GetAtt ProdKmsAdminRole.Arn
+            Action: kms:*
+            Resource: "*"
+          # Default-deny everyone not on this list — blocks the IAM-delegation
+          # pathway from AllowAccountRoot that would otherwise let any IAM
+          # principal with kms:* in their IAM policy (including the nonprod CI
+          # user) reach the prod key. The deployer is exempted via
+          # KeyAdminPrincipalArn during initial setup to satisfy KMS's
+          # lockout-safety check (the deployer needs kms:PutKeyPolicy to
+          # apply this policy update); once prod-kms-admin can be assumed by
+          # the deployer for ongoing changes, set KeyAdminPrincipalArn back
+          # to empty.
+          - Sid: DenyEveryoneNotAuthorized
+            Effect: Deny
+            NotPrincipal:
+              AWS: !If
+                - HasKeyAdmin
+                - - !Sub "arn:aws:iam::${AWS::AccountId}:root"
+                  - !GetAtt GitHubActionsUserProd.Arn
+                  - !GetAtt ProdKmsAdminRole.Arn
+                  - !Ref KeyAdminPrincipalArn
+                - - !Sub "arn:aws:iam::${AWS::AccountId}:root"
+                  - !GetAtt GitHubActionsUserProd.Arn
+                  - !GetAtt ProdKmsAdminRole.Arn
+              Service:
+                - rds.amazonaws.com
+            Action: kms:*
+            Resource: "*"
+
+  AuroraKmsKeyProdReplica:
+    Type: AWS::KMS::ReplicaKey
+    Condition: IsReplica
+    Properties:
+      Description: "TaskManager Aurora encryption key replica (prod)"
+      PrimaryKeyArn: !Ref PrimaryProdKeyArn
+      Enabled: true
+      PendingWindowInDays: 7
+      KeyPolicy:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowAccountRoot
+            Effect: Allow
+            Principal:
+              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:root"
+            Action: kms:*
+            Resource: "*"
+          - Sid: AllowRDSService
+            Effect: Allow
+            Principal:
+              Service: rds.amazonaws.com
+            Action:
+              - kms:CreateGrant
+              - kms:DescribeKey
+              - kms:Decrypt
+              - kms:Encrypt
+              - kms:GenerateDataKey
+              - kms:ReEncryptFrom
+              - kms:ReEncryptTo
+              - kms:RetireGrant
+            Resource: "*"
+          - Sid: AllowGitHubActionsUserProd
+            Effect: Allow
+            Principal:
+              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:user/GitHubActionsUserProd"
+            Action:
+              - kms:CreateGrant
+              - kms:DescribeKey
+              - kms:Decrypt
+              - kms:Encrypt
+              - kms:GenerateDataKey
+              - kms:ReEncryptFrom
+              - kms:ReEncryptTo
+              - kms:RetireGrant
+              - kms:ListGrants
+              - kms:RevokeGrant
+            Resource: "*"
+          - Sid: AllowProdKmsAdmin
+            Effect: Allow
+            Principal:
+              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:role/prod-kms-admin"
+            Action: kms:*
+            Resource: "*"
+          - Sid: DenyEveryoneNotAuthorized
+            Effect: Deny
+            NotPrincipal:
+              AWS: !If
+                - HasKeyAdmin
+                - - !Sub "arn:aws:iam::${AWS::AccountId}:root"
+                  - !Sub "arn:aws:iam::${AWS::AccountId}:user/GitHubActionsUserProd"
+                  - !Sub "arn:aws:iam::${AWS::AccountId}:role/prod-kms-admin"
+                  - !Ref KeyAdminPrincipalArn
+                - - !Sub "arn:aws:iam::${AWS::AccountId}:root"
+                  - !Sub "arn:aws:iam::${AWS::AccountId}:user/GitHubActionsUserProd"
+                  - !Sub "arn:aws:iam::${AWS::AccountId}:role/prod-kms-admin"
+              Service:
+                - rds.amazonaws.com
+            Action: kms:*
+            Resource: "*"
+
+  AuroraKmsKeyProdAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: "alias/taskmanager-aurora-prod"
+      TargetKeyId: !If [IsPrimary, !Ref AuroraKmsKeyProd, !Ref AuroraKmsKeyProdReplica]
+
+  AuroraKmsKeyProdArnParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: "/taskmanager/kms/prod/aurora-key-arn"
+      Type: String
+      Description: "ARN of the prod Aurora KMS key (or replica) in this region. Consumed by the deploy workflow's SSM lookup step."
+      Value: !If [IsPrimary, !GetAtt AuroraKmsKeyProd.Arn, !GetAtt AuroraKmsKeyProdReplica.Arn]
+
+  # ---------- IAM (primary region only; IAM is global) ----------
 
   GitHubActionsUser:
     Type: AWS::IAM::User
-    Condition: IsNonprodPrimary
+    Condition: IsPrimary
     Properties:
-      # Explicit name so bootstrap-shared.template's TemplatesBucketPolicy
-      # can reference this user by hardcoded ARN without a cross-stack import.
+      # Explicit name so the TemplatesBucketPolicy and the replica region's
+      # KMS key policies can reference this user by hardcoded ARN.
       UserName: GitHubActionsUser
 
   GitHubActionsAccessKey:
     Type: AWS::IAM::AccessKey
-    Condition: IsNonprodPrimary
+    Condition: IsPrimary
     Properties:
       UserName: !Ref GitHubActionsUser
 
   DeploymentPolicy:
     Type: AWS::IAM::Policy
-    Condition: IsNonprodPrimary
+    Condition: IsPrimary
     Properties:
       PolicyName: !Sub "DeploymentPolicy-${AWS::Region}"
       PolicyDocument:
@@ -435,27 +750,25 @@ Resources:
 
   GitHubActionsUserProd:
     Type: AWS::IAM::User
-    Condition: IsProdPrimary
+    Condition: IsPrimary
     Properties:
       UserName: GitHubActionsUserProd
 
   GitHubActionsAccessKeyProd:
     Type: AWS::IAM::AccessKey
-    Condition: IsProdPrimary
+    Condition: IsPrimary
     Properties:
       UserName: !Ref GitHubActionsUserProd
 
   DeploymentPolicyProd:
     Type: AWS::IAM::Policy
-    Condition: IsProdPrimary
+    Condition: IsPrimary
     Properties:
       PolicyName: !Sub "DeploymentPolicy-prod-${AWS::Region}"
-      # Mirror of nonprod DeploymentPolicy shape, with one tightening:
-      # the KMS statement is restricted to the prod key only (Resource:
-      # AuroraKmsKey.Arn rather than "*") and excludes the destructive
-      # ops (PutKeyPolicy, ScheduleKeyDeletion). The bootstrap-prod key's
-      # own policy enforces this too — the IAM tightening is defense in
-      # depth.
+      # Mirror of nonprod DeploymentPolicy shape, with one tightening: KMS
+      # statement is restricted to the prod key only (Resource: AuroraKmsKeyProd.Arn)
+      # and excludes destructive ops (PutKeyPolicy, ScheduleKeyDeletion).
+      # Defense in depth — the prod key's resource policy is the primary control.
       PolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -504,7 +817,7 @@ Resources:
               - kms:ListGrants
               - kms:RevokeGrant
               - kms:GetKeyPolicy
-            Resource: !GetAtt AuroraKmsKey.Arn
+            Resource: !GetAtt AuroraKmsKeyProd.Arn
           - Effect: Allow
             Action:
               - ec2:CreateTags
@@ -557,10 +870,10 @@ Resources:
 
   ProdKmsAdminRole:
     Type: AWS::IAM::Role
-    Condition: IsProdPrimary
+    Condition: IsPrimary
     Properties:
-      # Explicit name so the prod KMS key policy can reference this role
-      # by hardcoded ARN, avoiding a circular !GetAtt dependency.
+      # Explicit name so the prod KMS key policy can reference this role by
+      # hardcoded ARN (also makes the replica region's policy stable).
       RoleName: prod-kms-admin
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
@@ -579,45 +892,77 @@ Resources:
                 Resource: "*"
 
 Outputs:
-  AuroraKmsKeyArn:
-    Description: "ARN of the Aurora KMS key (primary or replica in this region)"
-    Value: !If [IsPrimary, !GetAtt AuroraKmsKey.Arn, !GetAtt AuroraKmsKeyReplica.Arn]
+  AuroraKmsKeyNonprodArn:
+    Description: "ARN of the nonprod Aurora KMS key (or replica in this region)"
+    Value: !If [IsPrimary, !GetAtt AuroraKmsKeyNonprod.Arn, !GetAtt AuroraKmsKeyNonprodReplica.Arn]
 
-  AuroraKmsKeyAliasName:
-    Description: "Alias name of the Aurora KMS key (e.g. alias/taskmanager-aurora-nonprod). The alias resource has no ARN attribute exposed by CloudFormation; consumers should look up the key by alias name if needed."
-    Value: !Ref AuroraKmsKeyAlias
+  AuroraKmsKeyProdArn:
+    Description: "ARN of the prod Aurora KMS key (or replica in this region)"
+    Value: !If [IsPrimary, !GetAtt AuroraKmsKeyProd.Arn, !GetAtt AuroraKmsKeyProdReplica.Arn]
+
+  AuroraKmsKeyNonprodAliasName:
+    Description: "Alias of the nonprod Aurora KMS key"
+    Value: !Ref AuroraKmsKeyNonprodAlias
+
+  AuroraKmsKeyProdAliasName:
+    Description: "Alias of the prod Aurora KMS key"
+    Value: !Ref AuroraKmsKeyProdAlias
+
+  TemplatesBucketName:
+    Description: "S3 bucket name for CloudFormation templates"
+    Value: !Ref TemplatesBucketName
+    Export:
+      Name: TemplatesBucketName
+
+  WebECRRepositoryName:
+    Description: "ECR repository name for the web container"
+    Value: !Ref WebECRRepository
+    Export:
+      Name: WebECRRepository
+
+  WebECRRepositoryUri:
+    Description: "ECR repository URI for the web container"
+    Value: !GetAtt WebECRRepository.RepositoryUri
+    Export:
+      Name: WebECRRepositoryUri
+
+  ApiGatewayCloudWatchLogsRoleArn:
+    Description: "API Gateway CloudWatch Logs role ARN"
+    Value: !GetAtt ApiGatewayCloudWatchLogsRole.Arn
+    Export:
+      Name: ApiGatewayCloudWatchLogsRoleArn
 
   GitHubActionsUserAccessKeyId:
-    Condition: IsNonprodPrimary
+    Condition: IsPrimary
     Description: "Access Key ID for non-prod CI. Copy to AWS_ACCESS_KEY_ID GitHub secret."
     Value: !Ref GitHubActionsAccessKey
 
   GitHubActionsUserSecretAccessKey:
-    Condition: IsNonprodPrimary
-    Description: "Secret Access Key for non-prod CI. Copy to AWS_SECRET_ACCESS_KEY GitHub secret, then rotate (task 7.4)."
+    Condition: IsPrimary
+    Description: "Secret Access Key for non-prod CI. Copy to AWS_SECRET_ACCESS_KEY GitHub secret, then rotate (Phase 5 task)."
     Value: !GetAtt GitHubActionsAccessKey.SecretAccessKey
 
   GitHubActionsUserArn:
-    Condition: IsNonprodPrimary
+    Condition: IsPrimary
     Description: "ARN of the non-prod CI IAM user"
     Value: !GetAtt GitHubActionsUser.Arn
 
   GitHubActionsUserProdAccessKeyId:
-    Condition: IsProdPrimary
+    Condition: IsPrimary
     Description: "Access Key ID for prod CI. Copy to AWS_ACCESS_KEY_ID_PROD GitHub secret."
     Value: !Ref GitHubActionsAccessKeyProd
 
   GitHubActionsUserProdSecretAccessKey:
-    Condition: IsProdPrimary
-    Description: "Secret Access Key for prod CI. Copy to AWS_SECRET_ACCESS_KEY_PROD GitHub secret, then rotate (task 7.4)."
+    Condition: IsPrimary
+    Description: "Secret Access Key for prod CI. Copy to AWS_SECRET_ACCESS_KEY_PROD GitHub secret, then rotate (Phase 5 task)."
     Value: !GetAtt GitHubActionsAccessKeyProd.SecretAccessKey
 
   GitHubActionsUserProdArn:
-    Condition: IsProdPrimary
+    Condition: IsPrimary
     Description: "ARN of the prod CI IAM user"
     Value: !GetAtt GitHubActionsUserProd.Arn
 
   ProdKmsAdminRoleArn:
-    Condition: IsProdPrimary
+    Condition: IsPrimary
     Description: "ARN of the prod-kms-admin role (assumable by account root only)"
     Value: !GetAtt ProdKmsAdminRole.Arn

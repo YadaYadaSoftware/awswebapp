@@ -51,11 +51,9 @@ Parameters:
     Default: ""
     Description: ID of the Aurora global cluster
 
-  # Parameters for secondary regions
   KmsKeyArn:
     Type: String
-    Description: ARN of the primary KMS key (for secondary regions)
-    Default: ""
+    Description: "ARN of the Aurora KMS key for this region. Required. Sourced by the deploy workflow from /taskmanager/kms/{prod,nonprod}/aurora-key-arn in SSM Parameter Store."
 
   # Google OAuth parameters
   GoogleOAuthClientId:
@@ -111,7 +109,6 @@ Parameters:
 Conditions:
   IsPrimary: !Equals [!Ref IsPrimaryRegion, "true"]
   IsSecondary: !Equals [!Ref IsPrimaryRegion, "false"]
-  HasKmsKeyArn: !Not [!Equals [!Ref KmsKeyArn, ""]]
   HasGlobalClusterId: !Not [!Equals [!Ref AuroraGlobalClusterId, ""]]
   IsMultiRegionDeploy: !Equals [!Ref IsMultiRegion, "true"]
   IsSingleRegionDeploy: !Equals [!Ref IsMultiRegion, "false"]

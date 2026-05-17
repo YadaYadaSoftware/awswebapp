@@ -47,11 +47,9 @@ Parameters:
     Default: ""
     Description: ID of the Aurora global cluster
 
-  # Parameters for secondary regions
   KmsKeyArn:
     Type: String
-    Description: ARN of the primary KMS key (for secondary regions)
-    Default: ""
+    Description: "ARN of the Aurora KMS key for this region. Required. Sourced by the deploy workflow from /taskmanager/kms/{prod,nonprod}/aurora-key-arn in SSM Parameter Store and passed through master.template."
 
   # Google OAuth parameters
   GoogleOAuthClientId:
@@ -67,7 +65,6 @@ Parameters:
 Conditions:
   IsPrimary: !Equals [!Ref IsPrimaryRegion, "true"]
   IsSecondary: !Equals [!Ref IsPrimaryRegion, "false"]
-  HasKmsKeyArn: !Not [!Equals [!Ref KmsKeyArn, ""]]
   HasGlobalClusterId: !Not [!Equals [!Ref AuroraGlobalClusterId, ""]]
   IsSingleRegion: !Equals [!Ref EnableGlobalCluster, "false"]
   IsPrimarySingleRegion:
@@ -82,14 +79,16 @@ Conditions:
     ]
 
 Resources:
-  # KMS Key (Primary or Replica)
+  # Security stack: provides SharedLambdaExecutionRole only. The AuroraKmsKey
+  # resources still defined inside it are vestigial (Phase 5 task 7.2 removes
+  # them) — the cluster's KmsKeyId now comes directly from the workflow via
+  # the KmsKeyArn parameter on this template.
   SecurityStack:
     Type: AWS::CloudFormation::Stack
     Properties:
       TemplateURL: ./security.template
       Parameters:
         BranchName: !Ref BranchName
-        KmsKeyArn: !If [HasKmsKeyArn, !Ref KmsKeyArn, !Ref "AWS::NoValue"]
         IsPrimaryRegion: !Ref IsPrimaryRegion
         GitHubActionsUserArn: !Ref GitHubActionsUserArn
 
@@ -105,14 +104,14 @@ Resources:
   # Regional Database
   DbStack:
     Type: AWS::CloudFormation::Stack
-    DependsOn: [SecurityStack, NetworkingStack]
+    DependsOn: NetworkingStack
     Properties:
       TemplateURL: ./db.template
       Parameters:
         DatabasePassword: !Ref DatabasePassword
         EngineVersion: !Ref EngineVersion
         AuroraGlobalClusterId: !Ref AuroraGlobalClusterId
-        AuroraKmsKeyArn: !GetAtt SecurityStack.Outputs.AuroraKmsKeyArn
+        AuroraKmsKeyArn: !Ref KmsKeyArn
         IsPrimaryRegion: !Ref IsPrimaryRegion
         BranchName: !Ref BranchName
         EnvironmentToImport: !Ref BranchName
@@ -134,8 +133,8 @@ Resources:
 Outputs:
   # KMS outputs (for orchestration, not exported)
   AuroraKmsKeyArn:
-    Description: ARN of the KMS key
-    Value: !GetAtt SecurityStack.Outputs.AuroraKmsKeyArn
+    Description: ARN of the KMS key (sourced from workflow's bootstrap-{prod,nonprod} SSM lookup)
+    Value: !Ref KmsKeyArn
 
   # Global outputs (for orchestration, not exported)
   AuroraGlobalClusterId:

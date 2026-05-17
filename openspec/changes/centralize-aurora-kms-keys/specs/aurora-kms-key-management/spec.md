@@ -1,38 +1,42 @@
 ## ADDED Requirements
 
-### Requirement: Bootstrap stack scope is derived from the stack name
+### Requirement: Single consolidated bootstrap stack per region
 
-The bootstrap template (`infrastructure/bootstrap.template`) SHALL derive its prod-vs-nonprod scope from the CloudFormation stack name rather than from a parameter: any stack whose name contains the substring `"nonprod"` is the nonprod scope; all other stacks are the prod scope. The template MUST NOT expose a `BootstrapScope` (or equivalent) parameter.
+The bootstrap template ([infrastructure/bootstrap.template](../../../infrastructure/bootstrap.template)) SHALL be deployed as exactly ONE CloudFormation stack per region, named `bootstrap`. That single stack SHALL own all of the following resources:
 
-Similarly, the template SHALL derive its primary-vs-replica role from whether the `PrimaryKeyArn` parameter is empty (primary) or non-empty (replica). The template MUST NOT expose an `IsPrimaryRegion` (or equivalent) parameter.
+- Account-wide shared infrastructure: the `WebECRRepository` for the web container, the `ApiGatewayCloudWatchLogsRole` + `ApiGatewayAccount`, the Config rule + Lambda + SSM document for log-retention enforcement, and the `TemplatesBucketPolicy` on `cf-templates-{account}-{region}`.
+- Both Aurora multi-region KMS keys (`AuroraKmsKeyNonprod`, `AuroraKmsKeyProd` in the primary region; their `AWS::KMS::ReplicaKey` counterparts in the secondary region).
+- Both KMS aliases (`alias/taskmanager-aurora-nonprod`, `alias/taskmanager-aurora-prod`) and both SSM parameters (`/taskmanager/kms/nonprod/aurora-key-arn`, `/taskmanager/kms/prod/aurora-key-arn`) in every region.
+- Both GitHub Actions IAM users (`GitHubActionsUser` and `GitHubActionsUserProd`) with their access keys and per-scope deployment policies — primary region only, since IAM is global.
+- The `prod-kms-admin` IAM role — primary region only.
 
-This makes the stack name and `PrimaryKeyArn` the sole sources of truth, eliminating parameter/name mismatch foot-guns and shortening the primary-region deploy command to zero `--parameter-overrides`.
+The template MUST NOT be deployed as separate `bootstrap-shared` / `bootstrap-prod` / `bootstrap-nonprod` instances. There is no `BootstrapScope` (or equivalent) parameter; both scopes coexist in the same stack and are differentiated by resource name. The only conditions on the template SHALL be `IsPrimary` / `IsReplica` (derived from whether `PrimaryNonprodKeyArn` is empty) and `HasKeyAdmin` (driving the optional `KeyAdminPrincipalArn` exemption on the prod key's NotPrincipal Deny).
 
-#### Scenario: Primary nonprod deploy
-- **WHEN** `aws cloudformation deploy --stack-name bootstrap-nonprod --template-file infrastructure/bootstrap.template --capabilities CAPABILITY_NAMED_IAM --region us-east-1` is run with no `--parameter-overrides`
-- **THEN** the deploy succeeds and the stack creates the nonprod multi-region KMS key (with `GitHubActionsUser` and the nonprod key policy), the nonprod alias, and the nonprod SSM parameter
+#### Scenario: Primary region deploy
+- **WHEN** `aws cloudformation deploy --stack-name bootstrap --template-file infrastructure/bootstrap.template --parameter-overrides TemplatesBucketName=<bucket> KeyAdminPrincipalArn=<deployer-arn> --capabilities CAPABILITY_NAMED_IAM --region us-east-1` is run with `PrimaryNonprodKeyArn` and `PrimaryProdKeyArn` empty (default)
+- **THEN** the deploy succeeds and creates: the shared infra (ECR, ApiGateway role+account, Config rule + Lambda + SSM doc, TemplatesBucketPolicy), both multi-region KMS keys (nonprod with broad policy, prod with NotPrincipal+Deny policy), both aliases, both SSM parameters, both IAM users (`GitHubActionsUser`, `GitHubActionsUserProd`) with their access keys and policies, and the `prod-kms-admin` role
 
-#### Scenario: Primary prod deploy
-- **WHEN** `aws cloudformation deploy --stack-name bootstrap-prod --template-file infrastructure/bootstrap.template --capabilities CAPABILITY_NAMED_IAM --region us-east-1` is run with no `--parameter-overrides`
-- **THEN** the deploy succeeds and the stack creates the prod multi-region KMS key (with `GitHubActionsUserProd`, `prod-kms-admin`, and the restricted prod key policy), the prod alias, and the prod SSM parameter
+#### Scenario: Replica region deploy
+- **WHEN** the same template is deployed to `us-west-2` with `PrimaryNonprodKeyArn=<from us-east-1 output>` and `PrimaryProdKeyArn=<from us-east-1 output>`
+- **THEN** the deploy creates: the shared infra (a per-region copy), both `AWS::KMS::ReplicaKey` resources (pointing at the us-east-1 primary keys), both aliases, both SSM parameters. The deploy does NOT create any IAM users (IAM is global; the users already exist from the primary-region deploy)
 
-#### Scenario: Replica deploy
-- **WHEN** `aws cloudformation deploy --stack-name bootstrap-nonprod --template-file infrastructure/bootstrap.template --parameter-overrides PrimaryKeyArn=arn:aws:kms:us-east-1:... --capabilities CAPABILITY_NAMED_IAM --region us-west-2` is run
-- **THEN** the deploy creates an `AWS::KMS::ReplicaKey` (not a primary key) and does not create any IAM users (IAM is global; the user already exists from the primary-region deploy)
+#### Scenario: No separate scope stacks exist
+- **WHEN** `aws cloudformation list-stacks --stack-status-filter CREATE_COMPLETE UPDATE_COMPLETE --region us-east-1` is run after the migration is complete
+- **THEN** the result contains a stack named `bootstrap` but no stacks named `bootstrap-prod`, `bootstrap-nonprod`, or `bootstrap-shared`
 
-### Requirement: KMS keys for Aurora encryption are owned by bootstrap stacks, not per-branch env stacks
+### Requirement: KMS keys for Aurora encryption are owned by the bootstrap stack, not per-branch env stacks
 
-The system SHALL provision exactly two Aurora encryption KMS keys per AWS account: one in the `bootstrap-prod` stack and one in the `bootstrap-nonprod` stack. Each key SHALL be a multi-region key (`AWS::KMS::Key` with `MultiRegion: true`) created in the primary region, with an `AWS::KMS::ReplicaKey` created in the current secondary region by the corresponding `bootstrap-*` stack deployed there.
+The system SHALL provision exactly two Aurora encryption KMS keys per AWS account, both in the single regional `bootstrap` stack: one nonprod key (`AuroraKmsKeyNonprod`) and one prod key (`AuroraKmsKeyProd`). Each key SHALL be a multi-region key (`AWS::KMS::Key` with `MultiRegion: true`) created in the primary region (us-east-1), with an `AWS::KMS::ReplicaKey` created in the secondary region by the same `bootstrap` template deployed there.
 
 Per-branch environment stacks (`dev`, `alpha`, `beta`, `app`, and feature branches) MUST NOT create any `AWS::KMS::Key` or `AWS::KMS::ReplicaKey` resource of their own.
 
 #### Scenario: Two keys per account in primary region
-- **WHEN** `bootstrap-prod` and `bootstrap-nonprod` are deployed in `us-east-1`
-- **THEN** exactly two new multi-region KMS keys exist in `us-east-1`, one with the alias `alias/taskmanager-aurora-prod` and one with `alias/taskmanager-aurora-nonprod`
+- **WHEN** the `bootstrap` stack is deployed in `us-east-1`
+- **THEN** exactly two new multi-region KMS keys exist in `us-east-1`, with aliases `alias/taskmanager-aurora-prod` and `alias/taskmanager-aurora-nonprod`
 
 #### Scenario: Replicas in secondary region
-- **WHEN** `bootstrap-prod` and `bootstrap-nonprod` are deployed in the current secondary region
-- **THEN** each creates an `AWS::KMS::ReplicaKey` whose `PrimaryKeyArn` points at the corresponding key in `us-east-1`
+- **WHEN** the `bootstrap` stack is deployed in the secondary region
+- **THEN** the stack creates two `AWS::KMS::ReplicaKey` resources whose `PrimaryKeyArn` values point at the corresponding keys in `us-east-1`
 
 #### Scenario: Env stack does not own a KMS key
 - **WHEN** any env stack (master.template) is deployed for any branch
@@ -40,79 +44,80 @@ Per-branch environment stacks (`dev`, `alpha`, `beta`, `app`, and feature branch
 
 ### Requirement: Dedicated GitHub Actions IAM user per scope
 
-The `bootstrap-prod` stack SHALL create an IAM user named `GitHubActionsUserProd` with its own `AWS::IAM::AccessKey`. This user SHALL have a `DeploymentPolicy-prod` IAM policy attached that grants the minimum AWS API permissions needed to deploy the `app` env stack (CloudFormation, ECS, ECR, Aurora/RDS, IAM read/write for stack-managed roles, Secrets Manager, ELBv2, ACM, Route 53, CloudWatch Logs, SSM read).
+The `bootstrap` stack (primary region) SHALL create two IAM users:
 
-The `bootstrap-nonprod` stack SHALL create an IAM user named `GitHubActionsUser` with its own `AWS::IAM::AccessKey` and a `DeploymentPolicy` IAM policy that grants the AWS API permissions needed to deploy non-`app` env stacks (the same shape as the legacy bootstrap stack's policy). This user SHALL be used for every non-`app` branch and SHALL NOT be granted any permission on the `bootstrap-prod` KMS key.
+- `GitHubActionsUser` (non-prod CI), with an `AWS::IAM::AccessKey` and a `DeploymentPolicy` granting the broad set of AWS permissions needed for env-stack deploys (same shape as the legacy bootstrap stack's policy).
+- `GitHubActionsUserProd` (prod CI), with an `AWS::IAM::AccessKey` and a `DeploymentPolicy-prod` granting the same broad set of permissions but with the KMS statement restricted to the prod key only (`Resource: !GetAtt AuroraKmsKeyProd.Arn`) and excluding destructive KMS actions (`kms:PutKeyPolicy`, `kms:ScheduleKeyDeletion`, `kms:ReplicateKey`, `kms:CreateKey`, `kms:CreateAlias`, `kms:DeleteAlias`, `kms:UpdateAlias`).
 
-Neither IAM user appears in the legacy `bootstrap` stack — that stack is fully retired by this change.
+Both IAM users have explicit `UserName:` properties so their ARNs are predictable (`arn:aws:iam::{account}:user/GitHubActionsUser` and `.../GitHubActionsUserProd`); the TemplatesBucketPolicy and the secondary-region KMS key policies reference them by hardcoded ARN.
 
 #### Scenario: Prod CI user exists
-- **WHEN** `bootstrap-prod` is deployed
+- **WHEN** the `bootstrap` stack is deployed in the primary region
 - **THEN** an IAM user named `GitHubActionsUserProd` exists with an access key, and the stack outputs `GitHubActionsUserProdAccessKeyId` and `GitHubActionsUserProdSecretAccessKey`
 
-#### Scenario: Non-prod CI user exists in bootstrap-nonprod
-- **WHEN** `bootstrap-nonprod` is deployed
+#### Scenario: Non-prod CI user exists in bootstrap
+- **WHEN** the `bootstrap` stack is deployed in the primary region
 - **THEN** an IAM user named `GitHubActionsUser` exists with an access key, and the stack outputs `GitHubActionsUserAccessKeyId` and `GitHubActionsUserSecretAccessKey`
 
 #### Scenario: Non-prod CI user cannot deploy app stack
-- **WHEN** the `GitHubActionsUser` (from `bootstrap-nonprod`) attempts `cloudformation:UpdateStack` against the `app-appcloud-systems` stack
-- **THEN** the API call is denied
+- **WHEN** the `GitHubActionsUser` attempts `cloudformation:UpdateStack` against the `app-appcloud-systems` stack
+- **THEN** the API call is denied (its `DeploymentPolicy` shape grants broad access but the `app` stack's deployments are gated by the prod KMS key policy denying it `kms:*` for any cluster operations)
 
 ### Requirement: Production key uses restricted access policy
 
-The `bootstrap-prod` KMS key policy SHALL grant `GitHubActionsUserProd` only the operations needed to use the key for Aurora encryption (`kms:CreateGrant`, `kms:DescribeKey`, `kms:Decrypt`, `kms:Encrypt`, `kms:GenerateDataKey`, `kms:ReEncryptFrom`, `kms:ReEncryptTo`, `kms:RetireGrant`, `kms:ListGrants`, `kms:RevokeGrant`). The policy MUST NOT grant `GitHubActionsUserProd` any of: `kms:ScheduleKeyDeletion`, `kms:DisableKey`, `kms:PutKeyPolicy`, `kms:DeleteAlias`, `kms:UpdateAlias`, `kms:ReplicateKey`, `kms:CreateAlias`.
+The prod KMS key policy SHALL grant `GitHubActionsUserProd` only the operations needed to use the key for Aurora encryption (`kms:CreateGrant`, `kms:DescribeKey`, `kms:Decrypt`, `kms:Encrypt`, `kms:GenerateDataKey`, `kms:ReEncryptFrom`, `kms:ReEncryptTo`, `kms:RetireGrant`, `kms:ListGrants`, `kms:RevokeGrant`). The policy MUST NOT grant `GitHubActionsUserProd` any of: `kms:ScheduleKeyDeletion`, `kms:DisableKey`, `kms:PutKeyPolicy`, `kms:DeleteAlias`, `kms:UpdateAlias`, `kms:ReplicateKey`, `kms:CreateAlias`.
 
-The `bootstrap-prod` key policy SHALL include an explicit `Effect: Deny` statement with `NotPrincipal` listing only the authorized principals (account root, `GitHubActionsUserProd`, `prod-kms-admin` role, `rds.amazonaws.com` service). This denial blocks the IAM-delegation pathway that the standard `AllowAccountRoot kms:* Resource: *` statement would otherwise enable — without it, any IAM principal in the account whose own IAM policy grants `kms:*` (e.g. the broad legacy `DeploymentPolicy` that `GitHubActionsUser` carries) can reach the prod key. The `GitHubActionsUser` from `bootstrap-nonprod` MUST be among the principals blocked by this Deny.
+The prod key policy SHALL include an explicit `Effect: Deny` statement with `NotPrincipal` listing only the authorized principals (account root, `GitHubActionsUserProd`, `prod-kms-admin` role, `rds.amazonaws.com` service). This denial blocks the IAM-delegation pathway that the standard `AllowAccountRoot kms:* Resource: *` statement would otherwise enable — without it, any IAM principal in the account whose own IAM policy grants `kms:*` (e.g. `GitHubActionsUser`'s broad `DeploymentPolicy`) can reach the prod key. `GitHubActionsUser` MUST be among the principals blocked by this Deny.
 
 The `bootstrap.template` SHALL accept an optional `KeyAdminPrincipalArn` parameter. When non-empty, the value SHALL be added as an additional entry in the `NotPrincipal.AWS` list — i.e., that principal is also exempted from the Deny. This parameter exists to work around AWS KMS's lockout-safety check, which rejects any policy update that would prevent the calling principal from updating the policy in the future. The deployer (during initial setup) is typically not in the four built-in exemptions, so the parameter lets the operator add themselves for the duration of setup. Once `prod-kms-admin` becomes the standard admin path (e.g., the deployer can assume it), the parameter SHALL be left empty on subsequent deploys.
 
 #### Scenario: KeyAdminPrincipalArn extends the NotPrincipal exemption
-- **WHEN** `bootstrap-prod` is deployed with `--parameter-overrides KeyAdminPrincipalArn=arn:aws:iam::ACCT:user/developer-tim`
+- **WHEN** `bootstrap` is deployed with `--parameter-overrides KeyAdminPrincipalArn=arn:aws:iam::ACCT:user/developer-tim`
 - **THEN** the resulting prod key policy's Deny statement has a `NotPrincipal.AWS` list containing four entries: account root, `GitHubActionsUserProd`, `prod-kms-admin`, and `arn:aws:iam::ACCT:user/developer-tim`
 
 #### Scenario: KeyAdminPrincipalArn empty (post-setup state)
-- **WHEN** `bootstrap-prod` is deployed with no `KeyAdminPrincipalArn` (default empty)
+- **WHEN** `bootstrap` is deployed with no `KeyAdminPrincipalArn` (default empty)
 - **THEN** the resulting prod key policy's Deny statement has a `NotPrincipal.AWS` list containing exactly three entries: account root, `GitHubActionsUserProd`, `prod-kms-admin`
 
-Destructive operations on the production key SHALL be granted only to the AWS account root principal and to a dedicated IAM role named `prod-kms-admin` that is also created in the `bootstrap-prod` stack.
+Destructive operations on the production key SHALL be granted only to the AWS account root principal and to a dedicated IAM role named `prod-kms-admin` that is also created in the `bootstrap` stack (primary region).
 
 #### Scenario: Prod CI cannot delete the prod key
-- **WHEN** `GitHubActionsUserProd` calls `kms:ScheduleKeyDeletion` against the `bootstrap-prod` key
-- **THEN** the API call is denied by the key policy and returns `AccessDeniedException`
+- **WHEN** `GitHubActionsUserProd` calls `kms:ScheduleKeyDeletion` against the prod key
+- **THEN** the API call is denied and returns `AccessDeniedException`
 
 #### Scenario: Non-prod CI cannot reach the prod key at all
-- **WHEN** the `GitHubActionsUser` from `bootstrap-nonprod` calls `kms:DescribeKey` against the `bootstrap-prod` key
-- **THEN** the API call is denied by the key policy
+- **WHEN** `GitHubActionsUser` calls `kms:DescribeKey` against the prod key
+- **THEN** the API call is denied by the prod key policy's `NotPrincipal+Deny` clause and returns `AccessDeniedException` with the message "...with an explicit deny in a resource-based policy"
 
 #### Scenario: Prod CI can use the prod key for Aurora encryption
-- **WHEN** an `app`-branch deploy creates an `AWS::RDS::DBCluster` with `KmsKeyId` set to the `bootstrap-prod` key ARN
+- **WHEN** an `app`-branch deploy creates an `AWS::RDS::DBCluster` with `KmsKeyId` set to the prod key ARN
 - **THEN** RDS successfully calls `CreateGrant`/`GenerateDataKey` against the key under the `GitHubActionsUserProd` grant context and the cluster comes up healthy
 
 #### Scenario: prod-kms-admin trust policy excludes CI
 - **WHEN** any caller examines the `AssumeRolePolicyDocument` of `prod-kms-admin`
-- **THEN** it allows the AWS account root principal but does not list any GitHub Actions IAM user (`GitHubActionsUser` or `GitHubActionsUserProd`) as a principal
+- **THEN** it allows the AWS account root principal but does not list any GitHub Actions IAM user as a principal
 
 ### Requirement: Non-production key keeps permissive policy
 
-The `bootstrap-nonprod` KMS key policy SHALL grant the `GitHubActionsUser` (created in the same `bootstrap-nonprod` stack) the same broad set of operations the current `security.template` policy grants (including `kms:CreateAlias`, `kms:DeleteAlias`, `kms:UpdateAlias`, `kms:ListAliases`, `kms:CreateGrant`, `kms:Decrypt`, `kms:Encrypt`, `kms:GenerateDataKey`, `kms:ReEncryptFrom`, `kms:ReEncryptTo`, `kms:RetireGrant`, `kms:DescribeKey`, `kms:ListGrants`, `kms:RevokeGrant`).
+The nonprod KMS key policy SHALL grant `GitHubActionsUser` the broad set of operations the legacy `security.template` policy granted (including `kms:CreateAlias`, `kms:DeleteAlias`, `kms:UpdateAlias`, `kms:ListAliases`, `kms:CreateGrant`, `kms:Decrypt`, `kms:Encrypt`, `kms:GenerateDataKey`, `kms:ReEncryptFrom`, `kms:ReEncryptTo`, `kms:RetireGrant`, `kms:DescribeKey`, `kms:ListGrants`, `kms:RevokeGrant`). The nonprod key policy MUST NOT include a `NotPrincipal+Deny` clause — nonprod is intentionally accessible to the broad nonprod CI policy.
 
 #### Scenario: Non-prod CI can manage nonprod aliases
-- **WHEN** the `GitHubActionsUser` (from `bootstrap-nonprod`) calls `kms:CreateAlias` or `kms:DeleteAlias` against the `bootstrap-nonprod` key
+- **WHEN** `GitHubActionsUser` calls `kms:CreateAlias` or `kms:DeleteAlias` against the nonprod key
 - **THEN** the call succeeds
 
 ### Requirement: Branch-to-key mapping is explicit and enforced at deploy time
 
 The deploy workflow SHALL select the Aurora KMS key as follows:
 
-- For the `app` branch: the ARN published by `bootstrap-prod` in the deploying region.
-- For every other branch (`dev`, `alpha`, `beta`, and any feature branch): the ARN published by `bootstrap-nonprod` in the deploying region.
+- For the `app` branch: the ARN published by `bootstrap` at `/taskmanager/kms/prod/aurora-key-arn` in the deploying region.
+- For every other branch (`dev`, `alpha`, `beta`, and any feature branch): the ARN published by `bootstrap` at `/taskmanager/kms/nonprod/aurora-key-arn` in the deploying region.
 
 The selection SHALL be made by reading from AWS SSM Parameter Store at well-known paths:
 ```
 /taskmanager/kms/prod/aurora-key-arn
 /taskmanager/kms/nonprod/aurora-key-arn
 ```
-populated by the `bootstrap-prod` and `bootstrap-nonprod` stacks respectively in each region.
+populated by the `bootstrap` stack in each region.
 
 #### Scenario: app branch picks prod key
 - **WHEN** the deploy workflow runs on branch `app`
@@ -124,7 +129,7 @@ populated by the `bootstrap-prod` and `bootstrap-nonprod` stacks respectively in
 
 #### Scenario: feature branch picks nonprod key
 - **WHEN** the deploy workflow runs on a branch named `feature/login-banner`
-- **THEN** the `KmsKeyArn` parameter passed to application.template equals the value read from `/taskmanager/kms/nonprod/aurora-key-arn`
+- **THEN** the SSM lookup step reads `/taskmanager/kms/nonprod/aurora-key-arn` (the value is not consumed by application.template, but the lookup runs uniformly for all branches)
 
 ### Requirement: Branch-conditional AWS credentials in the deploy workflow
 
@@ -135,7 +140,7 @@ The deploy workflow SHALL select GitHub Actions AWS credentials as follows:
 
 The selection MUST happen before `aws-actions/configure-aws-credentials` runs, in the same deploy job. If `AWS_ACCESS_KEY_ID_PROD` or `AWS_SECRET_ACCESS_KEY_PROD` is empty on an `app` push, the workflow SHALL fail loudly (no silent fallback to non-prod credentials).
 
-The non-prod `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` GitHub secrets in use after this change SHALL be sourced from the `GitHubActionsUser` access key in the `bootstrap-nonprod` stack — not from the legacy `bootstrap` stack (which is retired).
+The non-prod `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` GitHub secrets in use after this change SHALL be sourced from the `GitHubActionsUser` access key in the `bootstrap` stack — not from the legacy `bootstrap` stack (which is retired).
 
 #### Scenario: app deploy uses prod credentials
 - **WHEN** the deploy workflow runs on branch `app`
@@ -155,28 +160,28 @@ The non-prod `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` GitHub secrets in use
 
 ### Requirement: KMS key ARN is exposed via SSM Parameter Store, not CloudFormation Exports
 
-Each `bootstrap-prod` / `bootstrap-nonprod` stack SHALL publish its KMS key ARN as an `AWS::SSM::Parameter` of type `String` at the path specified above, in the region of the stack.
+The `bootstrap` stack SHALL publish each KMS key ARN as an `AWS::SSM::Parameter` of type `String` at the path specified above, in the region of the stack.
 
-The stacks SHALL NOT create a CloudFormation Export for the key ARN, because Exports create cross-stack coupling that prevents bootstrap updates when consumers exist.
+The stack SHALL NOT create a CloudFormation Export for either key ARN, because Exports create cross-stack coupling that prevents bootstrap updates when consumers exist.
 
-During setup and iteration of this change, the SSM parameter and the KMS key resources SHALL NOT carry `DeletionPolicy: Retain` — Retain plus the fixed parameter name (`/taskmanager/kms/{prod,nonprod}/aurora-key-arn`) would cause every failed deploy to leave an orphaned parameter that blocks retry with "AlreadyExists". Adding `DeletionPolicy: Retain` back is a permitted follow-up change once databases are actually encrypting with the key.
+During setup and iteration of this change, the SSM parameters and the KMS key resources SHALL NOT carry `DeletionPolicy: Retain` — Retain plus the fixed parameter names (`/taskmanager/kms/{prod,nonprod}/aurora-key-arn`) would cause every failed deploy to leave an orphaned parameter that blocks retry with "AlreadyExists". Adding `DeletionPolicy: Retain` back is a permitted follow-up change once databases are actually encrypting with the keys.
 
 #### Scenario: Parameter populated on bootstrap deploy
-- **WHEN** `bootstrap-nonprod` is deployed in `us-east-1`
-- **THEN** an SSM parameter `/taskmanager/kms/nonprod/aurora-key-arn` exists in `us-east-1` and its value is the ARN of the multi-region key just created
+- **WHEN** the `bootstrap` stack is deployed in `us-east-1`
+- **THEN** the SSM parameters `/taskmanager/kms/nonprod/aurora-key-arn` and `/taskmanager/kms/prod/aurora-key-arn` exist in `us-east-1` and their values are the ARNs of the two multi-region keys just created
 
-#### Scenario: No CloudFormation Export for the key
+#### Scenario: No CloudFormation Export for the keys
 - **WHEN** `aws cloudformation list-exports --region us-east-1` is run
-- **THEN** no export named `AuroraKmsKeyArn-*` appears (other bootstrap exports such as `GitHubActionsUserArn` remain)
+- **THEN** no export named `AuroraKmsKey*Arn*` appears (other bootstrap exports such as `TemplatesBucketName` and `WebECRRepository` remain)
 
 ### Requirement: KMS key lifecycle is decoupled from per-branch env stack lifecycle
 
-Deleting any per-branch env stack (`dev`, `alpha`, `beta`, `app`, or any feature branch) SHALL leave the Aurora KMS keys untouched. The keys MUST persist as long as the corresponding `bootstrap-prod` or `bootstrap-nonprod` stack exists.
+Deleting any per-branch env stack (`dev`, `alpha`, `beta`, `app`, or any feature branch) SHALL leave the Aurora KMS keys untouched. The keys MUST persist as long as the `bootstrap` stack exists.
 
 #### Scenario: Feature branch teardown leaves keys intact
 - **WHEN** a feature branch's env stack is deleted (by the branch-delete cleanup workflow or by hand)
-- **THEN** both `bootstrap-prod` and `bootstrap-nonprod` KMS keys remain in active (non-`PendingDeletion`) state, and the SSM parameters still resolve to the same ARNs
+- **THEN** both KMS keys (nonprod and prod) remain in active (non-`PendingDeletion`) state, and the SSM parameters still resolve to the same ARNs
 
 #### Scenario: dev rebuild does not create a new key
 - **WHEN** the `dev` env stack is deleted and immediately redeployed
-- **THEN** the redeploy reuses the existing `bootstrap-nonprod` key ARN (the SSM parameter value is unchanged) rather than creating a new KMS key
+- **THEN** the redeploy reuses the existing nonprod key ARN (the SSM parameter value is unchanged) rather than creating a new KMS key
