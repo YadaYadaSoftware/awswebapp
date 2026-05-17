@@ -59,3 +59,23 @@ The branch-deletion cleanup workflow ([.github/workflows/cleanup-on-branch-delet
 #### Scenario: Feature branch deletion stays in us-east-1
 - **WHEN** the cleanup workflow fires for a deleted feature branch
 - **THEN** every AWS API call it issues targets `us-east-1` and none target `us-east-2`
+
+### Requirement: Bootstrap stacks present in secondary region before any env deploy
+
+The `bootstrap`, `bootstrap-prod`, and `bootstrap-nonprod` stacks established by the prior change [`centralize-aurora-kms-keys`](../../centralize-aurora-kms-keys/proposal.md) SHALL exist in `us-east-2` before any multi-region branch's env stack is deployed to `us-east-2`. This includes a populated `/taskmanager/kms/prod/aurora-key-arn` and `/taskmanager/kms/nonprod/aurora-key-arn` SSM parameter resolving to the `AWS::KMS::ReplicaKey` ARNs in `us-east-2`.
+
+#### Scenario: Bootstrap-nonprod present in us-east-2
+- **WHEN** an `alpha`/`beta`-branch deploy targets `us-east-2`
+- **THEN** prior to running, the `bootstrap-nonprod` CloudFormation stack already exists in `us-east-2` in `CREATE_COMPLETE` or `UPDATE_COMPLETE` state, and `/taskmanager/kms/nonprod/aurora-key-arn` in `us-east-2` resolves to a valid `AWS::KMS::ReplicaKey` ARN
+
+#### Scenario: Bootstrap-prod present in us-east-2
+- **WHEN** an `app`-branch deploy targets `us-east-2`
+- **THEN** prior to running, the `bootstrap-prod` CloudFormation stack already exists in `us-east-2`, and `/taskmanager/kms/prod/aurora-key-arn` in `us-east-2` resolves to a valid `AWS::KMS::ReplicaKey` ARN
+
+### Requirement: No us-west-2 stacks remain after migration
+
+Once the migration is complete, the system MUST NOT have any CloudFormation stack in `us-west-2`. This includes the previously-deployed `bootstrap`, `bootstrap-prod`, `bootstrap-nonprod`, `app-appcloud-systems`, `beta-appcloud-systems`, and `alpha-appcloud-systems` stacks — all deleted.
+
+#### Scenario: No us-west-2 stacks
+- **WHEN** `aws cloudformation list-stacks --region us-west-2 --stack-status-filter CREATE_COMPLETE UPDATE_COMPLETE ROLLBACK_COMPLETE` is run after the migration
+- **THEN** the result is empty (or contains only stacks unrelated to this application)
