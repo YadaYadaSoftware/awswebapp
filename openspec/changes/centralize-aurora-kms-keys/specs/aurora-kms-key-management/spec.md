@@ -1,5 +1,25 @@
 ## ADDED Requirements
 
+### Requirement: Bootstrap stack scope is derived from the stack name
+
+The bootstrap template (`infrastructure/bootstrap.template`) SHALL derive its prod-vs-nonprod scope from the CloudFormation stack name rather than from a parameter: any stack whose name contains the substring `"nonprod"` is the nonprod scope; all other stacks are the prod scope. The template MUST NOT expose a `BootstrapScope` (or equivalent) parameter.
+
+Similarly, the template SHALL derive its primary-vs-replica role from whether the `PrimaryKeyArn` parameter is empty (primary) or non-empty (replica). The template MUST NOT expose an `IsPrimaryRegion` (or equivalent) parameter.
+
+This makes the stack name and `PrimaryKeyArn` the sole sources of truth, eliminating parameter/name mismatch foot-guns and shortening the primary-region deploy command to zero `--parameter-overrides`.
+
+#### Scenario: Primary nonprod deploy
+- **WHEN** `aws cloudformation deploy --stack-name bootstrap-nonprod --template-file infrastructure/bootstrap.template --capabilities CAPABILITY_NAMED_IAM --region us-east-1` is run with no `--parameter-overrides`
+- **THEN** the deploy succeeds and the stack creates the nonprod multi-region KMS key (with `GitHubActionsUser` and the nonprod key policy), the nonprod alias, and the nonprod SSM parameter
+
+#### Scenario: Primary prod deploy
+- **WHEN** `aws cloudformation deploy --stack-name bootstrap-prod --template-file infrastructure/bootstrap.template --capabilities CAPABILITY_NAMED_IAM --region us-east-1` is run with no `--parameter-overrides`
+- **THEN** the deploy succeeds and the stack creates the prod multi-region KMS key (with `GitHubActionsUserProd`, `prod-kms-admin`, and the restricted prod key policy), the prod alias, and the prod SSM parameter
+
+#### Scenario: Replica deploy
+- **WHEN** `aws cloudformation deploy --stack-name bootstrap-nonprod --template-file infrastructure/bootstrap.template --parameter-overrides PrimaryKeyArn=arn:aws:kms:us-east-1:... --capabilities CAPABILITY_NAMED_IAM --region us-west-2` is run
+- **THEN** the deploy creates an `AWS::KMS::ReplicaKey` (not a primary key) and does not create any IAM users (IAM is global; the user already exists from the primary-region deploy)
+
 ### Requirement: KMS keys for Aurora encryption are owned by bootstrap stacks, not per-branch env stacks
 
 The system SHALL provision exactly two Aurora encryption KMS keys per AWS account: one in the `bootstrap-prod` stack and one in the `bootstrap-nonprod` stack. Each key SHALL be a multi-region key (`AWS::KMS::Key` with `MultiRegion: true`) created in the primary region, with an `AWS::KMS::ReplicaKey` created in the current secondary region by the corresponding `bootstrap-*` stack deployed there.
@@ -125,9 +145,11 @@ The non-prod `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` GitHub secrets in use
 
 ### Requirement: KMS key ARN is exposed via SSM Parameter Store, not CloudFormation Exports
 
-Each `bootstrap-prod` / `bootstrap-nonprod` stack SHALL publish its KMS key ARN as an `AWS::SSM::Parameter` of type `String` at the path specified above, in the region of the stack. The SSM parameter SHALL have `DeletionPolicy: Retain` so accidental stack deletion does not orphan downstream consumers.
+Each `bootstrap-prod` / `bootstrap-nonprod` stack SHALL publish its KMS key ARN as an `AWS::SSM::Parameter` of type `String` at the path specified above, in the region of the stack.
 
 The stacks SHALL NOT create a CloudFormation Export for the key ARN, because Exports create cross-stack coupling that prevents bootstrap updates when consumers exist.
+
+During setup and iteration of this change, the SSM parameter and the KMS key resources SHALL NOT carry `DeletionPolicy: Retain` — Retain plus the fixed parameter name (`/taskmanager/kms/{prod,nonprod}/aurora-key-arn`) would cause every failed deploy to leave an orphaned parameter that blocks retry with "AlreadyExists". Adding `DeletionPolicy: Retain` back is a permitted follow-up change once databases are actually encrypting with the key.
 
 #### Scenario: Parameter populated on bootstrap deploy
 - **WHEN** `bootstrap-nonprod` is deployed in `us-east-1`

@@ -60,10 +60,12 @@ Split the bootstrap layer into two files:
   - Deployed once per region as stack name **`bootstrap-shared`**.
 
 - **`infrastructure/bootstrap.template`** (rewritten from scratch) — per-scope KMS + IAM:
-  - Parameters: `BootstrapScope` (required, `AllowedValues: [prod, nonprod]`, no default), `IsPrimaryRegion` (required, `[true, false]`), `PrimaryKeyArn` (required when `IsPrimaryRegion=false`, ignored otherwise).
-  - Conditions: `IsProd`, `IsNonprod`, `IsPrimary`.
-  - Resources: `AuroraKmsKey` (when `IsPrimary`) / `AuroraKmsKeyReplica` (when not), `AWS::KMS::Alias` `taskmanager-aurora-${BootstrapScope}`, `AWS::SSM::Parameter` `/taskmanager/kms/${BootstrapScope}/aurora-key-arn`, the scope's IAM user (`GitHubActionsUser` when `IsNonprod`, `GitHubActionsUserProd` when `IsProd`) + `AWS::IAM::AccessKey` + scope-named `DeploymentPolicy`, and (only when `IsProd`) the `prod-kms-admin` IAM role.
-  - Deployed once per scope per region as stack name **`bootstrap-prod`** or **`bootstrap-nonprod`**.
+  - **One parameter only:** `PrimaryKeyArn` (`Default: ""`). Empty (default) means this is the primary-region deploy; non-empty means this is the secondary-region replica deploy with the given primary key ARN. Scope (prod vs nonprod) is derived from the **stack name** via a substring check (`!Join ["", !Split ["nonprod", StackName]] != StackName`). No `BootstrapScope` parameter, no `IsPrimaryRegion` parameter.
+  - Conditions: `IsProd`, `IsNonprod`, `IsPrimary`, `IsReplica`, `IsProdPrimary`, `IsNonprodPrimary` — all derived from `AWS::StackName` and `PrimaryKeyArn`.
+  - Resources: `AuroraKmsKey` (when `IsPrimary`) / `AuroraKmsKeyReplica` (when `IsReplica`), `AWS::KMS::Alias` `taskmanager-aurora-{nonprod|prod}` (selected via `!If [IsNonprod, ...]`), `AWS::SSM::Parameter` `/taskmanager/kms/{nonprod|prod}/aurora-key-arn`, the scope's IAM user (`GitHubActionsUser` when `IsNonprodPrimary`, `GitHubActionsUserProd` when `IsProdPrimary`) + `AWS::IAM::AccessKey` + scope-named `DeploymentPolicy`, and (only when `IsProdPrimary`) the `prod-kms-admin` IAM role.
+  - Deployed once per scope per region as stack name **`bootstrap-prod`** or **`bootstrap-nonprod`**. Primary-region deploys take no `--parameter-overrides` at all.
+
+  **Why scope-from-stack-name instead of a `BootstrapScope` parameter:** the stack name was always the authoritative identifier (you couldn't run `bootstrap-prod` with `BootstrapScope=nonprod` and have the change be meaningful). Making the parameter explicit just doubled the source of truth and created a foot-gun if the two ever disagreed. The substring check (`Join("", Split("nonprod", S)) != S`) is the CFN workaround for the missing `Fn::Contains` intrinsic.
 
 Net result per region: three stack instances from two template files — `bootstrap-shared`, `bootstrap-prod`, `bootstrap-nonprod`. The original single `bootstrap` stack and template content is fully retired.
 
@@ -153,7 +155,7 @@ Bootstrap changes are infrequent and need human review — especially `bootstrap
 
 - **[Risk] Prod database unavailable during `app` cluster recreation.** → Mitigate: pre-stage parallel cluster on new key, restore snapshot ahead of time, then do a fast cutover. Choose a low-traffic window.
 - **[Risk] Orphaned KMS keys in pre-existing env stacks continue billing forever.** → Mitigate: one-time `aws kms schedule-key-deletion --pending-window-in-days 7` sweep in Phase 5 (Resolved Decisions Q4).
-- **[Risk] SSM parameter overwritten or deleted, breaking env deploys.** → Mitigate: SSM parameters in bootstrap stacks have `DeletionPolicy: Retain`; if accidentally deleted, redeploy bootstrap to recreate.
+- **[Risk] SSM parameter overwritten or deleted, breaking env deploys.** → Mitigate: if accidentally deleted, redeploy bootstrap to recreate (it's a one-line CFN resource). The parameter intentionally does NOT have `DeletionPolicy: Retain` during setup/iteration — Retain plus a fixed parameter name turns every failed deploy into an "AlreadyExists" blocker requiring manual cleanup before retry. Add Retain back in a follow-up once iteration settles down and a fixed Retain-protected parameter is more valuable than easy retries. The same applies to the KMS keys themselves (no Retain during setup; add Retain once databases are actually encrypting data with them).
 - **[Risk] `bootstrap-prod` deployment by a non-privileged user accidentally widens the key policy.** → Mitigate: `bootstrap-prod` is in a separate stack instance, deployed by a human admin user (Resolved Decisions Q5); CI cannot update it.
 - **[Risk] `GitHubActionsUserProd` access key leaks before key rotation policy is in place.** → Mitigate: same deploy/rotation policy as the existing CI user; access key is created in CloudFormation but its secret value never appears in `$GITHUB_STEP_SUMMARY` — the operator copies it once from the stack output into GitHub secrets. Tasks.md mandates rotating the key after the initial setup.
 - **[Trade-off] Three bootstrap stacks per region instead of one** is more operationally visible — three things to keep in sync per region. We accept that for blast-radius separation.
