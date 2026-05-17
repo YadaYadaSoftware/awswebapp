@@ -1,5 +1,5 @@
 using System.Security.Claims;
-using Microsoft.AspNetCore.Authentication;
+using System.Text;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -10,6 +10,8 @@ namespace Tjb.Web.Areas.Identity.Pages.Account
 {
     public class ExternalLoginModel : PageModel
     {
+        private const string ConfirmationEmailView = "/Pages/EmailTemplates/ConfirmationEmail.cshtml";
+
         private readonly SignInManager<IdentityUser> _signInManager;
         private readonly UserManager<IdentityUser> _userManager;
         private readonly IEmailService _emailService;
@@ -47,18 +49,15 @@ namespace Tjb.Web.Areas.Identity.Pages.Account
 
             if (remoteError != null)
             {
-                ErrorMessage = $"Error from external provider: {remoteError}";
-                return RedirectToPage("./Login", new { ReturnUrl = returnUrl });
+                return LoginError($"Error from external provider: {remoteError}", returnUrl);
             }
 
             var info = await _signInManager.GetExternalLoginInfoAsync();
             if (info == null)
             {
-                ErrorMessage = "Error loading external login information.";
-                return RedirectToPage("./Login", new { ReturnUrl = returnUrl });
+                return LoginError("Error loading external login information.", returnUrl);
             }
 
-            // Try to sign in if user already has a linked external login
             var signInResult = await _signInManager.ExternalLoginSignInAsync(
                 info.LoginProvider, info.ProviderKey, isPersistent: false, bypassTwoFactor: true);
 
@@ -80,8 +79,7 @@ namespace Tjb.Web.Areas.Identity.Pages.Account
             var email = info.Principal.FindFirstValue(ClaimTypes.Email);
             if (string.IsNullOrEmpty(email))
             {
-                ErrorMessage = $"The external provider '{info.LoginProvider}' did not return an email address. Cannot create account.";
-                return RedirectToPage("./Login", new { ReturnUrl = returnUrl });
+                return LoginError($"The external provider '{info.LoginProvider}' did not return an email address. Cannot create account.", returnUrl);
             }
 
             // If a user with this email already exists, link the external login to that account
@@ -98,10 +96,10 @@ namespace Tjb.Web.Areas.Identity.Pages.Account
                     var linkResult = await _userManager.AddLoginAsync(existingUser, info);
                     if (!linkResult.Succeeded)
                     {
-                        ErrorMessage = string.Join("; ", linkResult.Errors.Select(e => e.Description));
+                        var errors = FormatIdentityErrors(linkResult);
                         _logger.LogWarning("Failed to link {Provider} login to existing user {Email}: {Errors}",
-                            info.LoginProvider, email, ErrorMessage);
-                        return RedirectToPage("./Login", new { ReturnUrl = returnUrl });
+                            info.LoginProvider, email, errors);
+                        return LoginError(errors, returnUrl);
                     }
                     _logger.LogInformation("Linked {Provider} login to existing user {Email}.", info.LoginProvider, email);
                 }
@@ -110,7 +108,7 @@ namespace Tjb.Web.Areas.Identity.Pages.Account
                 {
                     _logger.LogInformation("Existing user {Email} is not confirmed; resending confirmation email.", email);
                     await SendConfirmationEmailAsync(existingUser, email);
-                    return RedirectToPage("./RegisterConfirmation", new { email, returnUrl });
+                    return RedirectToPage("./RegisterConfirmation", new { email });
                 }
 
                 await _signInManager.SignInAsync(existingUser, isPersistent: false);
@@ -123,32 +121,41 @@ namespace Tjb.Web.Areas.Identity.Pages.Account
             var createResult = await _userManager.CreateAsync(user);
             if (!createResult.Succeeded)
             {
-                ErrorMessage = string.Join("; ", createResult.Errors.Select(e => e.Description));
-                _logger.LogWarning("Failed to create user for {Email}: {Errors}", email, ErrorMessage);
-                return RedirectToPage("./Login", new { ReturnUrl = returnUrl });
+                var errors = FormatIdentityErrors(createResult);
+                _logger.LogWarning("Failed to create user for {Email}: {Errors}", email, errors);
+                return LoginError(errors, returnUrl);
             }
 
             var addLoginResult = await _userManager.AddLoginAsync(user, info);
             if (!addLoginResult.Succeeded)
             {
-                ErrorMessage = string.Join("; ", addLoginResult.Errors.Select(e => e.Description));
-                _logger.LogWarning("Failed to link external login for {Email}: {Errors}", email, ErrorMessage);
-                return RedirectToPage("./Login", new { ReturnUrl = returnUrl });
+                var errors = FormatIdentityErrors(addLoginResult);
+                _logger.LogWarning("Failed to link external login for {Email}: {Errors}", email, errors);
+                return LoginError(errors, returnUrl);
             }
 
             _logger.LogInformation("Auto-created user {Email} from {LoginProvider} provider.", email, info.LoginProvider);
 
             await SendConfirmationEmailAsync(user, email);
 
-            return RedirectToPage("./RegisterConfirmation", new { email, returnUrl });
+            return RedirectToPage("./RegisterConfirmation", new { email });
         }
+
+        private IActionResult LoginError(string message, string returnUrl)
+        {
+            ErrorMessage = message;
+            return RedirectToPage("./Login", new { ReturnUrl = returnUrl });
+        }
+
+        private static string FormatIdentityErrors(IdentityResult result) =>
+            string.Join("; ", result.Errors.Select(e => e.Description));
 
         private async Task SendConfirmationEmailAsync(IdentityUser user, string email)
         {
             try
             {
                 var token = await _userManager.GenerateEmailConfirmationTokenAsync(user);
-                var encodedToken = WebEncoders.Base64UrlEncode(System.Text.Encoding.UTF8.GetBytes(token));
+                var encodedToken = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(token));
 
                 var confirmUrl = Url.Page(
                     "/Account/ConfirmEmail",
@@ -156,18 +163,17 @@ namespace Tjb.Web.Areas.Identity.Pages.Account
                     values: new { area = "Identity", email, token = encodedToken },
                     protocol: Request.Scheme) ?? string.Empty;
 
-                var subject = "Confirm your email";
                 var textBody =
                     $"Welcome!\n\nPlease confirm your email address by visiting this link:\n{confirmUrl}\n\nIf you did not create this account, you can ignore this email.";
 
                 var htmlBody = await _viewRenderService.RenderToStringAsync(
-                    "/Pages/EmailTemplates/ConfirmationEmail.cshtml",
+                    ConfirmationEmailView,
                     new ConfirmationEmailViewModel { Email = email, ConfirmationUrl = confirmUrl });
 
                 await _emailService.SendEmailAsync(new SendEmailRequest
                 {
                     To = email,
-                    Subject = subject,
+                    Subject = "Confirm your email",
                     HtmlBody = htmlBody,
                     TextBody = textBody,
                 });

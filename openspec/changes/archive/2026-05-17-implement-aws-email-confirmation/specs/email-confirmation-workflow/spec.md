@@ -93,14 +93,8 @@ The system SHALL use time-limited tokens for email confirmation.
 - **WHEN** user attempts to use an expired confirmation token
 - **THEN** the system displays "Token has expired" error and offers to send new confirmation email
 
-## MODIFIED Requirements
-
 ### Requirement: Google OAuth registration flow
 The system SHALL handle first-time Google OAuth registration by automatically creating the user account, sending a confirmation email, and displaying a "check your email" message.
-
-**Previous behavior**: User saw placeholder message "This app does not currently have a real email sender registered"
-
-**New behavior**: User receives automated confirmation email and sees message "Check your email to verify your account"
 
 #### Scenario: User completes OAuth and receives confirmation email
 - **WHEN** a new user signs in via Google OAuth
@@ -111,11 +105,7 @@ The system SHALL handle first-time Google OAuth registration by automatically cr
 - **THEN** the confirmation page shows "Check your email at {email}" instead of technical placeholder
 
 ### Requirement: Account verification status
-The system SHALL require users to confirm their email address via the confirmation link before the account is marked verified, replacing the previous placeholder/skipped verification behavior.
-
-**Previous behavior**: Email confirmation was disabled/mocked with placeholder message
-
-**New behavior**: User must click email confirmation link to complete account verification
+The system SHALL require users to confirm their email address via the confirmation link before the account is marked verified.
 
 #### Scenario: Unverified account cannot access protected features
 - **WHEN** user attempts to access account before confirming email

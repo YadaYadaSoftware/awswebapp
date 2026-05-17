@@ -62,11 +62,11 @@
 
 ## 9. Testing & Validation
 
-- [ ] 9.1 Build project and verify no compilation errors
-- [ ] 9.2 Run application locally and test Google OAuth flow
-- [ ] 9.3 Verify email is sent (check CloudWatch logs or use SES sandbox)
-- [ ] 9.4 Test confirmation link and verify token is validated correctly
-- [ ] 9.5 Verify user is marked as email-confirmed after clicking link
+- [x] 9.1 Build project and verify no compilation errors
+- [x] 9.2 Run application locally and test Google OAuth flow
+- [x] 9.3 Verify email is sent (check CloudWatch logs or use SES sandbox)
+- [x] 9.4 Test confirmation link and verify token is validated correctly
+- [x] 9.5 Verify user is marked as email-confirmed after clicking link
 - [ ] 9.6 Test expired token scenario and resend confirmation flow
 - [ ] 9.7 Test with multiple users to ensure no email conflicts
 
@@ -82,9 +82,9 @@
 ## 11. Documentation & Cleanup
 
 - [x] 11.1 Update CLAUDE.md or project documentation with email configuration details
-- [ ] 11.2 Remove any temporary test email services or stubs
-- [ ] 11.3 Verify no console.log or debug code left in email service
-- [ ] 11.4 Update CI/CD pipeline if needed for email testing
+- [x] 11.2 Remove any temporary test email services or stubs
+- [x] 11.3 Verify no console.log or debug code left in email service
+- [x] 11.4 Update CI/CD pipeline if needed for email testing
 
 ## 12. Handle Existing Users in OAuth Callback
 

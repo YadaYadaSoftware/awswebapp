@@ -8,6 +8,10 @@ namespace Tjb.Web.Areas.Identity.Pages.Account
 {
     public class ConfirmEmailModel : PageModel
     {
+        // Identity uses the same error code ("InvalidToken") for expired and tampered tokens.
+        // Malformed (un-decodable) tokens are caught separately before reaching ConfirmEmailAsync.
+        private const string InvalidTokenErrorCode = "InvalidToken";
+
         private readonly UserManager<IdentityUser> _userManager;
         private readonly ILogger<ConfirmEmailModel> _logger;
 
@@ -76,9 +80,7 @@ namespace Tjb.Web.Areas.Identity.Pages.Account
                 return Page();
             }
 
-            // Identity returns the same "InvalidToken" code for both expired and malformed tokens.
-            // We treat it as expired here because malformed tokens were caught above by the decode try/catch.
-            if (result.Errors.Any(e => e.Code == "InvalidToken"))
+            if (result.Errors.Any(e => e.Code == InvalidTokenErrorCode))
             {
                 State = ResultState.Expired;
                 _logger.LogInformation("ConfirmEmail: expired/invalid token for {Email}.", email);
