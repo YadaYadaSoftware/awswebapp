@@ -97,6 +97,24 @@ The user's email address is obtained from Google's OAuth token and automatically
 
 **Implementation**: In `Tjb.Web/Pages/Account/ExternalLogin.cshtml.cs`, after user creation via Google OAuth, call `await emailService.SendConfirmationEmailAsync()` before returning to confirmation page.
 
+### 5a. Auto-Registration with Google-Provided Email (Skip Email Entry Form)
+**Decision**: Automatically create the user account using the email address from Google's OAuth claims; do NOT present an email entry/confirmation form.
+
+**Rationale**:
+- Google OAuth always provides a verified email address via the `email` claim
+- Asking the user to re-enter an email they've already provided creates unnecessary friction
+- The default ASP.NET Identity `ExternalLoginConfirmation` form is designed generically for OAuth providers that may not provide email — it's not needed for Google
+- Reduces the flow from "Login → Form → Click Register → Confirmation page" to "Login → Confirmation page" (one fewer click)
+
+**Implementation**:
+- Override the default Identity `ExternalLogin` flow so that when `info.Principal.FindFirstValue(ClaimTypes.Email)` returns a value, the user is auto-created and redirected to the confirmation page without rendering the email entry form
+- The `ExternalLoginConfirmation` page becomes a read-only "Check your email at {email}" page (no input field, no submit button)
+- If Google somehow does not return an email claim (edge case), fall back to showing the email entry form
+
+**Alternatives Considered**:
+- Keep the default Identity form: simpler implementation, but creates the redundant "enter your email" step the user already completed via Google
+- Skip the confirmation page entirely and sign user in immediately: would bypass email verification requirement (rejected — we need email verification)
+
 ### 6. Account Verification Persistence
 **Decision**: Rely on ASP.NET Identity's `EmailConfirmed` field to track verification status.
 

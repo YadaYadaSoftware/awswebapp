@@ -15,6 +15,21 @@ The system SHALL automatically send a confirmation email when a user authenticat
 - **WHEN** user completes Google OAuth signup
 - **THEN** the confirmation email is sent and user is shown confirmation page without waiting
 
+### Requirement: Auto-register user with Google-provided email
+The system SHALL automatically create the user account using the email address provided by Google OAuth, without requiring the user to enter or confirm their email address.
+
+#### Scenario: User completes Google OAuth for the first time
+- **WHEN** a new user authenticates via Google OAuth
+- **THEN** the system automatically creates an account using the email claim from Google's OAuth token without displaying an email entry form
+
+#### Scenario: User is never prompted to enter email after Google sign-in
+- **WHEN** a user signs in via Google OAuth
+- **THEN** the user is NOT shown a form asking them to enter or confirm their email address (since Google has already provided it)
+
+#### Scenario: User is redirected directly to "check your email" page
+- **WHEN** Google OAuth completes and the account is auto-created
+- **THEN** the user is redirected immediately to the confirmation instruction page (no Register button click required)
+
 ### Requirement: Display confirmation instructions to user
 The system SHALL show users a message instructing them to check their email for confirmation.
 
@@ -62,7 +77,7 @@ The system SHALL use time-limited tokens for email confirmation.
 ## MODIFIED Requirements
 
 ### Requirement: Google OAuth registration flow
-The system's handling of first-time Google OAuth registration is modified to include automatic email confirmation email delivery.
+The system SHALL handle first-time Google OAuth registration by automatically creating the user account, sending a confirmation email, and displaying a "check your email" message.
 
 **Previous behavior**: User saw placeholder message "This app does not currently have a real email sender registered"
 
@@ -77,7 +92,7 @@ The system's handling of first-time Google OAuth registration is modified to inc
 - **THEN** the confirmation page shows "Check your email at {email}" instead of technical placeholder
 
 ### Requirement: Account verification status
-Account verification is modified to use actual email confirmation instead of placeholder/skipped verification.
+The system SHALL require users to confirm their email address via the confirmation link before the account is marked verified, replacing the previous placeholder/skipped verification behavior.
 
 **Previous behavior**: Email confirmation was disabled/mocked with placeholder message
 
