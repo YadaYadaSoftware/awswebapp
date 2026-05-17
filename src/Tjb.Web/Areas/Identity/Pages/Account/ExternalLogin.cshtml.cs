@@ -3,6 +3,8 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.AspNetCore.WebUtilities;
+using Tjb.Web.Services;
 
 namespace Tjb.Web.Areas.Identity.Pages.Account
 {
@@ -10,15 +12,18 @@ namespace Tjb.Web.Areas.Identity.Pages.Account
     {
         private readonly SignInManager<IdentityUser> _signInManager;
         private readonly UserManager<IdentityUser> _userManager;
+        private readonly IEmailService _emailService;
         private readonly ILogger<ExternalLoginModel> _logger;
 
         public ExternalLoginModel(
             SignInManager<IdentityUser> signInManager,
             UserManager<IdentityUser> userManager,
+            IEmailService emailService,
             ILogger<ExternalLoginModel> logger)
         {
             _signInManager = signInManager;
             _userManager = userManager;
+            _emailService = emailService;
             _logger = logger;
         }
 
@@ -93,9 +98,47 @@ namespace Tjb.Web.Areas.Identity.Pages.Account
 
             _logger.LogInformation("Auto-created user {Email} from {LoginProvider} provider.", email, info.LoginProvider);
 
-            // Email service integration is pending (see openspec change implement-aws-email-confirmation, sections 2-6).
-            // For now, just redirect to the confirmation page so the user sees the "check your email" message.
+            await SendConfirmationEmailAsync(user, email);
+
             return RedirectToPage("./RegisterConfirmation", new { email, returnUrl });
+        }
+
+        private async Task SendConfirmationEmailAsync(IdentityUser user, string email)
+        {
+            try
+            {
+                var token = await _userManager.GenerateEmailConfirmationTokenAsync(user);
+                var encodedToken = WebEncoders.Base64UrlEncode(System.Text.Encoding.UTF8.GetBytes(token));
+
+                var confirmUrl = Url.Page(
+                    "/Account/ConfirmEmail",
+                    pageHandler: null,
+                    values: new { area = "Identity", email, token = encodedToken },
+                    protocol: Request.Scheme) ?? string.Empty;
+
+                var subject = "Confirm your email";
+                var textBody =
+                    $"Welcome!\n\nPlease confirm your email address by visiting this link:\n{confirmUrl}\n\nIf you did not create this account, you can ignore this email.";
+                var htmlBody =
+                    $"<p>Welcome!</p><p>Please confirm your email address by clicking the link below:</p>" +
+                    $"<p><a href=\"{confirmUrl}\">Confirm your email</a></p>" +
+                    $"<p>If you did not create this account, you can ignore this email.</p>";
+
+                await _emailService.SendEmailAsync(new SendEmailRequest
+                {
+                    To = email,
+                    Subject = subject,
+                    HtmlBody = htmlBody,
+                    TextBody = textBody,
+                });
+
+                _logger.LogInformation("Confirmation email queued for {Email}.", email);
+            }
+            catch (Exception ex)
+            {
+                // Don't block registration on email failures — user can request a resend later.
+                _logger.LogError(ex, "Failed to send confirmation email for {Email}.", email);
+            }
         }
     }
 }

@@ -6,8 +6,8 @@
 
 ## 2. Create Email Service Abstraction
 
-- [ ] 2.1 Create `Services/IEmailService.cs` interface with `SendEmailAsync()` method
-- [ ] 2.2 Create `SendEmailRequest.cs` DTO with `To`, `Subject`, `HtmlBody`, `TextBody` properties
+- [x] 2.1 Create `Services/IEmailService.cs` interface with `SendEmailAsync()` method
+- [x] 2.2 Create `SendEmailRequest.cs` DTO with `To`, `Subject`, `HtmlBody`, `TextBody` properties
 - [ ] 2.3 Create `Services/AwsSesEmailService.cs` implementing IEmailService
 - [ ] 2.4 Implement AWS SES client initialization with region and credentials from configuration
 - [ ] 2.5 Implement `SendEmailAsync()` to call SES SDK and send email with both HTML and text
@@ -22,7 +22,7 @@
 
 ## 4. Register Services in Dependency Injection
 
-- [ ] 4.1 Update `Program.cs` to add `IEmailService` registration as `AwsSesEmailService`
+- [x] 4.1 Update `Program.cs` to add `IEmailService` registration as `AwsSesEmailService`
 - [ ] 4.2 Update `Program.cs` to add `IViewRenderService` registration as `ViewRenderService`
 - [ ] 4.3 Ensure AWS SDK configuration is loaded from appsettings/environment
 - [ ] 4.4 Verify services are properly injected in test
@@ -37,12 +37,12 @@
 
 ## 6. Integrate Email Sending in OAuth Flow
 
-- [ ] 6.1 Locate external login callback in `Pages/Account/` or authentication handler
-- [ ] 6.2 Inject `IEmailService` into ExternalLogin controller/handler
-- [ ] 6.3 After successful Google OAuth user creation, call email service to send confirmation
-- [ ] 6.4 Pass user email and confirmation token to email service
-- [ ] 6.5 Handle email sending exceptions gracefully (log but don't block registration)
-- [ ] 6.6 Redirect to confirmation page after email sent
+- [x] 6.1 Locate external login callback in `Pages/Account/` or authentication handler
+- [x] 6.2 Inject `IEmailService` into ExternalLogin controller/handler
+- [x] 6.3 After successful Google OAuth user creation, call email service to send confirmation
+- [x] 6.4 Pass user email and confirmation token to email service
+- [x] 6.5 Handle email sending exceptions gracefully (log but don't block registration)
+- [x] 6.6 Redirect to confirmation page after email sent
 
 ## 7. Update Confirmation UI
 

@@ -9,6 +9,7 @@ using Pomelo.EntityFrameworkCore.MySql;
 using Tjb.Data;
 using Tjb.Web.Areas.Identity;
 using Tjb.Web.Data;
+using Tjb.Web.Services;
 using static Microsoft.Extensions.DependencyInjection.GoogleExtensions;
 
 
@@ -75,6 +76,10 @@ builder.Services.AddServerSideBlazor();
 builder.Services.AddScoped<AuthenticationStateProvider, RevalidatingIdentityAuthenticationStateProvider<IdentityUser>>();
 builder.Services.AddSingleton<WeatherForecastService>();
 builder.Services.AddHealthChecks();
+
+// Email service — currently a stub that logs to console (Step B).
+// Will be swapped for AwsSesEmailService in Step D.
+builder.Services.AddScoped<IEmailService, LoggingEmailService>();
 builder.Services.AddAuthentication().AddGoogle(googleOptions =>
 {
     googleOptions.ClientId = builder.Configuration["Authentication:Google:ClientId"];
