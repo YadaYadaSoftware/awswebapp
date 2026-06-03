@@ -13,8 +13,8 @@ The bootstrap template ([infrastructure/bootstrap.template](../../../infrastruct
 The template MUST NOT be deployed as separate `bootstrap-shared` / `bootstrap-prod` / `bootstrap-nonprod` instances. There is no `BootstrapScope` (or equivalent) parameter; both scopes coexist in the same stack and are differentiated by resource name. The only conditions on the template SHALL be `IsPrimary` / `IsReplica` (derived from whether `PrimaryNonprodKeyArn` is empty) and `HasKeyAdmin` (driving the optional `KeyAdminPrincipalArn` exemption on the prod key's NotPrincipal Deny).
 
 #### Scenario: Primary region deploy
-- **WHEN** `aws cloudformation deploy --stack-name bootstrap --template-file infrastructure/bootstrap.template --parameter-overrides TemplatesBucketName=<bucket> KeyAdminPrincipalArn=<deployer-arn> --capabilities CAPABILITY_NAMED_IAM --region us-east-1` is run with `PrimaryNonprodKeyArn` and `PrimaryProdKeyArn` empty (default)
-- **THEN** the deploy succeeds and creates: the shared infra (ECR, ApiGateway role+account, Config rule + Lambda + SSM doc, TemplatesBucketPolicy), both multi-region KMS keys (nonprod with broad policy, prod with NotPrincipal+Deny policy), both aliases, both SSM parameters, both IAM users (`GitHubActionsUser`, `GitHubActionsUserProd`) with their access keys and policies, and the `prod-kms-admin` role
+- **WHEN** `aws cloudformation deploy --stack-name bootstrap --template-file infrastructure/bootstrap.template --parameter-overrides TemplatesBucketName=<bucket> --capabilities CAPABILITY_NAMED_IAM --region us-east-1` is run with `PrimaryNonprodKeyArn` and `PrimaryProdKeyArn` empty (default)
+- **THEN** the deploy succeeds and creates: the shared infra (ECR, ApiGateway role+account, Config rule + Lambda + SSM doc, TemplatesBucketPolicy), both multi-region KMS keys (nonprod with broad policy, prod with a targeted Deny on `GitHubActionsUser`), both aliases, both SSM parameters, both IAM users (`GitHubActionsUser`, `GitHubActionsUserProd`) with their access keys and policies, and the `prod-kms-admin` role
 
 #### Scenario: Replica region deploy
 - **WHEN** the same template is deployed to `us-west-2` with `PrimaryNonprodKeyArn=<from us-east-1 output>` and `PrimaryProdKeyArn=<from us-east-1 output>`
@@ -67,17 +67,11 @@ Both IAM users have explicit `UserName:` properties so their ARNs are predictabl
 
 The prod KMS key policy SHALL grant `GitHubActionsUserProd` only the operations needed to use the key for Aurora encryption (`kms:CreateGrant`, `kms:DescribeKey`, `kms:Decrypt`, `kms:Encrypt`, `kms:GenerateDataKey`, `kms:ReEncryptFrom`, `kms:ReEncryptTo`, `kms:RetireGrant`, `kms:ListGrants`, `kms:RevokeGrant`). The policy MUST NOT grant `GitHubActionsUserProd` any of: `kms:ScheduleKeyDeletion`, `kms:DisableKey`, `kms:PutKeyPolicy`, `kms:DeleteAlias`, `kms:UpdateAlias`, `kms:ReplicateKey`, `kms:CreateAlias`.
 
-The prod key policy SHALL include an explicit `Effect: Deny` statement with `NotPrincipal` listing only the authorized principals (account root, `GitHubActionsUserProd`, `prod-kms-admin` role, `rds.amazonaws.com` service). This denial blocks the IAM-delegation pathway that the standard `AllowAccountRoot kms:* Resource: *` statement would otherwise enable — without it, any IAM principal in the account whose own IAM policy grants `kms:*` (e.g. `GitHubActionsUser`'s broad `DeploymentPolicy`) can reach the prod key. `GitHubActionsUser` MUST be among the principals blocked by this Deny.
+The prod key policy SHALL include an explicit `Effect: Deny` statement targeting the nonprod CI principal (`GitHubActionsUser`) — `Principal: { AWS: arn:aws:iam::ACCT:user/GitHubActionsUser }`, `Action: kms:*`, `Resource: "*"`. This denial blocks the IAM-delegation pathway that the standard `AllowAccountRoot kms:* Resource: *` statement would otherwise enable — without it, the nonprod CI user's broad `DeploymentPolicy` (`kms:*` on `Resource: "*"`) reaches the prod key.
 
-The `bootstrap.template` SHALL accept an optional `KeyAdminPrincipalArn` parameter. When non-empty, the value SHALL be added as an additional entry in the `NotPrincipal.AWS` list — i.e., that principal is also exempted from the Deny. This parameter exists to work around AWS KMS's lockout-safety check, which rejects any policy update that would prevent the calling principal from updating the policy in the future. The deployer (during initial setup) is typically not in the four built-in exemptions, so the parameter lets the operator add themselves for the duration of setup. Once `prod-kms-admin` becomes the standard admin path (e.g., the deployer can assume it), the parameter SHALL be left empty on subsequent deploys.
+An earlier draft used `NotPrincipal+Deny` (deny everyone except an exemption list) instead of a targeted Deny. That pattern was rejected because `NotPrincipal` with a `Service: rds.amazonaws.com` entry does **not** match the assumed-role session of RDS's service-linked role `AWSServiceRoleForRDS`, which is what actually performs encryption operations after the grant is created. The resulting Aurora cluster fails with `inaccessible-encryption-credentials`. A targeted Deny on the specific untrusted principal (`GitHubActionsUser`) achieves the security goal — nonprod CI cannot reach the prod key — without breaking any AWS-internal service-linked-role pathways.
 
-#### Scenario: KeyAdminPrincipalArn extends the NotPrincipal exemption
-- **WHEN** `bootstrap` is deployed with `--parameter-overrides KeyAdminPrincipalArn=arn:aws:iam::ACCT:user/developer-tim`
-- **THEN** the resulting prod key policy's Deny statement has a `NotPrincipal.AWS` list containing four entries: account root, `GitHubActionsUserProd`, `prod-kms-admin`, and `arn:aws:iam::ACCT:user/developer-tim`
-
-#### Scenario: KeyAdminPrincipalArn empty (post-setup state)
-- **WHEN** `bootstrap` is deployed with no `KeyAdminPrincipalArn` (default empty)
-- **THEN** the resulting prod key policy's Deny statement has a `NotPrincipal.AWS` list containing exactly three entries: account root, `GitHubActionsUserProd`, `prod-kms-admin`
+The targeted-Deny shape also removes the need for a `KeyAdminPrincipalArn` parameter that the earlier draft required: KMS's lockout-safety check only fires when the proposed policy would block the calling principal from `kms:PutKeyPolicy`. A Deny on `GitHubActionsUser` doesn't affect the deployer (a different IAM user), so the check passes and no exemption parameter is needed.
 
 Destructive operations on the production key SHALL be granted only to the AWS account root principal and to a dedicated IAM role named `prod-kms-admin` that is also created in the `bootstrap` stack (primary region).
 
@@ -87,7 +81,11 @@ Destructive operations on the production key SHALL be granted only to the AWS ac
 
 #### Scenario: Non-prod CI cannot reach the prod key at all
 - **WHEN** `GitHubActionsUser` calls `kms:DescribeKey` against the prod key
-- **THEN** the API call is denied by the prod key policy's `NotPrincipal+Deny` clause and returns `AccessDeniedException` with the message "...with an explicit deny in a resource-based policy"
+- **THEN** the API call is denied by the prod key policy's targeted Deny on `GitHubActionsUser` and returns `AccessDeniedException` with the message "...with an explicit deny in a resource-based policy"
+
+#### Scenario: RDS service-linked role can still encrypt for Aurora
+- **WHEN** an `app`-branch deploy creates an `AWS::RDS::DBCluster` with `KmsKeyId` set to the prod key ARN, and RDS's `AWSServiceRoleForRDS` performs encryption operations on the cluster's data
+- **THEN** the operations succeed — the targeted Deny names `GitHubActionsUser` only, not the SLR, so the standard grant-based encryption path works
 
 #### Scenario: Prod CI can use the prod key for Aurora encryption
 - **WHEN** an `app`-branch deploy creates an `AWS::RDS::DBCluster` with `KmsKeyId` set to the prod key ARN

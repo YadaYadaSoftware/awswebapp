@@ -21,15 +21,9 @@ Parameters:
     Default: ""
     Description: "ARN of the primary (us-east-1) prod multi-region KMS key. Pass alongside PrimaryNonprodKeyArn for the secondary-region deploy."
 
-  KeyAdminPrincipalArn:
-    Type: String
-    Default: ""
-    Description: "Optional IAM principal ARN to add to the prod KMS key's NotPrincipal Deny exemption — i.e. an additional principal allowed to update the prod key policy. Required during initial setup of bootstrap (the deployer isn't otherwise in the NotPrincipal exemption and KMS's lockout-safety check would reject the policy update). Once prod-kms-admin can be assumed by the deployer for ongoing changes, set this back to empty."
-
 Conditions:
   IsPrimary: !Equals [!Ref PrimaryNonprodKeyArn, ""]
   IsReplica: !Not [!Equals [!Ref PrimaryNonprodKeyArn, ""]]
-  HasKeyAdmin: !Not [!Equals [!Ref KeyAdminPrincipalArn, ""]]
 
 Resources:
   # ---------- Shared infrastructure (always created) ----------
@@ -511,29 +505,21 @@ Resources:
               AWS: !GetAtt ProdKmsAdminRole.Arn
             Action: kms:*
             Resource: "*"
-          # Default-deny everyone not on this list — blocks the IAM-delegation
-          # pathway from AllowAccountRoot that would otherwise let any IAM
-          # principal with kms:* in their IAM policy (including the nonprod CI
-          # user) reach the prod key. The deployer is exempted via
-          # KeyAdminPrincipalArn during initial setup to satisfy KMS's
-          # lockout-safety check (the deployer needs kms:PutKeyPolicy to
-          # apply this policy update); once prod-kms-admin can be assumed by
-          # the deployer for ongoing changes, set KeyAdminPrincipalArn back
-          # to empty.
-          - Sid: DenyEveryoneNotAuthorized
+          # Targeted Deny for the nonprod CI principal. Without this, the
+          # AllowAccountRoot statement delegates KMS evaluation to IAM, and
+          # GitHubActionsUser's broad DeploymentPolicy (kms:* on Resource:"*")
+          # would let nonprod CI reach the prod key. An earlier draft used
+          # NotPrincipal+Deny kms:* with rds.amazonaws.com in the exemption,
+          # but that blocked Aurora's AWSServiceRoleForRDS (the SLR that
+          # actually performs encryption ops after the grant is created) —
+          # NotPrincipal's Service entry matches direct service calls, not
+          # SLR-session calls. The targeted Deny named below avoids that
+          # entire class of problem while still satisfying the spec
+          # requirement that nonprod CI cannot reach the prod key.
+          - Sid: DenyNonprodCI
             Effect: Deny
-            NotPrincipal:
-              AWS: !If
-                - HasKeyAdmin
-                - - !Sub "arn:aws:iam::${AWS::AccountId}:root"
-                  - !GetAtt GitHubActionsUserProd.Arn
-                  - !GetAtt ProdKmsAdminRole.Arn
-                  - !Ref KeyAdminPrincipalArn
-                - - !Sub "arn:aws:iam::${AWS::AccountId}:root"
-                  - !GetAtt GitHubActionsUserProd.Arn
-                  - !GetAtt ProdKmsAdminRole.Arn
-              Service:
-                - rds.amazonaws.com
+            Principal:
+              AWS: !GetAtt GitHubActionsUser.Arn
             Action: kms:*
             Resource: "*"
 
@@ -590,20 +576,12 @@ Resources:
               AWS: !Sub "arn:aws:iam::${AWS::AccountId}:role/prod-kms-admin"
             Action: kms:*
             Resource: "*"
-          - Sid: DenyEveryoneNotAuthorized
+          # Targeted Deny for the nonprod CI principal — see comment in
+          # AuroraKmsKeyProd for rationale.
+          - Sid: DenyNonprodCI
             Effect: Deny
-            NotPrincipal:
-              AWS: !If
-                - HasKeyAdmin
-                - - !Sub "arn:aws:iam::${AWS::AccountId}:root"
-                  - !Sub "arn:aws:iam::${AWS::AccountId}:user/GitHubActionsUserProd"
-                  - !Sub "arn:aws:iam::${AWS::AccountId}:role/prod-kms-admin"
-                  - !Ref KeyAdminPrincipalArn
-                - - !Sub "arn:aws:iam::${AWS::AccountId}:root"
-                  - !Sub "arn:aws:iam::${AWS::AccountId}:user/GitHubActionsUserProd"
-                  - !Sub "arn:aws:iam::${AWS::AccountId}:role/prod-kms-admin"
-              Service:
-                - rds.amazonaws.com
+            Principal:
+              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:user/GitHubActionsUser"
             Action: kms:*
             Resource: "*"
 
