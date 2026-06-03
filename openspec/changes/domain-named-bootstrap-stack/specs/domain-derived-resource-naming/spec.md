@@ -68,6 +68,17 @@ Wherever a template previously used a hardcoded `taskmanager` literal in a resou
 - Aurora regional cluster identifier: `!Sub "${DomainName}-${BranchLeaf}-${AWS::Region}"`
 - Secrets Manager path: `!Sub "${DomainName}/database/regional/${BranchLeaf}"`
 - IAM policy `Resource:`: `!Sub "arn:aws:rds:*:*:cluster:${DomainName}-*"`
+- Google OAuth Secrets Manager paths: `!Sub "${DomainName}/google-oauth/${BranchLeaf}"`
+
+The Aurora MySQL master username — previously the literal `taskmanager_admin` — SHALL also derive from `DomainName`. Because MySQL usernames disallow hyphens, the dashes in `DomainName` SHALL be replaced with underscores via CFN intrinsics:
+
+```yaml
+MasterUsername: !Sub
+  - "${DomainUnderscored}_admin"
+  - DomainUnderscored: !Join ["_", !Split ["-", !Ref DomainName]]
+```
+
+For `DomainName=appcloud-systems` this evaluates to `appcloud_systems_admin`. This is the only place in any template where the underscored form is needed; everywhere else uses the dashed form.
 
 #### Scenario: master.template declares DomainName parameter
 - **WHEN** an operator reads [infrastructure/master.template](../../../../infrastructure/master.template)
@@ -80,6 +91,10 @@ Wherever a template previously used a hardcoded `taskmanager` literal in a resou
 #### Scenario: IAM policy Resource scopes use DomainName
 - **WHEN** the workflow deploys any env stack that includes inline IAM policies scoped to Aurora cluster ARNs
 - **THEN** every `Resource:` ARN in those policies expands to `arn:aws:rds:*:*:cluster:appcloud-systems-*` (no `taskmanager-*` patterns appear)
+
+#### Scenario: MySQL master username uses underscored DomainName
+- **WHEN** a new Aurora cluster is created by an env stack
+- **THEN** its MasterUsername is `appcloud_systems_admin` (dashes in `DomainName` converted to underscores via CFN intrinsics; no `taskmanager_admin` literal remains in `db.template`)
 
 ### Requirement: Workflow computes the dashed-domain value once and passes it to every deploy
 

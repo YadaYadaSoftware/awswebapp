@@ -1,30 +1,11 @@
 ## 1. Pre-flight
 
-- [ ] 1.1 Retract `rename-taskmanager-to-tjb`: either `git rm -r openspec/changes/rename-taskmanager-to-tjb/` or `git mv` it to `openspec/archived/rename-taskmanager-to-tjb-retracted/` with a `RETRACTED.md` stub explaining that this change supersedes it. Commit with `chore(openspec): retract rename-taskmanager-to-tjb in favor of domain-named-bootstrap-stack`.
-- [ ] 1.2 Audit every hardcoded `taskmanager` occurrence in templates and workflow:
-  ```powershell
-  Get-ChildItem -Path infrastructure -Recurse -File -Include *.template,*.yaml,*.yml |
-    Select-String -CaseSensitive -Pattern 'taskmanager' |
-    Out-File openspec/changes/domain-named-bootstrap-stack/taskmanager-audit.txt
-  Select-String -Path .github/workflows/zbuild.yml -CaseSensitive -Pattern 'taskmanager' |
-    Out-File openspec/changes/domain-named-bootstrap-stack/workflow-taskmanager-audit.txt -Append
-  ```
-- [ ] 1.3 Audit hardcoded references to the current bootstrap stack name (`bootstrap-appcloud-systems`, `bootstrap-` prefix, etc.) in the workflow and any scripts:
-  ```powershell
-  Select-String -Path .github/workflows/zbuild.yml,scripts/*.ps1,scripts/*.sh -Pattern 'bootstrap-' -CaseSensitive
-  ```
-- [ ] 1.4 Confirm git working tree is clean and there are no in-flight branches with conflicting template edits. Coordinate with anyone working on `centralize-aurora-kms-keys` (they're at 21/69 tasks).
-- [ ] 1.5 Snapshot the production Aurora cluster before any teardown begins:
-  ```powershell
-  $awscli = "C:\Program Files\Amazon\AWSCLIV2\aws.exe"
-  & $awscli rds create-db-cluster-snapshot `
-    --db-cluster-identifier <current-prod-cluster-id> `
-    --db-cluster-snapshot-identifier prod-pre-domain-rename-$(Get-Date -Format yyyyMMdd) `
-    --region us-east-1
-  & $awscli rds wait db-cluster-snapshot-available --db-cluster-snapshot-identifier prod-pre-domain-rename-$(Get-Date -Format yyyyMMdd) --region us-east-1
-  ```
-  Verify the snapshot completes; record its ARN in `openspec/changes/domain-named-bootstrap-stack/prod-snapshot.txt`.
-- [ ] 1.6 Schedule maintenance window for the `app` cutover; communicate to stakeholders.
+- [x] 1.1 Retract `rename-taskmanager-to-tjb` via `git rm -r openspec/changes/rename-taskmanager-to-tjb/`. Commit with `chore(openspec): retract rename-taskmanager-to-tjb in favor of domain-named-bootstrap-stack`.
+- [x] 1.2 Audited templates + workflow for `taskmanager` literals. Results in [taskmanager-audit.txt](taskmanager-audit.txt). 17 hits total across 7 templates + 1 workflow line. **Scope discovery:** beyond bootstrap KMS aliases, the audit found Aurora cluster ID, Secrets Manager paths (database password + google-oauth), IAM resource scopes, and the MySQL master username `taskmanager_admin` in `db.template`. The MySQL username is now in scope (parameterized via underscored `DomainName` per the spec).
+- [x] 1.3 Audited workflow `bootstrap-*` references. Results in [workflow-bootstrap-name-audit.txt](workflow-bootstrap-name-audit.txt). 4 hits in `zbuild.yml` (one comment, two error messages, one step id — all cosmetic; rewritten in Phase 4).
+- [x] 1.4 Working tree clean (only the two new audit files were untracked; deletion of `openspec/changes/rename-taskmanager-to-tjb/` committed alongside this Phase 1 work).
+- [x] 1.5 **SKIPPED — operator decision:** prod cluster being recreated empty (no snapshot needed). Prod data is disposable for the current deployment.
+- [ ] 1.6 Schedule maintenance window for the `app` cutover; communicate to stakeholders. **(Operator-only — no Claude action required.)**
 
 ## 2. Source changes — bootstrap.template
 
@@ -46,11 +27,25 @@
   ```
   Pass it through to every nested stack invocation that needs it.
 - [ ] 3.2 Add the same `DomainName` parameter to [infrastructure/backend.template](../../../infrastructure/backend.template), [infrastructure/db.template](../../../infrastructure/db.template), [infrastructure/web.template](../../../infrastructure/web.template), and any other child template flagged by the 1.2 audit.
-- [ ] 3.3 In each env-stack template, replace hardcoded `taskmanager` literals with `!Sub` constructions using `${DomainName}`:
-  - Aurora Global Cluster identifier: `!Sub "${DomainName}-${BranchLeaf}-global-cluster"`
-  - Aurora regional cluster identifier: `!Sub "${DomainName}-${BranchLeaf}-${AWS::Region}"`
-  - Secrets Manager path prefixes: `!Sub "${DomainName}/database/regional/${BranchLeaf}"`
-  - IAM policy `Resource:` ARN scopes matching `arn:aws:rds:*:*:cluster:taskmanager-*` → `!Sub "arn:aws:rds:*:*:cluster:${DomainName}-*"`
+- [ ] 3.3 In each env-stack template, replace hardcoded `taskmanager` literals with `!Sub` constructions using `${DomainName}` (see [taskmanager-audit.txt](taskmanager-audit.txt) for the full list of lines):
+  - `db.template:144` — Aurora Global Cluster identifier: `!Sub "${DomainName}-${BranchName}-global-cluster"`
+  - `db.template:153` — DB master password secret Name: `!Sub "${DomainName}/database/${BranchName}/regional/${AWS::Region}/password"`
+  - `web.template:194,196` — google-oauth dynamic-references: `!Sub "{{resolve:secretsmanager:${DomainName}/google-oauth/${EnvironmentToImport}:SecretString:clientId}}"` (and clientSecret)
+  - `infrastructure.template:28` — google-oauth secret Name: `!Sub "${DomainName}/google-oauth/${BranchName}"`
+  - `security.template:35` — Secrets Manager Resource scope: `!Sub "arn:aws:secretsmanager:*:${AWS::AccountId}:secret:${DomainName}/database/regional/*"`
+  - `security.template:64` — RDS cluster Resource scope: `!Sub "arn:aws:rds:*:${AWS::AccountId}:cluster:${DomainName}-*"`
+  - `security.template:65` — RDS global-cluster Resource scope: `!Sub "arn:aws:rds::${AWS::AccountId}:global-cluster:${DomainName}-global-cluster"`
+- [ ] 3.3.b Replace the MySQL master username `taskmanager_admin` in `db.template:109,177` with the underscored-domain form (MySQL disallows hyphens in usernames):
+  ```yaml
+  MasterUsername: !If
+    - IsPrimary
+    - !Sub
+      - "${DomainUnderscored}_admin"
+      - DomainUnderscored: !Join ["_", !Split ["-", !Ref DomainName]]
+    - !Ref "AWS::NoValue"
+  ```
+  Update the output (`db.template:177`) similarly so it reflects the same derived value.
+- [ ] 3.3.c Strip the `taskmanager` reference from the `Description:` strings in `backend.template:49` and `master.template:53` (comments inside parameter Description). Replace with a generic phrase like "Sourced by the deploy workflow from `/{domain-dashed}/kms/{prod,nonprod}/aurora-key-arn` in SSM Parameter Store."
 - [ ] 3.4 In [infrastructure/security.template](../../../infrastructure/security.template), if `SharedLambdaExecutionRole`'s inline policy has any `Resource:` scope matching `taskmanager-*` cluster ARNs, add a `DomainName` parameter to that template and replace the scope with `!Sub "arn:aws:rds:*:*:cluster:${DomainName}-*"`.
 - [ ] 3.5 Run `aws cloudformation validate-template` on every changed template. Iterate on syntax errors until all validate clean.
 - [ ] 3.6 Re-run the audit grep from 1.2 against `infrastructure/*.template` — confirm zero non-comment `taskmanager` matches remain anywhere in `infrastructure/`.
@@ -144,16 +139,7 @@ In the maintenance window. Order matters — env stacks must be torn down before
   - SSM lookup at `/appcloud-systems/kms/nonprod/aurora-key-arn` resolves.
   - Env-stack deploy succeeds; new Aurora Global Cluster identifier is `appcloud-systems-dev-global-cluster`.
 - [ ] 8.6 Trigger `beta` and `alpha` deploys by pushing no-op commits. Confirm each comes up healthy.
-- [ ] 8.7 Trigger the `app` deploy. Restore the prod snapshot from 1.5 into the new prod cluster if data preservation is required (operator decision at execution time):
-  ```powershell
-  & $awscli rds restore-db-cluster-from-snapshot `
-    --db-cluster-identifier appcloud-systems-app-us-east-1 `
-    --snapshot-identifier <ARN from 1.5> `
-    --engine aurora-mysql `
-    --kms-key-id $primaryProdArn `
-    --region us-east-1
-  ```
-  Otherwise, the new `app` cluster starts empty.
+- [ ] 8.7 Trigger the `app` deploy. New `app` cluster starts empty (Task 1.5 chose no-snapshot per operator decision). Confirm the cluster identifier is `appcloud-systems-app-global-cluster` and the master username is `appcloud_systems_admin`.
 
 ## 9. Cleanup and verification
 

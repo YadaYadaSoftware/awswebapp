@@ -1,0 +1,47 @@
+# taskmanager literal audit — generated 2026-06-03
+# Scope: infrastructure/*.template + .github/workflows/zbuild.yml
+# Total hits: 17 (16 templates + 1 workflow)
+
+## Templates
+
+infrastructure/db.template:109:      MasterUsername: !If [IsPrimary, "taskmanager_admin", !Ref "AWS::NoValue"]
+infrastructure/db.template:144:      GlobalClusterIdentifier: !Sub taskmanager-${BranchName}-global-cluster
+infrastructure/db.template:153:      Name: !Sub "taskmanager/database/${BranchName}/regional/${AWS::Region}/password"
+infrastructure/db.template:177:    Value: "taskmanager_admin"
+infrastructure/backend.template:49:    Description: "ARN of the Aurora KMS key for this region. Required. Sourced by the deploy workflow from /taskmanager/kms/{prod,nonprod}/aurora-key-arn in SSM Parameter Store and passed through master.template."
+infrastructure/bootstrap.template:440:      AliasName: "alias/taskmanager-aurora-nonprod"
+infrastructure/bootstrap.template:446:      Name: "/taskmanager/kms/nonprod/aurora-key-arn"
+infrastructure/bootstrap.template:591:      AliasName: "alias/taskmanager-aurora-prod"
+infrastructure/bootstrap.template:597:      Name: "/taskmanager/kms/prod/aurora-key-arn"
+infrastructure/master.template:53:    Description: "ARN of the Aurora KMS key for this region. Required. Sourced by the deploy workflow from /taskmanager/kms/{prod,nonprod}/aurora-key-arn in SSM Parameter Store."
+infrastructure/web.template:194:              Value: !Sub "{{resolve:secretsmanager:taskmanager/google-oauth/${EnvironmentToImport}:SecretString:clientId}}"
+infrastructure/web.template:196:              Value: !Sub "{{resolve:secretsmanager:taskmanager/google-oauth/${EnvironmentToImport}:SecretString:clientSecret}}"
+infrastructure/infrastructure.template:28:      Name: !Sub "taskmanager/google-oauth/${BranchName}"
+infrastructure/security.template:35:                  - !Sub arn:aws:secretsmanager:*:${AWS::AccountId}:secret:taskmanager/database/regional/*
+infrastructure/security.template:64:                  - !Sub arn:aws:rds:*:${AWS::AccountId}:cluster:taskmanager-*
+infrastructure/security.template:65:                  - !Sub arn:aws:rds::${AWS::AccountId}:global-cluster:taskmanager-global-cluster
+
+## Workflow
+
+.github/workflows/zbuild.yml:578:        SSM_PATH="/taskmanager/kms/${SCOPE}/aurora-key-arn"
+
+## Categorized
+
+### Bootstrap-owned resources (resolve via ${AWS::StackName} per Task 2.x)
+- bootstrap.template:440,446,591,597 — KMS aliases + SSM param Names
+
+### Env-stack-owned resources (resolve via ${DomainName} parameter per Task 3.x)
+- db.template:144 — GlobalClusterIdentifier
+- db.template:153 — Secrets Manager password path
+- web.template:194,196 — google-oauth Secrets Manager paths (dynamic-references)
+- infrastructure.template:28 — google-oauth Secrets Manager Name
+- security.template:35 — secretsmanager Resource scope
+- security.template:64,65 — RDS cluster ARN Resource scopes
+
+### Cosmetic / non-blocking
+- db.template:109,177 — "taskmanager_admin" MySQL master username (NOT an AWS resource name; renaming would force a master-user rotation. Could stay or be parameterized. Flag for decision.)
+- backend.template:49 — comment in Description string
+- master.template:53 — comment in Description string
+
+### Workflow
+- zbuild.yml:578 — SSM_PATH builder (resolve via $dashed per Task 4.3)
