@@ -889,26 +889,18 @@ Outputs:
   TemplatesBucketName:
     Description: "S3 bucket name for CloudFormation templates"
     Value: !Ref TemplatesBucketName
-    Export:
-      Name: TemplatesBucketName
 
   WebECRRepositoryName:
     Description: "ECR repository name for the web container"
     Value: !Ref WebECRRepository
-    Export:
-      Name: WebECRRepository
 
   WebECRRepositoryUri:
     Description: "ECR repository URI for the web container"
     Value: !GetAtt WebECRRepository.RepositoryUri
-    Export:
-      Name: WebECRRepositoryUri
 
   ApiGatewayCloudWatchLogsRoleArn:
     Description: "API Gateway CloudWatch Logs role ARN"
     Value: !GetAtt ApiGatewayCloudWatchLogsRole.Arn
-    Export:
-      Name: ApiGatewayCloudWatchLogsRoleArn
 
   GitHubActionsUserAccessKeyId:
     Condition: IsPrimary
