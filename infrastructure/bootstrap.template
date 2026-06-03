@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Description: "TaskManager Bootstrap - account-wide infrastructure (ECR, ApiGateway logs, Config log-retention rules, S3 templates-bucket policy) plus both Aurora KMS keys (prod + nonprod) and both GitHub Actions IAM users. One stack per region: 'bootstrap'. Primary region (us-east-1) owns the multi-region KMS keys and the (global) IAM resources; the secondary region owns AWS::KMS::ReplicaKey copies for each scope."
+Description: "Bootstrap stack - deploy with stack name = dashed deployment domain (e.g., appcloud-systems for appcloud.systems). Owns account-wide infrastructure (ECR, ApiGateway logs, Config log-retention rules, S3 templates-bucket policy) plus both Aurora KMS keys (prod + nonprod) and both GitHub Actions IAM users. Resource names that previously embedded the project literal are derived from ${AWS::StackName} (e.g., alias/${AWS::StackName}-aurora-{prod,nonprod}, /${AWS::StackName}/kms/{prod,nonprod}/aurora-key-arn). One stack per region. Primary region (us-east-1) owns the multi-region KMS keys and the (global) IAM resources; the secondary region owns AWS::KMS::ReplicaKey copies for each scope."
 
 Parameters:
   TemplatesBucketName:
@@ -330,7 +330,7 @@ Resources:
     Type: AWS::KMS::Key
     Condition: IsPrimary
     Properties:
-      Description: "TaskManager Aurora encryption key (nonprod)"
+      Description: !Sub "Aurora encryption key (nonprod) — ${AWS::StackName}"
       KeyUsage: ENCRYPT_DECRYPT
       KeySpec: SYMMETRIC_DEFAULT
       MultiRegion: true
@@ -386,7 +386,7 @@ Resources:
     Type: AWS::KMS::ReplicaKey
     Condition: IsReplica
     Properties:
-      Description: "TaskManager Aurora encryption key replica (nonprod)"
+      Description: !Sub "Aurora encryption key replica (nonprod) — ${AWS::StackName}"
       PrimaryKeyArn: !Ref PrimaryNonprodKeyArn
       Enabled: true
       PendingWindowInDays: 7
@@ -437,13 +437,13 @@ Resources:
   AuroraKmsKeyNonprodAlias:
     Type: AWS::KMS::Alias
     Properties:
-      AliasName: "alias/taskmanager-aurora-nonprod"
+      AliasName: !Sub "alias/${AWS::StackName}-aurora-nonprod"
       TargetKeyId: !If [IsPrimary, !Ref AuroraKmsKeyNonprod, !Ref AuroraKmsKeyNonprodReplica]
 
   AuroraKmsKeyNonprodArnParameter:
     Type: AWS::SSM::Parameter
     Properties:
-      Name: "/taskmanager/kms/nonprod/aurora-key-arn"
+      Name: !Sub "/${AWS::StackName}/kms/nonprod/aurora-key-arn"
       Type: String
       Description: "ARN of the nonprod Aurora KMS key (or replica) in this region. Consumed by the deploy workflow's SSM lookup step."
       Value: !If [IsPrimary, !GetAtt AuroraKmsKeyNonprod.Arn, !GetAtt AuroraKmsKeyNonprodReplica.Arn]
@@ -454,7 +454,7 @@ Resources:
     Type: AWS::KMS::Key
     Condition: IsPrimary
     Properties:
-      Description: "TaskManager Aurora encryption key (prod)"
+      Description: !Sub "Aurora encryption key (prod) — ${AWS::StackName}"
       KeyUsage: ENCRYPT_DECRYPT
       KeySpec: SYMMETRIC_DEFAULT
       MultiRegion: true
@@ -527,7 +527,7 @@ Resources:
     Type: AWS::KMS::ReplicaKey
     Condition: IsReplica
     Properties:
-      Description: "TaskManager Aurora encryption key replica (prod)"
+      Description: !Sub "Aurora encryption key replica (prod) — ${AWS::StackName}"
       PrimaryKeyArn: !Ref PrimaryProdKeyArn
       Enabled: true
       PendingWindowInDays: 7
@@ -588,13 +588,13 @@ Resources:
   AuroraKmsKeyProdAlias:
     Type: AWS::KMS::Alias
     Properties:
-      AliasName: "alias/taskmanager-aurora-prod"
+      AliasName: !Sub "alias/${AWS::StackName}-aurora-prod"
       TargetKeyId: !If [IsPrimary, !Ref AuroraKmsKeyProd, !Ref AuroraKmsKeyProdReplica]
 
   AuroraKmsKeyProdArnParameter:
     Type: AWS::SSM::Parameter
     Properties:
-      Name: "/taskmanager/kms/prod/aurora-key-arn"
+      Name: !Sub "/${AWS::StackName}/kms/prod/aurora-key-arn"
       Type: String
       Description: "ARN of the prod Aurora KMS key (or replica) in this region. Consumed by the deploy workflow's SSM lookup step."
       Value: !If [IsPrimary, !GetAtt AuroraKmsKeyProd.Arn, !GetAtt AuroraKmsKeyProdReplica.Arn]
