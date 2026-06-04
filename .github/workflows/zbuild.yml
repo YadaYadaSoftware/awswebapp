@@ -409,10 +409,10 @@ jobs:
       run: |
         # The 'app' branch is the only one that gets prod credentials.
         # Every other branch uses the non-prod (default) credentials sourced
-        # from bootstrap-nonprod's GitHubActionsUser.
+        # from the bootstrap stack's nonprod GitHubActionsUser.
         if [ "$BRANCH_NAME" = "app" ]; then
           if [ -z "$AWS_AK_PROD" ] || [ -z "$AWS_SK_PROD" ]; then
-            echo "ERROR: app-branch deploy requires AWS_ACCESS_KEY_ID_PROD and AWS_SECRET_ACCESS_KEY_PROD GitHub secrets to be set (sourced from bootstrap-prod stack outputs)." >&2
+            echo "ERROR: app-branch deploy requires AWS_ACCESS_KEY_ID_PROD and AWS_SECRET_ACCESS_KEY_PROD GitHub secrets to be set (sourced from the bootstrap stack's GitHubActionsUserProd outputs)." >&2
             exit 1
           fi
           echo "access-key-id=$AWS_AK_PROD" >> $GITHUB_OUTPUT
@@ -455,7 +455,7 @@ jobs:
     - name: Build and package template
       if: matrix.deploy
       run: |
-        BUCKET_NAME="cf-templates-${{ steps.account-id.outputs.account-id }}-${{ matrix.region }}"
+        BUCKET_NAME="${{ steps.account-id.outputs.account-id }}-${{ steps.process-domain.outputs.processed-domain }}-${{ matrix.region }}"
         BRANCH_NAME="${{ needs.get-branch-name.outputs.branch-name }}"
         ENVIRONMENT="${{ needs.get-branch-name.outputs.environment }}"
         echo "BUCKET_NAME=$BUCKET_NAME" >> $GITHUB_ENV
@@ -494,14 +494,14 @@ jobs:
 
         # Construct ECR repository URI
         ACCOUNT_ID=${{ steps.account-id.outputs.account-id }}
-        ECR_REPO="${ACCOUNT_ID}.dkr.ecr.${{ matrix.region }}.amazonaws.com/ecr-${ACCOUNT_ID}-${{ matrix.region }}"
+        ECR_REPO="${ACCOUNT_ID}.dkr.ecr.${{ matrix.region }}.amazonaws.com/${{ steps.process-domain.outputs.processed-domain }}"
 
         echo "🎯 ECR repository: $ECR_REPO"
         echo "📋 Checksum tag: $SRC_CHECKSUM"
         echo "🏷️ SemVer tag: $SEMVER_TAG"
 
         # Check if image with checksum tag already exists
-        if aws ecr describe-images --repository-name ecr-${ACCOUNT_ID}-${{ matrix.region }} --image-ids imageTag=$SRC_CHECKSUM --region ${{ matrix.region }} >/dev/null 2>&1; then
+        if aws ecr describe-images --repository-name ${{ steps.process-domain.outputs.processed-domain }} --image-ids imageTag=$SRC_CHECKSUM --region ${{ matrix.region }} >/dev/null 2>&1; then
           echo "✅ Image $ECR_REPO:$SRC_CHECKSUM already exists, reusing"
           echo "image-exists=true" >> $GITHUB_OUTPUT
         else
@@ -519,7 +519,7 @@ jobs:
 
         # Construct ECR repository URI
         ACCOUNT_ID=${{ steps.account-id.outputs.account-id }}
-        ECR_REPO="${ACCOUNT_ID}.dkr.ecr.${{ matrix.region }}.amazonaws.com/ecr-${ACCOUNT_ID}-${{ matrix.region }}"
+        ECR_REPO="${ACCOUNT_ID}.dkr.ecr.${{ matrix.region }}.amazonaws.com/${{ steps.process-domain.outputs.processed-domain }}"
 
         echo "🎯 ECR repository: $ECR_REPO"
         echo "📋 Checksum tag: $SRC_CHECKSUM"
@@ -559,7 +559,7 @@ jobs:
       run: |
         SRC_CHECKSUM=${{ steps.checksum.outputs.src-checksum }}
         ACCOUNT_ID=${{ steps.account-id.outputs.account-id }}
-        ECR_REPO="${ACCOUNT_ID}.dkr.ecr.${{ matrix.region }}.amazonaws.com/ecr-${ACCOUNT_ID}-${{ matrix.region }}"
+        ECR_REPO="${ACCOUNT_ID}.dkr.ecr.${{ matrix.region }}.amazonaws.com/${{ steps.process-domain.outputs.processed-domain }}"
         CONTAINER_IMAGE=$ECR_REPO:$SRC_CHECKSUM
         echo "CONTAINER_IMAGE=$CONTAINER_IMAGE" >> $GITHUB_ENV
 
@@ -575,11 +575,11 @@ jobs:
         else
           SCOPE="nonprod"
         fi
-        SSM_PATH="/taskmanager/kms/${SCOPE}/aurora-key-arn"
+        SSM_PATH="/${{ steps.process-domain.outputs.processed-domain }}/kms/${SCOPE}/aurora-key-arn"
         echo "Looking up $SSM_PATH in ${{ matrix.region }}"
         BOOTSTRAP_KMS_KEY_ARN=$(aws ssm get-parameter --name "$SSM_PATH" --region ${{ matrix.region }} --query 'Parameter.Value' --output text)
         if [ -z "$BOOTSTRAP_KMS_KEY_ARN" ] || [ "$BOOTSTRAP_KMS_KEY_ARN" = "None" ]; then
-          echo "ERROR: SSM parameter $SSM_PATH in ${{ matrix.region }} is empty or missing. Deploy bootstrap-$SCOPE in this region before continuing." >&2
+          echo "ERROR: SSM parameter $SSM_PATH in ${{ matrix.region }} is empty or missing. Deploy the bootstrap stack (named for the dashed-domain) in this region before continuing." >&2
           exit 1
         fi
         echo "BOOTSTRAP_KMS_KEY_ARN=$BOOTSTRAP_KMS_KEY_ARN" >> $GITHUB_ENV
@@ -697,7 +697,7 @@ jobs:
       uses: aws-actions/aws-cloudformation-github-deploy@v1
       with:
         name: ${{ needs.get-branch-name.outputs.branch-name }}-${{ steps.process-domain.outputs.processed-domain }}
-        template: https://s3.amazonaws.com/cf-templates-${{ steps.account-id.outputs.account-id }}-${{ matrix.region }}/${{ needs.get-branch-name.outputs.branch-name }}/${{ env.TEMPLATE_NAME }}-template.yaml?versionId=${{ env.TEMPLATE_VERSION_ID }}
+        template: https://s3.amazonaws.com/${{ steps.account-id.outputs.account-id }}-${{ steps.process-domain.outputs.processed-domain }}-${{ matrix.region }}/${{ needs.get-branch-name.outputs.branch-name }}/${{ env.TEMPLATE_NAME }}-template.yaml?versionId=${{ env.TEMPLATE_VERSION_ID }}
         parameter-overrides: ${{ steps.set-params.outputs.params }}
         capabilities: "CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND"
         no-fail-on-empty-changeset: "1"

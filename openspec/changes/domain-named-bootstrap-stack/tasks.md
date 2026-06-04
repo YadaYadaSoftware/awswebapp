@@ -52,7 +52,7 @@
 
 ## 4. Source changes — workflow
 
-- [ ] 4.1 In [.github/workflows/zbuild.yml](../../../.github/workflows/zbuild.yml), add a new step early in each job that computes the dashed-domain value once:
+- [x] 4.1 In [.github/workflows/zbuild.yml](../../../.github/workflows/zbuild.yml), add a new step early in each job that computes the dashed-domain value once:
   ```yaml
   - name: Compute domain-dashed
     id: domain
@@ -61,12 +61,12 @@
       $dashed = '${{ secrets.DOMAIN_NAME }}'.ToLower().Replace('.', '-')
       "dashed=$dashed" >> $env:GITHUB_OUTPUT
   ```
-- [ ] 4.2 Find the bootstrap-deploy step (`aws cloudformation deploy --stack-name bootstrap-...`) and change its `--stack-name` argument to `${{ steps.domain.outputs.dashed }}` (no `bootstrap-` prefix).
-- [ ] 4.3 Find the "Lookup bootstrap KMS key from SSM" step and change its parameter path from `/taskmanager/kms/${scope}/aurora-key-arn` to `/${{ steps.domain.outputs.dashed }}/kms/${scope}/aurora-key-arn`.
-- [ ] 4.4 Find every env-stack deploy step's `--parameter-overrides` argument and append `DomainName=${{ steps.domain.outputs.dashed }}` to it.
-- [ ] 4.5 Update the 5 ECR URI constructions (lines 497, 504, 522, 562 in zbuild.yml). Current pattern: `${ACCOUNT_ID}.dkr.ecr.${{ matrix.region }}.amazonaws.com/ecr-${ACCOUNT_ID}-${{ matrix.region }}`. New pattern: `${ACCOUNT_ID}.dkr.ecr.${{ matrix.region }}.amazonaws.com/${{ steps.domain.outputs.dashed }}` (because bootstrap.template now names the ECR repo `!Ref AWS::StackName` = dashed domain). Also update the `aws ecr describe-images --repository-name` argument on line 504 from `ecr-${ACCOUNT_ID}-${{ matrix.region }}` to `${{ steps.domain.outputs.dashed }}`.
-- [ ] 4.6 Update the templates-bucket name constructions in zbuild.yml. Line 458 currently: `BUCKET_NAME="cf-templates-${{ steps.account-id.outputs.account-id }}-${{ matrix.region }}"`. New: `BUCKET_NAME="${{ steps.account-id.outputs.account-id }}-${{ steps.domain.outputs.dashed }}-${{ matrix.region }}"`. Line 700 has the same bucket name embedded in a full URL — update similarly.
-- [ ] 4.7 Re-run the workflow grep from 1.2 — confirm zero `taskmanager` and zero hardcoded `appcloud-systems`/`cf-templates-` matches remain in the workflow.
+- [x] 4.2 Find the bootstrap-deploy step (`aws cloudformation deploy --stack-name bootstrap-...`) and change its `--stack-name` argument to `${{ steps.domain.outputs.dashed }}` (no `bootstrap-` prefix).
+- [x] 4.3 Find the "Lookup bootstrap KMS key from SSM" step and change its parameter path from `/taskmanager/kms/${scope}/aurora-key-arn` to `/${{ steps.domain.outputs.dashed }}/kms/${scope}/aurora-key-arn`.
+- [x] 4.4 Find every env-stack deploy step's `--parameter-overrides` argument and append `DomainName=${{ steps.domain.outputs.dashed }}` to it.
+- [x] 4.5 Update the 5 ECR URI constructions (lines 497, 504, 522, 562 in zbuild.yml). Current pattern: `${ACCOUNT_ID}.dkr.ecr.${{ matrix.region }}.amazonaws.com/ecr-${ACCOUNT_ID}-${{ matrix.region }}`. New pattern: `${ACCOUNT_ID}.dkr.ecr.${{ matrix.region }}.amazonaws.com/${{ steps.domain.outputs.dashed }}` (because bootstrap.template now names the ECR repo `!Ref AWS::StackName` = dashed domain). Also update the `aws ecr describe-images --repository-name` argument on line 504 from `ecr-${ACCOUNT_ID}-${{ matrix.region }}` to `${{ steps.domain.outputs.dashed }}`.
+- [x] 4.6 Update the templates-bucket name constructions in zbuild.yml. Line 458 currently: `BUCKET_NAME="cf-templates-${{ steps.account-id.outputs.account-id }}-${{ matrix.region }}"`. New: `BUCKET_NAME="${{ steps.account-id.outputs.account-id }}-${{ steps.domain.outputs.dashed }}-${{ matrix.region }}"`. Line 700 has the same bucket name embedded in a full URL — update similarly.
+- [x] 4.7 Re-run the workflow grep from 1.2 — confirm zero `taskmanager` and zero hardcoded `appcloud-systems`/`cf-templates-` matches remain in the workflow.
 
 ## 5. Update OpenSpec cross-references
 
