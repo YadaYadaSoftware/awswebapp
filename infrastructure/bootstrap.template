@@ -31,10 +31,12 @@ Resources:
   WebECRRepository:
     Type: AWS::ECR::Repository
     Properties:
-      # Explicit name so the deploy workflow's hardcoded image URI
-      # (`{account}.dkr.ecr.{region}.amazonaws.com/ecr-{account}-{region}`)
-      # keeps resolving across recreations.
-      RepositoryName: !Sub "ecr-${AWS::AccountId}-${AWS::Region}"
+      # Explicit name derived from the bootstrap stack name so multiple
+      # bootstrap stacks can coexist in one account+region (and so the
+      # repository identifies which deployment owns it). The deploy
+      # workflow's image URI builder uses the same dashed-domain value
+      # to construct `{account}.dkr.ecr.{region}.amazonaws.com/${AWS::StackName}`.
+      RepositoryName: !Ref "AWS::StackName"
       ImageScanningConfiguration:
         ScanOnPush: true
       ImageTagMutability: MUTABLE

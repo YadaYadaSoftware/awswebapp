@@ -64,7 +64,8 @@
 - [ ] 4.2 Find the bootstrap-deploy step (`aws cloudformation deploy --stack-name bootstrap-...`) and change its `--stack-name` argument to `${{ steps.domain.outputs.dashed }}` (no `bootstrap-` prefix).
 - [ ] 4.3 Find the "Lookup bootstrap KMS key from SSM" step and change its parameter path from `/taskmanager/kms/${scope}/aurora-key-arn` to `/${{ steps.domain.outputs.dashed }}/kms/${scope}/aurora-key-arn`.
 - [ ] 4.4 Find every env-stack deploy step's `--parameter-overrides` argument and append `DomainName=${{ steps.domain.outputs.dashed }}` to it.
-- [ ] 4.5 Re-run the workflow grep from 1.2 — confirm zero `taskmanager` and zero hardcoded `appcloud-systems` matches remain in the workflow.
+- [ ] 4.5 Update the 5 ECR URI constructions (lines 497, 504, 522, 562 in zbuild.yml). Current pattern: `${ACCOUNT_ID}.dkr.ecr.${{ matrix.region }}.amazonaws.com/ecr-${ACCOUNT_ID}-${{ matrix.region }}`. New pattern: `${ACCOUNT_ID}.dkr.ecr.${{ matrix.region }}.amazonaws.com/${{ steps.domain.outputs.dashed }}` (because bootstrap.template now names the ECR repo `!Ref AWS::StackName` = dashed domain). Also update the `aws ecr describe-images --repository-name` argument on line 504 from `ecr-${ACCOUNT_ID}-${{ matrix.region }}` to `${{ steps.domain.outputs.dashed }}`.
+- [ ] 4.6 Re-run the workflow grep from 1.2 — confirm zero `taskmanager` and zero hardcoded `appcloud-systems` matches remain in the workflow.
 
 ## 5. Update OpenSpec cross-references
 
