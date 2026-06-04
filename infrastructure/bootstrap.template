@@ -1,11 +1,7 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Description: "Bootstrap stack - deploy with stack name = dashed deployment domain (e.g., appcloud-systems for appcloud.systems). Owns account-wide infrastructure (ECR, ApiGateway logs, Config log-retention rules, S3 templates-bucket policy) plus both Aurora KMS keys (prod + nonprod) and both GitHub Actions IAM users. Resource names that previously embedded the project literal are derived from ${AWS::StackName} (e.g., alias/${AWS::StackName}-aurora-{prod,nonprod}, /${AWS::StackName}/kms/{prod,nonprod}/aurora-key-arn). One stack per region. Primary region (us-east-1) owns the multi-region KMS keys and the (global) IAM resources; the secondary region owns AWS::KMS::ReplicaKey copies for each scope."
+Description: "Bootstrap stack - deploy with stack name = dashed deployment domain (e.g., appcloud-systems for appcloud.systems). Owns account-wide infrastructure (S3 templates-bucket, ECR, ApiGateway logs, Config log-retention rules) plus both Aurora KMS keys (prod + nonprod) and both GitHub Actions IAM users. Resource names that previously embedded the project literal are derived from ${AWS::StackName} (e.g., alias/${AWS::StackName}-aurora-{prod,nonprod}, /${AWS::StackName}/kms/{prod,nonprod}/aurora-key-arn). The templates bucket is named ${AWS::AccountId}-${AWS::StackName}-${AWS::Region}. One stack per region. Primary region (us-east-1) owns the multi-region KMS keys and the (global) IAM resources; the secondary region owns AWS::KMS::ReplicaKey copies for each scope."
 
 Parameters:
-  TemplatesBucketName:
-    Type: String
-    Description: "Name of the S3 bucket for CloudFormation templates (must already exist or be created separately)."
-
   RetentionDays:
     Type: Number
     Default: 7
@@ -27,6 +23,25 @@ Conditions:
 
 Resources:
   # ---------- Shared infrastructure (always created) ----------
+
+  TemplatesBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      # Derived from account+stackname+region for global uniqueness without
+      # an externally-managed name. Bootstrap is small enough (<51KB) to deploy
+      # without an intermediate S3 upload, so this bucket can be owned by the
+      # same stack that needs it. Env-stack deploys (which use nested stacks
+      # and exceed the inline limit) upload to this bucket via the workflow.
+      BucketName: !Sub "${AWS::AccountId}-${AWS::StackName}-${AWS::Region}"
+      # Versioning ON — the deploy workflow appends ?versionId=... to each
+      # nested-template URL so a redeploy uses the exact uploaded version.
+      VersioningConfiguration:
+        Status: Enabled
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
 
   WebECRRepository:
     Type: AWS::ECR::Repository
@@ -63,7 +78,7 @@ Resources:
   TemplatesBucketPolicy:
     Type: AWS::S3::BucketPolicy
     Properties:
-      Bucket: !Ref TemplatesBucketName
+      Bucket: !Ref TemplatesBucket
       # IAM users are referenced by !Sub'd ARN so the same policy body works
       # in both the primary and replica region deploys (the users only exist
       # as CFN resources in the primary stack).
@@ -76,7 +91,7 @@ Resources:
               Service: cloudformation.amazonaws.com
             Action:
               - s3:GetObject
-            Resource: !Sub "arn:aws:s3:::${TemplatesBucketName}/*"
+            Resource: !Sub "arn:aws:s3:::${TemplatesBucket}/*"
           - Sid: AllowGitHubActionsNonprodFullAccess
             Effect: Allow
             Principal:
@@ -84,8 +99,8 @@ Resources:
             Action:
               - s3:*
             Resource:
-              - !Sub "arn:aws:s3:::${TemplatesBucketName}"
-              - !Sub "arn:aws:s3:::${TemplatesBucketName}/*"
+              - !Sub "arn:aws:s3:::${TemplatesBucket}"
+              - !Sub "arn:aws:s3:::${TemplatesBucket}/*"
           - Sid: AllowGitHubActionsProdFullAccess
             Effect: Allow
             Principal:
@@ -93,8 +108,8 @@ Resources:
             Action:
               - s3:*
             Resource:
-              - !Sub "arn:aws:s3:::${TemplatesBucketName}"
-              - !Sub "arn:aws:s3:::${TemplatesBucketName}/*"
+              - !Sub "arn:aws:s3:::${TemplatesBucket}"
+              - !Sub "arn:aws:s3:::${TemplatesBucket}/*"
 
   ApiGatewayCloudWatchLogsRole:
     Type: AWS::IAM::Role
@@ -889,8 +904,8 @@ Outputs:
     Value: !Ref AuroraKmsKeyProdAlias
 
   TemplatesBucketName:
-    Description: "S3 bucket name for CloudFormation templates"
-    Value: !Ref TemplatesBucketName
+    Description: "S3 bucket name for CloudFormation templates (created by this stack)"
+    Value: !Ref TemplatesBucket
 
   WebECRRepositoryName:
     Description: "ECR repository name for the web container"

@@ -27,6 +27,7 @@ Every resource defined in [infrastructure/bootstrap.template](../../../../infras
 - SSM parameter for nonprod key ARN: `!Sub "/${AWS::StackName}/kms/nonprod/aurora-key-arn"`
 - SSM parameter for prod key ARN: `!Sub "/${AWS::StackName}/kms/prod/aurora-key-arn"`
 - ECR repository name: `!Ref "AWS::StackName"` (previously `ecr-${AccountId}-${Region}` — stack-blind, account-global)
+- Templates S3 bucket name: `!Sub "${AWS::AccountId}-${AWS::StackName}-${AWS::Region}"` (previously `cf-templates-${AccountId}-${Region}` — externally managed, stack-blind). The bucket itself is now created by the bootstrap stack (`AWS::S3::Bucket` resource with `VersioningConfiguration: Enabled` and `PublicAccessBlockConfiguration` set to fully blocked). The bootstrap template no longer takes a `TemplatesBucketName` parameter
 - IAM user (nonprod CI): `!Sub "${AWS::StackName}-GitHubActionsUser"` (previously `GitHubActionsUser` — fixed name, account-global)
 - IAM user (prod CI): `!Sub "${AWS::StackName}-GitHubActionsUserProd"` (previously `GitHubActionsUserProd` — fixed name, account-global)
 - IAM role (prod KMS admin): `!Sub "${AWS::StackName}-prod-kms-admin"` (previously `prod-kms-admin` — fixed name, account-global)
@@ -54,6 +55,10 @@ The bootstrap template SHALL contain zero case-sensitive matches for the literal
 #### Scenario: ECR repository name derives from stack name
 - **WHEN** the bootstrap stack named `appcloud-systems` is deployed in `us-east-1`
 - **THEN** the ECR repository is named `appcloud-systems` (not `ecr-${AccountId}-${Region}`), and its URI is `${AccountId}.dkr.ecr.us-east-1.amazonaws.com/appcloud-systems`
+
+#### Scenario: Templates S3 bucket is created by bootstrap and named from account+stack+region
+- **WHEN** the bootstrap stack named `appcloud-systems` is deployed in `us-east-1` for account `991795635857`
+- **THEN** an S3 bucket named `991795635857-appcloud-systems-us-east-1` exists with versioning enabled and public access fully blocked, and the bootstrap stack owns it as a managed resource. The bootstrap template's Parameters section does NOT include a `TemplatesBucketName` parameter
 
 #### Scenario: Two bootstrap stacks could coexist
 - **WHEN** a hypothetical second bootstrap stack named `example-com` is deployed alongside the existing `appcloud-systems` stack in the same account+region (not normally done, but the templates do not prevent it)

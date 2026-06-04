@@ -65,7 +65,8 @@
 - [ ] 4.3 Find the "Lookup bootstrap KMS key from SSM" step and change its parameter path from `/taskmanager/kms/${scope}/aurora-key-arn` to `/${{ steps.domain.outputs.dashed }}/kms/${scope}/aurora-key-arn`.
 - [ ] 4.4 Find every env-stack deploy step's `--parameter-overrides` argument and append `DomainName=${{ steps.domain.outputs.dashed }}` to it.
 - [ ] 4.5 Update the 5 ECR URI constructions (lines 497, 504, 522, 562 in zbuild.yml). Current pattern: `${ACCOUNT_ID}.dkr.ecr.${{ matrix.region }}.amazonaws.com/ecr-${ACCOUNT_ID}-${{ matrix.region }}`. New pattern: `${ACCOUNT_ID}.dkr.ecr.${{ matrix.region }}.amazonaws.com/${{ steps.domain.outputs.dashed }}` (because bootstrap.template now names the ECR repo `!Ref AWS::StackName` = dashed domain). Also update the `aws ecr describe-images --repository-name` argument on line 504 from `ecr-${ACCOUNT_ID}-${{ matrix.region }}` to `${{ steps.domain.outputs.dashed }}`.
-- [ ] 4.6 Re-run the workflow grep from 1.2 — confirm zero `taskmanager` and zero hardcoded `appcloud-systems` matches remain in the workflow.
+- [ ] 4.6 Update the templates-bucket name constructions in zbuild.yml. Line 458 currently: `BUCKET_NAME="cf-templates-${{ steps.account-id.outputs.account-id }}-${{ matrix.region }}"`. New: `BUCKET_NAME="${{ steps.account-id.outputs.account-id }}-${{ steps.domain.outputs.dashed }}-${{ matrix.region }}"`. Line 700 has the same bucket name embedded in a full URL — update similarly.
+- [ ] 4.7 Re-run the workflow grep from 1.2 — confirm zero `taskmanager` and zero hardcoded `appcloud-systems`/`cf-templates-` matches remain in the workflow.
 
 ## 5. Update OpenSpec cross-references
 
@@ -113,11 +114,10 @@ In the maintenance window. Order matters — env stacks must be torn down before
   & $awscli cloudformation deploy `
     --stack-name appcloud-systems `
     --template-file infrastructure/bootstrap.template `
-    --parameter-overrides TemplatesBucketName=cf-templates-991795635857-us-east-1 `
     --capabilities CAPABILITY_NAMED_IAM `
     --region us-east-1
   ```
-  Verify: `aws kms list-aliases --query "Aliases[?starts_with(AliasName, 'alias/appcloud-systems-')]"` shows two aliases; `aws ssm get-parameter --name /appcloud-systems/kms/nonprod/aurora-key-arn` resolves.
+  Verify: `aws kms list-aliases --query "Aliases[?starts_with(AliasName, 'alias/appcloud-systems-')]"` shows two aliases; `aws ssm get-parameter --name /appcloud-systems/kms/nonprod/aurora-key-arn` resolves; `aws s3api head-bucket --bucket 991795635857-appcloud-systems-us-east-1` succeeds.
 - [ ] 8.2 Capture the primary-region KMS key ARNs from outputs:
   ```powershell
   $primaryNonprodArn = & $awscli cloudformation describe-stacks --stack-name appcloud-systems --region us-east-1 --query "Stacks[0].Outputs[?OutputKey=='AuroraKmsKeyNonprodArn'].OutputValue" --output text
@@ -128,7 +128,7 @@ In the maintenance window. Order matters — env stacks must be torn down before
   & $awscli cloudformation deploy `
     --stack-name appcloud-systems `
     --template-file infrastructure/bootstrap.template `
-    --parameter-overrides TemplatesBucketName=cf-templates-991795635857-us-west-2 PrimaryNonprodKeyArn=$primaryNonprodArn PrimaryProdKeyArn=$primaryProdArn `
+    --parameter-overrides PrimaryNonprodKeyArn=$primaryNonprodArn PrimaryProdKeyArn=$primaryProdArn `
     --capabilities CAPABILITY_NAMED_IAM `
     --region us-west-2
   ```
