@@ -23,6 +23,8 @@ Conditions:
 
 Resources:
   # ---------- Shared infrastructure (always created) ----------
+  # Stack-name-derived naming: every resource that previously embedded a
+  # project literal now derives from ${AWS::StackName} (= dashed domain).
 
   TemplatesBucket:
     Type: AWS::S3::Bucket
