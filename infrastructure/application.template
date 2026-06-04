@@ -1,6 +1,6 @@
 ---
 AWSTemplateFormatVersion: "2010-09-09"
-Description: "TaskManager Application Infrastructure Template - Includes API, web, and DNS components"
+Description: "Application Infrastructure - API, web, and DNS components"
 
 Parameters:
   BranchName:

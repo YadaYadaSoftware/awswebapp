@@ -1,6 +1,6 @@
 ---
 AWSTemplateFormatVersion: "2010-09-09"
-Description: "TaskManager Master Infrastructure Template - Includes backend and application nested stacks"
+Description: "Master env-stack template - includes backend and application nested stacks. Receives DomainName (dot form, e.g. appcloud.systems) and threads it through; templates that need the dashed (appcloud-systems) or underscored (appcloud_systems) forms derive them locally via Fn::Join+Fn::Split on DomainName."
 
 Parameters:
   BranchName:
@@ -50,7 +50,7 @@ Parameters:
 
   KmsKeyArn:
     Type: String
-    Description: "ARN of the Aurora KMS key for this region. Required. Sourced by the deploy workflow from /taskmanager/kms/{prod,nonprod}/aurora-key-arn in SSM Parameter Store."
+    Description: "ARN of the Aurora KMS key for this region. Required. Sourced by the deploy workflow from /{dashed-domain}/kms/{prod,nonprod}/aurora-key-arn in SSM Parameter Store (e.g., /appcloud-systems/kms/nonprod/aurora-key-arn)."
 
   # Google OAuth parameters
   GoogleOAuthClientId:
@@ -133,6 +133,7 @@ Resources:
       TemplateURL: ./backend.template
       Parameters:
         BranchName: !Ref BranchName
+        DomainName: !Ref DomainName
         DatabasePassword: !Ref DatabasePassword
         EngineVersion: !Ref EngineVersion
         MinCapacity: !Ref MinCapacity

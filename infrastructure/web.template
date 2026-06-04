@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Description: "TaskManager Web Frontend - Blazor Server ECS Container with Application Load Balancer"
+Description: "Web Frontend - Blazor Server ECS Container with Application Load Balancer"
 # Fixed ECS service getting stuck and 502 Bad Gateway by:
 # - Health check path: /health (excluded from authentication)
 # - Adjusted health check timing (30s interval, 5s timeout)
@@ -191,9 +191,13 @@ Resources:
             - Name: DEPLOYMENT_TOKEN
               Value: !Ref DeploymentToken
             - Name: Authentication__Google__ClientId
-              Value: !Sub "{{resolve:secretsmanager:taskmanager/google-oauth/${EnvironmentToImport}:SecretString:clientId}}"
+              Value: !Sub
+                - "{{resolve:secretsmanager:${DomainDashed}/google-oauth/${EnvironmentToImport}:SecretString:clientId}}"
+                - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
             - Name: Authentication__Google__ClientSecret
-              Value: !Sub "{{resolve:secretsmanager:taskmanager/google-oauth/${EnvironmentToImport}:SecretString:clientSecret}}"
+              Value: !Sub
+                - "{{resolve:secretsmanager:${DomainDashed}/google-oauth/${EnvironmentToImport}:SecretString:clientSecret}}"
+                - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
             - Name: AwsSes__SenderEmail
               Value: noreply@appcloud.systems
           LogConfiguration:

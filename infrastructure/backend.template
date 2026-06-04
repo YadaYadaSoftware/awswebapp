@@ -1,12 +1,16 @@
 ---
 AWSTemplateFormatVersion: "2010-09-09"
-Description: "TaskManager Backend Infrastructure Template - Includes security, networking, database, and infrastructure components"
+Description: "Backend infrastructure - security, networking, database, infrastructure components. DomainName is the dot form (e.g. appcloud.systems); nested templates derive the dashed (appcloud-systems) form locally where needed."
 
 Parameters:
   # Common parameters
   BranchName:
     Type: String
     Description: Branch name for resource naming
+
+  DomainName:
+    Type: String
+    Description: "Domain name in dot form (e.g. appcloud.systems). Nested templates derive dashed/underscored forms locally via Fn::Join+Fn::Split."
 
   DatabasePassword:
     Type: String
@@ -46,7 +50,7 @@ Parameters:
 
   KmsKeyArn:
     Type: String
-    Description: "ARN of the Aurora KMS key for this region. Required. Sourced by the deploy workflow from /taskmanager/kms/{prod,nonprod}/aurora-key-arn in SSM Parameter Store and passed through master.template."
+    Description: "ARN of the Aurora KMS key for this region. Required. Sourced by the deploy workflow from /{dashed-domain}/kms/{prod,nonprod}/aurora-key-arn in SSM Parameter Store and passed through master.template."
 
   # Google OAuth parameters
   GoogleOAuthClientId:
@@ -76,6 +80,7 @@ Resources:
       TemplateURL: ./security.template
       Parameters:
         BranchName: !Ref BranchName
+        DomainName: !Ref DomainName
 
   # Regional VPC
   NetworkingStack:
@@ -94,6 +99,7 @@ Resources:
       TemplateURL: ./db.template
       Parameters:
         DatabasePassword: !Ref DatabasePassword
+        DomainName: !Ref DomainName
         EngineVersion: !Ref EngineVersion
         AuroraGlobalClusterId: !Ref AuroraGlobalClusterId
         AuroraKmsKeyArn: !Ref KmsKeyArn
@@ -112,6 +118,7 @@ Resources:
       TemplateURL: ./infrastructure.template
       Parameters:
         BranchName: !Ref BranchName
+        DomainName: !Ref DomainName
         GoogleOAuthClientId: !Ref GoogleOAuthClientId
         GoogleOAuthClientSecret: !Ref GoogleOAuthClientSecret
 

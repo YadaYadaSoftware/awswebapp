@@ -1,11 +1,15 @@
 ---
 AWSTemplateFormatVersion: 2010-09-09
-Description: "TaskManager Shared Execution Role - per-env IAM role assumed by Lambda functions and ECS tasks in this env stack. Aurora KMS keys are owned by the bootstrap stack (not this stack) as of the centralize-aurora-kms-keys change."
+Description: "Shared Execution Role - per-env IAM role assumed by Lambda functions and ECS tasks in this env stack. Resource scopes (Secrets, RDS clusters) derive the dashed-domain prefix from DomainName via Fn::Join+Fn::Split. Aurora KMS keys are owned by the bootstrap stack."
 
 Parameters:
   BranchName:
     Type: String
     Description: Branch name for resource naming (used in the exported output name)
+
+  DomainName:
+    Type: String
+    Description: "Domain name in dot form (e.g. appcloud.systems). Derived to dashed form (appcloud-systems) for resource ARN scopes."
 
 Resources:
   SharedLambdaExecutionRole:
@@ -32,7 +36,9 @@ Resources:
                   - secretsmanager:GetSecretValue
                   - secretsmanager:DescribeSecret
                 Resource:
-                  - !Sub arn:aws:secretsmanager:*:${AWS::AccountId}:secret:taskmanager/database/regional/*
+                  - !Sub
+                    - "arn:aws:secretsmanager:*:${AWS::AccountId}:secret:${DomainDashed}/database/regional/*"
+                    - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
         - PolicyName: CloudWatchLogs
           PolicyDocument:
             Version: 2012-10-17
@@ -61,8 +67,12 @@ Resources:
                   - rds-data:ExecuteStatement
                   - rds-data:BatchExecuteStatement
                 Resource:
-                  - !Sub arn:aws:rds:*:${AWS::AccountId}:cluster:taskmanager-*
-                  - !Sub arn:aws:rds::${AWS::AccountId}:global-cluster:taskmanager-global-cluster
+                  - !Sub
+                    - "arn:aws:rds:*:${AWS::AccountId}:cluster:${DomainDashed}-*"
+                    - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
+                  - !Sub
+                    - "arn:aws:rds::${AWS::AccountId}:global-cluster:${DomainDashed}-global-cluster"
+                    - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
         - PolicyName: KMSAccess
           PolicyDocument:
             Version: 2012-10-17

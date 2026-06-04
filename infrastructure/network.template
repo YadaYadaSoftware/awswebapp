@@ -13,7 +13,7 @@ Parameters:
 
 Resources:
   # VPC and Networking
-  TaskManagerVPC:
+  EnvVpc:
     Type: AWS::EC2::VPC
     DependsOn: VPCFlowLogsLogGroup
     Properties:
@@ -25,21 +25,21 @@ Resources:
   AttachGateway:
     Type: AWS::EC2::VPCGatewayAttachment
     Properties:
-      VpcId: !Ref TaskManagerVPC
+      VpcId: !Ref EnvVpc
       InternetGatewayId: !Ref InternetGateway
 
   # Public Subnets for NAT Gateway
   PublicSubnet1:
     Type: AWS::EC2::Subnet
     Properties:
-      VpcId: !Ref TaskManagerVPC
+      VpcId: !Ref EnvVpc
       CidrBlock: 10.0.1.0/24
       AvailabilityZone: !Select [0, !GetAZs ""]
       MapPublicIpOnLaunch: true
   PublicSubnet2:
     Type: AWS::EC2::Subnet
     Properties:
-      VpcId: !Ref TaskManagerVPC
+      VpcId: !Ref EnvVpc
       CidrBlock: 10.0.2.0/24
       AvailabilityZone: !Select [1, !GetAZs ""]
       MapPublicIpOnLaunch: true
@@ -47,13 +47,13 @@ Resources:
   PrivateSubnet1:
     Type: AWS::EC2::Subnet
     Properties:
-      VpcId: !Ref TaskManagerVPC
+      VpcId: !Ref EnvVpc
       CidrBlock: 10.0.3.0/24
       AvailabilityZone: !Select [0, !GetAZs ""]
   PrivateSubnet2:
     Type: AWS::EC2::Subnet
     Properties:
-      VpcId: !Ref TaskManagerVPC
+      VpcId: !Ref EnvVpc
       CidrBlock: 10.0.4.0/24
       AvailabilityZone: !Select [1, !GetAZs ""]
   # NAT Gateway for private subnet internet access
@@ -71,7 +71,7 @@ Resources:
   PublicRouteTable:
     Type: AWS::EC2::RouteTable
     Properties:
-      VpcId: !Ref TaskManagerVPC
+      VpcId: !Ref EnvVpc
   DefaultPublicRoute:
     Type: AWS::EC2::Route
     DependsOn: AttachGateway
@@ -95,7 +95,7 @@ Resources:
   PrivateRouteTable:
     Type: AWS::EC2::RouteTable
     Properties:
-      VpcId: !Ref TaskManagerVPC
+      VpcId: !Ref EnvVpc
   DefaultPrivateRoute:
     Type: AWS::EC2::Route
     Properties:
@@ -120,7 +120,7 @@ Resources:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Security group for Lambda functions
-      VpcId: !Ref TaskManagerVPC
+      VpcId: !Ref EnvVpc
       SecurityGroupEgress:
         - IpProtocol: -1
           CidrIp: 0.0.0.0/0
@@ -128,7 +128,7 @@ Resources:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Security group for ECS tasks
-      VpcId: !Ref TaskManagerVPC
+      VpcId: !Ref EnvVpc
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 80
@@ -142,7 +142,7 @@ Resources:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Security group for Application Load Balancer
-      VpcId: !Ref TaskManagerVPC
+      VpcId: !Ref EnvVpc
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 80
@@ -161,7 +161,7 @@ Resources:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Security group for Aurora MySQL Serverless
-      VpcId: !Ref TaskManagerVPC
+      VpcId: !Ref EnvVpc
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 3306
@@ -204,7 +204,7 @@ Resources:
     DependsOn: [VPCFlowLogsLogGroup, VPCFlowLogsRole]
     Type: AWS::EC2::FlowLog
     Properties:
-      ResourceId: !Ref TaskManagerVPC
+      ResourceId: !Ref EnvVpc
       ResourceType: VPC
       TrafficType: ALL
       DeliverLogsPermissionArn: !GetAtt VPCFlowLogsRole.Arn
@@ -213,7 +213,7 @@ Resources:
 Outputs:
   VPCId:
     Description: VPC ID for regional database
-    Value: !Ref TaskManagerVPC
+    Value: !Ref EnvVpc
     Export:
       Name: !Sub "VPCId-${BranchName}"
 

@@ -1,6 +1,6 @@
 ---
 AWSTemplateFormatVersion: "2010-09-09"
-Description: "TaskManager Regional Infrastructure - VPC, RDS, ECS"
+Description: "Regional Infrastructure - ECS cluster + Google OAuth secrets. Secret paths derive the dashed-domain prefix from DomainName via Fn::Join+Fn::Split."
 
 Parameters:
   GoogleOAuthClientId:
@@ -17,6 +17,10 @@ Parameters:
     Type: String
     Description: Branch name for resource naming
 
+  DomainName:
+    Type: String
+    Description: "Domain name in dot form (e.g. appcloud.systems). Derived to dashed form locally."
+
 Resources:
   # ECS Cluster
   ECSCluster:
@@ -25,8 +29,10 @@ Resources:
   GoogleOAuthSecrets:
     Type: AWS::SecretsManager::Secret
     Properties:
-      Name: !Sub "taskmanager/google-oauth/${BranchName}"
-      Description: "Google OAuth credentials for TaskManager web application"
+      Name: !Sub
+        - "${DomainDashed}/google-oauth/${BranchName}"
+        - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
+      Description: "Google OAuth credentials for the web application"
       SecretString: !Sub |
         {
           "clientId": "${GoogleOAuthClientId}",

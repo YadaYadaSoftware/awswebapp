@@ -34,8 +34,8 @@ Globals:
         DataTraceEnabled: true
 
 Resources:
-  # TaskManager API Function
-  TaskManagerApiFunction:
+  # API Lambda Function
+  ApiFunction:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: ../src/Tjb.Api/
@@ -95,7 +95,7 @@ Resources:
       ComparisonOperator: GreaterThanThreshold
       Dimensions:
         - Name: FunctionName
-          Value: !Ref TaskManagerApiFunction
+          Value: !Ref ApiFunction
 Outputs:
   ApiEndpoint:
     Description: "API Gateway endpoint URL"
@@ -108,6 +108,6 @@ Outputs:
 
   ApiLambdaFunctionName:
     Description: "API Lambda function name"
-    Value: !Ref TaskManagerApiFunction
+    Value: !Ref ApiFunction
     Export:
       Name: !Sub "ApiLambdaFunctionName-${BranchName}"

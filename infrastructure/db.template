@@ -1,6 +1,6 @@
 ---
 AWSTemplateFormatVersion: 2010-09-09
-Description: TaskManager Regional Database Infrastructure - Aurora Clusters, RDS Resources
+Description: "Regional Database Infrastructure - Aurora Clusters, RDS Resources. Identifiers and secret paths derive from DomainName (dot form): dashed form for cluster IDs / Secrets paths, underscored form for MySQL master username (MySQL disallows hyphens)."
 
 Parameters:
   DatabasePassword:
@@ -8,6 +8,10 @@ Parameters:
     NoEcho: true
     MinLength: 8
     Description: Password for the Aurora MySQL database
+
+  DomainName:
+    Type: String
+    Description: "Domain name in dot form (e.g. appcloud.systems). Derived to dashed/underscored forms locally."
 
   EngineVersion:
     Type: String
@@ -106,7 +110,12 @@ Resources:
         ]
       Engine: aurora-mysql
       EngineVersion: !Ref EngineVersion
-      MasterUsername: !If [IsPrimary, "taskmanager_admin", !Ref "AWS::NoValue"]
+      MasterUsername: !If
+        - IsPrimary
+        - !Sub
+          - "${DomainUnderscored}_admin"
+          - DomainUnderscored: !Join ["_", !Split [".", !Ref DomainName]]
+        - !Ref "AWS::NoValue"
       MasterUserPassword:
         !If [IsPrimary, !Ref DatabasePassword, !Ref "AWS::NoValue"]
       DatabaseName: !If [IsPrimary, !Ref BranchName, !Ref "AWS::NoValue"]
@@ -141,7 +150,9 @@ Resources:
     Condition: ShouldCreateGlobalCluster
     Type: AWS::RDS::GlobalCluster
     Properties:
-      GlobalClusterIdentifier: !Sub taskmanager-${BranchName}-global-cluster
+      GlobalClusterIdentifier: !Sub
+        - "${DomainDashed}-${BranchName}-global-cluster"
+        - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
       Engine: aurora-mysql
       EngineVersion: !Ref EngineVersion
       DeletionProtection: false
@@ -150,7 +161,9 @@ Resources:
   DatabasePasswordSecret:
     Type: AWS::SecretsManager::Secret
     Properties:
-      Name: !Sub "taskmanager/database/${BranchName}/regional/${AWS::Region}/password"
+      Name: !Sub
+        - "${DomainDashed}/database/${BranchName}/regional/${AWS::Region}/password"
+        - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
       Description: Database password for Aurora Regional Cluster
       SecretString: !Ref DatabasePassword
 Outputs:
@@ -174,7 +187,9 @@ Outputs:
 
   DatabaseUsername:
     Description: Database username
-    Value: "taskmanager_admin"
+    Value: !Sub
+      - "${DomainUnderscored}_admin"
+      - DomainUnderscored: !Join ["_", !Split [".", !Ref DomainName]]
     Export:
       Name: !Sub "DatabaseUsername-${BranchName}"
 
