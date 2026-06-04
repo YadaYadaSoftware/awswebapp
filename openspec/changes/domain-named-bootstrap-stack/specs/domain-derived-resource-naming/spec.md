@@ -20,13 +20,18 @@ The same dashed-domain value SHALL serve as the canonical project identifier ref
 
 ### Requirement: Bootstrap-owned resources derive names from `${AWS::StackName}`
 
-Every resource defined in [infrastructure/bootstrap.template](../../../../infrastructure/bootstrap.template) whose name previously embedded the literal `taskmanager` SHALL instead construct its name via `!Sub` referencing `${AWS::StackName}`. Specifically:
+Every resource defined in [infrastructure/bootstrap.template](../../../../infrastructure/bootstrap.template) whose name previously embedded the literal `taskmanager` SHALL instead construct its name via `!Sub` referencing `${AWS::StackName}`. Additionally, every bootstrap-owned resource whose name was previously stack-blind (lacked any `${AWS::StackName}` reference) and would therefore collide with another bootstrap stack in the same account+region SHALL also derive from `${AWS::StackName}`. Specifically:
 
 - KMS alias for nonprod Aurora key: `!Sub "alias/${AWS::StackName}-aurora-nonprod"`
 - KMS alias for prod Aurora key: `!Sub "alias/${AWS::StackName}-aurora-prod"`
 - SSM parameter for nonprod key ARN: `!Sub "/${AWS::StackName}/kms/nonprod/aurora-key-arn"`
 - SSM parameter for prod key ARN: `!Sub "/${AWS::StackName}/kms/prod/aurora-key-arn"`
-- Any other bootstrap-owned resource whose name previously contained `taskmanager`
+- ECR repository name: `!Ref "AWS::StackName"` (previously `ecr-${AccountId}-${Region}` — stack-blind, account-global)
+- IAM user (nonprod CI): `!Sub "${AWS::StackName}-GitHubActionsUser"` (previously `GitHubActionsUser` — fixed name, account-global)
+- IAM user (prod CI): `!Sub "${AWS::StackName}-GitHubActionsUserProd"` (previously `GitHubActionsUserProd` — fixed name, account-global)
+- IAM role (prod KMS admin): `!Sub "${AWS::StackName}-prod-kms-admin"` (previously `prod-kms-admin` — fixed name, account-global)
+- Hardcoded ARN `!Sub` references inside the template that target the above IAM resources SHALL include `${AWS::StackName}-` in the literal name portion, since `!GetAtt User.Arn` cannot be used for cross-region policy references (the user only exists in IsPrimary).
+- Any other bootstrap-owned resource whose name previously contained `taskmanager` or whose name was stack-blind
 
 The bootstrap template SHALL contain zero case-sensitive matches for the literal `taskmanager` (validated by grep — see "No `taskmanager` literals survive in templates or workflow" requirement below).
 
@@ -41,6 +46,18 @@ The bootstrap template SHALL contain zero case-sensitive matches for the literal
 #### Scenario: Stack-name change propagates to resource names
 - **WHEN** the bootstrap stack is destroyed and recreated under a different name (e.g., changing `secrets.DOMAIN_NAME` from `appcloud.systems` to `example.com` for a test deployment)
 - **THEN** all KMS aliases and SSM parameters created by the new stack carry the new dashed-domain prefix (`example-com-*` / `/example-com/*`); no manual template edits are needed
+
+#### Scenario: IAM resource names derive from stack name
+- **WHEN** the bootstrap stack named `appcloud-systems` is deployed in `us-east-1`
+- **THEN** the IAM users created are `appcloud-systems-GitHubActionsUser` and `appcloud-systems-GitHubActionsUserProd`, and the IAM role is `appcloud-systems-prod-kms-admin`. No IAM resources with the bare names `GitHubActionsUser`, `GitHubActionsUserProd`, or `prod-kms-admin` exist
+
+#### Scenario: ECR repository name derives from stack name
+- **WHEN** the bootstrap stack named `appcloud-systems` is deployed in `us-east-1`
+- **THEN** the ECR repository is named `appcloud-systems` (not `ecr-${AccountId}-${Region}`), and its URI is `${AccountId}.dkr.ecr.us-east-1.amazonaws.com/appcloud-systems`
+
+#### Scenario: Two bootstrap stacks could coexist
+- **WHEN** a hypothetical second bootstrap stack named `example-com` is deployed alongside the existing `appcloud-systems` stack in the same account+region (not normally done, but the templates do not prevent it)
+- **THEN** the deploy succeeds because no resource names collide: each stack's KMS aliases, SSM parameters, IAM users, IAM role, and ECR repository carry the stack-name prefix and are independent of the other stack's resources
 
 ### Requirement: Env-stack templates take a `DomainName` parameter
 

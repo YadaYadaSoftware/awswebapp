@@ -80,7 +80,7 @@ Resources:
           - Sid: AllowGitHubActionsNonprodFullAccess
             Effect: Allow
             Principal:
-              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:user/GitHubActionsUser"
+              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:user/${AWS::StackName}-GitHubActionsUser"
             Action:
               - s3:*
             Resource:
@@ -89,7 +89,7 @@ Resources:
           - Sid: AllowGitHubActionsProdFullAccess
             Effect: Allow
             Principal:
-              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:user/GitHubActionsUserProd"
+              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:user/${AWS::StackName}-GitHubActionsUserProd"
             Action:
               - s3:*
             Resource:
@@ -418,7 +418,7 @@ Resources:
           - Sid: AllowGitHubActionsUser
             Effect: Allow
             Principal:
-              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:user/GitHubActionsUser"
+              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:user/${AWS::StackName}-GitHubActionsUser"
             Action:
               - kms:CreateGrant
               - kms:DescribeKey
@@ -559,7 +559,7 @@ Resources:
           - Sid: AllowGitHubActionsUserProd
             Effect: Allow
             Principal:
-              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:user/GitHubActionsUserProd"
+              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:user/${AWS::StackName}-GitHubActionsUserProd"
             Action:
               - kms:CreateGrant
               - kms:DescribeKey
@@ -575,7 +575,7 @@ Resources:
           - Sid: AllowProdKmsAdmin
             Effect: Allow
             Principal:
-              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:role/prod-kms-admin"
+              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:role/${AWS::StackName}-prod-kms-admin"
             Action: kms:*
             Resource: "*"
           # Targeted Deny for the nonprod CI principal — see comment in
@@ -583,7 +583,7 @@ Resources:
           - Sid: DenyNonprodCI
             Effect: Deny
             Principal:
-              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:user/GitHubActionsUser"
+              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:user/${AWS::StackName}-GitHubActionsUser"
             Action: kms:*
             Resource: "*"
 
@@ -609,7 +609,7 @@ Resources:
     Properties:
       # Explicit name so the TemplatesBucketPolicy and the replica region's
       # KMS key policies can reference this user by hardcoded ARN.
-      UserName: GitHubActionsUser
+      UserName: !Sub "${AWS::StackName}-GitHubActionsUser"
 
   GitHubActionsAccessKey:
     Type: AWS::IAM::AccessKey
@@ -732,7 +732,7 @@ Resources:
     Type: AWS::IAM::User
     Condition: IsPrimary
     Properties:
-      UserName: GitHubActionsUserProd
+      UserName: !Sub "${AWS::StackName}-GitHubActionsUserProd"
 
   GitHubActionsAccessKeyProd:
     Type: AWS::IAM::AccessKey
@@ -854,7 +854,7 @@ Resources:
     Properties:
       # Explicit name so the prod KMS key policy can reference this role by
       # hardcoded ARN (also makes the replica region's policy stable).
-      RoleName: prod-kms-admin
+      RoleName: !Sub "${AWS::StackName}-prod-kms-admin"
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
