@@ -17,8 +17,11 @@ on:
       - '**/*.md'
 
 env:
-  AWS_REGION_SECONDARY: us-west-2
-  AWS_REGION_PRIMARY: us-east-1
+  # Region values sourced from repo Variables (Settings -> Secrets and variables
+  # -> Actions -> Variables). Set AWS_REGION_PRIMARY and AWS_REGION_SECONDARY
+  # there; this workflow has no fallback so an unset variable will fail the run.
+  AWS_REGION_SECONDARY: ${{ vars.AWS_REGION_SECONDARY }}
+  AWS_REGION_PRIMARY: ${{ vars.AWS_REGION_PRIMARY }}
   ENGINE_VERSION: 8.0.mysql_aurora.3.10.0
   # OAuth Testing Configuration
   USE_MOCKED_OAUTH: false
@@ -360,10 +363,10 @@ jobs:
     strategy:
       matrix:
         include:
-          - region: us-east-1
+          - region: ${{ vars.AWS_REGION_PRIMARY }}
             is_primary: "true"
             deploy: true
-          - region: us-west-2
+          - region: ${{ vars.AWS_REGION_SECONDARY }}
             is_primary: "false"
             deploy: ${{ contains(fromJson('["app","beta","alpha"]'), needs.get-branch-name.outputs.branch-name) }}
       max-parallel: 1
@@ -603,9 +606,9 @@ jobs:
         echo "Source branch: $SOURCE_BRANCH"
         echo "Primary stack name: $PRIMARY_STACK_NAME"
 
-        GLOBAL_CLUSTER_ID=$(aws cloudformation describe-stacks --stack-name $PRIMARY_STACK_NAME --region us-east-1 --query 'Stacks[0].Outputs[?OutputKey==`AuroraGlobalClusterId`].OutputValue' --output text)
-        PRIMARY_LB_DNS=$(aws cloudformation describe-stacks --stack-name $PRIMARY_STACK_NAME --region us-east-1 --query 'Stacks[0].Outputs[?OutputKey==`WebLoadBalancerDNS`].OutputValue' --output text)
-        PRIMARY_LB_HZ=$(aws cloudformation describe-stacks --stack-name $PRIMARY_STACK_NAME --region us-east-1 --query 'Stacks[0].Outputs[?OutputKey==`WebLoadBalancerHostedZoneId`].OutputValue' --output text)
+        GLOBAL_CLUSTER_ID=$(aws cloudformation describe-stacks --stack-name $PRIMARY_STACK_NAME --region ${{ env.AWS_REGION_PRIMARY }} --query 'Stacks[0].Outputs[?OutputKey==`AuroraGlobalClusterId`].OutputValue' --output text)
+        PRIMARY_LB_DNS=$(aws cloudformation describe-stacks --stack-name $PRIMARY_STACK_NAME --region ${{ env.AWS_REGION_PRIMARY }} --query 'Stacks[0].Outputs[?OutputKey==`WebLoadBalancerDNS`].OutputValue' --output text)
+        PRIMARY_LB_HZ=$(aws cloudformation describe-stacks --stack-name $PRIMARY_STACK_NAME --region ${{ env.AWS_REGION_PRIMARY }} --query 'Stacks[0].Outputs[?OutputKey==`WebLoadBalancerHostedZoneId`].OutputValue' --output text)
         echo "global-cluster-id=$GLOBAL_CLUSTER_ID" >> $GITHUB_OUTPUT
         echo "primary-lb-dns=$PRIMARY_LB_DNS" >> $GITHUB_OUTPUT
         echo "primary-lb-hz=$PRIMARY_LB_HZ" >> $GITHUB_OUTPUT
