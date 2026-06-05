@@ -31,7 +31,18 @@ Brothers are named, in order, from this roster of German first names. Take the n
 
 ## Creating a new brother
 
-From the `dev` homestead (recommended — uses a lightweight worktree that shares the object store):
+When you're told **"you have a new brother"**, **"welcome `<name>` to the team"**, or **"create a new brother"**, the job is: pick his name, create his folder, and check him out from `dev`. The helper does all three:
+
+```powershell
+# Next unused roster name, checked out on dev:
+powershell -NoProfile -File scripts\New-Brother.ps1
+# …or name him and give him a starting branch off dev:
+powershell -NoProfile -File scripts\New-Brother.ps1 -Name friedrich -Branch fix/oauth-callback
+```
+
+[scripts/New-Brother.ps1](scripts/New-Brother.ps1) takes the next unused name from the roster above (or `-Name`), creates the folder as a `git worktree` based off the `dev` homestead clone if present (else off the current repo), and starts him from `dev` — a fresh branch off dev with `-Branch`, or dev itself when no branch is known yet. Also exposed as the `/newbrother` slash command.
+
+Or do it by hand from the `dev` homestead (lightweight worktree that shares the object store):
 
 ```powershell
 # New feature branch off dev, checked out into a new brother folder:
@@ -41,6 +52,8 @@ git -C C:\Users\hound\source\repos\YadaYadaSoftware\awswebapp\dev `
 # …or check out an EXISTING branch into a new brother folder:
 git -C ...\dev worktree add ..\friedrich <existing-branch>
 ```
+
+> **Note:** git allows the `dev` branch to be checked out in only one worktree of a clone. If `dev` is already checked out in the base clone, a new worktree can't sit literally on `dev` — start him on a branch off dev (`-b … dev`) or detached at dev's tip (`--detach … dev`); the helper handles this automatically.
 
 A full `git clone` into a sibling folder works too (this is how `app`/`dev` are set up); the tooling below treats clones and worktrees identically.
 

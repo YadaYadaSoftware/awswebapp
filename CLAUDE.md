@@ -164,7 +164,14 @@ This repo is worked from **multiple sibling folders at once** so several feature
 - **Who am I / who are you** (also `/whoami`): the leaf of `git rev-parse --show-toplevel` is your brother name. Report it with your current branch (`git rev-parse --abbrev-ref HEAD`), last commit (`git log -1 --format='%s (%cr)'`), tree state (`git status --porcelain`), and the contents of a `.brother-status` file if present. If the leaf is `dev`/`app`, say you're at the homestead, not a feature brother.
 - **What are my brothers doing** (also `/brothers`): run `powershell -NoProfile -File scripts\Get-Brothers.ps1`, which scans the family directory for every sibling checkout and prints each one's branch, tree state, ahead/behind, last commit, and `.brother-status` note. Summarize one line per brother, excluding yourself. If the script can't run, enumerate sibling folders containing a `.git` entry and query each with `git -C <folder> …`.
 
-Creating a new brother (lightweight worktree off `dev`):
+**Welcoming a new brother** — when told **"you have a new brother"**, **"welcome `<name>` to the team"**, or **"create a new brother"**, the job is to pick his name, create his folder, and check him out from `dev`. Run the helper (also `/newbrother`):
+```powershell
+# next unused roster name, parked on dev:
+powershell -NoProfile -File scripts\New-Brother.ps1
+# or named, with a starting branch off dev:
+powershell -NoProfile -File scripts\New-Brother.ps1 -Name friedrich -Branch fix/oauth-callback
+```
+It takes the next unused roster name (or `-Name`), creates the folder as a `git worktree` (based off the `dev` homestead clone if present, else this repo), and starts him from `dev`. Git allows the `dev` branch in only one worktree, so if `dev` is already checked out in the base clone the helper falls back to a branch off dev or detached at dev's tip. By hand:
 ```powershell
 git -C ...\dev worktree add ..\wilhelm -b <branch-name> dev
 ```

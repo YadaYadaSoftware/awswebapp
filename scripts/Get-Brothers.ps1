@@ -64,18 +64,26 @@ foreach ($dir in Get-ChildItem -Path $family -Directory) {
     $dirtyCount = (& git -C $dir.FullName status --porcelain 2>$null | Measure-Object -Line).Lines
     if ($dirtyCount -gt 0) { $tree = "$dirtyCount uncommitted" } else { $tree = 'clean' }
 
-    # Ahead/behind vs the branch's upstream, if any.
+    # Ahead/behind vs the branch's upstream, if any. Check for a configured upstream
+    # first via for-each-ref (which never errors) - calling rev-list with @{upstream}
+    # on a branch that has none writes to stderr, and a 2>$null redirect of a native
+    # command under PS 5.1 turns that into a terminating error.
     $sync = ''
-    $counts = & git -C $dir.FullName rev-list --left-right --count "@{upstream}...HEAD" 2>$null
-    if ($counts) {
-        $parts = ($counts.Trim() -split '\s+')
-        if ($parts.Count -eq 2) {
-            $behind = [int]$parts[0]; $ahead = [int]$parts[1]
-            if ($ahead -gt 0) { $sync += "+$ahead" }
-            if ($behind -gt 0) { $sync += "-$behind" }
+    $upstream = (& git -C $dir.FullName for-each-ref --format='%(upstream:short)' "refs/heads/$branch")
+    if ($upstream) {
+        $counts = & git -C $dir.FullName rev-list --left-right --count "@{upstream}...HEAD"
+        if ($counts) {
+            $parts = ($counts.Trim() -split '\s+')
+            if ($parts.Count -eq 2) {
+                $behind = [int]$parts[0]; $ahead = [int]$parts[1]
+                if ($ahead -gt 0) { $sync += "+$ahead" }
+                if ($behind -gt 0) { $sync += "-$behind" }
+            }
         }
+        if (-not $sync) { $sync = 'in sync' }
+    } else {
+        $sync = 'no upstream'
     }
-    if (-not $sync) { $sync = 'in sync' }
 
     # Optional free-text note the brother left for the family.
     $note = ''
