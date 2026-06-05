@@ -93,6 +93,7 @@ Resources:
       TemplateURL: ./network.template
       Parameters:
         BranchName: !Ref BranchName
+        DomainName: !Ref DomainName
         LogRetentionDays: 7
 
   # Regional Database

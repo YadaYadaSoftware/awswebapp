@@ -7,6 +7,10 @@ Parameters:
     Type: String
     Description: "Branch name for resource naming"
 
+  DomainName:
+    Type: String
+    Description: "Deployment domain in dot form (e.g. appcloud.systems); dashed form is derived locally for export naming"
+
   EnvironmentToImport:
     Type: String
     Description: "Branch name to import infrastructure values from"
@@ -106,8 +110,27 @@ Outputs:
     Export:
       Name: !Sub "ApiEndpoint-${BranchName}"
 
+  ApiEndpointDomainQualified:
+    Description: "API Gateway endpoint URL"
+    Value: !Sub
+      - "https://${ApiId}.execute-api.${Region}.amazonaws.com/Prod/"
+      - ApiId: !Ref ServerlessRestApi
+        Region: !Ref AWS::Region
+    Export:
+      Name: !Sub
+        - "ApiEndpoint-${BranchName}-${DomainDashed}"
+        - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
+
   ApiLambdaFunctionName:
     Description: "API Lambda function name"
     Value: !Ref ApiFunction
     Export:
       Name: !Sub "ApiLambdaFunctionName-${BranchName}"
+
+  ApiLambdaFunctionNameDomainQualified:
+    Description: "API Lambda function name"
+    Value: !Ref ApiFunction
+    Export:
+      Name: !Sub
+        - "ApiLambdaFunctionName-${BranchName}-${DomainDashed}"
+        - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]

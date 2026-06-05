@@ -97,6 +97,7 @@ Resources:
       TemplateURL: ./api.template
       Parameters:
         BranchName: !Ref BranchName
+        DomainName: !Ref DomainName
         EnvironmentToImport: !Ref EnvironmentToImport
         Environment: !Ref Environment
 

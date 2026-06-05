@@ -6,6 +6,9 @@ Parameters:
   BranchName:
     Type: String
     Description: "Branch name for resource naming"
+  DomainName:
+    Type: String
+    Description: "Deployment domain in dot form (e.g. appcloud.systems); dashed form is derived locally for export naming"
   LogRetentionDays:
     Type: Number
     Default: 7
@@ -217,11 +220,27 @@ Outputs:
     Export:
       Name: !Sub "VPCId-${BranchName}"
 
+  VPCIdDomainQualified:
+    Description: VPC ID for regional database
+    Value: !Ref EnvVpc
+    Export:
+      Name: !Sub
+        - "VPCId-${BranchName}-${DomainDashed}"
+        - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
+
   PrivateSubnet1Id:
     Description: Private subnet 1 ID
     Value: !Ref PrivateSubnet1
     Export:
       Name: !Sub "PrivateSubnet1Id-${BranchName}"
+
+  PrivateSubnet1IdDomainQualified:
+    Description: Private subnet 1 ID
+    Value: !Ref PrivateSubnet1
+    Export:
+      Name: !Sub
+        - "PrivateSubnet1Id-${BranchName}-${DomainDashed}"
+        - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
 
   PrivateSubnet2Id:
     Description: Private subnet 2 ID
@@ -229,11 +248,27 @@ Outputs:
     Export:
       Name: !Sub "PrivateSubnet2Id-${BranchName}"
 
+  PrivateSubnet2IdDomainQualified:
+    Description: Private subnet 2 ID
+    Value: !Ref PrivateSubnet2
+    Export:
+      Name: !Sub
+        - "PrivateSubnet2Id-${BranchName}-${DomainDashed}"
+        - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
+
   PublicSubnet1Id:
     Description: Public subnet 1 ID
     Value: !Ref PublicSubnet1
     Export:
       Name: !Sub "PublicSubnet1Id-${BranchName}"
+
+  PublicSubnet1IdDomainQualified:
+    Description: Public subnet 1 ID
+    Value: !Ref PublicSubnet1
+    Export:
+      Name: !Sub
+        - "PublicSubnet1Id-${BranchName}-${DomainDashed}"
+        - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
 
   PublicSubnet2Id:
     Description: Public subnet 2 ID
@@ -241,11 +276,27 @@ Outputs:
     Export:
       Name: !Sub "PublicSubnet2Id-${BranchName}"
 
+  PublicSubnet2IdDomainQualified:
+    Description: Public subnet 2 ID
+    Value: !Ref PublicSubnet2
+    Export:
+      Name: !Sub
+        - "PublicSubnet2Id-${BranchName}-${DomainDashed}"
+        - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
+
   LambdaSecurityGroupId:
     Description: Security group for Lambda functions
     Value: !Ref LambdaSecurityGroup
     Export:
       Name: !Sub "LambdaSecurityGroupId-${BranchName}"
+
+  LambdaSecurityGroupIdDomainQualified:
+    Description: Security group for Lambda functions
+    Value: !Ref LambdaSecurityGroup
+    Export:
+      Name: !Sub
+        - "LambdaSecurityGroupId-${BranchName}-${DomainDashed}"
+        - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
 
   ALBSecurityGroupId:
     Description: Security group for Application Load Balancer
@@ -253,11 +304,27 @@ Outputs:
     Export:
       Name: !Sub "ALBSecurityGroupId-${BranchName}"
 
+  ALBSecurityGroupIdDomainQualified:
+    Description: Security group for Application Load Balancer
+    Value: !Ref ALBSecurityGroup
+    Export:
+      Name: !Sub
+        - "ALBSecurityGroupId-${BranchName}-${DomainDashed}"
+        - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
+
   ECSTaskSecurityGroupId:
     Description: Security group for ECS tasks
     Value: !Ref ECSTaskSecurityGroup
     Export:
       Name: !Sub "ECSTaskSecurityGroupId-${BranchName}"
+
+  ECSTaskSecurityGroupIdDomainQualified:
+    Description: Security group for ECS tasks
+    Value: !Ref ECSTaskSecurityGroup
+    Export:
+      Name: !Sub
+        - "ECSTaskSecurityGroupId-${BranchName}-${DomainDashed}"
+        - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
 
   RDSSecurityGroupId:
     Description: Security group for RDS access
@@ -265,8 +332,24 @@ Outputs:
     Export:
       Name: !Sub "RDSSecurityGroupId-${BranchName}"
 
+  RDSSecurityGroupIdDomainQualified:
+    Description: Security group for RDS access
+    Value: !Ref RDSSecurityGroup
+    Export:
+      Name: !Sub
+        - "RDSSecurityGroupId-${BranchName}-${DomainDashed}"
+        - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
+
   VpcFlowLogsRoleArn:
     Description: VPC Flow Logs role ARN
     Value: !GetAtt VPCFlowLogsRole.Arn
     Export:
       Name: !Sub "VpcFlowLogsRoleArn-${BranchName}"
+
+  VpcFlowLogsRoleArnDomainQualified:
+    Description: VPC Flow Logs role ARN
+    Value: !GetAtt VPCFlowLogsRole.Arn
+    Export:
+      Name: !Sub
+        - "VpcFlowLogsRoleArn-${BranchName}-${DomainDashed}"
+        - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
