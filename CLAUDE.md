@@ -152,6 +152,26 @@ It does **not** apply to:
 
 Multiple specs in flight at once don't collide because each spec name is unique. If the user has scaffolded a change with `/opsx:propose` but hasn't yet branched, do that as the first step of implementation — before touching any source file.
 
+## Parallel work folders (the brothers)
+
+This repo is worked from **multiple sibling folders at once** so several features can be in flight in parallel. Every folder is a **`git worktree` of one shared bare repo** (`.bare`) under the **family directory** (the parent of this repo root, e.g. `…\awswebapp\`). The shared object store is what makes cross-folder merges local and instant (from `dev`: `git merge <brother-branch>`, no push/pull). See [BROTHERS.md](BROTHERS.md) for the full convention.
+
+- Each work folder is a **brother** in a family of Germans; the folder's leaf name **is** the brother's identity — one of the names on the roster in [BROTHERS.md](BROTHERS.md) (`claude` is a brother too: the eldest/default — don't exclude it as "not German").
+- `app`, `beta`, `alpha`, and `dev` are not brothers — they are the **homestead** (shared long-lived worktrees); `/brothers` lists them separately. `.bare` is the hub, not a folder you work in.
+- **A branch lives in only one worktree at a time** — so each homestead branch gets its own folder and a brother is never put *on* `dev` (he's parked detached at dev's tip until assigned a branch).
+- A brother works one branch at a time: the **brother (folder) = who**, the **branch = what**. They're independent — `wilhelm` might be on branch `cancel-superseded-runs`.
+
+**The family questions** are answered the same way whether asked as a slash command **or in plain conversation** ("who are you?", "what's the rest of the family up to?", "you have a new brother", "what should I do next?"). Each is backed by one script under `scripts/` — run it and narrate the result; don't re-derive the git plumbing here. The detailed procedure for each lives in its command file and in [BROTHERS.md](BROTHERS.md), and the executable logic is shared via `scripts/_BrothersCommon.ps1` (so `/brothers` and `/next` enumerate siblings the same way).
+
+| Ask | Command | Helper | What it does |
+|---|---|---|---|
+| Who am I / who are you | `/whoami` | (inline git) | Leaf of `git rev-parse --show-toplevel` = your brother name; report branch, last commit, tree, `.brother-status`. Leaf `dev`/`app` ⇒ homestead, not a feature brother. |
+| What are my brothers doing | `/brothers` | `scripts\Get-Brothers.ps1` | One line per sibling: branch, tree state, ahead/behind, last commit, note. |
+| Welcome a new brother | `/newbrother` | `scripts\New-Brother.ps1` | Picks the next roster name (or `-Name`), creates the folder as a worktree, parks him **detached at `dev`'s tip** (or a branch off dev with `-Branch`). Never puts him *on* the `dev` branch — git allows a branch in only one worktree, so that would block every folder from checking out `dev`. |
+| What should I do next | `/next` | `scripts\Get-NextStep.ps1` | On a spec ⇒ progress + next unchecked task/step. Idle ⇒ suggests an OpenSpec change **no brother's branch is on**, so the family doesn't double up. |
+
+All are read-only except `/newbrother` (creates the worktree). Never modify anything to *answer* an identity/next question.
+
 ## Things that will trip you up
 
 - **Don't add migrations to `Tjb.Data`** — the `MigrationsAssembly` is `Tjb.Migrations`. EF tooling needs `--project src/Tjb.Migrations`.
