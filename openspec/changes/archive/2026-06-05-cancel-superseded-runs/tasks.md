@@ -39,4 +39,4 @@
 - [x] 5.1 Run `openspec validate cancel-superseded-runs --strict`. Must pass.
 - [x] 5.2 Verify each scenario in [specs/ci-run-concurrency/spec.md](specs/ci-run-concurrency/spec.md) is observable. _(non-`app` cancel + supersede scenarios observed on the feature branch; `app`-queue and cleanup-mutex scenarios accepted by reasoning per §3/§4 notes)_
 - [x] 5.3 Update [CLAUDE.md](../../../CLAUDE.md) under "Useful workflow controls": note that subsequent pushes to non-`app` branches cancel any in-flight run for that branch; `app` queues.
-- [ ] 5.4 Archive via `/opsx:archive cancel-superseded-runs`. Capability `ci-run-concurrency` is promoted to `openspec/specs/`.
+- [x] 5.4 Archive via `/opsx:archive cancel-superseded-runs`. Capability `ci-run-concurrency` is promoted to `openspec/specs/`.

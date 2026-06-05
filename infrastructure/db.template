@@ -25,6 +25,10 @@ Parameters:
     Type: String
     Description: ARN of the KMS key (primary or replica) for Aurora encryption in this region
 
+  AuroraClusterDeleteHandlerArn:
+    Type: String
+    Description: "ARN of the bootstrap-owned Aurora cluster force-teardown Lambda for this region. Sourced by the deploy workflow from /{dashed-domain}/lambda/aurora-cluster-delete-handler-arn in SSM and threaded through master -> backend. Used as the AuroraClusterDrainOnDelete custom resource's ServiceToken."
+
   IsPrimaryRegion:
     Type: String
     AllowedValues: ["true", "false"]
@@ -98,6 +102,16 @@ Resources:
   AuroraCluster:
     Type: AWS::RDS::DBCluster
     Properties:
+      # Explicit, predictable identifier (dashed-domain + branch, e.g.
+      # appcloud-systems-app) so the bootstrap AuroraClusterDeleteHandler's IAM
+      # policy can scope rds:DeleteDBCluster to ${AWS::StackName}-* (= dashed
+      # domain) instead of a "*" grant. WARNING: changing this on an existing
+      # stack forces REPLACEMENT of the cluster (data loss) — see the
+      # robust-aurora-cluster-teardown rollout tasks before deploying to an
+      # env that already has data.
+      DBClusterIdentifier: !Sub
+        - "${DomainDashed}-${BranchName}"
+        - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
       GlobalClusterIdentifier:
         !If [
           IsPrimary,
@@ -142,10 +156,34 @@ Resources:
   AuroraInstance:
     Type: AWS::RDS::DBInstance
     Properties:
+      # Explicit identifier under the same ${DomainDashed}-${BranchName}-* prefix
+      # so the teardown Lambda's rds:DeleteDBInstance scope (db:${AWS::StackName}-*)
+      # matches. Like the cluster, changing this on an existing stack forces
+      # replacement of the instance.
+      DBInstanceIdentifier: !Sub
+        - "${DomainDashed}-${BranchName}-instance"
+        - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
       DBClusterIdentifier: !Ref AuroraCluster
       DBInstanceClass: db.serverless
       Engine: aurora-mysql
       PubliclyAccessible: false
+
+  # Force-drain backstop for stack deletes. On Create/Update the backing Lambda
+  # is a no-op; its only job is the Delete path. DependsOn: AuroraCluster is
+  # LOAD-BEARING: CFN deletes resources in reverse creation order, so declaring
+  # this resource as depending on the cluster makes CFN delete THIS resource
+  # FIRST on a stack delete. The Lambda drains the (possibly stuck) cluster, and
+  # CFN's own subsequent AWS::RDS::DBCluster delete then finds it already gone
+  # and succeeds — instead of deadlocking the AuroraDBSubnetGroup delete. Do NOT
+  # remove the DependsOn, and do NOT delete this resource from a stack that
+  # still has a live cluster (that would trigger an unintended drain).
+  AuroraClusterDrainOnDelete:
+    Type: Custom::AuroraClusterDrainOnDelete
+    DependsOn: AuroraCluster
+    Properties:
+      ServiceToken: !Ref AuroraClusterDeleteHandlerArn
+      ClusterIdentifier: !Ref AuroraCluster
+
   AuroraGlobalCluster:
     Condition: ShouldCreateGlobalCluster
     Type: AWS::RDS::GlobalCluster

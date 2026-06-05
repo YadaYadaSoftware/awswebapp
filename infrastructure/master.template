@@ -53,6 +53,10 @@ Parameters:
     Type: String
     Description: "ARN of the Aurora KMS key for this region. Required. Sourced by the deploy workflow from /{dashed-domain}/kms/{prod,nonprod}/aurora-key-arn in SSM Parameter Store (e.g., /appcloud-systems/kms/nonprod/aurora-key-arn)."
 
+  AuroraClusterDeleteHandlerArn:
+    Type: String
+    Description: "ARN of the bootstrap-owned Aurora cluster force-teardown Lambda for this region. Required. Sourced by the deploy workflow from /{dashed-domain}/lambda/aurora-cluster-delete-handler-arn in SSM (e.g., /appcloud-systems/lambda/aurora-cluster-delete-handler-arn). Threaded to BackendStack -> DbStack."
+
   # Google OAuth parameters
   GoogleOAuthClientId:
     Type: String
@@ -143,6 +147,7 @@ Resources:
         IsPrimaryRegion: !Ref IsPrimaryRegion
         AuroraGlobalClusterId: !Ref AuroraGlobalClusterId
         KmsKeyArn: !Ref KmsKeyArn
+        AuroraClusterDeleteHandlerArn: !Ref AuroraClusterDeleteHandlerArn
         GoogleOAuthClientId: !Ref GoogleOAuthClientId
         GoogleOAuthClientSecret: !Ref GoogleOAuthClientSecret
 
