@@ -102,16 +102,15 @@ Resources:
   AuroraCluster:
     Type: AWS::RDS::DBCluster
     Properties:
-      # Explicit, predictable identifier (dashed-domain + branch, e.g.
-      # appcloud-systems-app) so the bootstrap AuroraClusterDeleteHandler's IAM
-      # policy can scope rds:DeleteDBCluster to ${AWS::StackName}-* (= dashed
-      # domain) instead of a "*" grant. WARNING: changing this on an existing
-      # stack forces REPLACEMENT of the cluster (data loss) — see the
-      # robust-aurora-cluster-teardown rollout tasks before deploying to an
-      # env that already has data.
-      DBClusterIdentifier: !Sub
-        - "${DomainDashed}-${BranchName}"
-        - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
+      # No explicit DBClusterIdentifier — CFN auto-names the cluster. An explicit
+      # name forces REPLACEMENT on existing stacks AND changes the DatabaseHost
+      # export, which CFN refuses while Web/Api/feature-branch stacks import it,
+      # so the whole stack update rolls back (observed on dev 2026-06-05). The
+      # teardown Lambda doesn't need a predictable name: the
+      # AuroraClusterDrainOnDelete custom resource below passes the resolved
+      # cluster id (!Ref AuroraCluster) into the Lambda, whose IAM policy is
+      # scoped to rds cluster:*/db:* precisely because auto-names can't be
+      # prefix-matched (see bootstrap.template).
       GlobalClusterIdentifier:
         !If [
           IsPrimary,
@@ -156,13 +155,9 @@ Resources:
   AuroraInstance:
     Type: AWS::RDS::DBInstance
     Properties:
-      # Explicit identifier under the same ${DomainDashed}-${BranchName}-* prefix
-      # so the teardown Lambda's rds:DeleteDBInstance scope (db:${AWS::StackName}-*)
-      # matches. Like the cluster, changing this on an existing stack forces
-      # replacement of the instance.
-      DBInstanceIdentifier: !Sub
-        - "${DomainDashed}-${BranchName}-instance"
-        - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
+      # No explicit DBInstanceIdentifier (CFN auto-names it) — same rationale as
+      # the cluster above: avoids replacement, and the teardown Lambda is scoped
+      # to db:* rather than a name prefix.
       DBClusterIdentifier: !Ref AuroraCluster
       DBInstanceClass: db.serverless
       Engine: aurora-mysql

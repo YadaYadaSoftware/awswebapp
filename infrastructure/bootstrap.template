@@ -373,21 +373,26 @@ Resources:
                   - rds:DescribeDBClusters
                   - rds:DescribeDBInstances
                 Resource: "*"
-              # Mutating ops scoped to THIS deployment's clusters/instances only.
-              # ${AWS::StackName} is the dashed domain (e.g. appcloud-systems);
-              # regional clusters are named ${DomainDashed}-${BranchName} and
-              # instances ${DomainDashed}-${BranchName}-instance (see
-              # db.template), so the ${AWS::StackName}-* prefix matches every env
-              # cluster while excluding unrelated clusters in this account/region.
+              # Mutating ops on RDS clusters/instances in THIS region, scoped to
+              # cluster:*/db:* (not a name prefix). Env clusters are CFN
+              # auto-named (e.g. dev-appcloud-systems-backendstack-7d-
+              # auroracluster-<rand>) because an explicit DBClusterIdentifier
+              # forces replacement and breaks the DatabaseHost export (see
+              # db.template). Those auto-names can't be reliably prefix-matched
+              # from this region-wide bootstrap role, and a safety-net teardown
+              # that silently lacks delete permission is worse than a broad
+              # grant. The Lambda only ever deletes the single cluster the
+              # AuroraClusterDrainOnDelete custom resource names in its event.
+              # FUTURE HARDENING: tag env clusters and scope via aws:ResourceTag.
               - Effect: Allow
                 Action:
                   - rds:DeleteDBCluster
                   - rds:ModifyDBCluster
-                Resource: !Sub "arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster:${AWS::StackName}-*"
+                Resource: !Sub "arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster:*"
               - Effect: Allow
                 Action:
                   - rds:DeleteDBInstance
-                Resource: !Sub "arn:aws:rds:${AWS::Region}:${AWS::AccountId}:db:${AWS::StackName}-*"
+                Resource: !Sub "arn:aws:rds:${AWS::Region}:${AWS::AccountId}:db:*"
               # kms:DescribeKey is used for log enrichment when investigating
               # KMS-related cluster stalls; harmless on Resource "*".
               - Effect: Allow
