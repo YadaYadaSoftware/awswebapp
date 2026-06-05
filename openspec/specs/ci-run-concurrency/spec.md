@@ -1,7 +1,7 @@
 # ci-run-concurrency Specification
 
 ## Purpose
-Cancel superseded in-flight CI/CD workflow runs on non-`app` branches so that the latest push wins, while preserving queue-behavior on `app` to protect production from mid-deploy cancellation and keeping the cleanup-vs-deploy mutex intact.
+Govern how concurrent workflow runs of the deploy pipeline ([.github/workflows/zbuild.yml](../../../.github/workflows/zbuild.yml)) are handled per branch: a new push to a non-`app` branch supersedes (cancels) the in-flight run for that branch so the CI UI reflects only the latest commit, while `app` preserves queue-behavior to protect production from mid-deploy cancellation. The cleanup-vs-deploy mutex is preserved.
 
 ## Requirements
 
