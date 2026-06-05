@@ -83,7 +83,9 @@ Resources:
         Type: HTTPS
         ResourcePath: /health
         FullyQualifiedDomainName:
-          Fn::ImportValue: !Sub "WebLoadBalancerDNS-${BranchName}"
+          Fn::ImportValue: !Sub
+            - "WebLoadBalancerDNS-${BranchName}-${DomainDashed}"
+            - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
         Port: 443
         RequestInterval: 30
         FailureThreshold: 2
@@ -105,9 +107,13 @@ Resources:
       Type: A
       AliasTarget:
         DNSName:
-          Fn::ImportValue: !Sub "WebLoadBalancerDNS-${BranchName}"
+          Fn::ImportValue: !Sub
+            - "WebLoadBalancerDNS-${BranchName}-${DomainDashed}"
+            - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
         HostedZoneId:
-          Fn::ImportValue: !Sub "WebLoadBalancerHostedZoneId-${BranchName}"
+          Fn::ImportValue: !Sub
+            - "WebLoadBalancerHostedZoneId-${BranchName}-${DomainDashed}"
+            - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
 
   # Multi-Region: PRIMARY failover record pointing to primary region's load balancer
   PrimaryFailoverDNSRecord:
@@ -136,9 +142,13 @@ Resources:
       Failover: SECONDARY
       AliasTarget:
         DNSName:
-          Fn::ImportValue: !Sub "WebLoadBalancerDNS-${BranchName}"
+          Fn::ImportValue: !Sub
+            - "WebLoadBalancerDNS-${BranchName}-${DomainDashed}"
+            - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
         HostedZoneId:
-          Fn::ImportValue: !Sub "WebLoadBalancerHostedZoneId-${BranchName}"
+          Fn::ImportValue: !Sub
+            - "WebLoadBalancerHostedZoneId-${BranchName}-${DomainDashed}"
+            - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
       HealthCheckId: !Ref SecondaryHealthCheck
 
 Outputs:
