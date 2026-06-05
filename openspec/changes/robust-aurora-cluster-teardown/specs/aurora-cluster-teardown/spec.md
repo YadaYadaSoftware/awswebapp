@@ -58,24 +58,24 @@ The deploy workflow SHALL read this SSM parameter at deploy time and pass the va
 - **WHEN** the deploy workflow runs on a `master.template` branch (`dev`/`alpha`/`beta`/`app`)
 - **THEN** the workflow reads `/{processed-domain}/kms/{prod,nonprod}/aurora-key-arn` AND `/{processed-domain}/lambda/aurora-cluster-delete-handler-arn` in `matrix.region`, exporting both as env vars (`BOOTSTRAP_KMS_KEY_ARN` and `AURORA_CLUSTER_DELETE_HANDLER_ARN`)
 
-### Requirement: Lambda IAM permissions are minimum-necessary and scoped to this deployment's clusters
+### Requirement: Lambda IAM permissions are minimum-necessary and region-scoped
 
 The Lambda's execution role's policy SHALL grant only:
 - `rds:DescribeDBClusters`, `rds:DescribeDBInstances` on `Resource: "*"` (the Describe APIs do not support resource-level perms).
-- `rds:DeleteDBCluster`, `rds:ModifyDBCluster` on `arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster:${AWS::StackName}-*` only.
-- `rds:DeleteDBInstance` on `arn:aws:rds:${AWS::Region}:${AWS::AccountId}:db:${AWS::StackName}-*` only.
+- `rds:DeleteDBCluster`, `rds:ModifyDBCluster` on `arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster:*` (the deploying region/account only).
+- `rds:DeleteDBInstance` on `arn:aws:rds:${AWS::Region}:${AWS::AccountId}:db:*` (the deploying region/account only).
 - `kms:DescribeKey` on `Resource: "*"` (used for log enrichment when investigating KMS-related cluster issues).
 - CloudWatch Logs (`logs:CreateLogGroup`, `logs:CreateLogStream`, `logs:PutLogEvents`) on the Lambda's own log group only.
 
-`${AWS::StackName}` in the bootstrap stack equals the dashed deployment domain (e.g. `appcloud-systems`). To make this prefix match, `db.template` SHALL give the regional cluster an explicit `DBClusterIdentifier` of `${DomainDashed}-${BranchName}` (e.g. `appcloud-systems-app`) and the instance an explicit `DBInstanceIdentifier` of `${DomainDashed}-${BranchName}-instance`. The Lambda MUST NOT have permission to modify or delete clusters whose identifier does not begin with the dashed-domain prefix.
+Env clusters are CFN **auto-named** (e.g. `dev-appcloud-systems-backendstack-7d-auroracluster-<rand>`): an explicit `DBClusterIdentifier` would force a cluster **replacement** whose new endpoint changes the `DatabaseHost` export, which CloudFormation refuses to update while Web/Api/feature-branch stacks import it (observed on dev 2026-06-05). Auto-names cannot be reliably prefix-matched from the region-wide bootstrap role, so the mutating actions are scoped to `cluster:*`/`db:*` within the deploying region rather than a name prefix. A safety-net teardown that silently lacks delete permission is worse than a broad in-region grant; the Lambda only ever deletes the single cluster the custom resource names in its event. FUTURE HARDENING: tag env clusters with the domain and constrain via `aws:ResourceTag`.
 
-#### Scenario: Lambda cannot delete unrelated clusters
-- **WHEN** a hypothetical invocation of the Lambda passes `ClusterIdentifier=production-customer-data` (not `${dashed-domain}-*`)
-- **THEN** the `DeleteDBCluster` call returns `AccessDenied` because the IAM policy's resource constraint excludes the cluster ARN
+#### Scenario: Lambda can delete this region's env clusters
+- **WHEN** the Lambda is invoked for any Aurora cluster in the deploying region (e.g. the auto-named `dev-appcloud-systems-backendstack-…-auroracluster-…`)
+- **THEN** the IAM permissions allow the delete/modify operations
 
-#### Scenario: Lambda can delete this deployment's clusters
-- **WHEN** the Lambda is invoked for a cluster named `appcloud-systems-dev`, `appcloud-systems-app`, `appcloud-systems-alpha`, or any other `${dashed-domain}-*`
-- **THEN** the IAM permissions allow the delete operations
+#### Scenario: Lambda cannot act outside the deploying region
+- **WHEN** a hypothetical invocation targets a cluster ARN in a different region
+- **THEN** the `DeleteDBCluster` call returns `AccessDenied` because the policy's resource ARN pins `${AWS::Region}`
 
 ### Requirement: Custom resource in db.template depends on AuroraCluster
 
