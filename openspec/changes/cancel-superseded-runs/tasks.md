@@ -1,13 +1,13 @@
 ## 1. Workflow edit
 
-- [ ] 1.1 Branch from `dev` per the spec-branch rule: `git checkout dev && git pull && git checkout -b cancel-superseded-runs`.
-- [ ] 1.2 In [.github/workflows/zbuild.yml](../../../.github/workflows/zbuild.yml), add a workflow-level `concurrency:` block at the top of the file (between `on:` and `env:`):
+- [x] 1.1 Branch from `dev` per the spec-branch rule: `git checkout dev && git pull && git checkout -b cancel-superseded-runs`.
+- [x] 1.2 In [.github/workflows/zbuild.yml](../../../.github/workflows/zbuild.yml), add a workflow-level `concurrency:` block at the top of the file (between `on:` and `env:`):
   ```yaml
   concurrency:
     group: workflow-${{ github.ref }}
     cancel-in-progress: ${{ github.ref != 'refs/heads/app' }}
   ```
-- [ ] 1.3 Verify the existing job-level `concurrency:` block on the `deploy` job (around line 357-359) is unchanged. It must remain as `deploy-${{ matrix.region }}-${{ needs.get-branch-name.outputs.branch-name }}` with `cancel-in-progress: false` — the `branch-stack-cleanup` capability requires this group key to exist.
+- [x] 1.3 Verify the existing job-level `concurrency:` block on the `deploy` job (around line 357-359) is unchanged. It must remain as `deploy-${{ matrix.region }}-${{ needs.get-branch-name.outputs.branch-name }}` with `cancel-in-progress: false` — the `branch-stack-cleanup` capability requires this group key to exist.
 - [ ] 1.4 Commit with message that does NOT contain the substring `nodeploy` anywhere (subject or body) so the deploy step doesn't silently skip during testing. The commit message can describe the marker via paraphrase ("the deploy-skip substring", "the queue/no-cancel marker").
 
 ## 2. Validate the new behavior
@@ -32,7 +32,7 @@
 
 ## 5. Validate and archive
 
-- [ ] 5.1 Run `openspec validate cancel-superseded-runs --strict`. Must pass.
+- [x] 5.1 Run `openspec validate cancel-superseded-runs --strict`. Must pass.
 - [ ] 5.2 Verify each scenario in [specs/ci-run-concurrency/spec.md](specs/ci-run-concurrency/spec.md) is observable.
-- [ ] 5.3 Update [CLAUDE.md](../../../CLAUDE.md) under "Useful workflow controls": note that subsequent pushes to non-`app` branches cancel any in-flight run for that branch; `app` queues.
+- [x] 5.3 Update [CLAUDE.md](../../../CLAUDE.md) under "Useful workflow controls": note that subsequent pushes to non-`app` branches cancel any in-flight run for that branch; `app` queues.
 - [ ] 5.4 Archive via `/opsx:archive cancel-superseded-runs`. Capability `ci-run-concurrency` is promoted to `openspec/specs/`.

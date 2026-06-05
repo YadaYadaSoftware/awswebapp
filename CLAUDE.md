@@ -107,6 +107,7 @@ This repo has an unusual branching scheme — read carefully before doing anythi
 
 Useful workflow controls:
 - Add `nodeploy` to a non-merge commit message to skip the deploy + UI test + publish jobs.
+- A new push to any **non-`app`** branch cancels the in-flight workflow run for that branch (build, test, deploy, and UI tests all stop) — "latest push wins". This comes from the workflow-level `concurrency: { group: workflow-${{ github.ref }}, cancel-in-progress: ${{ github.ref != 'refs/heads/app' }} }` block. `app` is exempt: pushes there **queue** behind the in-flight run so production deploys are never interrupted mid-flight. The `deploy` job keeps its own job-level `concurrency` block (`deploy-{region}-{branch}`, `cancel-in-progress: false`) for the cleanup-vs-deploy mutex.
 - The `dev`/`alpha`/`beta`/`app` branches **fail the build if `changes/` is non-empty** — use `scripts/merge-to-dev.ps1` (or the `.sh` variant) to flush pending change files into `changelog.md`.
 - New branches should be created with `scripts/create-branch.ps1`, which generates a `changes.md` whose first non-empty line becomes the changelog entry on merge into `dev`.
 - The Docker image is content-addressed by a SHA256 of `src/`; if an image with that tag already exists in ECR, the build step is skipped.

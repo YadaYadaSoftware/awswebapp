@@ -17,6 +17,13 @@ on:
       - 'scripts/**'
       - '**/*.md'
 
+# Per-branch run cancellation: a new push to any non-`app` branch cancels the
+# in-flight run for that branch (build/test/deploy/UI tests all stop). `app`
+# preserves queue-behavior so production deploys are never interrupted mid-flight.
+concurrency:
+  group: workflow-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/app' }}
+
 env:
   # Region values sourced from repo Variables (Settings -> Secrets and variables
   # -> Actions -> Variables). Set AWS_REGION_PRIMARY and AWS_REGION_SECONDARY
