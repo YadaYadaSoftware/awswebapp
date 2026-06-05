@@ -39,7 +39,7 @@ dotnet test                                 # runs against BaseUrl in appsetting
 dotnet test --filter "FullyQualifiedName~LoginNavigation"   # single test
 
 # Connect to the deployed Aurora DB through the bastion
-.\Connect-TaskManagerDB.ps1 -UseSSM
+.\Connect-AuroraDB.ps1 -UseSSM
 ```
 
 ## Architecture

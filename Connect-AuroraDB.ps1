@@ -24,15 +24,15 @@
 
 .EXAMPLE
     # Using SSH tunnel
-    .\Connect-TaskManagerDB.ps1 -KeyPath "C:\path\to\your\key.pem"
+    .\Connect-AuroraDB.ps1 -KeyPath "C:\path\to\your\key.pem"
 
 .EXAMPLE
     # Using SSM port forwarding (no SSH key needed)
-    .\Connect-TaskManagerDB.ps1 -UseSSM
+    .\Connect-AuroraDB.ps1 -UseSSM
 
 .EXAMPLE
     # Connect to specific database and open client
-    .\Connect-TaskManagerDB.ps1 -UseSSM -Database "taskmanager_main" -OpenClient
+    .\Connect-AuroraDB.ps1 -UseSSM -Database "taskmanager_main" -OpenClient
 #>
 
 param(
@@ -208,7 +208,7 @@ function Setup-SSHTunnel {
             Write-ColorOutput "[ERROR] Failed to establish SSM port forwarding" $Red
             Write-ColorOutput "[INFO] This is likely due to missing AWS Session Manager plugin" $Yellow
             Write-ColorOutput "[TIP] Install from: https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html" $Cyan
-            Write-ColorOutput "[TIP] Or try using SSH: .\Connect-TaskManagerDB.ps1 -KeyPath 'C:\path\to\key.pem'" $Cyan
+            Write-ColorOutput "[TIP] Or try using SSH: .\Connect-AuroraDB.ps1 -KeyPath 'C:\path\to\key.pem'" $Cyan
             exit 1
         }
 
