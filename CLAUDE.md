@@ -128,6 +128,28 @@ Confirmation emails sent after Google OAuth registration are delivered via AWS S
 
 **Currently verified** (both regions): `appcloud.systems` (domain, DKIM), `hounddog@gmail.com` (test address, sandbox-era).
 
+## Implementing an OpenSpec change
+
+When starting work on a spec — anything under `openspec/changes/<name>/` or `openspec/specs/<name>/` — **branch from `dev` with the spec's exact name** (no `feature/`/`fix/`/etc. type prefix):
+
+```powershell
+git checkout dev
+git pull
+git checkout -b <spec-name>
+```
+
+For example, to begin implementing the in-flight change `robust-branch-stack-cleanup`, work on a branch named literally `robust-branch-stack-cleanup`. The branch-leaf computation in the deploy workflow (`BRANCH_NAME=${FULL_BRANCH_NAME##*/}`) strips any path prefix, so the resulting per-branch CloudFormation stack is `<spec-name>-<dashed-domain>` (e.g. `robust-branch-stack-cleanup-appcloud-systems`) deployed to `https://<spec-name>.{DOMAIN_NAME}`. The bare-name convention is for human readability — branch → CloudFormation stack → deployed URL → eventual PR all carry the spec name verbatim.
+
+This rule applies to:
+- A change being newly implemented (`openspec/changes/<name>/`).
+- A revisit / modification of a capability already in `openspec/specs/<name>/`.
+
+It does **not** apply to:
+- Operational fixes or small chores unrelated to a spec — those follow the existing `{type}/{name}` convention.
+- The four shared-infrastructure branches (`app`/`beta`/`alpha`/`dev`) which serve their own purposes.
+
+Multiple specs in flight at once don't collide because each spec name is unique. If the user has scaffolded a change with `/opsx:propose` but hasn't yet branched, do that as the first step of implementation — before touching any source file.
+
 ## Things that will trip you up
 
 - **Don't add migrations to `Tjb.Data`** — the `MigrationsAssembly` is `Tjb.Migrations`. EF tooling needs `--project src/Tjb.Migrations`.
