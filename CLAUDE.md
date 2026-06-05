@@ -99,7 +99,8 @@ Resource names across CloudFormation templates and the deploy workflow are **der
 
 This repo has an unusual branching scheme — read carefully before doing anything git-related:
 
-- **PRs target `app`** (the production branch). `app` is also the GitVersion `main`.
+- **Solo developer — there are NO pull requests.** This repo is maintained by a single developer; changes are integrated by **direct merge/push**, never via GitHub PRs or code review. Do not offer to "open a PR", wait for review, or describe work as blocked on a merge request — just merge/push directly when asked.
+- **`app` is the production branch** (and the GitVersion `main`). Feature/`{type}/{name}` branches merge down into `dev` for integration and up into `app` to release — by hand, not through PRs.
 - Three "shared infrastructure" branches deploy multi-region (`AWS_REGION_PRIMARY` + `AWS_REGION_SECONDARY` repo vars; currently `us-east-1` + `us-east-2`): `app`, `beta`, `alpha`. They use `infrastructure/master.template` (full backend incl. Aurora Global Cluster).
 - `dev` is single-region but also uses the master template.
 - Every other branch follows `{type}/{name}` where type is `build|deploy|system|feature|fix`. These deploy `infrastructure/application.template` (just the app stack, importing backend exports from `dev`) into a per-branch CloudFormation stack named `{branch-leaf}-{processed-domain}`.
@@ -139,7 +140,7 @@ git pull
 git checkout -b <spec-name>
 ```
 
-For example, to begin implementing the in-flight change `robust-branch-stack-cleanup`, work on a branch named literally `robust-branch-stack-cleanup`. The branch-leaf computation in the deploy workflow (`BRANCH_NAME=${FULL_BRANCH_NAME##*/}`) strips any path prefix, so the resulting per-branch CloudFormation stack is `<spec-name>-<dashed-domain>` (e.g. `robust-branch-stack-cleanup-appcloud-systems`) deployed to `https://<spec-name>.{DOMAIN_NAME}`. The bare-name convention is for human readability — branch → CloudFormation stack → deployed URL → eventual PR all carry the spec name verbatim.
+For example, to begin implementing the in-flight change `robust-branch-stack-cleanup`, work on a branch named literally `robust-branch-stack-cleanup`. The branch-leaf computation in the deploy workflow (`BRANCH_NAME=${FULL_BRANCH_NAME##*/}`) strips any path prefix, so the resulting per-branch CloudFormation stack is `<spec-name>-<dashed-domain>` (e.g. `robust-branch-stack-cleanup-appcloud-systems`) deployed to `https://<spec-name>.{DOMAIN_NAME}`. The bare-name convention is for human readability — branch → CloudFormation stack → deployed URL all carry the spec name verbatim (there are no PRs; see the solo-developer note under "Branch model & CI/CD").
 
 This rule applies to:
 - A change being newly implemented (`openspec/changes/<name>/`).
