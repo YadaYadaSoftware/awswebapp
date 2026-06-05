@@ -155,7 +155,7 @@ Multiple specs in flight at once don't collide because each spec name is unique.
 
 This repo is worked from **multiple sibling folders at once** so several features can be in flight in parallel. Each folder is a separate checkout (a `git worktree` or a full clone) of the same repo, side-by-side under the **family directory** (the parent of this repo root, e.g. `…\awswebapp\`). See [BROTHERS.md](BROTHERS.md) for the full convention.
 
-- Each work folder is a **brother** in a family of Germans; the folder's leaf name **is** the brother's identity (e.g. `wilhelm`, `friedrich`). Names come from the roster in [BROTHERS.md](BROTHERS.md).
+- Each work folder is a **brother** in a family of Germans; the folder's leaf name **is** the brother's identity — one of the names on the roster in [BROTHERS.md](BROTHERS.md) (`claude` is a brother too: the eldest/default — don't exclude it as "not German").
 - `app` and `dev` are not brothers — they are the **homestead** (shared production/integration clones).
 - A brother works one branch at a time: the **brother (folder) = who**, the **branch = what**. They're independent — `wilhelm` might be on branch `cancel-superseded-runs`.
 

@@ -11,7 +11,7 @@ Report **who you are** — the brother (work folder) you are operating from — 
 
 **Steps**
 
-1. **Identity.** Run `git rev-parse --show-toplevel` and take the last path segment. That leaf is your **brother name** (e.g. `wilhelm`, `friedrich`). If it is `dev` or `app`, you are at the **homestead** (the shared integration/production clones), not a feature brother — say so.
+1. **Identity.** Run `git rev-parse --show-toplevel` and take the last path segment. That leaf is your **brother name** — one of the names on the roster in [BROTHERS.md](../../BROTHERS.md) (including `claude`, the eldest/default brother — don't exclude it as "not German"). If it is `dev` or `app`, you are at the **homestead** (the shared integration/production clones), not a feature brother — say so.
 
 2. **Current task.** Gather:
    - Branch: `git rev-parse --abbrev-ref HEAD`
