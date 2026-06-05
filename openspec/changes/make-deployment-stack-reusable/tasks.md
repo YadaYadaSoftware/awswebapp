@@ -1,61 +1,64 @@
+## 0. AUTONOMOUS-RUN STATUS — read first
+
+This change was partially implemented during an autonomous feature-branch run. **Phase 2
+(NuGet packaging) is done; Phases 1, 3, and 4 are deferred and need your decisions** — see
+the per-task notes and the "Implementation notes" at the bottom. Two reasons this spec is
+only partially auto-implementable:
+
+1. **Phase 1 is largely already satisfied.** `grep -rn 'taskmanager' infrastructure/` returns
+   **zero hits** — the bootstrap consolidation + `domain-qualified-stack-exports` already moved
+   all naming to `${AWS::StackName}` / `DomainName`-derived forms. The spec's premise (strip
+   `taskmanager-*` literals) is effectively complete. What remains — adding a *separate*
+   `ProjectName` parameter distinct from the domain — **conflicts with the established
+   convention** (CLAUDE.md: names derive from the dashed domain = `${AWS::StackName}`). That's
+   a design decision, not a mechanical edit. **Need your call:** keep deriving from the domain
+   (recommended; ProjectName == dashed domain), or introduce a distinct ProjectName axis?
+2. **Decision gates + risk.** Tasks 1.2 (lock the final package name — "hard to change") and
+   1.3 (confirm the AWS account model before tagging v1.0.0) are explicit human decisions.
+   Phase 3 (rewriting the entire `deploy` job into a reusable `workflow_call` + turning
+   `zbuild.yml` into a thin caller) is the single highest-risk change in the backlog and was
+   not done blind/unattended.
+
 ## 1. Prereqs and audit
 
-- [ ] 1.1 Confirm the in-flight foundational changes are done or accounted for: `centralize-aurora-kms-keys` deployed to all four env stacks; `robust-aurora-cluster-teardown` and `move-shared-lambda-role-to-bootstrap` are either landed or explicitly deferred until *after* this change. Working order: KMS centralization first (already underway), then this change, then the others can land in any order.
-- [ ] 1.2 Decide and document the final NuGet package name. Working name in this proposal is `YadaYada.AwsWebApp.DeploymentStack`. Once tagged it's hard to change; lock in before Phase 2.
-- [ ] 1.3 Decide and document the AWS-account model assumption: one consumer project per AWS account, OR multiple consumers per account with namespace isolation. The proposal recommends one-per-account; confirm before tagging v1.0.0.
-- [ ] 1.4 Audit hardcoded project-specific values: `grep -rn 'taskmanager' infrastructure/`, `grep -rn 'appcloud.systems' infrastructure/ .github/`, `grep -rn 'Tjb' infrastructure/ .github/`. Save the result as a checklist for Phase 1.
+- [ ] 1.1 Confirm foundational changes landed/deferred. — *`move-shared-lambda-role-to-bootstrap` is implemented on its own branch (not merged); ordering per design still applies.*
+- [ ] 1.2 Decide + document the final NuGet package name. — *NEEDS DECISION. Used working name `YadaYada.AwsWebApp.DeploymentStack` as a PREVIEW (not locked; only branch-suffixed pre-release versions publish).*
+- [ ] 1.3 Decide + document the AWS-account model (one-consumer-per-account vs namespaced). — *NEEDS DECISION before any v1.0.0 tag.*
+- [x] 1.4 Audit hardcoded project-specific values. — *Done: `taskmanager` → 0 hits in `infrastructure/`. `appcloud.systems` hits are descriptions + a few `Default:` values on `DomainName` params (api/application/dns/infrastructure). `Tjb` hits are genuinely project-specific source paths in `api.template` (CodeUri/handler) and descriptions.*
 
-## 2. Phase 1 — Template parameterization (internal, no consumer changes)
+## 2. Phase 1 — Template parameterization
 
-- [ ] 2.1 Add `ProjectName` parameter (`Type: String`, no default — required) to [infrastructure/bootstrap.template](../../../infrastructure/bootstrap.template). Replace every `taskmanager` literal with `!Sub "${ProjectName}-..."` (or equivalent for KMS alias names, SSM paths, IAM policy resource patterns). The SSM key paths become `/${ProjectName}/kms/{prod,nonprod}/aurora-key-arn`.
-- [ ] 2.2 Add `ProjectName` parameter to [infrastructure/master.template](../../../infrastructure/master.template), thread to all nested stacks. Add `DomainName` parameter if not already there (currently it's a parameter but with `Default: "appcloud.systems"` — remove the default so the consumer must specify).
-- [ ] 2.3 Add `ProjectName` parameter to [infrastructure/backend.template](../../../infrastructure/backend.template). Replace any project-name literals.
-- [ ] 2.4 [infrastructure/db.template](../../../infrastructure/db.template): `taskmanager-${BranchName}-global-cluster` becomes `${ProjectName}-${BranchName}-global-cluster`; the secrets-manager path `taskmanager/database/regional/*` becomes `${ProjectName}/database/regional/*`. Aurora cluster identifiers use `${ProjectName}` prefix.
-- [ ] 2.5 [infrastructure/security.template](../../../infrastructure/security.template) (if still present at apply time): replace `taskmanager-*` IAM policy resource patterns with `${ProjectName}-*`. (If `move-shared-lambda-role-to-bootstrap` has landed, this file may not exist; skip.)
-- [ ] 2.6 [infrastructure/web.template](../../../infrastructure/web.template), [infrastructure/api.template](../../../infrastructure/api.template), [infrastructure/dns.template](../../../infrastructure/dns.template), [infrastructure/network.template](../../../infrastructure/network.template), [infrastructure/infrastructure.template](../../../infrastructure/infrastructure.template): audit and parameterize. ECS cluster name, log group name, target group names, etc.
-- [ ] 2.7 Update [.github/workflows/zbuild.yml](../../../.github/workflows/zbuild.yml)'s "Set parameter overrides" step to pass `ProjectName=taskmanager DomainName=appcloud.systems` for now (so this repo's deploys keep working with TaskManager values).
-- [ ] 2.8 `aws cloudformation validate-template` on all touched templates.
-- [ ] 2.9 Push to a throwaway feature branch and verify the deploy still works (templates render correctly with the parameterization, no resource-naming surprises).
-- [ ] 2.10 Push to dev to confirm the master-template branches still work end-to-end. The dev env stack may need a CFN UPDATE to pick up the new `ProjectName` parameter. Verify resource names didn't change (they shouldn't, since we're passing the same literal `taskmanager` value).
-- [ ] 2.11 Grep audit: `grep -r "taskmanager" infrastructure/` returns zero hits (other than comments). `grep -r "appcloud.systems" infrastructure/` returns zero hits.
+- [ ] 2.1–2.6 Add `ProjectName` parameter across templates; replace `taskmanager-*`. — *DEFERRED pending the §0.1 design decision. The `taskmanager` literals are already gone (derived from `${AWS::StackName}`); introducing a separate `ProjectName` axis would diverge from the convention and should be decided first. Remaining genuinely-project-specific bits: `DomainName` `Default: "appcloud.systems"` (remove so consumers must specify) and `api.template`'s `Tjb.Api` CodeUri/handler.*
+- [ ] 2.7–2.11 Workflow ProjectName override, validate, deploy checks, grep audit. — *DEFERRED with 2.1–2.6.*
 
 ## 3. Phase 2 — NuGet package the templates
 
-- [ ] 3.1 Create new project `src/YadaYada.AwsWebApp.DeploymentStack/YadaYada.AwsWebApp.DeploymentStack.csproj`. Minimal SDK-style csproj with `<IsPackable>true</IsPackable>`, package metadata (id, authors, repository URL, etc.), and `<Content>` items that include every file in the `infrastructure/` directory with `Pack="true" PackagePath="contentFiles/any/any/infrastructure/"`.
-- [ ] 3.2 Add the new project to [Tjb.sln](../../../Tjb.sln) (or whatever solution file is current).
-- [ ] 3.3 Build locally: `dotnet pack src/YadaYada.AwsWebApp.DeploymentStack -o ./nupkgs`. Inspect the produced `.nupkg` (it's a zip) — confirm `contentFiles/any/any/infrastructure/*.template` is present.
-- [ ] 3.4 Update [.github/workflows/zbuild.yml](../../../.github/workflows/zbuild.yml)'s `Pack` steps section (in the build job, where `Pack Tjb.Shared` etc. live) to add a `Pack YadaYada.AwsWebApp.DeploymentStack` step following the same SemVer + branch-suffix conventions.
-- [ ] 3.5 The existing `publish-nuget` job picks up all packages in `./nupkgs/`, so no further publish-job changes needed — verify on the next CI run.
-- [ ] 3.6 Tag the merge on the working branch as a pre-release (`v1.0.0-preview.1`) and confirm the package shows up on GitHub Packages.
+- [x] 3.1 Create `src/YadaYada.AwsWebApp.DeploymentStack/…csproj` — content-only package (`IsPackable`, `IncludeBuildOutput=false`), packing every file in `infrastructure/` to `contentFiles/any/any/infrastructure/`.
+- [x] 3.2 Add the project to [Tjb.sln](../../../Tjb.sln). — *`dotnet sln add`.*
+- [x] 3.3 Build + inspect the `.nupkg`. — *Verified: `dotnet pack` produces `contentFiles/any/any/infrastructure/*.template` for all templates (bootstrap, master, backend, db, network, infrastructure, web, api, dns, security).*
+- [x] 3.4 Add a `Pack YadaYada.AwsWebApp.DeploymentStack` step to the build job mirroring the existing Pack steps' SemVer + branch-suffix convention (content-only → no `--include-symbols/--include-source`).
+- [x] 3.5 The existing `publish-nuget` job picks up everything in `./nupkgs/` — no publish-job change needed. — *Confirmed by inspection; verify on the next CI run.*
+- [ ] 3.6 Tag a pre-release and confirm on GitHub Packages. — *Not done autonomously (tagging is a release decision). The branch build will publish a branch-suffixed pre-release automatically.*
 
 ## 4. Phase 3 — Extract the reusable workflow
 
-- [ ] 4.1 Create new workflow file `.github/workflows/deploy.yml` with `on: workflow_call:` at the top. Define inputs per design.md D3 (project-name, domain-name, hosted-zone-id, secondary-region, multi-region-branches, prod-branch, dotnet-version, web-project-path, web-dockerfile-path) and secrets (AWS_ACCESS_KEY_ID / SECRET / *_PROD, DATABASE_PASSWORD, GOOGLE_CLIENT_ID / SECRET).
-- [ ] 4.2 Move the bulk of `zbuild.yml`'s `deploy` job into `deploy.yml`. Replace references to `secrets.X` and hardcoded values with `inputs.X` and `secrets.X` (passed in from caller). Replace `${{ secrets.DOMAIN_NAME }}` → `${{ inputs.domain-name }}`, etc. Keep the existing select-creds / SSM-lookup / parameter-overrides logic — those need to be parameterized to use `${{ inputs.project-name }}` in SSM paths and stack names.
-- [ ] 4.3 Add a new "Extract DeploymentStack templates" step at the very top of the deploy job in `deploy.yml`. The step (a) determines the package path in the dotnet global-packages cache, (b) copies `contentFiles/any/any/infrastructure/*` into `./infrastructure/` of the runner. The reusable workflow caller (`zbuild.yml`) must have installed the package via the build job's `dotnet restore` before calling `deploy.yml`.
-- [ ] 4.4 Update [.github/workflows/zbuild.yml](../../../.github/workflows/zbuild.yml) to be the TaskManager-specific caller:
-  - Keep the .NET build, test, pack-nuget steps unchanged (they're TaskManager-specific build logic that runs before deploy).
-  - Add a step that ensures the new `YadaYada.AwsWebApp.DeploymentStack` package is installed (probably by including it as a PackageReference in `Tjb.Web.csproj` or a dedicated `infrastructure/Infrastructure.csproj`, so `dotnet restore` resolves it).
-  - Add a `deploy` job that does `uses: ./.github/workflows/deploy.yml` and provides TaskManager's specific inputs and secrets.
-- [ ] 4.5 Verify on a throwaway feature branch that the new shape works end-to-end (`zbuild.yml` builds + tests, then calls `deploy.yml`, which extracts templates + deploys).
-- [ ] 4.6 Verify on dev that master-template deploys still work via the new shape.
+- [ ] 4.1–4.6 Create `.github/workflows/deploy.yml` (`workflow_call`), move the `deploy` job into it, parameterize SSM paths/stack names by input, add a template-extraction step, and rewrite `zbuild.yml` as a thin caller. — *DEFERRED: highest-risk change in the backlog (full deploy-pipeline rewrite). Not done blind in an unattended run; recommend implementing attended, on a throwaway branch, with a live deploy watched end-to-end (task 4.5).*
 
 ## 5. Phase 4 — Documentation and release
 
-- [ ] 5.1 Write `CONSUMING.md` at repo root. Sections: prereqs, onboarding steps (1-9 numbered), input reference (table), secret reference (table), branch model, troubleshooting. Include a complete example consumer workflow YAML.
-- [ ] 5.2 Update [README.md](../../../README.md) and [CLAUDE.md](../../../CLAUDE.md) to reflect that this repo is also a library; point to `CONSUMING.md`. Don't delete the existing project-specific docs (TaskManager is still a real consumer).
-- [ ] 5.3 Tag the merge on `app` as `v1.0.0` (or whatever GitVersion produces). The NuGet package version matches the tag.
-- [ ] 5.4 Announce internally (org Slack / awareness email) that `YadaYadaSoftware/awswebapp` is now consumable as a deployment stack; point to `CONSUMING.md`.
+- [ ] 5.1 Write `CONSUMING.md`. — *DEFERRED: it must document the reusable workflow's input/secret surface, which doesn't exist until Phase 3 lands. Writing it now would be fiction/drift.*
+- [ ] 5.2 Update README.md / CLAUDE.md to note the repo is also a library. — *DEFERRED until the consumable surface (Phase 3) exists.*
+- [ ] 5.3 Tag `v1.0.0` on `app`. — *DEFERRED (release decision; gated on 1.2/1.3).*
+- [ ] 5.4 Announce internally. — *DEFERRED.*
 
 ## 6. Validation
 
-- [ ] 6.1 Run `openspec validate make-deployment-stack-reusable --strict` and resolve any issues.
-- [ ] 6.2 Manually verify each `## Requirement` scenario from `specs/reusable-deployment-stack/spec.md`:
-  - NuGet package publishes on `app` merge; pre-release version on other branches.
-  - Templates extractable from `contentFiles/any/any/infrastructure/`.
-  - Reusable workflow callable from another repo (test with a dummy repo if no real second consumer is ready yet).
-  - TaskManager self-consumes via `uses: ./.github/workflows/deploy.yml`.
-  - Required inputs and secrets enforced (try omitting one; verify the workflow fails clearly).
-  - `grep` audit confirms no `taskmanager` or `appcloud.systems` literals in `infrastructure/`.
-  - `CONSUMING.md` documents every input the workflow takes (no drift).
-- [ ] 6.3 Archive this change per the experimental workflow (`/opsx:archive`).
+- [x] 6.1 `openspec validate make-deployment-stack-reusable --strict`. — *passed.*
+- [ ] 6.2 Verify each spec scenario against the deployed system. — *Partially: the packaging scenarios (package builds, templates extractable from `contentFiles/any/any/infrastructure/`) are verified locally. Reusable-workflow / consumer scenarios are blocked on Phase 3.*
+- [ ] 6.3 Archive this change. — *Intentionally NOT done (feature-branch-only run; no merge/archive). Also, this change is only partially implemented — it should not be archived until Phases 1/3/4 land.*
+
+## Implementation notes (autonomous run on branch `make-deployment-stack-reusable`)
+
+- **Delivered (safe, additive, decision-light):** the template NuGet package (`YadaYada.AwsWebApp.DeploymentStack`, preview name) + sln entry + a CI Pack step. The existing publish job will push a branch-suffixed pre-release. No deploy-path behavior changed, so the feature-branch deploy is unaffected by this change.
+- **Deferred for your input:** the `ProjectName`-vs-`${AWS::StackName}` design decision (§0.1), the package-name lock-in (1.2), the account-model decision (1.3), the high-risk reusable-workflow extraction (Phase 3), and the docs/release (Phase 4, which depend on Phase 3).
+- **Recommendation:** treat Phase 2 as a foundation; tackle Phase 3 attended on a throwaway branch with a watched deploy, after deciding the naming axis and package name.
