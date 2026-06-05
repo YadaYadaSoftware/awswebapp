@@ -118,12 +118,6 @@ Resources:
                 Resource: "*"
 
 Outputs:
-  SharedLambdaRoleArn:
-    Description: Shared Lambda execution role ARN
-    Value: !GetAtt SharedLambdaExecutionRole.Arn
-    Export:
-      Name: !Sub "SharedLambdaRoleArn-${BranchName}"
-
   SharedLambdaRoleArnDomainQualified:
     Description: Shared Lambda execution role ARN
     Value: !GetAtt SharedLambdaExecutionRole.Arn
