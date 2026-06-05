@@ -121,12 +121,12 @@ Statement:
     Action:
       - rds:DeleteDBCluster
       - rds:ModifyDBCluster
-    Resource: !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster:${AWS::StackName}-*
+    Resource: !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster:*
 
   - Effect: Allow
     Action:
       - rds:DeleteDBInstance
-    Resource: !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:db:${AWS::StackName}-*
+    Resource: !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:db:*
 
   - Effect: Allow
     Action:
@@ -141,23 +141,27 @@ Statement:
     Resource: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:*
 ```
 
-**Note on the resource scoping (revised during implementation):** the legacy
-draft assumed clusters were named `taskmanager-*`. They are not — under the
-current convention `db.template` lets CloudFormation auto-name the cluster
-(e.g. `dev-appcloud-systems-dbstack-auroracluster-ab12…`), which has no stable
-prefix to scope against. To restore a meaningful resource constraint we give
-the cluster an **explicit** `DBClusterIdentifier` of `${DomainDashed}-${BranchName}`
-(and the instance `${DomainDashed}-${BranchName}-instance`). Since the bootstrap
-stack's `${AWS::StackName}` *is* the dashed domain, the policy scopes to
-`${AWS::StackName}-*`, which matches every env cluster (`appcloud-systems-dev`,
-`appcloud-systems-app`, …) and excludes unrelated clusters in the account/region.
+**Note on the resource scoping (revised twice during implementation):** the legacy
+draft assumed clusters were named `taskmanager-*`. They are not — under the current
+convention `db.template` lets CloudFormation auto-name the cluster (e.g.
+`dev-appcloud-systems-backendstack-7d-auroracluster-<rand>`), which has no stable
+prefix to scope against. An interim revision tried to restore a tight constraint by
+giving the cluster an **explicit** `DBClusterIdentifier` of `${DomainDashed}-${BranchName}`
+and scoping to `${AWS::StackName}-*`. **That was reversed** (see tasks §0.1): an
+explicit identifier forces a cluster **replacement**, and the replacement's new
+endpoint changes the `DatabaseHost` export — which CloudFormation refuses to update
+while the env's Web/Api stacks **and every feature branch's app stack** import it
+(`application.template` imports backend exports from `dev`). The dev deploy on
+2026-06-05 rolled back on exactly this error.
 
-**Trade-off — replacement risk:** adding `DBClusterIdentifier` to a cluster that
-was previously auto-named forces CloudFormation to **replace** it (destroying
-data). This is fine for `dev` but requires a snapshot/restore migration on
-`alpha`/`beta`/`app`. See tasks §5 for the rollout plan. The alternative
-(scope to `cluster:*`, no rename) was considered and rejected in favour of the
-named guard; revisit if the migration cost proves unacceptable.
+**Final decision — no rename, region-scoped grant:** keep the cluster/instance
+auto-named and scope the policy to `cluster:*`/`db:*` within the deploying region.
+Auto-names can't be prefix-matched from the region-wide bootstrap role, and a
+safety-net teardown that silently lacks delete permission is worse than a broad
+in-region grant. The Lambda only ever deletes the one cluster the custom resource
+names in its `Delete` event, so the practical blast radius is unchanged. This also
+removes all replacement/data-loss risk from the rollout (tasks §5). **Future
+hardening:** tag env clusters with the domain and constrain via `aws:ResourceTag`.
 
 ### D6. Custom-resource property change handling
 
