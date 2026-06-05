@@ -151,6 +151,24 @@ It does **not** apply to:
 
 Multiple specs in flight at once don't collide because each spec name is unique. If the user has scaffolded a change with `/opsx:propose` but hasn't yet branched, do that as the first step of implementation — before touching any source file.
 
+## Parallel work folders (the brothers)
+
+This repo is worked from **multiple sibling folders at once** so several features can be in flight in parallel. Each folder is a separate checkout (a `git worktree` or a full clone) of the same repo, side-by-side under the **family directory** (the parent of this repo root, e.g. `…\awswebapp\`). See [BROTHERS.md](BROTHERS.md) for the full convention.
+
+- Each work folder is a **brother** in a family of Germans; the folder's leaf name **is** the brother's identity (e.g. `wilhelm`, `friedrich`). Names come from the roster in [BROTHERS.md](BROTHERS.md).
+- `app` and `dev` are not brothers — they are the **homestead** (shared production/integration clones).
+- A brother works one branch at a time: the **brother (folder) = who**, the **branch = what**. They're independent — `wilhelm` might be on branch `cancel-superseded-runs`.
+
+**Answering the two identity questions** — whether asked via slash command **or in plain conversation** ("who are you?", "which brother am I talking to?", "what are my brothers doing?", "what's the rest of the family up to?"), follow these procedures (read-only — never modify anything to answer them):
+
+- **Who am I / who are you** (also `/whoami`): the leaf of `git rev-parse --show-toplevel` is your brother name. Report it with your current branch (`git rev-parse --abbrev-ref HEAD`), last commit (`git log -1 --format='%s (%cr)'`), tree state (`git status --porcelain`), and the contents of a `.brother-status` file if present. If the leaf is `dev`/`app`, say you're at the homestead, not a feature brother.
+- **What are my brothers doing** (also `/brothers`): run `powershell -NoProfile -File scripts\Get-Brothers.ps1`, which scans the family directory for every sibling checkout and prints each one's branch, tree state, ahead/behind, last commit, and `.brother-status` note. Summarize one line per brother, excluding yourself. If the script can't run, enumerate sibling folders containing a `.git` entry and query each with `git -C <folder> …`.
+
+Creating a new brother (lightweight worktree off `dev`):
+```powershell
+git -C ...\dev worktree add ..\wilhelm -b <branch-name> dev
+```
+
 ## Things that will trip you up
 
 - **Don't add migrations to `Tjb.Data`** — the `MigrationsAssembly` is `Tjb.Migrations`. EF tooling needs `--project src/Tjb.Migrations`.

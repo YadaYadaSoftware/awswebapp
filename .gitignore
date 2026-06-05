@@ -479,3 +479,6 @@ logs/
 /playwright/.cache/
 /playwright/.auth/
 *.nupkg
+
+# Per-folder brother status note (see BROTHERS.md) - local to each work folder, never committed
+.brother-status
