@@ -62,8 +62,15 @@ The Lambda is shared infrastructure — all env stacks in a given region use the
 Discovery follows the same pattern as the KMS keys (already in production): bootstrap publishes the Lambda's ARN at a known SSM path, the workflow does an `aws ssm get-parameter` lookup at deploy time, and passes the value as a stack parameter through `master → backend → db`.
 
 ```
-/taskmanager/lambda/aurora-cluster-delete-handler-arn   (in each region)
+/${AWS::StackName}/lambda/aurora-cluster-delete-handler-arn   (in each region)
+e.g. /appcloud-systems/lambda/aurora-cluster-delete-handler-arn
 ```
+
+> **Updated during implementation:** the legacy draft used a hardcoded
+> `/taskmanager/...` path. The `domain-derived-resource-naming` refactor has
+> since made every SSM path derive from the dashed domain (`${AWS::StackName}`
+> in bootstrap, `${processed-domain}` in the workflow), so this change follows
+> that convention to match the existing KMS key parameters.
 
 **Why not `Fn::ImportValue`:** same reasons as for the KMS ARN — Exports create rigid cross-stack coupling that prevents bootstrap updates while consumers exist. SSM is the established pattern in this codebase.
 
@@ -98,7 +105,7 @@ The wait-for-stable-then-delete step (#4) is the critical piece. A cluster stuck
 
 CFN signaling uses the `cfn-response` module (Lambda runtime: `python3.12`) — a well-trodden pattern.
 
-### D5. Lambda IAM permissions: scoped to `taskmanager-*` clusters only
+### D5. Lambda IAM permissions: scoped to this deployment's clusters only
 
 The Lambda's IAM role policy:
 
@@ -114,12 +121,12 @@ Statement:
     Action:
       - rds:DeleteDBCluster
       - rds:ModifyDBCluster
-    Resource: !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster:taskmanager-*
+    Resource: !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster:${AWS::StackName}-*
 
   - Effect: Allow
     Action:
       - rds:DeleteDBInstance
-    Resource: !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:db:taskmanager-*
+    Resource: !Sub arn:aws:rds:${AWS::Region}:${AWS::AccountId}:db:${AWS::StackName}-*
 
   - Effect: Allow
     Action:
@@ -134,7 +141,23 @@ Statement:
     Resource: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:*
 ```
 
-**Note on the resource scoping:** All our Aurora clusters are named `taskmanager-*` (per the existing template patterns). The Lambda can't accidentally delete an unrelated cluster.
+**Note on the resource scoping (revised during implementation):** the legacy
+draft assumed clusters were named `taskmanager-*`. They are not — under the
+current convention `db.template` lets CloudFormation auto-name the cluster
+(e.g. `dev-appcloud-systems-dbstack-auroracluster-ab12…`), which has no stable
+prefix to scope against. To restore a meaningful resource constraint we give
+the cluster an **explicit** `DBClusterIdentifier` of `${DomainDashed}-${BranchName}`
+(and the instance `${DomainDashed}-${BranchName}-instance`). Since the bootstrap
+stack's `${AWS::StackName}` *is* the dashed domain, the policy scopes to
+`${AWS::StackName}-*`, which matches every env cluster (`appcloud-systems-dev`,
+`appcloud-systems-app`, …) and excludes unrelated clusters in the account/region.
+
+**Trade-off — replacement risk:** adding `DBClusterIdentifier` to a cluster that
+was previously auto-named forces CloudFormation to **replace** it (destroying
+data). This is fine for `dev` but requires a snapshot/restore migration on
+`alpha`/`beta`/`app`. See tasks §5 for the rollout plan. The alternative
+(scope to `cluster:*`, no rename) was considered and rejected in favour of the
+named guard; revisit if the migration cost proves unacceptable.
 
 ### D6. Custom-resource property change handling
 

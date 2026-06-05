@@ -44,7 +44,7 @@ Any uncaught exception SHALL be returned to CFN as a FAILED signal with the exce
 
 ### Requirement: Lambda ARN is published via SSM Parameter Store
 
-The `bootstrap` stack SHALL publish the Lambda's ARN to AWS Systems Manager Parameter Store at the well-known path `/taskmanager/lambda/aurora-cluster-delete-handler-arn`, in the same region as the Lambda. The SSM parameter SHALL NOT have `DeletionPolicy: Retain` during this change's setup phase (consistent with the parent `centralize-aurora-kms-keys` change's iteration-friendliness rationale).
+The `bootstrap` stack SHALL publish the Lambda's ARN to AWS Systems Manager Parameter Store at the domain-derived path `/${AWS::StackName}/lambda/aurora-cluster-delete-handler-arn` (where `${AWS::StackName}` is the dashed deployment domain, e.g. `/appcloud-systems/lambda/aurora-cluster-delete-handler-arn`), in the same region as the Lambda. This mirrors the KMS key SSM convention (`/${AWS::StackName}/kms/{prod,nonprod}/aurora-key-arn`) established by the `domain-derived-resource-naming` refactor — **not** a hardcoded `/taskmanager/...` path. The SSM parameter SHALL NOT have `DeletionPolicy: Retain` during this change's setup phase (consistent with the parent `centralize-aurora-kms-keys` change's iteration-friendliness rationale).
 
 The bootstrap stack SHALL also expose the Lambda ARN as a stack output `AuroraClusterDeleteHandlerArn` for diagnostic visibility.
 
@@ -52,29 +52,29 @@ The deploy workflow SHALL read this SSM parameter at deploy time and pass the va
 
 #### Scenario: SSM parameter populated on bootstrap deploy
 - **WHEN** the `bootstrap` stack is deployed in any region
-- **THEN** the SSM parameter `/taskmanager/lambda/aurora-cluster-delete-handler-arn` exists in that region and its value is the ARN of the just-created Lambda function
+- **THEN** the SSM parameter `/${AWS::StackName}/lambda/aurora-cluster-delete-handler-arn` (e.g. `/appcloud-systems/lambda/aurora-cluster-delete-handler-arn`) exists in that region and its value is the ARN of the just-created Lambda function
 
 #### Scenario: Workflow reads Lambda ARN via SSM
 - **WHEN** the deploy workflow runs on a `master.template` branch (`dev`/`alpha`/`beta`/`app`)
-- **THEN** the workflow reads `/taskmanager/kms/{prod,nonprod}/aurora-key-arn` AND `/taskmanager/lambda/aurora-cluster-delete-handler-arn` in `matrix.region`, exporting both as env vars (`BOOTSTRAP_KMS_KEY_ARN` and `AURORA_CLUSTER_DELETE_HANDLER_ARN`)
+- **THEN** the workflow reads `/{processed-domain}/kms/{prod,nonprod}/aurora-key-arn` AND `/{processed-domain}/lambda/aurora-cluster-delete-handler-arn` in `matrix.region`, exporting both as env vars (`BOOTSTRAP_KMS_KEY_ARN` and `AURORA_CLUSTER_DELETE_HANDLER_ARN`)
 
-### Requirement: Lambda IAM permissions are minimum-necessary and scoped to `taskmanager-*`
+### Requirement: Lambda IAM permissions are minimum-necessary and scoped to this deployment's clusters
 
 The Lambda's execution role's policy SHALL grant only:
 - `rds:DescribeDBClusters`, `rds:DescribeDBInstances` on `Resource: "*"` (the Describe APIs do not support resource-level perms).
-- `rds:DeleteDBCluster`, `rds:ModifyDBCluster` on `arn:aws:rds:${Region}:${Account}:cluster:taskmanager-*` only.
-- `rds:DeleteDBInstance` on `arn:aws:rds:${Region}:${Account}:db:taskmanager-*` only.
+- `rds:DeleteDBCluster`, `rds:ModifyDBCluster` on `arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster:${AWS::StackName}-*` only.
+- `rds:DeleteDBInstance` on `arn:aws:rds:${AWS::Region}:${AWS::AccountId}:db:${AWS::StackName}-*` only.
 - `kms:DescribeKey` on `Resource: "*"` (used for log enrichment when investigating KMS-related cluster issues).
 - CloudWatch Logs (`logs:CreateLogGroup`, `logs:CreateLogStream`, `logs:PutLogEvents`) on the Lambda's own log group only.
 
-The Lambda MUST NOT have permission to modify or delete clusters that do not match the `taskmanager-*` naming pattern.
+`${AWS::StackName}` in the bootstrap stack equals the dashed deployment domain (e.g. `appcloud-systems`). To make this prefix match, `db.template` SHALL give the regional cluster an explicit `DBClusterIdentifier` of `${DomainDashed}-${BranchName}` (e.g. `appcloud-systems-app`) and the instance an explicit `DBInstanceIdentifier` of `${DomainDashed}-${BranchName}-instance`. The Lambda MUST NOT have permission to modify or delete clusters whose identifier does not begin with the dashed-domain prefix.
 
 #### Scenario: Lambda cannot delete unrelated clusters
-- **WHEN** a hypothetical invocation of the Lambda passes `ClusterIdentifier=production-customer-data` (not `taskmanager-*`)
+- **WHEN** a hypothetical invocation of the Lambda passes `ClusterIdentifier=production-customer-data` (not `${dashed-domain}-*`)
 - **THEN** the `DeleteDBCluster` call returns `AccessDenied` because the IAM policy's resource constraint excludes the cluster ARN
 
-#### Scenario: Lambda can delete taskmanager clusters
-- **WHEN** the Lambda is invoked for a cluster named `taskmanager-dev`, `taskmanager-app`, `taskmanager-alpha-secondary`, or any other `taskmanager-*`
+#### Scenario: Lambda can delete this deployment's clusters
+- **WHEN** the Lambda is invoked for a cluster named `appcloud-systems-dev`, `appcloud-systems-app`, `appcloud-systems-alpha`, or any other `${dashed-domain}-*`
 - **THEN** the IAM permissions allow the delete operations
 
 ### Requirement: Custom resource in db.template depends on AuroraCluster
