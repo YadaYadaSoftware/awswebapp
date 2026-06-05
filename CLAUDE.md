@@ -55,12 +55,52 @@ Six projects in [Tjb.sln](Tjb.sln):
 
 Both `Web` and `Api` apply migrations on startup but **swallow exceptions** so the app still boots if migrations fail (intentional, to avoid Lambda/cold-start crashes). Don't change this to throw without thinking through the deployment story.
 
+## Infrastructure naming convention
+
+Resource names across CloudFormation templates and the deploy workflow are **derived, not hardcoded**. The single source of truth is the deployment domain (`secrets.DOMAIN_NAME`, e.g. `appcloud.systems`), with a "dashed" form (`.` → `-`, e.g. `appcloud-systems`) used everywhere AWS naming forbids dots.
+
+**Bootstrap stack** ([infrastructure/bootstrap.template](infrastructure/bootstrap.template), one per region):
+- **Stack name = dashed domain.** No `bootstrap-` prefix. For `appcloud.systems` the stack is named `appcloud-systems` in every region it's deployed to.
+- All resources it owns derive their names from `!Ref AWS::StackName` (= the dashed domain). Examples for the `appcloud-systems` deploy:
+  - KMS aliases: `alias/appcloud-systems-aurora-{prod,nonprod}`
+  - SSM parameters: `/appcloud-systems/kms/{prod,nonprod}/aurora-key-arn`
+  - IAM users: `appcloud-systems-GitHubActionsUser`, `appcloud-systems-GitHubActionsUserProd`
+  - IAM role: `appcloud-systems-prod-kms-admin`
+  - ECR repository: `appcloud-systems`
+  - S3 templates bucket: `${AWS::AccountId}-${AWS::StackName}-${AWS::Region}` (e.g. `991795635857-appcloud-systems-us-east-1`)
+
+**Env stacks** (`master.template` → nested `backend.template` + `application.template` and their children):
+- **Stack name = `{branch-leaf}-{dashed-domain}`** (e.g. `dev-appcloud-systems`, `app-appcloud-systems`).
+- Templates take a `DomainName` parameter in **dot form** (`appcloud.systems`). The workflow passes `${{ secrets.DOMAIN_NAME }}` directly.
+- Templates that need the dashed or underscored form **derive locally** via CFN intrinsics (no second parameter):
+  ```yaml
+  # dashed (for SSM paths, secret names, IAM scopes, Aurora cluster IDs):
+  !Sub
+    - "${DomainDashed}-${BranchName}-global-cluster"
+    - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
+
+  # underscored (for MySQL master username — MySQL disallows hyphens):
+  !Sub
+    - "${DomainUnderscored}_admin"
+    - DomainUnderscored: !Join ["_", !Split [".", !Ref DomainName]]
+  ```
+
+**Deploy workflow** ([.github/workflows/zbuild.yml](.github/workflows/zbuild.yml)):
+- AWS regions are **GitHub repo Variables** (Settings → Secrets and variables → Actions → Variables tab):
+  - `AWS_REGION_PRIMARY` (currently `us-east-1`)
+  - `AWS_REGION_SECONDARY` (currently `us-east-2`)
+- The workflow has no fallback if these are unset — empty values fail the matrix.
+- Dashed-domain is computed once per job in the `Process Domain Name` step as `steps.process-domain.outputs.processed-domain` and reused for: bootstrap stack name in SSM lookup paths, ECR image URIs, templates-bucket name, env-stack `--parameter-overrides DomainName=...`.
+- Zero hardcoded references to specific domains (`appcloud-systems`, `taskmanager`) or specific bucket/repo patterns remain in the workflow.
+
+**Why this matters when editing templates or the workflow:** don't reintroduce hardcoded project names or region literals. The whole pipeline is domain-and-region-agnostic; reintroducing a literal anywhere breaks that property silently until someone tries to deploy a second domain or change a region.
+
 ## Branch model & CI/CD ([BRANCH_MANAGEMENT_README.md](BRANCH_MANAGEMENT_README.md), [.github/workflows/zbuild.yml](.github/workflows/zbuild.yml))
 
 This repo has an unusual branching scheme — read carefully before doing anything git-related:
 
 - **PRs target `app`** (the production branch). `app` is also the GitVersion `main`.
-- Three "shared infrastructure" branches deploy multi-region (us-east-1 + us-west-2): `app`, `beta`, `alpha`. They use `infrastructure/master.template` (full backend incl. Aurora Global Cluster).
+- Three "shared infrastructure" branches deploy multi-region (`AWS_REGION_PRIMARY` + `AWS_REGION_SECONDARY` repo vars; currently `us-east-1` + `us-east-2`): `app`, `beta`, `alpha`. They use `infrastructure/master.template` (full backend incl. Aurora Global Cluster).
 - `dev` is single-region but also uses the master template.
 - Every other branch follows `{type}/{name}` where type is `build|deploy|system|feature|fix`. These deploy `infrastructure/application.template` (just the app stack, importing backend exports from `dev`) into a per-branch CloudFormation stack named `{branch-leaf}-{processed-domain}`.
 - Every push triggers `Deploy Everything` workflow → builds, tests, builds Docker image, deploys via SAM/CloudFormation, runs UI tests against the deployed URL `https://{branch-leaf}.{DOMAIN_NAME}`, then publishes NuGets to GitHub Packages.
@@ -95,4 +135,4 @@ Confirmation emails sent after Google OAuth registration are delivered via AWS S
 - **Connection strings in `appsettings.json` are localhost defaults** (`Server=localhost;...root/password`). Real values come from environment / Secrets Manager in deployed envs and from `dotnet user-secrets` locally.
 - **Forwarded headers config in [src/Tjb.Web/Program.cs](src/Tjb.Web/Program.cs) clears `KnownProxies`/`KnownNetworks` on purpose** — the ALB has dynamic IPs. Don't tighten it without verifying OAuth still works.
 - **NuGet package versions are branch-suffixed** for non-`app` branches (`{version}-{sanitized-branch}`) so consumers can pin to a feature branch's build.
-- **Deleting a remote branch tears down its CloudFormation stack.** [.github/workflows/cleanup-on-branch-delete.yml](.github/workflows/cleanup-on-branch-delete.yml) fires on the GitHub `delete` event, computes the same `{branch-leaf}-{processed-domain}` stack name the deploy job uses, and calls `aws cloudformation delete-stack` in `us-east-1`. `app`, `beta`, `alpha`, and `dev` are hard-coded as protected — the workflow no-ops for any branch whose leaf segment matches one of those (including e.g. `feature/dev`). It also clears `s3://cf-templates-{account}-us-east-1/{branch-leaf}/` after `DELETE_COMPLETE`. ECR images are not pruned. **GitHub Actions constraint:** the `delete` event only fires for workflow files that live on the default branch (`app`); a copy of this workflow sitting on a feature branch is inert.
+- **Deleting a remote branch tears down its CloudFormation stack.** [.github/workflows/cleanup-on-branch-delete.yml](.github/workflows/cleanup-on-branch-delete.yml) fires on the GitHub `delete` event, computes the same `{branch-leaf}-{processed-domain}` stack name the deploy job uses, and calls `aws cloudformation delete-stack` in `us-east-1`. `app`, `beta`, `alpha`, and `dev` are hard-coded as protected — the workflow no-ops for any branch whose leaf segment matches one of those (including e.g. `feature/dev`). It also clears `s3://${AccountId}-${DashedDomain}-us-east-1/{branch-leaf}/` (the bootstrap-owned templates bucket — see Infrastructure naming convention above) after `DELETE_COMPLETE`. ECR images are not pruned. **GitHub Actions constraint:** the `delete` event only fires for workflow files that live on the default branch (`app`); a copy of this workflow sitting on a feature branch is inert.
