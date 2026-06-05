@@ -24,9 +24,10 @@ Work out **what I should do next** as this brother (work folder), and keep the f
    - `PROGRESS` shows all tasks complete → next step is final validation, then archive with `/opsx:archive`.
    Mention `WORKING-TREE` if there are uncommitted changes (commit/flush before switching). Answer in one or two sentences naming the change, where it stands (N/M), and the single next action.
 
-3. **If `NEXT-MODE: idle`** — I'm not on a change. The helper lists every active change with its task progress, which brother (if any) has it (`CLAIMED-BY`), and a `STATE`, plus an `AVAILABLE` list of changes no brother is on and not yet done. **Suggest one** unclaimed change to pick up, using judgment:
-   - Prefer a fresh change (`0/N`) for a clean start; flag a nearly-finished one (e.g. `18/19`) as a *finish-and-archive* candidate rather than a fresh task.
+3. **If `NEXT-MODE: idle`** — I'm not on a change. The helper lists every active change with its task progress, which brother (if any) has it (`CLAIMED-BY`), and a `STATE`, plus an `AVAILABLE` list (ordered **safest-first**) of changes no brother is on and not yet done. Each available change carries a `conflict-risk:` verdict against what the brothers are *already* working on, and the helper ends with a `RECOMMEND=` line. **Suggest one** unclaimed change to pick up, using judgment:
    - Don't suggest anything in the `CLAIMED-BY` column — that's the whole point (no two brothers on one spec).
+   - **Honour the conflict-risk.** A change overlapping a brother's in-flight work is flagged `RISK` (shares code paths — e.g. the same template/workflow) or `HIGH` (shares an OpenSpec *capability* → edits the same spec file). Prefer a `conflict-risk: none` change so the parallel work won't collide; lead with the helper's `RECOMMEND=` pick when it gives one. Only suggest a `RISK`/`HIGH` change if nothing clean is available — and when you do, name the brother and the specific shared capability/files (printed under that change) so the human can decide whether the overlap is real or coordinate to split the file.
+   - Prefer a fresh change (`0/N`) for a clean start; flag a nearly-finished one (e.g. `18/19`) as a *finish-and-archive* candidate rather than a fresh task.
    - If I'm a feature brother already on a non-spec branch, note that before suggesting a switch.
    Then say how to take it: spin up a brother for it with `/newbrother -Branch <change-name>` (or, from a homestead, branch with the spec's exact name per CLAUDE.md), then `/opsx:apply <change-name>`.
 

@@ -70,11 +70,22 @@ Retire a brother with `git -C $bare worktree remove ..\<name>` (make sure his br
 - **`/whoami`** — reports the current brother's identity, branch, last commit, and tree state.
 - **`/brothers`** — reports every *other* brother's branch, last commit, tree state, and any status note.
 - **`/newbrother`** — welcomes a new brother: picks his name, creates his folder, checks him out from `dev` (see [Creating a new brother](#creating-a-new-brother)).
-- **`/next`** — tells you the next step on your spec, or — if you're idle — suggests an OpenSpec change **no brother is currently on**, so the family doesn't double up on the same spec.
+- **`/next`** — tells you the next step on your spec, or — if you're idle — suggests an OpenSpec change **no brother is currently on**, *and that won't collide with a change a brother is already on*, so the family doesn't double up on the same spec or fight over the same files (see [Avoiding collisions](#avoiding-collisions-in-next) below).
 
 All four are also answered in plain conversation: just ask *"who are you?"*, *"what are my brothers doing?"*, *"you have a new brother"*, or *"what should I work on next?"* and Claude follows the same procedure (see [CLAUDE.md](CLAUDE.md) → "Parallel work folders").
 
 Under the hood each is a script in [scripts/](scripts/): [Get-Brothers.ps1](scripts/Get-Brothers.ps1), [New-Brother.ps1](scripts/New-Brother.ps1), and [Get-NextStep.ps1](scripts/Get-NextStep.ps1). `Get-Brothers.ps1` and `Get-NextStep.ps1` share their sibling-enumeration logic via [scripts/_BrothersCommon.ps1](scripts/_BrothersCommon.ps1) — one place scans the family directory and reads each checkout's git state.
+
+## Avoiding collisions in `/next`
+
+Picking an *unclaimed* change isn't enough — two changes can target the same area and turn a parallel effort into a painful three-way merge. So when you're idle, `/next` also weighs each available change against whatever the brothers are **already** on, and prefers a pick that won't clash.
+
+It measures overlap two ways, from each change's OpenSpec folder (no extra bookkeeping required):
+
+- **Shared capability — `HIGH` risk.** Every change owns one or more spec-delta folders under `openspec/changes/<name>/specs/<capability>/`. If an available change and an in-flight one touch the **same capability**, they edit the same spec file outright — a guaranteed conflict. These are pushed to the bottom of the list.
+- **Shared code paths — `RISK`.** The helper scrapes every `.github/…`, `infrastructure/…`, `scripts/…`, and `src/…` path mentioned in a change's proposal/design/tasks/spec markdown — a proxy for the files it will edit. If an available change names the same workflow, template, or source tree as an in-flight one (e.g. both touch `infrastructure/master.template`), it's flagged `RISK` with the exact overlapping files and the brother who owns the other change.
+
+The output lists available changes **safest-first** (`conflict-risk: none` → `RISK` → `HIGH`), prints the specific shared capabilities/files under each flagged change, and ends with a `RECOMMEND=` line naming a change that overlaps **nothing** in flight (or, if everything overlaps, says so and tells you to pick the lowest-risk option or coordinate with that brother). The overlap is a heuristic advisory, not a hard gate — a `RISK` pick is still workable if you and the other brother are touching different parts of a shared file; `/next` just makes the trade-off visible before you commit a brother to it.
 
 ## Leaving a note for the family (optional)
 
