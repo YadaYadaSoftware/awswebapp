@@ -6,14 +6,17 @@
 
 ## 1. Prereqs
 
-- [ ] 1.1 Confirm `robust-aurora-cluster-teardown` has landed on `dev` (this change branches from a dev tip that already has the no-replacement db.template — avoids re-touching the same export lines on top of an in-flight cluster change).
-- [ ] 1.2 Enumerate every **live** feature-branch app stack currently importing dev's exports (`aws cloudformation list-stacks` + filter `*-appcloud-systems` minus the env stacks). These all need a Phase-2 redeploy (or teardown) before Phase 3. Record the list.
+- [x] 1.1 Confirm `robust-aurora-cluster-teardown` has landed on `dev` (this change branches from a dev tip that already has the no-replacement db.template — avoids re-touching the same export lines on top of an in-flight cluster change).
+- [x] 1.2 Enumerate every **live** feature-branch app stack currently importing dev's exports (`aws cloudformation list-stacks` + filter `*-appcloud-systems` minus the env stacks). These all need a Phase-2 redeploy (or teardown) before Phase 3. Record the list.
+  - Recorded 2026-06-05 (us-east-1), excluding env stacks `dev-appcloud-systems` / `app-appcloud-systems` (and `alpha`/`beta`, not currently deployed):
+    - `robust-aurora-cluster-teardown-appcloud-systems`
+    - `testbranch-appcloud-systems`
 
 ## 2. Phase 1 — ADD domain-qualified exports (keep the old)
 
-- [ ] 2.1 In each exporter template, **add** a second `Output` (or dual-export is not allowed — see note) ... NOTE: a single resource value needs two exports under two names, which requires **two `Output` entries** with distinct logical IDs both pointing at the same `Value`. Add a `<Name>DomainQualified` output for every export listed in design.md D4, with `Export.Name: "<Name>-${BranchName}-${DomainDashed}"`.
-- [ ] 2.2 Templates to edit: db.template (11), network.template (10), web.template (5), infrastructure.template (2), api.template (2), security.template (1).
-- [ ] 2.3 `aws cloudformation validate-template` each edited template.
+- [x] 2.1 In each exporter template, **add** a second `Output` (or dual-export is not allowed — see note) ... NOTE: a single resource value needs two exports under two names, which requires **two `Output` entries** with distinct logical IDs both pointing at the same `Value`. Add a `<Name>DomainQualified` output for every export listed in design.md D4, with `Export.Name: "<Name>-${BranchName}-${DomainDashed}"`.
+- [x] 2.2 Templates to edit: db.template (11), network.template (10), web.template (5), infrastructure.template (2), api.template (2), security.template (1). _(Also added a `DomainName` parameter to network.template and api.template — they did not previously receive it — and wired `DomainName: !Ref DomainName` from backend.template→NetworkingStack and application.template→ApiStack.)_
+- [x] 2.3 `aws cloudformation validate-template` each edited template. _(All 8 valid: db, network, web, infrastructure, api, security, backend, application.)_
 - [ ] 2.4 Deploy Phase 1 to **all** env backends: push to `dev` (single region) and to `alpha`/`beta`/`app` (multi-region). Confirm both old and new export names exist: `aws cloudformation list-exports --query "Exports[?contains(Name,'DatabaseHost')]"`.
 
 ## 3. Phase 2 — REPOINT all importers
