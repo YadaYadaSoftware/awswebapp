@@ -206,12 +206,6 @@ Resources:
       Description: Database password for Aurora Regional Cluster
       SecretString: !Ref DatabasePassword
 Outputs:
-  AuroraClusterId:
-    Description: Aurora Regional Cluster ID
-    Value: !Ref AuroraCluster
-    Export:
-      Name: !Sub "AuroraClusterId-${BranchName}"
-
   AuroraClusterIdDomainQualified:
     Description: Aurora Regional Cluster ID
     Value: !Ref AuroraCluster
@@ -219,12 +213,6 @@ Outputs:
       Name: !Sub
         - "AuroraClusterId-${BranchName}-${DomainDashed}"
         - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
-
-  DatabaseEndpoint:
-    Description: Aurora MySQL cluster endpoint
-    Value: !GetAtt AuroraCluster.Endpoint.Address
-    Export:
-      Name: !Sub "DatabaseEndpoint-${BranchName}"
 
   DatabaseEndpointDomainQualified:
     Description: Aurora MySQL cluster endpoint
@@ -234,12 +222,6 @@ Outputs:
         - "DatabaseEndpoint-${BranchName}-${DomainDashed}"
         - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
 
-  DatabaseReaderEndpoint:
-    Description: Aurora MySQL reader endpoint
-    Value: !GetAtt AuroraCluster.ReadEndpoint.Address
-    Export:
-      Name: !Sub "DatabaseReaderEndpoint-${BranchName}"
-
   DatabaseReaderEndpointDomainQualified:
     Description: Aurora MySQL reader endpoint
     Value: !GetAtt AuroraCluster.ReadEndpoint.Address
@@ -247,14 +229,6 @@ Outputs:
       Name: !Sub
         - "DatabaseReaderEndpoint-${BranchName}-${DomainDashed}"
         - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
-
-  DatabaseUsername:
-    Description: Database username
-    Value: !Sub
-      - "${DomainUnderscored}_admin"
-      - DomainUnderscored: !Join ["_", !Split [".", !Ref DomainName]]
-    Export:
-      Name: !Sub "DatabaseUsername-${BranchName}"
 
   DatabaseUsernameDomainQualified:
     Description: Database username
@@ -266,12 +240,6 @@ Outputs:
         - "DatabaseUsername-${BranchName}-${DomainDashed}"
         - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
 
-  DatabaseEngine:
-    Description: Database engine
-    Value: "aurora-mysql"
-    Export:
-      Name: !Sub "DatabaseEngine-${BranchName}"
-
   DatabaseEngineDomainQualified:
     Description: Database engine
     Value: "aurora-mysql"
@@ -279,12 +247,6 @@ Outputs:
       Name: !Sub
         - "DatabaseEngine-${BranchName}-${DomainDashed}"
         - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
-
-  DatabaseHost:
-    Description: Database host endpoint
-    Value: !GetAtt AuroraCluster.Endpoint.Address
-    Export:
-      Name: !Sub "DatabaseHost-${BranchName}"
 
   DatabaseHostDomainQualified:
     Description: Database host endpoint
@@ -294,12 +256,6 @@ Outputs:
         - "DatabaseHost-${BranchName}-${DomainDashed}"
         - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
 
-  DatabasePort:
-    Description: Database port
-    Value: !GetAtt AuroraCluster.Endpoint.Port
-    Export:
-      Name: !Sub "DatabasePort-${BranchName}"
-
   DatabasePortDomainQualified:
     Description: Database port
     Value: !GetAtt AuroraCluster.Endpoint.Port
@@ -307,12 +263,6 @@ Outputs:
       Name: !Sub
         - "DatabasePort-${BranchName}-${DomainDashed}"
         - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
-
-  DatabaseName:
-    Description: Database name
-    Value: !Ref BranchName
-    Export:
-      Name: !Sub "DatabaseName-${BranchName}"
 
   DatabaseNameDomainQualified:
     Description: Database name
@@ -322,12 +272,6 @@ Outputs:
         - "DatabaseName-${BranchName}-${DomainDashed}"
         - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
 
-  DatabaseClusterArn:
-    Description: Database cluster ARN
-    Value: !Ref AuroraCluster
-    Export:
-      Name: !Sub "DatabaseClusterArn-${BranchName}"
-
   DatabaseClusterArnDomainQualified:
     Description: Database cluster ARN
     Value: !Ref AuroraCluster
@@ -336,12 +280,6 @@ Outputs:
         - "DatabaseClusterArn-${BranchName}-${DomainDashed}"
         - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
 
-  DatabasePasswordSecretArn:
-    Description: Database password secret ARN
-    Value: !Ref DatabasePasswordSecret
-    Export:
-      Name: !Sub "DatabasePasswordSecretArn-${BranchName}"
-
   DatabasePasswordSecretArnDomainQualified:
     Description: Database password secret ARN
     Value: !Ref DatabasePasswordSecret
@@ -349,13 +287,6 @@ Outputs:
       Name: !Sub
         - "DatabasePasswordSecretArn-${BranchName}-${DomainDashed}"
         - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
-
-  AuroraGlobalClusterId:
-    Condition: ShouldCreateGlobalCluster
-    Description: Aurora Global Database cluster identifier
-    Value: !Ref AuroraGlobalCluster
-    Export:
-      Name: !Sub "AuroraGlobalClusterId-${BranchName}"
 
   AuroraGlobalClusterIdDomainQualified:
     Condition: ShouldCreateGlobalCluster

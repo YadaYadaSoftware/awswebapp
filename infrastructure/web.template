@@ -278,12 +278,6 @@ Resources:
         - Name: TargetGroup
           Value: !GetAtt WebTargetGroup.TargetGroupFullName
 Outputs:
-  WebEndpoint:
-    Description: "Web application endpoint URL"
-    Value: !Sub "https://${BranchName}.${DomainName}"
-    Export:
-      Name: !Sub "WebEndpoint-${BranchName}"
-
   WebEndpointDomainQualified:
     Description: "Web application endpoint URL"
     Value: !Sub "https://${BranchName}.${DomainName}"
@@ -291,12 +285,6 @@ Outputs:
       Name: !Sub
         - "WebEndpoint-${BranchName}-${DomainDashed}"
         - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
-
-  WebLoadBalancerDNS:
-    Description: "Web Load Balancer DNS name"
-    Value: !GetAtt WebLoadBalancer.DNSName
-    Export:
-      Name: !Sub "WebLoadBalancerDNS-${BranchName}"
 
   WebLoadBalancerDNSDomainQualified:
     Description: "Web Load Balancer DNS name"
@@ -306,12 +294,6 @@ Outputs:
         - "WebLoadBalancerDNS-${BranchName}-${DomainDashed}"
         - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
 
-  WebLoadBalancerHostedZoneId:
-    Description: "Web Load Balancer hosted zone ID"
-    Value: !FindInMap [RegionMap, !Ref AWS::Region, ALBHostedZoneId]
-    Export:
-      Name: !Sub "WebLoadBalancerHostedZoneId-${BranchName}"
-
   WebLoadBalancerHostedZoneIdDomainQualified:
     Description: "Web Load Balancer hosted zone ID"
     Value: !FindInMap [RegionMap, !Ref AWS::Region, ALBHostedZoneId]
@@ -320,12 +302,6 @@ Outputs:
         - "WebLoadBalancerHostedZoneId-${BranchName}-${DomainDashed}"
         - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
 
-  WebTaskDefinition:
-    Description: "Web ECS task definition"
-    Value: !Ref WebTaskDefinition
-    Export:
-      Name: !Sub "WebTaskDefinition-${BranchName}"
-
   WebTaskDefinitionDomainQualified:
     Description: "Web ECS task definition"
     Value: !Ref WebTaskDefinition
@@ -333,12 +309,6 @@ Outputs:
       Name: !Sub
         - "WebTaskDefinition-${BranchName}-${DomainDashed}"
         - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
-
-  WebServiceName:
-    Description: "Web ECS service name"
-    Value: !Ref WebService
-    Export:
-      Name: !Sub "WebServiceName-${BranchName}"
 
   WebServiceNameDomainQualified:
     Description: "Web ECS service name"
