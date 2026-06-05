@@ -40,13 +40,20 @@ function Get-FamilyCheckouts {
     # terminating error when the caller's preference is 'Stop'.
     $ErrorActionPreference = 'Continue'
 
+    # The four shared long-lived branches are the homestead, not feature brothers -
+    # even now that they're materialized as their own worktree folders.
+    $homestead = @('app', 'beta', 'alpha', 'dev')
+
     $ctx = Get-FamilyRoot
     foreach ($dir in Get-ChildItem -Path $ctx.Family -Directory) {
+        # A checkout has a `.git` entry (dir for a clone, file for a worktree). The
+        # `.bare` hub has neither at its root, so it is skipped automatically.
         if (-not (Test-Path (Join-Path $dir.FullName '.git'))) { continue }
 
         $name   = $dir.Name
         $isSelf = ($name -eq $ctx.Self)
         if ($isSelf -and -not $IncludeSelf) { continue }
+        $isHomestead = ($homestead -contains $name)
 
         $branch = & git -C $dir.FullName rev-parse --abbrev-ref HEAD 2>$null
         if ($branch) { $branch = $branch.Trim() } else { $branch = '(detached)' }
@@ -81,16 +88,17 @@ function Get-FamilyCheckouts {
         if (Test-Path $sf) { $note = ((Get-Content $sf -Raw -ErrorAction SilentlyContinue) | Out-String).Trim() }
 
         [pscustomobject]@{
-            Name       = $name
-            Path       = $dir.FullName
-            IsSelf     = $isSelf
-            Branch     = $branch
-            BranchLeaf = $branchLeaf
-            Tree       = $tree
-            DirtyCount = $dirty
-            Sync       = $sync
-            LastCommit = $lastCommit
-            Note       = $note
+            Name        = $name
+            Path        = $dir.FullName
+            IsSelf      = $isSelf
+            IsHomestead = $isHomestead
+            Branch      = $branch
+            BranchLeaf  = $branchLeaf
+            Tree        = $tree
+            DirtyCount  = $dirty
+            Sync        = $sync
+            LastCommit  = $lastCommit
+            Note        = $note
         }
     }
 }

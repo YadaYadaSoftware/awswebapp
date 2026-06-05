@@ -1,15 +1,20 @@
 # BROTHERS.md — parallel work folders
 
-This repo is worked from **multiple sibling folders at once**, so several features can be in flight in parallel without stepping on each other. Each folder is a separate checkout (a `git worktree` or a full clone) of the same GitHub repo, sitting side-by-side under the **family directory**:
+This repo is worked from **multiple sibling folders at once**, so several features can be in flight in parallel without stepping on each other. All folders are **`git worktree`s of one shared bare repository** (`.bare`) sitting side-by-side under the **family directory**:
 
 ```
 C:\Users\hound\source\repos\YadaYadaSoftware\awswebapp\   <- the family directory
-├─ app        # homestead: production clone, always on branch `app`
-├─ dev        # homestead: integration clone, always on branch `dev`
+├─ .bare      # the hub: a bare repo holding all history. No working tree; you never cd here.
+├─ app        # homestead worktree, always on branch `app`     ┐
+├─ beta       # homestead worktree, always on branch `beta`     │ shared, long-lived
+├─ alpha      # homestead worktree, always on branch `alpha`    │
+├─ dev        # homestead worktree, always on branch `dev`     ┘
 ├─ wilhelm    # a brother: feature work folder on its own branch
 ├─ friedrich  # a brother: another feature, another branch
 └─ …
 ```
+
+**Why a `.bare` hub?** Every folder shares one object store, so **merging is local and instant** — from `dev` you just `git merge <brother-branch>` with no push/pull round-trip through GitHub. And because no *working* folder owns the history, you can delete any folder (even `claude`) without harming the others. The one git rule to remember: **a branch can be checked out in only one worktree at a time** — which is exactly why each shared branch gets its own homestead folder and a brother never sits *on* `dev`. (A full `git clone` per folder also works, but then cross-folder merges have to round-trip through origin — the `.bare` layout is preferred.)
 
 ## The metaphor
 
@@ -19,7 +24,7 @@ Each work folder is a **brother** in a family of Germans. The folder's name **is
 - **What am I working on?** → the branch checked out in this folder, plus its latest commit.
 - **What are my brothers doing?** → the branches + latest commits in the *other* sibling folders.
 
-`app` and `dev` are not brothers — they are the **homestead**: the shared, long-lived clones for production (`app`) and integration (`dev`). Everyone branches from `dev` and merges back through the normal flow.
+`app`, `beta`, `alpha`, and `dev` are not brothers — they are the **homestead**: the shared, long-lived worktrees for production (`app`), the staged infra branches (`beta`/`alpha`), and integration (`dev`). Everyone branches from `dev` and merges back through the normal flow. `/whoami` and `/brothers` treat these four as homestead, not feature brothers.
 
 ## The name pool
 
@@ -40,22 +45,23 @@ powershell -NoProfile -File scripts\New-Brother.ps1
 powershell -NoProfile -File scripts\New-Brother.ps1 -Name friedrich -Branch fix/oauth-callback
 ```
 
-[scripts/New-Brother.ps1](scripts/New-Brother.ps1) takes the next unused name from the roster above (or `-Name`), creates the folder as a `git worktree` based off the `dev` homestead clone if present (else off the current repo), and starts him from `dev` — a fresh branch off dev with `-Branch`, or **detached at dev's tip** when no branch is known yet. Also exposed as the `/newbrother` slash command.
+[scripts/New-Brother.ps1](scripts/New-Brother.ps1) takes the next unused name from the roster above (or `-Name`), creates the folder as a `git worktree` of the `.bare` hub (falling back to the `dev` worktree or the current repo if there's no `.bare`), and starts him from `dev` — a fresh branch off dev with `-Branch`, or **detached at dev's tip** when no branch is known yet. Also exposed as the `/newbrother` slash command.
 
 > **A brother never sits *on* the `dev` branch itself.** `dev` is the shared homestead branch every folder must be able to check out, and **git allows a given branch in only one worktree of a clone** — so if one brother occupied `dev`, no other folder (including the homestead) could check it out, and `git checkout dev` would fail with *"'dev' is already used by worktree at …"*. That's why a branch-less brother is parked **detached** at dev's tip (he gets dev's files without owning the branch) and gets his own branch the moment he's assigned work. The helper enforces this; by hand, use `-b <branch> dev` or `--detach dev`, never a bare `… dev`.
 
-Or do it by hand from the `dev` homestead (lightweight worktree that shares the object store):
+Or do it by hand from the `.bare` hub:
 
 ```powershell
+$bare = "C:\Users\hound\source\repos\YadaYadaSoftware\awswebapp\.bare"
+
 # New feature branch off dev, checked out into a new brother folder:
-git -C C:\Users\hound\source\repos\YadaYadaSoftware\awswebapp\dev `
-    worktree add ..\wilhelm -b <branch-name> dev
+git -C $bare worktree add ..\wilhelm -b <branch-name> dev
 
 # …or park him detached at dev's tip (no branch yet):
-git -C ...\dev worktree add --detach ..\friedrich dev
+git -C $bare worktree add --detach ..\friedrich dev
 ```
 
-A full `git clone` into a sibling folder works too (this is how `app`/`dev` are set up); the tooling below treats clones and worktrees identically.
+Retire a brother with `git -C $bare worktree remove ..\<name>` (make sure his branch is pushed or merged first — a worktree of `.bare` shares the hub's history, but uncommitted work in the folder is lost on removal).
 
 > **Branch vs. brother:** the brother name (the folder) is *who*; the branch is *what*. They are independent. `wilhelm` might be on branch `cancel-superseded-runs`. Follow the repo's branch rules in [CLAUDE.md](CLAUDE.md) (spec-named branches for OpenSpec changes, `{type}/{name}` otherwise).
 

@@ -16,8 +16,8 @@
          branch itself: dev is the shared homestead branch other folders must be able
          to check out, and git forbids the same branch in two worktrees.
 
-    The worktree is based off the `dev` homestead clone if one exists in the family
-    directory; otherwise off the current repo (which shares its object store).
+    The worktree is based off the `.bare` hub if one exists in the family directory
+    (else the `dev` worktree, else the current repo) so every brother shares one store.
 
 .PARAMETER Name
     The new brother's name. Defaults to the next unused name from the BROTHERS.md
@@ -105,9 +105,14 @@ if ($existing -contains $Name -and -not $Force) {
 
 $target = Join-Path $family $Name
 
-# --- Choose the base clone for the worktree: dev homestead if present, else here ---
+# --- Choose the base repo for the worktree. Prefer the `.bare` hub (so every brother
+#     is a worktree of the shared vault); else the `dev` homestead worktree/clone;
+#     else the current repo. ---
+$bareHub = Join-Path $family '.bare'
 $devHome = Join-Path $family 'dev'
-if (Test-Path (Join-Path $devHome '.git')) { $base = $devHome } else { $base = $repoRoot }
+if     (Test-Path (Join-Path $bareHub 'HEAD'))          { $base = $bareHub }
+elseif (Test-Path (Join-Path $devHome '.git'))          { $base = $devHome }
+else                                                    { $base = $repoRoot }
 
 # --- Best-effort refresh of dev from origin (offline is fine) ---
 try { & git -C $base fetch --quiet origin dev 2>$null } catch { }

@@ -154,10 +154,11 @@ Multiple specs in flight at once don't collide because each spec name is unique.
 
 ## Parallel work folders (the brothers)
 
-This repo is worked from **multiple sibling folders at once** so several features can be in flight in parallel. Each folder is a separate checkout (a `git worktree` or a full clone) of the same repo, side-by-side under the **family directory** (the parent of this repo root, e.g. `…\awswebapp\`). See [BROTHERS.md](BROTHERS.md) for the full convention.
+This repo is worked from **multiple sibling folders at once** so several features can be in flight in parallel. Every folder is a **`git worktree` of one shared bare repo** (`.bare`) under the **family directory** (the parent of this repo root, e.g. `…\awswebapp\`). The shared object store is what makes cross-folder merges local and instant (from `dev`: `git merge <brother-branch>`, no push/pull). See [BROTHERS.md](BROTHERS.md) for the full convention.
 
 - Each work folder is a **brother** in a family of Germans; the folder's leaf name **is** the brother's identity — one of the names on the roster in [BROTHERS.md](BROTHERS.md) (`claude` is a brother too: the eldest/default — don't exclude it as "not German").
-- `app` and `dev` are not brothers — they are the **homestead** (shared production/integration clones).
+- `app`, `beta`, `alpha`, and `dev` are not brothers — they are the **homestead** (shared long-lived worktrees); `/brothers` lists them separately. `.bare` is the hub, not a folder you work in.
+- **A branch lives in only one worktree at a time** — so each homestead branch gets its own folder and a brother is never put *on* `dev` (he's parked detached at dev's tip until assigned a branch).
 - A brother works one branch at a time: the **brother (folder) = who**, the **branch = what**. They're independent — `wilhelm` might be on branch `cancel-superseded-runs`.
 
 **The family questions** are answered the same way whether asked as a slash command **or in plain conversation** ("who are you?", "what's the rest of the family up to?", "you have a new brother", "what should I do next?"). Each is backed by one script under `scripts/` — run it and narrate the result; don't re-derive the git plumbing here. The detailed procedure for each lives in its command file and in [BROTHERS.md](BROTHERS.md), and the executable logic is shared via `scripts/_BrothersCommon.ps1` (so `/brothers` and `/next` enumerate siblings the same way).
