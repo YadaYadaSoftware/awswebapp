@@ -166,7 +166,7 @@ This repo is worked from **multiple sibling folders at once** so several feature
 |---|---|---|---|
 | Who am I / who are you | `/whoami` | (inline git) | Leaf of `git rev-parse --show-toplevel` = your brother name; report branch, last commit, tree, `.brother-status`. Leaf `dev`/`app` ⇒ homestead, not a feature brother. |
 | What are my brothers doing | `/brothers` | `scripts\Get-Brothers.ps1` | One line per sibling: branch, tree state, ahead/behind, last commit, note. |
-| Welcome a new brother | `/newbrother` | `scripts\New-Brother.ps1` | Picks the next roster name (or `-Name`), creates the folder as a worktree, checks him out from `dev` (`-Branch` for a branch off dev). |
+| Welcome a new brother | `/newbrother` | `scripts\New-Brother.ps1` | Picks the next roster name (or `-Name`), creates the folder as a worktree, parks him **detached at `dev`'s tip** (or a branch off dev with `-Branch`). Never puts him *on* the `dev` branch — git allows a branch in only one worktree, so that would block every folder from checking out `dev`. |
 | What should I do next | `/next` | `scripts\Get-NextStep.ps1` | On a spec ⇒ progress + next unchecked task/step. Idle ⇒ suggests an OpenSpec change **no brother's branch is on**, so the family doesn't double up. |
 
 All are read-only except `/newbrother` (creates the worktree). Never modify anything to *answer* an identity/next question.

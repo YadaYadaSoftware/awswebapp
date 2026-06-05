@@ -12,9 +12,9 @@
       1. Picks his name (the next unused name from the roster in BROTHERS.md, or -Name).
       2. Creates his folder as a `git worktree` under the family directory.
       3. Starts him from `dev` - either a fresh branch off dev (-Branch) or, with no
-         branch yet, dev itself (parked detached at dev's tip if dev is already
-         checked out in the base clone, since git forbids the same branch in two
-         worktrees).
+         branch yet, parked detached at dev's tip. A brother never occupies the `dev`
+         branch itself: dev is the shared homestead branch other folders must be able
+         to check out, and git forbids the same branch in two worktrees.
 
     The worktree is based off the `dev` homestead clone if one exists in the family
     directory; otherwise off the current repo (which shares its object store).
@@ -26,7 +26,7 @@
 .PARAMETER Branch
     Branch to create off dev and check out for him (the "born to do work" case).
     Follow the repo's branch rules (spec-named for OpenSpec changes, {type}/{name}
-    otherwise - see CLAUDE.md). If omitted, he is checked out on dev itself, ready
+    otherwise - see CLAUDE.md). If omitted, he is parked detached at dev's tip, ready
     to branch when assigned work.
 
 .PARAMETER Force
@@ -35,7 +35,7 @@
 
 .EXAMPLE
     .\scripts\New-Brother.ps1
-    Welcomes the next roster brother, checked out on dev.
+    Welcomes the next roster brother, parked detached at dev's tip.
 
 .EXAMPLE
     .\scripts\New-Brother.ps1 -Name friedrich -Branch fix/oauth-callback
@@ -123,28 +123,19 @@ if (-not $hasLocalDev) {
     }
 }
 
-# --- Is dev already checked out in the base clone? (git allows a branch in one worktree only) ---
-$devCheckedOut = $false
-foreach ($l in (& git -C $base worktree list --porcelain)) {
-    if ($l.Trim() -eq 'branch refs/heads/dev') { $devCheckedOut = $true }
-}
-
 # --- Create the worktree ---
+# A brother must NEVER occupy the `dev` branch ref: dev is the shared homestead branch
+# every other folder needs to be able to check out, and git allows a branch in only one
+# worktree. So with no -Branch we park him DETACHED at dev's tip (he gets dev's files but
+# doesn't own the branch); with -Branch he gets his own branch off dev.
 $forceArg = @(); if ($Force) { $forceArg = @('--force') }
+$start = if ($hasLocalDev) { 'dev' } else { 'origin/dev' }
 if ($Branch) {
-    $start = if ($hasLocalDev) { 'dev' } else { 'origin/dev' }
     & git -C $base worktree add @forceArg $target -b $Branch $start
     $mode = "on new branch '$Branch' (off dev)"
-} elseif ($devCheckedOut) {
-    $start = if ($hasLocalDev) { 'dev' } else { 'origin/dev' }
-    & git -C $base worktree add @forceArg --detach $target $start
-    $mode = "detached at dev's tip (dev is checked out elsewhere; run ``git checkout -b <branch>`` when assigned)"
-} elseif ($hasLocalDev) {
-    & git -C $base worktree add @forceArg $target dev
-    $mode = "on dev"
 } else {
-    & git -C $base worktree add @forceArg -b dev $target origin/dev
-    $mode = "on dev (tracking origin/dev)"
+    & git -C $base worktree add @forceArg --detach $target $start
+    $mode = "parked at dev's tip (detached - run ``git checkout -b <branch>`` when assigned a task)"
 }
 
 if ($LASTEXITCODE -ne 0) {

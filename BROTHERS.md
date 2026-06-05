@@ -31,16 +31,18 @@ Brothers are named, in order, from this roster of German first names. Take the n
 
 ## Creating a new brother
 
-When you're told **"you have a new brother"**, **"welcome `<name>` to the team"**, or **"create a new brother"**, the job is: pick his name, create his folder, and check him out from `dev`. The helper does all three:
+When you're told **"you have a new brother"**, **"welcome `<name>` to the team"**, or **"create a new brother"**, the job is: pick his name, create his folder, and start him from `dev`. The helper does all three:
 
 ```powershell
-# Next unused roster name, checked out on dev:
+# Next unused roster name, parked detached at dev's tip:
 powershell -NoProfile -File scripts\New-Brother.ps1
 # …or name him and give him a starting branch off dev:
 powershell -NoProfile -File scripts\New-Brother.ps1 -Name friedrich -Branch fix/oauth-callback
 ```
 
-[scripts/New-Brother.ps1](scripts/New-Brother.ps1) takes the next unused name from the roster above (or `-Name`), creates the folder as a `git worktree` based off the `dev` homestead clone if present (else off the current repo), and starts him from `dev` — a fresh branch off dev with `-Branch`, or dev itself when no branch is known yet. Also exposed as the `/newbrother` slash command.
+[scripts/New-Brother.ps1](scripts/New-Brother.ps1) takes the next unused name from the roster above (or `-Name`), creates the folder as a `git worktree` based off the `dev` homestead clone if present (else off the current repo), and starts him from `dev` — a fresh branch off dev with `-Branch`, or **detached at dev's tip** when no branch is known yet. Also exposed as the `/newbrother` slash command.
+
+> **A brother never sits *on* the `dev` branch itself.** `dev` is the shared homestead branch every folder must be able to check out, and **git allows a given branch in only one worktree of a clone** — so if one brother occupied `dev`, no other folder (including the homestead) could check it out, and `git checkout dev` would fail with *"'dev' is already used by worktree at …"*. That's why a branch-less brother is parked **detached** at dev's tip (he gets dev's files without owning the branch) and gets his own branch the moment he's assigned work. The helper enforces this; by hand, use `-b <branch> dev` or `--detach dev`, never a bare `… dev`.
 
 Or do it by hand from the `dev` homestead (lightweight worktree that shares the object store):
 
@@ -49,11 +51,9 @@ Or do it by hand from the `dev` homestead (lightweight worktree that shares the 
 git -C C:\Users\hound\source\repos\YadaYadaSoftware\awswebapp\dev `
     worktree add ..\wilhelm -b <branch-name> dev
 
-# …or check out an EXISTING branch into a new brother folder:
-git -C ...\dev worktree add ..\friedrich <existing-branch>
+# …or park him detached at dev's tip (no branch yet):
+git -C ...\dev worktree add --detach ..\friedrich dev
 ```
-
-> **Note:** git allows the `dev` branch to be checked out in only one worktree of a clone. If `dev` is already checked out in the base clone, a new worktree can't sit literally on `dev` — start him on a branch off dev (`-b … dev`) or detached at dev's tip (`--detach … dev`); the helper handles this automatically.
 
 A full `git clone` into a sibling folder works too (this is how `app`/`dev` are set up); the tooling below treats clones and worktrees identically.
 
