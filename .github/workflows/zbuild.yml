@@ -594,6 +594,19 @@ jobs:
         fi
         echo "BOOTSTRAP_KMS_KEY_ARN=$BOOTSTRAP_KMS_KEY_ARN" >> $GITHUB_ENV
 
+    - name: Lookup shared Lambda role ARN from SSM
+      id: bootstrap-shared-lambda-role
+      if: matrix.deploy
+      run: |
+        SSM_PATH="/${{ steps.process-domain.outputs.processed-domain }}/iam/shared-lambda-role-arn"
+        echo "Looking up $SSM_PATH in ${{ matrix.region }}"
+        SHARED_LAMBDA_ROLE_ARN=$(aws ssm get-parameter --name "$SSM_PATH" --region ${{ matrix.region }} --query 'Parameter.Value' --output text)
+        if [ -z "$SHARED_LAMBDA_ROLE_ARN" ] || [ "$SHARED_LAMBDA_ROLE_ARN" = "None" ]; then
+          echo "ERROR: SSM parameter $SSM_PATH in ${{ matrix.region }} is empty or missing. Deploy the bootstrap stack (named for the dashed-domain) in this region before continuing." >&2
+          exit 1
+        fi
+        echo "SHARED_LAMBDA_ROLE_ARN=$SHARED_LAMBDA_ROLE_ARN" >> $GITHUB_ENV
+
     - name: Lookup Aurora cluster delete handler ARN from SSM
       id: bootstrap-aurora-teardown
       if: matrix.deploy
@@ -674,6 +687,9 @@ jobs:
         BASE_PARAMS="$BASE_PARAMS,Environment=$ENVIRONMENT"
         BASE_PARAMS="$BASE_PARAMS,IsPrimaryRegion=${{ matrix.is_primary }}"
         BASE_PARAMS="$BASE_PARAMS,IsMultiRegion=$IS_MULTI_REGION"
+        # Shared Lambda/ECS execution role ARN — consumed by BOTH the master-template
+        # path (dev/alpha/beta/app) and the application-template path (feature branches).
+        BASE_PARAMS="$BASE_PARAMS,SharedLambdaRoleArn=${SHARED_LAMBDA_ROLE_ARN}"
 
 
         # Add primary region parameters if needed (for secondary region in multi-region deployment)

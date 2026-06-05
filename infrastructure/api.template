@@ -15,6 +15,10 @@ Parameters:
     Type: String
     Description: "Branch name to import infrastructure values from"
 
+  SharedLambdaRoleArn:
+    Type: String
+    Description: "ARN of the bootstrap-owned shared Lambda/ECS execution role (passed in by application/master template)."
+
   Environment:
     Type: String
     Default: "Development"
@@ -47,10 +51,7 @@ Resources:
         Tjb.Api::Tjb.Api.LambdaEntryPoint::FunctionHandlerAsync
       Runtime: dotnet8
       PackageType: Zip
-      Role:
-        Fn::ImportValue: !Sub
-          - "SharedLambdaRoleArn-${EnvironmentToImport}-${DomainDashed}"
-          - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
+      Role: !Ref SharedLambdaRoleArn
       Environment:
         Variables:
           ASPNETCORE_ENVIRONMENT: !Ref Environment

@@ -1,58 +1,65 @@
+## 0. DEVIATION FROM SPEC TEXT — naming (please confirm)
+
+The spec text hardcodes `taskmanager-shared-lambda-execution-role` and the SSM path
+`/taskmanager/iam/shared-lambda-role-arn`. That contradicts this repo's enforced
+**Infrastructure naming convention** (CLAUDE.md): resource names derive from
+`${AWS::StackName}` (the dashed domain), never a hardcoded project literal — and the
+in-flight `domain-qualified-stack-exports` work (brother `friedrich`) is actively
+*removing* such literals. To avoid reintroducing one, this implementation uses:
+
+- RoleName: `${AWS::StackName}-shared-lambda-execution-role` (e.g. `appcloud-systems-shared-lambda-execution-role`)
+- SSM path: `/${AWS::StackName}/iam/shared-lambda-role-arn` (mirrors the KMS pattern `/${AWS::StackName}/kms/...`)
+
+Behavior is otherwise byte-identical. **If you actually want the literal `taskmanager-...`
+name, say so and I'll switch it.** Everything below reflects the domain-derived choice.
+
 ## 1. Prereqs
 
-- [ ] 1.1 Confirm the [`centralize-aurora-kms-keys`](../centralize-aurora-kms-keys/proposal.md) change has been deployed to all four env stacks. SSM parameters `/taskmanager/kms/{prod,nonprod}/aurora-key-arn` resolve in both regions; env stacks are encrypted with the bootstrap-owned keys.
-- [ ] 1.2 Verify no pre-existing IAM role would collide with the new name: `aws iam get-role --role-name taskmanager-shared-lambda-execution-role` should return `NoSuchEntity`. If a stale role exists from prior experimentation, schedule its deletion before Phase 1.
-- [ ] 1.3 Verify no out-of-tree consumer of the legacy export: `aws cloudformation list-exports --region us-east-1 --query "Exports[?starts_with(Name, 'SharedLambdaRoleArn-')]" --output table`. The result should contain only `dev`/`alpha`/`beta`/`app` from this repo (and only those that are currently deployed). Document any unexpected entries before proceeding.
-- [ ] 1.4 Verify no AWS resource outside our templates has a resource policy referencing the existing per-env role ARNs: `aws iam list-roles --query "Roles[?contains(RoleName, 'SharedLambdaExecutionRole')]"` to list them, then audit Secrets Manager / S3 / KMS-key-outside-our-control policies for those ARNs. We expect zero hits.
+- [ ] 1.1 Confirm `centralize-aurora-kms-keys` deployed to all four env stacks; KMS SSM params resolve in both regions. — *Operator/live-AWS verification; not done autonomously. (That change is archived.)*
+- [ ] 1.2 Verify no pre-existing IAM role collides with the new name. — *Name changed to `${AWS::StackName}-shared-lambda-execution-role` (see §0); collision check is an operator step before the bootstrap deploy.*
+- [ ] 1.3 Verify no out-of-tree consumer of the legacy `SharedLambdaRoleArn-*` export. — *Operator/live-AWS audit; not done autonomously.*
+- [ ] 1.4 Verify no AWS resource policy references the existing per-env role ARNs. — *Operator/live-AWS audit; not done autonomously.*
 
 ## 2. Bootstrap update (Phase 1)
 
-- [ ] 2.1 Add `SharedLambdaExecutionRole` resource to [infrastructure/bootstrap.template](../../../infrastructure/bootstrap.template) — `Condition: IsPrimary`, `RoleName: taskmanager-shared-lambda-execution-role`, `AssumeRolePolicyDocument` and inline policies copied verbatim from [security.template](../../../infrastructure/security.template) (so behavior is byte-identical).
-- [ ] 2.2 Add `SharedLambdaRoleArnParameter` resource — `AWS::SSM::Parameter`, `Name: /taskmanager/iam/shared-lambda-role-arn`. Primary region: `Value: !GetAtt SharedLambdaExecutionRole.Arn`. Replica region: `Value: !Sub "arn:aws:iam::${AWS::AccountId}:role/taskmanager-shared-lambda-execution-role"`. Use `!If [IsPrimary, ...]` to select between the two value forms (the parameter resource itself is always created — both regions need their own SSM parameter for the workflow's regional lookup).
-- [ ] 2.3 Add `SharedLambdaRoleArn` to bootstrap outputs: `Value: !If [IsPrimary, !GetAtt SharedLambdaExecutionRole.Arn, !Sub "arn:aws:iam::${AWS::AccountId}:role/taskmanager-shared-lambda-execution-role"]`. No Export.
-- [ ] 2.4 `aws cloudformation validate-template --template-body file://infrastructure/bootstrap.template --region us-east-1`.
-- [ ] 2.5 Operator deploys bootstrap update to us-east-1: `aws cloudformation deploy --stack-name bootstrap-appcloud-systems --template-file infrastructure/bootstrap.template --parameter-overrides TemplatesBucketName=cf-templates-991795635857-us-east-1 --capabilities CAPABILITY_NAMED_IAM --region us-east-1`.
-- [ ] 2.6 Verify in us-east-1: `aws ssm get-parameter --name /taskmanager/iam/shared-lambda-role-arn --region us-east-1` returns `arn:aws:iam::991795635857:role/taskmanager-shared-lambda-execution-role`. `aws iam get-role --role-name taskmanager-shared-lambda-execution-role` returns the role with the expected policies.
-- [ ] 2.7 Deploy to us-west-2 (replica) with the appropriate `PrimaryNonprodKeyArn`/`PrimaryProdKeyArn`/`TemplatesBucketName` overrides. Verify `aws ssm get-parameter --name /taskmanager/iam/shared-lambda-role-arn --region us-west-2` returns the same ARN as us-east-1 (since IAM is global).
+- [x] 2.1 Add `SharedLambdaExecutionRole` to [bootstrap.template](../../../infrastructure/bootstrap.template) — `Condition: IsPrimary`, domain-derived `RoleName`, AssumeRolePolicy + inline policies copied from the legacy security.template (scopes rebased from `DomainName` to `${AWS::StackName}` — byte-identical value).
+- [x] 2.2 Add `SharedLambdaRoleArnParameter` (`AWS::SSM::Parameter`, `/${AWS::StackName}/iam/shared-lambda-role-arn`), always created; `!If [IsPrimary, !GetAtt …Arn, !Sub predictable-arn]`.
+- [x] 2.3 Add `SharedLambdaRoleArn` to bootstrap outputs (same `!If` form, no Export).
+- [x] 2.4 `aws cloudformation validate-template` on bootstrap.template — *VALID.*
+- [ ] 2.5 Operator deploys bootstrap update to us-east-1. — *NOT done: deploying the shared bootstrap stack is an operator action affecting all envs; out of scope for an autonomous feature-branch run.*
+- [ ] 2.6 Verify SSM param + role in us-east-1. — *Blocked on 2.5.*
+- [ ] 2.7 Deploy bootstrap to the replica region; verify same ARN. — *Blocked on 2.5; operator action.*
 
 ## 3. Template + workflow changes (Phase 2)
 
-- [ ] 3.1 Add `SharedLambdaRoleArn` parameter to [master.template](../../../infrastructure/master.template) (`Type: String`, required). Pass through to `BackendStack` AND `ApplicationStack`.
-- [ ] 3.2 Add `SharedLambdaRoleArn` parameter to [backend.template](../../../infrastructure/backend.template). Update the `SharedLambdaRoleArn` output to use `!Ref SharedLambdaRoleArn` (since `SecurityStack.Outputs.SharedLambdaRoleArn` is going away).
-- [ ] 3.3 Remove the `SecurityStack` nested-stack resource from [backend.template](../../../infrastructure/backend.template) entirely. Remove `DependsOn: SecurityStack` from any sibling resource that still has it (audit first).
-- [ ] 3.4 Add `SharedLambdaRoleArn` parameter to [application.template](../../../infrastructure/application.template). Pass through to `ApiStack` and `WebStack`.
-- [ ] 3.5 [api.template](../../../infrastructure/api.template): add `SharedLambdaRoleArn` parameter; replace `Fn::ImportValue: !Sub "SharedLambdaRoleArn-${EnvironmentToImport}"` with `!Ref SharedLambdaRoleArn` (one occurrence, line ~47 per the parent change's grep).
-- [ ] 3.6 [web.template](../../../infrastructure/web.template): add `SharedLambdaRoleArn` parameter; replace `Fn::ImportValue: !Sub "SharedLambdaRoleArn-${EnvironmentToImport}"` with `!Ref SharedLambdaRoleArn` at lines ~154 and ~156 (both `TaskRoleArn` and `ExecutionRoleArn`).
-- [ ] 3.7 Delete [infrastructure/security.template](../../../infrastructure/security.template) (the file is now empty of useful content; its only resource is in bootstrap.template).
-- [ ] 3.8 Edit [.github/workflows/zbuild.yml](../../../.github/workflows/zbuild.yml): add a "Lookup shared Lambda role ARN from SSM" step immediately after the existing "Lookup bootstrap KMS key from SSM" step. The step reads `/taskmanager/iam/shared-lambda-role-arn` in `${{ matrix.region }}` and exports `SHARED_LAMBDA_ROLE_ARN` via `$GITHUB_ENV`. Fail loudly if the parameter is missing or empty.
-- [ ] 3.9 Edit "Set parameter overrides" step to append `BASE_PARAMS="$BASE_PARAMS,SharedLambdaRoleArn=${SHARED_LAMBDA_ROLE_ARN}"` **outside** the master-only `if [[ " app beta alpha dev " == ... ]]` block — so both master-template and application-template branches get the parameter.
-- [ ] 3.10 `aws cloudformation validate-template` on all four updated templates (master, backend, application, api, web).
-- [ ] 3.11 grep audit: confirm no remaining `Fn::ImportValue.*SharedLambdaRoleArn` anywhere in `infrastructure/` or `.github/`.
-- [ ] 3.12 Commit and open PR. Review notes should call out: (a) this deletes security.template, (b) the parameter is threaded through 5 files, (c) the workflow append happens in BOTH branch paths.
+- [x] 3.1 Add `SharedLambdaRoleArn` parameter to [master.template](../../../infrastructure/master.template); pass to `BackendStack` AND `ApplicationStack`.
+- [x] 3.2 Add `SharedLambdaRoleArn` parameter to [backend.template](../../../infrastructure/backend.template); output now uses `!Ref SharedLambdaRoleArn`.
+- [x] 3.3 Remove the `SecurityStack` nested-stack resource from backend.template. — *Removed; no `DependsOn: SecurityStack` existed (only NetworkingStack/DbStack).*
+- [x] 3.4 Add `SharedLambdaRoleArn` parameter to [application.template](../../../infrastructure/application.template); pass to `ApiStack` and `WebStack`.
+- [x] 3.5 [api.template](../../../infrastructure/api.template): add parameter; `Role:` now `!Ref SharedLambdaRoleArn`.
+- [x] 3.6 [web.template](../../../infrastructure/web.template): add parameter; `ExecutionRoleArn`/`TaskRoleArn` now `!Ref SharedLambdaRoleArn`. — *Note: the live import name was domain-qualified (`SharedLambdaRoleArn-${EnvironmentToImport}-${DomainDashed}`) after friedrich's change; both occurrences replaced.*
+- [x] 3.7 Delete [infrastructure/security.template](../../../infrastructure/security.template). — *`git rm`'d.*
+- [x] 3.8 Add "Lookup shared Lambda role ARN from SSM" workflow step after the KMS lookup; reads `/{dashed-domain}/iam/shared-lambda-role-arn` in `${{ matrix.region }}`, exports `SHARED_LAMBDA_ROLE_ARN`, fails loudly if missing/empty.
+- [x] 3.9 Append `SharedLambdaRoleArn=${SHARED_LAMBDA_ROLE_ARN}` to the **common** `BASE_PARAMS` (outside the master-only block) so both branch paths get it.
+- [x] 3.10 `aws cloudformation validate-template` on master, backend, application, api, web — *all VALID.*
+- [x] 3.11 grep audit: no remaining `Fn::ImportValue.*SharedLambdaRoleArn` in `infrastructure/` or `.github/` — *clean.*
+- [x] 3.12 Commit and push the feature branch (no PR — solo-dev repo). — *Done; see commit on branch `move-shared-lambda-role-to-bootstrap`.*
 
 ## 4. Roll out via deploys (Phase 3)
 
-- [ ] 4.1 Push to dev. Watch the CI deploy:
-  - `SecurityStack` deletion in event log
-  - `ApiStack` and `WebStack` updates (parameter change → resource updates)
-  - ECS task definitions re-rendered with the new `TaskRoleArn`
-  - Fargate rolling deployment on the web service
-  - UI tests should still pass (the new role has byte-identical policies)
-- [ ] 4.2 After dev is green, verify: `aws cloudformation list-exports --region us-east-1 --query "Exports[?Name=='SharedLambdaRoleArn-dev']"` returns empty (the export is gone).
-- [ ] 4.3 Push to alpha → watch deploy → verify export gone.
-- [ ] 4.4 Push to beta → same.
-- [ ] 4.5 Push to app → same. Coordinate with stakeholders given the ECS rolling deploy is on prod web service.
-- [ ] 4.6 Push a feature branch (any branch other than `dev`/`alpha`/`beta`/`app`) to verify the application-template path picks up the new role ARN via the workflow's BASE_PARAMS append. Confirm the feature branch's `ApiStack`/`WebStack` resources receive `SharedLambdaRoleArn=arn:aws:iam::...` and deploy successfully.
+- [ ] 4.1–4.5 Push to dev → alpha → beta → app, watching each deploy. — *NOT done: this run is explicitly feature-branch-only with no merges/pushes to the shared branches.*
+- [ ] 4.6 Push a feature branch to verify the application-template path picks up the role ARN. — *Branch pushed. The deploy will FAIL at the new "Lookup shared Lambda role ARN from SSM" step until the bootstrap stack (Phase 1, §2.5–2.7) publishes `/{dashed-domain}/iam/shared-lambda-role-arn`. This is the intended fail-loud precondition, not a code defect.*
 
 ## 5. Validation + cleanup
 
-- [ ] 5.1 `openspec validate move-shared-lambda-role-to-bootstrap --strict` and resolve any issues.
-- [ ] 5.2 Verify each `## Requirement` scenario from `specs/shared-lambda-role-management/spec.md` against the deployed system:
-  - Role `taskmanager-shared-lambda-execution-role` exists exactly once in IAM.
-  - SSM parameter resolves in both regions.
-  - All four legacy exports (`SharedLambdaRoleArn-dev/alpha/beta/app`) are gone.
-  - `infrastructure/security.template` does not exist; `backend.template` does not contain `SecurityStack`.
-  - Random per-env IAM roles (`bootstrap-appcloud-system-SharedLambdaExecutionRole-*`) are gone from IAM.
-  - `grep -r "Fn::ImportValue.*SharedLambdaRoleArn" infrastructure/` returns empty.
-- [ ] 5.3 Drop the §9.1 follow-up bullet from [centralize-aurora-kms-keys/tasks.md](../centralize-aurora-kms-keys/tasks.md) (this change is the implementation). The §9.2 (Retain) and §9.3 (obsolete) bullets stay.
-- [ ] 5.4 Archive this change per the experimental workflow (`/opsx:archive`).
+- [x] 5.1 `openspec validate move-shared-lambda-role-to-bootstrap --strict` — *passed.*
+- [ ] 5.2 Verify each spec scenario against the deployed system. — *Blocked on Phase 1 + Phase 3 (live AWS); deferred.*
+- [ ] 5.3 Drop the §9.1 follow-up bullet from `centralize-aurora-kms-keys/tasks.md`. — *N/A: that change is already archived (not in active changes); not editing archived artifacts.*
+- [ ] 5.4 Archive this change. — *Intentionally NOT done (feature-branch-only run; no merge/archive).*
+
+## Implementation notes (autonomous run on branch `move-shared-lambda-role-to-bootstrap`)
+
+- **Code complete (Phase 2) and statically validated.** All 6 templates pass `validate-template`; the grep audit is clean; security.template is deleted; the workflow looks up the role ARN per-region and threads it through both the master and application paths.
+- **Naming deviation** from the spec's `taskmanager-*` literal to `${AWS::StackName}`-derived names — see §0. Flagged for your confirmation.
+- **Cannot complete autonomously:** Phase 1 requires deploying the shared **bootstrap** stack in both regions (operator action affecting all envs) and Phase 3 requires rolling out to `dev`/`alpha`/`beta`/`app` (shared branches — excluded by the "feature-branch-only, no merge" instruction). Until the bootstrap deploy publishes the SSM param, this branch's CI deploy will fail loudly at the lookup step **by design**.
+- **Entanglement:** this change and brother `friedrich`'s `domain-qualified-stack-exports` both touch the api/web role references; expect a merge reconciliation when both land on dev.

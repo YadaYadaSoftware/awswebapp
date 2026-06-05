@@ -57,6 +57,10 @@ Parameters:
     Type: String
     Description: "ARN of the bootstrap-owned Aurora cluster force-teardown Lambda for this region. Required. Sourced by the deploy workflow from /{dashed-domain}/lambda/aurora-cluster-delete-handler-arn in SSM (e.g., /appcloud-systems/lambda/aurora-cluster-delete-handler-arn). Threaded to BackendStack -> DbStack."
 
+  SharedLambdaRoleArn:
+    Type: String
+    Description: "ARN of the bootstrap-owned shared Lambda/ECS execution role. Required. Sourced by the deploy workflow from /{dashed-domain}/iam/shared-lambda-role-arn in SSM. Threaded to BackendStack and ApplicationStack."
+
   # Google OAuth parameters
   GoogleOAuthClientId:
     Type: String
@@ -148,6 +152,7 @@ Resources:
         AuroraGlobalClusterId: !Ref AuroraGlobalClusterId
         KmsKeyArn: !Ref KmsKeyArn
         AuroraClusterDeleteHandlerArn: !Ref AuroraClusterDeleteHandlerArn
+        SharedLambdaRoleArn: !Ref SharedLambdaRoleArn
         GoogleOAuthClientId: !Ref GoogleOAuthClientId
         GoogleOAuthClientSecret: !Ref GoogleOAuthClientSecret
 
@@ -171,6 +176,7 @@ Resources:
         IsMultiRegion: !Ref IsMultiRegion
         Environment: !Ref Environment
         EnvironmentToImport: !Ref BranchName
+        SharedLambdaRoleArn: !Ref SharedLambdaRoleArn
 
 Outputs:
   # KMS outputs (for orchestration, not exported)
