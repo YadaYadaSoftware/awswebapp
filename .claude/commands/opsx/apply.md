@@ -135,6 +135,7 @@ What would you like to do?
 ```
 
 **Guardrails**
+- Honor the **Code-change gate** in CLAUDE.md: this skill is the spec-backed path, so only make code changes that the change's tasks/specs actually cover — no unrelated edits riding along. If the work strays outside the spec, pause and suggest updating artifacts or opening a new change.
 - Keep going through tasks until done or blocked
 - Always read context files before starting (from the apply instructions output)
 - If task is ambiguous, pause and ask before implementing

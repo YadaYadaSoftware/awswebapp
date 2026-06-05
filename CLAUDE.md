@@ -2,6 +2,19 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Code-change gate (read this first)
+
+**Do not modify code unless the change is backed by one of two things:**
+
+1. **An OpenSpec change** — an active `openspec/changes/<name>/` whose tasks/specs cover the edit. New feature work, refactors, behavior changes, and infrastructure/pipeline changes all go through OpenSpec. If no change exists yet, scaffold one with `/opsx:propose` (and branch per "Implementing an OpenSpec change" below) **before** touching source.
+2. **A bug fix** — correcting observed-incorrect behavior versus intended: a failing test, a runtime exception, a broken deploy, a security flaw, or output that contradicts a stated spec/README/intent. Bug fixes follow the existing `fix/<name>` convention. When you claim "this is a bug," state the symptom (what's wrong vs. what's expected) so it's verifiable.
+
+If a request would change code but is neither spec-backed nor a clear bug, **stop and surface that** — offer to open an OpenSpec change (`/opsx:propose`) or ask the user to confirm it's a bug fix. Do not silently start editing source.
+
+**What counts as "code" under this gate:** anything that changes the running app or the build/deploy pipeline — `src/**`, EF migrations, `infrastructure/**` (CloudFormation/SAM templates), `.github/workflows/**`, `Dockerfile`, and CI/deploy scripts under `scripts/**`.
+
+**What is exempt** (edit freely on the user's request, no spec/bug needed): documentation and Markdown, the OpenSpec artifacts themselves, the brothers tooling and developer-experience config (`CLAUDE.md`, `.claude/**`, `BROTHERS.md`, the status line, `.brother-status`, local-only `scripts/**` that don't run in CI/deploy), comments, and formatting. When in doubt about whether a `scripts/**` file is pipeline-bound, treat it as code and ask.
+
 ## Stack reality vs. README
 
 The root `README.md` is partially out of date — trust the code over the README:
