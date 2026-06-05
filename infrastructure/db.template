@@ -82,8 +82,12 @@ Resources:
     Properties:
       DBSubnetGroupDescription: "Subnet group for Aurora cluster in this region"
       SubnetIds:
-        - Fn::ImportValue: !Sub "PrivateSubnet1Id-${EnvironmentToImport}"
-        - Fn::ImportValue: !Sub "PrivateSubnet2Id-${EnvironmentToImport}"
+        - Fn::ImportValue: !Sub
+            - "PrivateSubnet1Id-${EnvironmentToImport}-${DomainDashed}"
+            - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
+        - Fn::ImportValue: !Sub
+            - "PrivateSubnet2Id-${EnvironmentToImport}-${DomainDashed}"
+            - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
   # Aurora DB Cluster Parameter Group
   AuroraClusterParameterGroup:
     Type: AWS::RDS::DBClusterParameterGroup
@@ -135,7 +139,9 @@ Resources:
       DBClusterParameterGroupName: !Ref AuroraClusterParameterGroup
       DBSubnetGroupName: !Ref AuroraDBSubnetGroup
       VpcSecurityGroupIds:
-        - Fn::ImportValue: !Sub "RDSSecurityGroupId-${EnvironmentToImport}"
+        - Fn::ImportValue: !Sub
+            - "RDSSecurityGroupId-${EnvironmentToImport}-${DomainDashed}"
+            - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
       BackupRetentionPeriod: 7
       PreferredBackupWindow: "03:00-04:00"
       PreferredMaintenanceWindow: "sun:04:00-sun:05:00"

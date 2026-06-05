@@ -81,10 +81,16 @@ Resources:
       Type: application
       Scheme: internet-facing
       SecurityGroups:
-        - Fn::ImportValue: !Sub "ALBSecurityGroupId-${EnvironmentToImport}"
+        - Fn::ImportValue: !Sub
+            - "ALBSecurityGroupId-${EnvironmentToImport}-${DomainDashed}"
+            - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
       Subnets:
-        - Fn::ImportValue: !Sub "PublicSubnet1Id-${EnvironmentToImport}"
-        - Fn::ImportValue: !Sub "PublicSubnet2Id-${EnvironmentToImport}"
+        - Fn::ImportValue: !Sub
+            - "PublicSubnet1Id-${EnvironmentToImport}-${DomainDashed}"
+            - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
+        - Fn::ImportValue: !Sub
+            - "PublicSubnet2Id-${EnvironmentToImport}-${DomainDashed}"
+            - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
   # Target Group
   WebTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
@@ -92,7 +98,9 @@ Resources:
       Protocol: HTTP
       Port: 80
       VpcId:
-        Fn::ImportValue: !Sub "VPCId-${EnvironmentToImport}"
+        Fn::ImportValue: !Sub
+          - "VPCId-${EnvironmentToImport}-${DomainDashed}"
+          - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
       TargetType: ip
       HealthCheckPath: /health
       HealthCheckIntervalSeconds: 30
@@ -151,9 +159,13 @@ Resources:
       Cpu: "512"
       Memory: "1024"
       ExecutionRoleArn:
-        Fn::ImportValue: !Sub "SharedLambdaRoleArn-${EnvironmentToImport}"
+        Fn::ImportValue: !Sub
+          - "SharedLambdaRoleArn-${EnvironmentToImport}-${DomainDashed}"
+          - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
       TaskRoleArn:
-        Fn::ImportValue: !Sub "SharedLambdaRoleArn-${EnvironmentToImport}"
+        Fn::ImportValue: !Sub
+          - "SharedLambdaRoleArn-${EnvironmentToImport}-${DomainDashed}"
+          - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
       ContainerDefinitions:
         - Name: web
           Image: !Ref WebContainerImage
@@ -170,15 +182,23 @@ Resources:
               Value: !Sub
                 - "Server=${DatabaseHost};Database=${DatabaseName};User Id=${DatabaseUsername};Password=${DatabasePassword};SslMode=Required;"
                 - DatabaseHost:
-                    Fn::ImportValue: !Sub "DatabaseHost-${EnvironmentToImport}"
+                    Fn::ImportValue: !Sub
+                      - "DatabaseHost-${EnvironmentToImport}-${DomainDashed}"
+                      - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
                   DatabaseName:
-                    Fn::ImportValue: !Sub "DatabaseName-${EnvironmentToImport}"
+                    Fn::ImportValue: !Sub
+                      - "DatabaseName-${EnvironmentToImport}-${DomainDashed}"
+                      - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
                   DatabaseUsername:
-                    Fn::ImportValue: !Sub "DatabaseUsername-${EnvironmentToImport}"
+                    Fn::ImportValue: !Sub
+                      - "DatabaseUsername-${EnvironmentToImport}-${DomainDashed}"
+                      - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
                   DatabasePassword: !Join
                     - ""
                     - - "{{resolve:secretsmanager:"
-                      - Fn::ImportValue: !Sub "DatabasePasswordSecretArn-${EnvironmentToImport}"
+                      - Fn::ImportValue: !Sub
+                          - "DatabasePasswordSecretArn-${EnvironmentToImport}-${DomainDashed}"
+                          - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
                       - ":SecretString}}"
             - Name: ASPNETCORE_URLS
               Value: "http://*:80"
@@ -216,17 +236,25 @@ Resources:
       - WebTaskDefinition
     Properties:
       Cluster:
-        Fn::ImportValue: !Sub "ECSClusterName-${EnvironmentToImport}"
+        Fn::ImportValue: !Sub
+          - "ECSClusterName-${EnvironmentToImport}-${DomainDashed}"
+          - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
       TaskDefinition: !Ref WebTaskDefinition
       DesiredCount: 1
       LaunchType: FARGATE
       NetworkConfiguration:
         AwsvpcConfiguration:
           SecurityGroups:
-            - Fn::ImportValue: !Sub "ECSTaskSecurityGroupId-${EnvironmentToImport}"
+            - Fn::ImportValue: !Sub
+                - "ECSTaskSecurityGroupId-${EnvironmentToImport}-${DomainDashed}"
+                - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
           Subnets:
-            - Fn::ImportValue: !Sub "PrivateSubnet1Id-${EnvironmentToImport}"
-            - Fn::ImportValue: !Sub "PrivateSubnet2Id-${EnvironmentToImport}"
+            - Fn::ImportValue: !Sub
+                - "PrivateSubnet1Id-${EnvironmentToImport}-${DomainDashed}"
+                - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
+            - Fn::ImportValue: !Sub
+                - "PrivateSubnet2Id-${EnvironmentToImport}-${DomainDashed}"
+                - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
       LoadBalancers:
         - TargetGroupArn: !Ref WebTargetGroup
           ContainerName: web

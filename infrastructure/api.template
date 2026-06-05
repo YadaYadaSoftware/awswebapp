@@ -48,29 +48,45 @@ Resources:
       Runtime: dotnet8
       PackageType: Zip
       Role:
-        Fn::ImportValue: !Sub "SharedLambdaRoleArn-${EnvironmentToImport}"
+        Fn::ImportValue: !Sub
+          - "SharedLambdaRoleArn-${EnvironmentToImport}-${DomainDashed}"
+          - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
       Environment:
         Variables:
           ASPNETCORE_ENVIRONMENT: !Ref Environment
           ConnectionStrings__DefaultConnection: !Sub
             - "Server=${DatabaseHost};Database=${DatabaseName};User Id=${DatabaseUsername};Password=${DatabasePassword};SslMode=Required;"
             - DatabaseHost:
-                Fn::ImportValue: !Sub "DatabaseHost-${EnvironmentToImport}"
+                Fn::ImportValue: !Sub
+                  - "DatabaseHost-${EnvironmentToImport}-${DomainDashed}"
+                  - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
               DatabaseName:
-                Fn::ImportValue: !Sub "DatabaseName-${EnvironmentToImport}"
+                Fn::ImportValue: !Sub
+                  - "DatabaseName-${EnvironmentToImport}-${DomainDashed}"
+                  - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
               DatabaseUsername:
-                Fn::ImportValue: !Sub "DatabaseUsername-${EnvironmentToImport}"
+                Fn::ImportValue: !Sub
+                  - "DatabaseUsername-${EnvironmentToImport}-${DomainDashed}"
+                  - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
               DatabasePassword: !Join
                 - ""
                 - - "{{resolve:secretsmanager:"
-                  - Fn::ImportValue: !Sub "DatabasePasswordSecretArn-${EnvironmentToImport}"
+                  - Fn::ImportValue: !Sub
+                      - "DatabasePasswordSecretArn-${EnvironmentToImport}-${DomainDashed}"
+                      - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
                   - ":SecretString}}"
       VpcConfig:
         SecurityGroupIds:
-          - Fn::ImportValue: !Sub "LambdaSecurityGroupId-${EnvironmentToImport}"
+          - Fn::ImportValue: !Sub
+              - "LambdaSecurityGroupId-${EnvironmentToImport}-${DomainDashed}"
+              - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
         SubnetIds:
-          - Fn::ImportValue: !Sub "PrivateSubnet1Id-${EnvironmentToImport}"
-          - Fn::ImportValue: !Sub "PrivateSubnet2Id-${EnvironmentToImport}"
+          - Fn::ImportValue: !Sub
+              - "PrivateSubnet1Id-${EnvironmentToImport}-${DomainDashed}"
+              - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
+          - Fn::ImportValue: !Sub
+              - "PrivateSubnet2Id-${EnvironmentToImport}-${DomainDashed}"
+              - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
       Events:
         # Health check endpoint for deployment verification
         HealthCheck:

@@ -17,12 +17,15 @@
 - [x] 2.1 In each exporter template, **add** a second `Output` (or dual-export is not allowed — see note) ... NOTE: a single resource value needs two exports under two names, which requires **two `Output` entries** with distinct logical IDs both pointing at the same `Value`. Add a `<Name>DomainQualified` output for every export listed in design.md D4, with `Export.Name: "<Name>-${BranchName}-${DomainDashed}"`.
 - [x] 2.2 Templates to edit: db.template (11), network.template (10), web.template (5), infrastructure.template (2), api.template (2), security.template (1). _(Also added a `DomainName` parameter to network.template and api.template — they did not previously receive it — and wired `DomainName: !Ref DomainName` from backend.template→NetworkingStack and application.template→ApiStack.)_
 - [x] 2.3 `aws cloudformation validate-template` each edited template. _(All 8 valid: db, network, web, infrastructure, api, security, backend, application.)_
-- [ ] 2.4 Deploy Phase 1 to **all** env backends: push to `dev` (single region) and to `alpha`/`beta`/`app` (multi-region). Confirm both old and new export names exist: `aws cloudformation list-exports --query "Exports[?contains(Name,'DatabaseHost')]"`.
+- [~] 2.4 Deploy Phase 1 to **all** env backends: push to `dev` (single region) and to `alpha`/`beta`/`app` (multi-region). Confirm both old and new export names exist: `aws cloudformation list-exports --query "Exports[?contains(Name,'DatabaseHost')]"`.
+  - **dev DONE (2026-06-05):** `dev-appcloud-systems` UPDATE_COMPLETE; 30 old `-dev` exports each have a `-dev-appcloud-systems` twin (30, not 31 — `AuroraGlobalClusterId` is multi-region-only).
+  - **app PENDING:** deployed in us-east-1 only, 31 old `-app` exports, 0 domain-qualified. Needs a Phase-1-only deploy before Phase 2 reaches it.
+  - **alpha/beta:** not currently deployed in either region.
 
 ## 3. Phase 2 — REPOINT all importers
 
-- [ ] 3.1 In each importer template, change every `Fn::ImportValue: !Sub "<Name>-${EnvironmentToImport}"` to the `${DomainDashed}`-suffixed form (design.md D2). Templates: api.template (8), web.template (14), dns.template (5), db.template (3).
-- [ ] 3.2 `aws cloudformation validate-template` each.
+- [x] 3.1 In each importer template, change every `Fn::ImportValue: !Sub "<Name>-${EnvironmentToImport}"` to the `${DomainDashed}`-suffixed form (design.md D2). Templates: api.template (8), web.template (14), dns.template (5 — `${BranchName}` same-env imports), db.template (3). _(Edits drafted; HELD uncommitted until Phase 1 is live on every backend that imports them.)_
+- [x] 3.2 `aws cloudformation validate-template` each. _(api, web, dns, db all valid; 0 old-form imports remain.)_
 - [ ] 3.3 Deploy Phase 2 to env stacks (dev, then alpha/beta/app). Each consumer now resolves the new names; the old exports remain but go unused.
 - [ ] 3.4 **Redeploy every live feature-branch app stack** from §1.2 so it imports the new names. Any feature branch not redeployed (or deleted) will still hold a reference to the old export and **block Phase 3**. Push each branch (or run its deploy) — or tear down stale branches.
 - [ ] 3.5 Verify no stack still imports an old name: for a representative old export, `aws cloudformation list-imports --export-name "DatabaseHost-dev"` should return empty (or error "not imported").
