@@ -159,22 +159,16 @@ This repo is worked from **multiple sibling folders at once** so several feature
 - `app` and `dev` are not brothers — they are the **homestead** (shared production/integration clones).
 - A brother works one branch at a time: the **brother (folder) = who**, the **branch = what**. They're independent — `wilhelm` might be on branch `cancel-superseded-runs`.
 
-**Answering the two identity questions** — whether asked via slash command **or in plain conversation** ("who are you?", "which brother am I talking to?", "what are my brothers doing?", "what's the rest of the family up to?"), follow these procedures (read-only — never modify anything to answer them):
+**The family questions** are answered the same way whether asked as a slash command **or in plain conversation** ("who are you?", "what's the rest of the family up to?", "you have a new brother", "what should I do next?"). Each is backed by one script under `scripts/` — run it and narrate the result; don't re-derive the git plumbing here. The detailed procedure for each lives in its command file and in [BROTHERS.md](BROTHERS.md), and the executable logic is shared via `scripts/_BrothersCommon.ps1` (so `/brothers` and `/next` enumerate siblings the same way).
 
-- **Who am I / who are you** (also `/whoami`): the leaf of `git rev-parse --show-toplevel` is your brother name. Report it with your current branch (`git rev-parse --abbrev-ref HEAD`), last commit (`git log -1 --format='%s (%cr)'`), tree state (`git status --porcelain`), and the contents of a `.brother-status` file if present. If the leaf is `dev`/`app`, say you're at the homestead, not a feature brother.
-- **What are my brothers doing** (also `/brothers`): run `powershell -NoProfile -File scripts\Get-Brothers.ps1`, which scans the family directory for every sibling checkout and prints each one's branch, tree state, ahead/behind, last commit, and `.brother-status` note. Summarize one line per brother, excluding yourself. If the script can't run, enumerate sibling folders containing a `.git` entry and query each with `git -C <folder> …`.
+| Ask | Command | Helper | What it does |
+|---|---|---|---|
+| Who am I / who are you | `/whoami` | (inline git) | Leaf of `git rev-parse --show-toplevel` = your brother name; report branch, last commit, tree, `.brother-status`. Leaf `dev`/`app` ⇒ homestead, not a feature brother. |
+| What are my brothers doing | `/brothers` | `scripts\Get-Brothers.ps1` | One line per sibling: branch, tree state, ahead/behind, last commit, note. |
+| Welcome a new brother | `/newbrother` | `scripts\New-Brother.ps1` | Picks the next roster name (or `-Name`), creates the folder as a worktree, checks him out from `dev` (`-Branch` for a branch off dev). |
+| What should I do next | `/next` | `scripts\Get-NextStep.ps1` | On a spec ⇒ progress + next unchecked task/step. Idle ⇒ suggests an OpenSpec change **no brother's branch is on**, so the family doesn't double up. |
 
-**Welcoming a new brother** — when told **"you have a new brother"**, **"welcome `<name>` to the team"**, or **"create a new brother"**, the job is to pick his name, create his folder, and check him out from `dev`. Run the helper (also `/newbrother`):
-```powershell
-# next unused roster name, parked on dev:
-powershell -NoProfile -File scripts\New-Brother.ps1
-# or named, with a starting branch off dev:
-powershell -NoProfile -File scripts\New-Brother.ps1 -Name friedrich -Branch fix/oauth-callback
-```
-It takes the next unused roster name (or `-Name`), creates the folder as a `git worktree` (based off the `dev` homestead clone if present, else this repo), and starts him from `dev`. Git allows the `dev` branch in only one worktree, so if `dev` is already checked out in the base clone the helper falls back to a branch off dev or detached at dev's tip. By hand:
-```powershell
-git -C ...\dev worktree add ..\wilhelm -b <branch-name> dev
-```
+All are read-only except `/newbrother` (creates the worktree). Never modify anything to *answer* an identity/next question.
 
 ## Things that will trip you up
 

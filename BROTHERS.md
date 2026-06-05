@@ -59,14 +59,16 @@ A full `git clone` into a sibling folder works too (this is how `app`/`dev` are 
 
 > **Branch vs. brother:** the brother name (the folder) is *who*; the branch is *what*. They are independent. `wilhelm` might be on branch `cancel-superseded-runs`. Follow the repo's branch rules in [CLAUDE.md](CLAUDE.md) (spec-named branches for OpenSpec changes, `{type}/{name}` otherwise).
 
-## Answering the two questions
+## The family questions
 
 - **`/whoami`** — reports the current brother's identity, branch, last commit, and tree state.
 - **`/brothers`** — reports every *other* brother's branch, last commit, tree state, and any status note.
+- **`/newbrother`** — welcomes a new brother: picks his name, creates his folder, checks him out from `dev` (see [Creating a new brother](#creating-a-new-brother)).
+- **`/next`** — tells you the next step on your spec, or — if you're idle — suggests an OpenSpec change **no brother is currently on**, so the family doesn't double up on the same spec.
 
-Both are also answered in plain conversation: just ask *"who are you?"* or *"what are my brothers doing?"* and Claude follows the same procedure (see [CLAUDE.md](CLAUDE.md) → "Parallel work folders").
+All four are also answered in plain conversation: just ask *"who are you?"*, *"what are my brothers doing?"*, *"you have a new brother"*, or *"what should I work on next?"* and Claude follows the same procedure (see [CLAUDE.md](CLAUDE.md) → "Parallel work folders").
 
-Under the hood `/brothers` runs [scripts/Get-Brothers.ps1](scripts/Get-Brothers.ps1), which scans the family directory for sibling checkouts and queries each with `git -C`.
+Under the hood each is a script in [scripts/](scripts/): [Get-Brothers.ps1](scripts/Get-Brothers.ps1), [New-Brother.ps1](scripts/New-Brother.ps1), and [Get-NextStep.ps1](scripts/Get-NextStep.ps1). `Get-Brothers.ps1` and `Get-NextStep.ps1` share their sibling-enumeration logic via [scripts/_BrothersCommon.ps1](scripts/_BrothersCommon.ps1) — one place scans the family directory and reads each checkout's git state.
 
 ## Leaving a note for the family (optional)
 

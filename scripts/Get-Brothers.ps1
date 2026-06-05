@@ -35,79 +35,26 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-# Resolve this folder's repo root, then the family directory (its parent).
-$repoRoot = & git rev-parse --show-toplevel 2>$null
-if (-not $repoRoot) {
-    Write-Error "Not inside a git repository."
-    return
-}
-$repoRoot = ($repoRoot | Select-Object -First 1).Trim()
-$self     = Split-Path $repoRoot -Leaf
-$family   = Split-Path $repoRoot -Parent
+. "$PSScriptRoot\_BrothersCommon.ps1"
 
-$rows = @()
-foreach ($dir in Get-ChildItem -Path $family -Directory) {
-    # A git checkout has a `.git` entry: a directory (clone) or a file (worktree).
-    if (-not (Test-Path (Join-Path $dir.FullName '.git'))) { continue }
-
-    $name   = $dir.Name
-    $isSelf = ($name -eq $self)
-    if ($isSelf -and -not $IncludeSelf) { continue }
-
-    $branch = & git -C $dir.FullName rev-parse --abbrev-ref HEAD 2>$null
-    if ($branch) { $branch = $branch.Trim() } else { $branch = '(detached)' }
-
-    $subject = & git -C $dir.FullName log -1 --format='%s' 2>$null
-    $when    = & git -C $dir.FullName log -1 --format='%cr' 2>$null
-    if ($subject) { $lastCommit = "$($subject.Trim()) ($($when.Trim()))" } else { $lastCommit = '(no commits)' }
-
-    $dirtyCount = (& git -C $dir.FullName status --porcelain 2>$null | Measure-Object -Line).Lines
-    if ($dirtyCount -gt 0) { $tree = "$dirtyCount uncommitted" } else { $tree = 'clean' }
-
-    # Ahead/behind vs the branch's upstream, if any. Check for a configured upstream
-    # first via for-each-ref (which never errors) - calling rev-list with @{upstream}
-    # on a branch that has none writes to stderr, and a 2>$null redirect of a native
-    # command under PS 5.1 turns that into a terminating error.
-    $sync = ''
-    $upstream = (& git -C $dir.FullName for-each-ref --format='%(upstream:short)' "refs/heads/$branch")
-    if ($upstream) {
-        $counts = & git -C $dir.FullName rev-list --left-right --count "@{upstream}...HEAD"
-        if ($counts) {
-            $parts = ($counts.Trim() -split '\s+')
-            if ($parts.Count -eq 2) {
-                $behind = [int]$parts[0]; $ahead = [int]$parts[1]
-                if ($ahead -gt 0) { $sync += "+$ahead" }
-                if ($behind -gt 0) { $sync += "-$behind" }
-            }
+# Enumeration + git-state lives in Get-FamilyCheckouts (shared with /next); here we
+# just project it into the display table.
+$rows = @(
+    Get-FamilyCheckouts -IncludeSelf:$IncludeSelf | ForEach-Object {
+        [pscustomobject]@{
+            Brother    = $_.Name
+            Who        = if ($_.IsSelf) { '(self)' } else { '' }
+            Branch     = $_.Branch
+            Tree       = $_.Tree
+            Sync       = $_.Sync
+            LastCommit = $_.LastCommit
+            Note       = $_.Note
         }
-        if (-not $sync) { $sync = 'in sync' }
-    } else {
-        $sync = 'no upstream'
     }
-
-    # Optional free-text note the brother left for the family.
-    $note = ''
-    $statusFile = Join-Path $dir.FullName '.brother-status'
-    if (Test-Path $statusFile) {
-        $note = ((Get-Content $statusFile -Raw -ErrorAction SilentlyContinue) | Out-String).Trim()
-    }
-
-    $marker = ''
-    if ($isSelf) { $marker = '(self)' }
-
-    $rows += [pscustomobject]@{
-        Brother    = $name
-        Who        = $marker
-        Branch     = $branch
-        Tree       = $tree
-        Sync       = $sync
-        LastCommit = $lastCommit
-        Note       = $note
-    }
-}
+)
 
 if (-not $rows) {
-    Write-Host "No brothers found under $family."
+    Write-Host "No brothers found."
     return
 }
 
