@@ -7,6 +7,8 @@ tags: [worktree, brothers, teammates]
 
 Report what your **brothers** — the other work folders under the family directory — are currently working on. See [BROTHERS.md](../../BROTHERS.md) for the family convention.
 
+> **Shell:** this is a Windows/PowerShell environment. Run the helper and any fallback git commands through the **PowerShell tool**, not Bash.
+
 **Steps**
 
 1. **Run the helper:**

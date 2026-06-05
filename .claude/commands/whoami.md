@@ -7,6 +7,8 @@ tags: [worktree, brothers, identity]
 
 Report **who you are** — the brother (work folder) you are operating from — and what you're currently working on. See [BROTHERS.md](../../BROTHERS.md) for the family convention.
 
+> **Shell:** this is a Windows/PowerShell environment. Run every command below through the **PowerShell tool**, not Bash — PowerShell `if (...) { ... }` and `;`-separated statements fail under bash. You can batch all the read-only git calls into one PowerShell invocation.
+
 **Steps**
 
 1. **Identity.** Run `git rev-parse --show-toplevel` and take the last path segment. That leaf is your **brother name** (e.g. `wilhelm`, `friedrich`). If it is `dev` or `app`, you are at the **homestead** (the shared integration/production clones), not a feature brother — say so.
