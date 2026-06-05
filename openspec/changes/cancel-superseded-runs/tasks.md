@@ -8,7 +8,7 @@
     cancel-in-progress: ${{ github.ref != 'refs/heads/app' }}
   ```
 - [x] 1.3 Verify the existing job-level `concurrency:` block on the `deploy` job (around line 357-359) is unchanged. It must remain as `deploy-${{ matrix.region }}-${{ needs.get-branch-name.outputs.branch-name }}` with `cancel-in-progress: false` — the `branch-stack-cleanup` capability requires this group key to exist.
-- [ ] 1.4 Commit with message that does NOT contain the substring `nodeploy` anywhere (subject or body) so the deploy step doesn't silently skip during testing. The commit message can describe the marker via paraphrase ("the deploy-skip substring", "the queue/no-cancel marker").
+- [x] 1.4 Commit with message that does NOT contain the substring `nodeploy` anywhere (subject or body) so the deploy step doesn't silently skip during testing. The commit message can describe the marker via paraphrase ("the deploy-skip substring", "the queue/no-cancel marker").
 
 ## 2. Validate the new behavior
 
