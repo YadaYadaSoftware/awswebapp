@@ -919,75 +919,42 @@ jobs:
        retention-days: ${{ needs.get-branch-name.outputs.branch-name == 'app' && 30 || 7 }}
        if-no-files-found: ignore
 
-   - name: Generate Combined Test Summary
+   - name: Summarize UI test results
      if: always()
      run: |
-       echo "## Combined Test Results Summary" >> $GITHUB_STEP_SUMMARY
-       echo "" >> $GITHUB_STEP_SUMMARY
+       # dorny/test-reporter renders the rich per-test report + source annotations
+       # into a separate "UI tests" CHECK RUN (see the commit's Checks tab) — it does
+       # NOT write to this Summary tab. So we also emit a concise results block here,
+       # parsed from the TRX, so the run's Summary page shows totals + any failures.
+       TRX="src/Tjb.UiTests/TestResults/ui-tests.trx"
+       {
+         echo "## UI tests"
+         echo ""
+         echo "- ✅ Passed: ${{ steps.ui-tests.outputs.passed-tests }}"
+         echo "- ❌ Failed: ${{ steps.ui-tests.outputs.failed-tests }}"
+         echo "- 🧪 Total:  ${{ steps.ui-tests.outputs.total-tests }}"
+         echo ""
+       } >> "$GITHUB_STEP_SUMMARY"
 
-       # Unit Tests Section
-       echo "### Unit Tests (Pre-deployment)" >> $GITHUB_STEP_SUMMARY
-       echo "✅ **Unit tests completed successfully before deployment**" >> $GITHUB_STEP_SUMMARY
-       echo "" >> $GITHUB_STEP_SUMMARY
-
-       # UI Tests Section
-       echo "### UI Tests (Post-deployment)" >> $GITHUB_STEP_SUMMARY
-
-       if [ "${{ steps.ui-tests.outputs.ui-tests-passed }}" = "true" ]; then
-         echo "✅ **All UI tests passed successfully against deployed application!**" >> $GITHUB_STEP_SUMMARY
-       else
-         echo "❌ **Some UI tests failed against deployed application.**" >> $GITHUB_STEP_SUMMARY
+       if [ -f "$TRX" ] && [ "${{ steps.ui-tests.outputs.failed-tests }}" != "0" ]; then
+         {
+           echo "### Failures"
+           echo ""
+           echo "| Test | Outcome |"
+           echo "| --- | --- |"
+         } >> "$GITHUB_STEP_SUMMARY"
+         grep 'outcome="Failed"' "$TRX" | grep -oP 'testName="\K[^"]+' | sort -u \
+           | while read -r name; do echo "| \`$name\` | ❌ Failed |" >> "$GITHUB_STEP_SUMMARY"; done
+         echo "" >> "$GITHUB_STEP_SUMMARY"
        fi
 
-       echo "" >> $GITHUB_STEP_SUMMARY
-       echo "**UI Test Statistics:**" >> $GITHUB_STEP_SUMMARY
-       echo "- Total Tests: ${{ steps.ui-tests.outputs.total-tests }}" >> $GITHUB_STEP_SUMMARY
-       echo "- Passed Tests: ${{ steps.ui-tests.outputs.passed-tests }}" >> $GITHUB_STEP_SUMMARY
-       echo "- Failed Tests: ${{ steps.ui-tests.outputs.failed-tests }}" >> $GITHUB_STEP_SUMMARY
-
-       echo "" >> $GITHUB_STEP_SUMMARY
-
-       # Check for test summary file and include its contents
-       if [ -f "src/Tjb.UiTests/TestResults/test-summary.txt" ]; then
-         echo "**📊 Detailed UI Test Summary:**" >> $GITHUB_STEP_SUMMARY
-         echo '```text' >> $GITHUB_STEP_SUMMARY
-         cat src/Tjb.UiTests/TestResults/test-summary.txt >> $GITHUB_STEP_SUMMARY
-         echo '```' >> $GITHUB_STEP_SUMMARY
-         echo "" >> $GITHUB_STEP_SUMMARY
-       fi
-
-       # List available screenshots for failed tests
-       if [ -d "src/Tjb.UiTests/TestResults/Screenshots" ] && [ "$(ls -A src/Tjb.UiTests/TestResults/Screenshots 2>/dev/null)" ]; then
-         echo "**📸 UI Test Failure Screenshots Available:**" >> $GITHUB_STEP_SUMMARY
-         echo "" >> $GITHUB_STEP_SUMMARY
-
-         # List screenshot files that were captured
-         echo "The following screenshots were captured during UI test failures:" >> $GITHUB_STEP_SUMMARY
-         for screenshot in src/Tjb.UiTests/TestResults/Screenshots/*.png; do
-           if [ -f "$screenshot" ]; then
-             filename=$(basename "$screenshot")
-             echo "- \`$filename\`" >> $GITHUB_STEP_SUMMARY
-           fi
-         done
-         echo "" >> $GITHUB_STEP_SUMMARY
-       fi
-
-       # Add links to detailed test results
-       echo "**📋 Download Test Results:**" >> $GITHUB_STEP_SUMMARY
-       echo "" >> $GITHUB_STEP_SUMMARY
-
-       # Unit test results link (if available)
-       echo "🔗 **[Download Unit Test Results Artifact](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts/1)**" >> $GITHUB_STEP_SUMMARY
-       echo "" >> $GITHUB_STEP_SUMMARY
-
-       # UI test results link
-       echo "🔗 **[Download UI Test Results Artifact](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts/${{ steps.upload-ui-test-results.outputs.artifact-id }})**" >> $GITHUB_STEP_SUMMARY
-       echo "" >> $GITHUB_STEP_SUMMARY
-
-       echo "**Test Results Include:**" >> $GITHUB_STEP_SUMMARY
-       echo "- Test execution reports (JSON and text format)" >> $GITHUB_STEP_SUMMARY
-       echo "- Screenshots from failed UI tests" >> $GITHUB_STEP_SUMMARY
-       echo "- Detailed test logs" >> $GITHUB_STEP_SUMMARY
+       {
+         echo "Full per-test detail and source annotations: see the **UI tests** check on this commit (dorny/test-reporter)."
+         if [ -n "${{ steps.upload-ui-test-results.outputs.artifact-id }}" ]; then
+           echo ""
+           echo "Artifacts: [TRX + screenshots](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts/${{ steps.upload-ui-test-results.outputs.artifact-id }}) · Playwright traces in \`ui-test-artifacts-${{ github.run_id }}\`."
+         fi
+       } >> "$GITHUB_STEP_SUMMARY"
 
    - name: Fail workflow if UI tests failed
      if: steps.ui-tests.outputs.ui-tests-passed == 'false'
