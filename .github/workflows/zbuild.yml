@@ -118,6 +118,52 @@ jobs:
       with:
         fetch-depth: 0
 
+    - name: Default-branch workflow drift guard
+      if: always()
+      run: |
+        set -uo pipefail
+        # `delete`/`schedule` workflows run from the DEFAULT branch (app) only, so edits
+        # to them elsewhere are dormant until promoted. Flag any that differ from app.
+        # See CLAUDE.md "default-branch-only workflows (gotcha)".
+        BRANCH="${{ needs.get-branch-name.outputs.branch-name }}"
+        echo "## Default-branch workflow drift" >> "$GITHUB_STEP_SUMMARY"
+        echo "" >> "$GITHUB_STEP_SUMMARY"
+        if [ "$BRANCH" = "app" ]; then
+          echo "_On \`app\` (the default branch) — nothing to be behind; guard is a no-op._" >> "$GITHUB_STEP_SUMMARY"
+          exit 0
+        fi
+        if ! git fetch --quiet origin app 2>/dev/null; then
+          echo "_Skipped: could not fetch \`origin/app\` (non-fatal)._" >> "$GITHUB_STEP_SUMMARY"
+          exit 0
+        fi
+        DRIFTED=""
+        for f in .github/workflows/*.yml .github/workflows/*.yaml; do
+          [ -e "$f" ] || continue
+          # Watch only workflows triggered by default-branch-only events.
+          if grep -Eq '^[[:space:]]*(delete|schedule)[[:space:]]*:' "$f"; then
+            if ! git diff --quiet --ignore-cr-at-eol origin/app -- "$f" 2>/dev/null; then
+              DRIFTED="$DRIFTED $f"
+            fi
+          fi
+        done
+        if [ -z "$DRIFTED" ]; then
+          echo "✅ No drift: all \`delete\`/\`schedule\`-triggered workflows match \`app\`." >> "$GITHUB_STEP_SUMMARY"
+          exit 0
+        fi
+        {
+          echo "⚠️ These \`delete\`/\`schedule\`-triggered workflows differ from \`app\` and are **dormant until promoted** (GitHub runs them only from the default branch):"
+          echo ""
+          for f in $DRIFTED; do echo "- \`$f\`"; done
+          echo ""
+          echo "Promote via a deliberate \`dev\`->\`app\` merge."
+        } >> "$GITHUB_STEP_SUMMARY"
+        echo "Drift detected in:$DRIFTED"
+        # Warn-only by default. Opt-in blocking on dev via repo variable DRIFT_GUARD_FAIL_ON_DEV=true.
+        if [ "$BRANCH" = "dev" ] && [ "${{ vars.DRIFT_GUARD_FAIL_ON_DEV }}" = "true" ]; then
+          echo "❌ Failing on dev because DRIFT_GUARD_FAIL_ON_DEV=true." >&2
+          exit 1
+        fi
+
     - name: Validate changes folder is empty
       if: contains(fromJson('["dev", "alpha", "beta", "app"]'), needs.get-branch-name.outputs.branch-name)
       run: |

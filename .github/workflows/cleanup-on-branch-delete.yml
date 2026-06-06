@@ -1,4 +1,8 @@
 name: Cleanup Stack On Branch Delete
+# NOTE: `delete` is a default-branch-only event — GitHub runs this workflow using the
+# copy on the default branch (`app`), NOT the copy on the branch being deleted. Edits
+# here are dormant until promoted dev->app. See CLAUDE.md "default-branch-only workflows
+# (gotcha)" and the default-branch-workflow-promotion change.
 on:
   delete:
 
