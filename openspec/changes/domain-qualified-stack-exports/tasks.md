@@ -39,8 +39,10 @@
 
 - [x] 4.1 In each exporter template, delete the original `<Name>-${BranchName}` `Export` (keep only the domain-qualified one — and consider renaming the output logical IDs back to canonical now that there is only one). _(Removed all 31 bare-export `Output` blocks; kept the `*DomainQualified` outputs as-is. Did NOT rename logical IDs back to canonical — renaming an output's export name in the same deploy risks a transient duplicate-export error, and the suffix is cosmetic. Could be a follow-up cleanup once app is migrated.)_
 - [x] 4.2 `aws cloudformation validate-template` each. _(All valid; 0 bare exports remain, 31 domain-qualified outputs intact.)_
-- [ ] 4.3 Deploy Phase 3 to all env backends (dev, then alpha/beta/app). If any deploy fails with "export in use", a feature stack from §3.4 was missed — repoint/tear it down and retry. Do NOT force.
-- [ ] 4.4 Confirm only domain-qualified exports remain: `aws cloudformation list-exports` shows no bare `<Name>-<branch>` names.
+- [x] 4.3 Deploy Phase 3 to all env backends (dev, then alpha/beta/app). If any deploy fails with "export in use", a feature stack from §3.4 was missed — repoint/tear it down and retry. Do NOT force.
+  - **dev DONE (2026-06-06)** — but via a **fresh CREATE**, not an in-place Phase-3 update: mid-migration the dev stack was manually `delete-stack`'d (intentional). The fresh create deployed the final migrated templates directly. alpha/beta not deployed; app still pending its own migration.
+  - **BUG found & fixed during this:** Phase 3 had removed the old `<Name>` outputs leaving only `<Name>DomainQualified`, which broke parent-template consumers using `!GetAtt <Stack>.Outputs.<LogicalId>` (NOT `Fn::ImportValue`). Fresh create failed `Output 'DatabaseUsername' not found`. Fix: renamed all 31 outputs back to canonical logical IDs while keeping the domain-qualified `Export.Name` (the "rename back to canonical" step in 4.1 — it was mandatory, not optional). Commit `9de4c7f` → dev `cb5a239`.
+- [x] 4.4 Confirm only domain-qualified exports remain: `aws cloudformation list-exports` shows no bare `<Name>-<branch>` names. _(dev 2026-06-06: 0 bare `-dev` exports, 30 `-dev-appcloud-systems` exports. App/alpha/beta unaffected.)_
 
 ## 5. Validation
 
