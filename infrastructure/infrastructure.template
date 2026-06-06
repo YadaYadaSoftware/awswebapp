@@ -39,7 +39,7 @@ Resources:
           "clientSecret": "${GoogleOAuthClientSecret}"
         }
 Outputs:
-  ECSClusterNameDomainQualified:
+  ECSClusterName:
     Description: "ECS cluster name"
     Value: !GetAtt ECSCluster.Arn
     Export:
@@ -47,7 +47,7 @@ Outputs:
         - "ECSClusterName-${BranchName}-${DomainDashed}"
         - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
 
-  GoogleOAuthSecretArnDomainQualified:
+  GoogleOAuthSecretArn:
     Description: "ARN of the Google OAuth secrets"
     Value: !Ref GoogleOAuthSecrets
     Export:
