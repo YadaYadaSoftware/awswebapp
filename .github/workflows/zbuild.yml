@@ -922,36 +922,43 @@ jobs:
    - name: Summarize UI test results
      if: always()
      run: |
-       # dorny/test-reporter renders the rich per-test report + source annotations
-       # into a separate "UI tests" CHECK RUN (see the commit's Checks tab) — it does
-       # NOT write to this Summary tab. So we also emit a concise results block here,
-       # parsed from the TRX, so the run's Summary page shows totals + any failures.
+       # dorny/test-reporter posts its report to a CHECK RUN (the commit's Checks tab),
+       # never to this Summary tab. Render a full per-test table here from the TRX so
+       # the detailed results are visible on the run's Summary page as well.
        TRX="src/Tjb.UiTests/TestResults/ui-tests.trx"
        {
          echo "## UI tests"
          echo ""
-         echo "- ✅ Passed: ${{ steps.ui-tests.outputs.passed-tests }}"
-         echo "- ❌ Failed: ${{ steps.ui-tests.outputs.failed-tests }}"
-         echo "- 🧪 Total:  ${{ steps.ui-tests.outputs.total-tests }}"
+         echo "✅ Passed: ${{ steps.ui-tests.outputs.passed-tests }} · ❌ Failed: ${{ steps.ui-tests.outputs.failed-tests }} · 🧪 Total: ${{ steps.ui-tests.outputs.total-tests }}"
          echo ""
        } >> "$GITHUB_STEP_SUMMARY"
 
-       if [ -f "$TRX" ] && [ "${{ steps.ui-tests.outputs.failed-tests }}" != "0" ]; then
+       if [ -f "$TRX" ]; then
          {
-           echo "### Failures"
-           echo ""
-           echo "| Test | Outcome |"
-           echo "| --- | --- |"
+           echo "| Test | Outcome | Duration |"
+           echo "| --- | --- | --- |"
          } >> "$GITHUB_STEP_SUMMARY"
-         grep 'outcome="Failed"' "$TRX" | grep -oP 'testName="\K[^"]+' | sort -u \
-           | while read -r name; do echo "| \`$name\` | ❌ Failed |" >> "$GITHUB_STEP_SUMMARY"; done
+         # dotnet-trx writes one <UnitTestResult .../> element per line.
+         grep '<UnitTestResult ' "$TRX" | while IFS= read -r line; do
+           name=$(printf '%s' "$line" | grep -oP 'testName="\K[^"]+' | head -1)
+           [ -z "$name" ] && continue
+           outcome=$(printf '%s' "$line" | grep -oP 'outcome="\K[^"]+' | head -1)
+           dur=$(printf '%s' "$line" | grep -oP 'duration="\K[^"]+' | head -1)
+           case "$outcome" in
+             Passed) icon="✅" ;;
+             Failed) icon="❌" ;;
+             *) icon="⏭" ;;
+           esac
+           echo "| \`$name\` | $icon ${outcome:-Unknown} | ${dur:-–} |" >> "$GITHUB_STEP_SUMMARY"
+         done
          echo "" >> "$GITHUB_STEP_SUMMARY"
+       else
+         echo "_No \`ui-tests.trx\` was produced for this run._" >> "$GITHUB_STEP_SUMMARY"
        fi
 
        {
-         echo "Full per-test detail and source annotations: see the **UI tests** check on this commit (dorny/test-reporter)."
+         echo "Failure messages + source-line annotations are on the **UI tests** check (dorny/test-reporter)."
          if [ -n "${{ steps.upload-ui-test-results.outputs.artifact-id }}" ]; then
-           echo ""
            echo "Artifacts: [TRX + screenshots](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts/${{ steps.upload-ui-test-results.outputs.artifact-id }}) · Playwright traces in \`ui-test-artifacts-${{ github.run_id }}\`."
          fi
        } >> "$GITHUB_STEP_SUMMARY"
