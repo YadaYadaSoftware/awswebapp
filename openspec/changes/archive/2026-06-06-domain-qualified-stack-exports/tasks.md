@@ -46,7 +46,8 @@
 
 ## 5. Validation
 
-- [ ] 5.1 `openspec validate domain-qualified-stack-exports --strict` passes.
-- [ ] 5.2 Deploy a throwaway feature branch end-to-end against the migrated dev backend; UI tests green (proves the app still resolves DB host/secret via the new import names).
-- [ ] 5.3 (Optional, proves the original motivation) Dry-run a second-domain bootstrap+backend in a sandbox account/region and confirm no export-name collision.
-- [ ] 5.4 Archive this change (`/opsx:archive`).
+- [x] 5.1 `openspec validate domain-qualified-stack-exports --strict` passes.
+- [x] 5.2 Deploy a throwaway feature branch end-to-end against the migrated dev backend; UI tests green (proves the app still resolves DB host/secret via the new import names).
+  - Pushed `domain-qualified-stack-exports` (2026-06-06): `domain-qualified-stack-exports-appcloud-systems` reached `CREATE_COMPLETE` importing dev's `-dev-appcloud-systems` exports (ImportValue resolves), `https://domain-qualified-stack-exports.appcloud.systems/health` returns HTTP 200, and the workflow's UI tests came back **all green**.
+- [~] 5.3 (Optional, proves the original motivation) Dry-run a second-domain bootstrap+backend in a sandbox account/region and confirm no export-name collision. _(Skipped — optional; no sandbox second domain available. Collision-safety is guaranteed by construction: every export name now carries `-${DomainDashed}`.)_
+- [x] 5.4 Archive this change (`/opsx:archive`). _(2026-06-06: delta spec synced into openspec/specs/cross-stack-export-naming/; change moved to archive. app/alpha/beta migration remains as deferred operational follow-up.)_
