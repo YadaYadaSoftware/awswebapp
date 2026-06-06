@@ -214,7 +214,7 @@ Resources:
       LogDestinationType: cloud-watch-logs
       LogGroupName: !Ref VPCFlowLogsLogGroup
 Outputs:
-  VPCIdDomainQualified:
+  VPCId:
     Description: VPC ID for regional database
     Value: !Ref EnvVpc
     Export:
@@ -222,7 +222,7 @@ Outputs:
         - "VPCId-${BranchName}-${DomainDashed}"
         - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
 
-  PrivateSubnet1IdDomainQualified:
+  PrivateSubnet1Id:
     Description: Private subnet 1 ID
     Value: !Ref PrivateSubnet1
     Export:
@@ -230,7 +230,7 @@ Outputs:
         - "PrivateSubnet1Id-${BranchName}-${DomainDashed}"
         - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
 
-  PrivateSubnet2IdDomainQualified:
+  PrivateSubnet2Id:
     Description: Private subnet 2 ID
     Value: !Ref PrivateSubnet2
     Export:
@@ -238,7 +238,7 @@ Outputs:
         - "PrivateSubnet2Id-${BranchName}-${DomainDashed}"
         - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
 
-  PublicSubnet1IdDomainQualified:
+  PublicSubnet1Id:
     Description: Public subnet 1 ID
     Value: !Ref PublicSubnet1
     Export:
@@ -246,7 +246,7 @@ Outputs:
         - "PublicSubnet1Id-${BranchName}-${DomainDashed}"
         - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
 
-  PublicSubnet2IdDomainQualified:
+  PublicSubnet2Id:
     Description: Public subnet 2 ID
     Value: !Ref PublicSubnet2
     Export:
@@ -254,7 +254,7 @@ Outputs:
         - "PublicSubnet2Id-${BranchName}-${DomainDashed}"
         - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
 
-  LambdaSecurityGroupIdDomainQualified:
+  LambdaSecurityGroupId:
     Description: Security group for Lambda functions
     Value: !Ref LambdaSecurityGroup
     Export:
@@ -262,7 +262,7 @@ Outputs:
         - "LambdaSecurityGroupId-${BranchName}-${DomainDashed}"
         - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
 
-  ALBSecurityGroupIdDomainQualified:
+  ALBSecurityGroupId:
     Description: Security group for Application Load Balancer
     Value: !Ref ALBSecurityGroup
     Export:
@@ -270,7 +270,7 @@ Outputs:
         - "ALBSecurityGroupId-${BranchName}-${DomainDashed}"
         - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
 
-  ECSTaskSecurityGroupIdDomainQualified:
+  ECSTaskSecurityGroupId:
     Description: Security group for ECS tasks
     Value: !Ref ECSTaskSecurityGroup
     Export:
@@ -278,7 +278,7 @@ Outputs:
         - "ECSTaskSecurityGroupId-${BranchName}-${DomainDashed}"
         - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
 
-  RDSSecurityGroupIdDomainQualified:
+  RDSSecurityGroupId:
     Description: Security group for RDS access
     Value: !Ref RDSSecurityGroup
     Export:
@@ -286,7 +286,7 @@ Outputs:
         - "RDSSecurityGroupId-${BranchName}-${DomainDashed}"
         - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
 
-  VpcFlowLogsRoleArnDomainQualified:
+  VpcFlowLogsRoleArn:
     Description: VPC Flow Logs role ARN
     Value: !GetAtt VPCFlowLogsRole.Arn
     Export:

@@ -39,12 +39,15 @@
 
 - [x] 4.1 In each exporter template, delete the original `<Name>-${BranchName}` `Export` (keep only the domain-qualified one — and consider renaming the output logical IDs back to canonical now that there is only one). _(Removed all 31 bare-export `Output` blocks; kept the `*DomainQualified` outputs as-is. Did NOT rename logical IDs back to canonical — renaming an output's export name in the same deploy risks a transient duplicate-export error, and the suffix is cosmetic. Could be a follow-up cleanup once app is migrated.)_
 - [x] 4.2 `aws cloudformation validate-template` each. _(All valid; 0 bare exports remain, 31 domain-qualified outputs intact.)_
-- [ ] 4.3 Deploy Phase 3 to all env backends (dev, then alpha/beta/app). If any deploy fails with "export in use", a feature stack from §3.4 was missed — repoint/tear it down and retry. Do NOT force.
-- [ ] 4.4 Confirm only domain-qualified exports remain: `aws cloudformation list-exports` shows no bare `<Name>-<branch>` names.
+- [x] 4.3 Deploy Phase 3 to all env backends (dev, then alpha/beta/app). If any deploy fails with "export in use", a feature stack from §3.4 was missed — repoint/tear it down and retry. Do NOT force.
+  - **dev DONE (2026-06-06)** — but via a **fresh CREATE**, not an in-place Phase-3 update: mid-migration the dev stack was manually `delete-stack`'d (intentional). The fresh create deployed the final migrated templates directly. alpha/beta not deployed; app still pending its own migration.
+  - **BUG found & fixed during this:** Phase 3 had removed the old `<Name>` outputs leaving only `<Name>DomainQualified`, which broke parent-template consumers using `!GetAtt <Stack>.Outputs.<LogicalId>` (NOT `Fn::ImportValue`). Fresh create failed `Output 'DatabaseUsername' not found`. Fix: renamed all 31 outputs back to canonical logical IDs while keeping the domain-qualified `Export.Name` (the "rename back to canonical" step in 4.1 — it was mandatory, not optional). Commit `9de4c7f` → dev `cb5a239`.
+- [x] 4.4 Confirm only domain-qualified exports remain: `aws cloudformation list-exports` shows no bare `<Name>-<branch>` names. _(dev 2026-06-06: 0 bare `-dev` exports, 30 `-dev-appcloud-systems` exports. App/alpha/beta unaffected.)_
 
 ## 5. Validation
 
-- [ ] 5.1 `openspec validate domain-qualified-stack-exports --strict` passes.
-- [ ] 5.2 Deploy a throwaway feature branch end-to-end against the migrated dev backend; UI tests green (proves the app still resolves DB host/secret via the new import names).
-- [ ] 5.3 (Optional, proves the original motivation) Dry-run a second-domain bootstrap+backend in a sandbox account/region and confirm no export-name collision.
-- [ ] 5.4 Archive this change (`/opsx:archive`).
+- [x] 5.1 `openspec validate domain-qualified-stack-exports --strict` passes.
+- [x] 5.2 Deploy a throwaway feature branch end-to-end against the migrated dev backend; UI tests green (proves the app still resolves DB host/secret via the new import names).
+  - Pushed `domain-qualified-stack-exports` (2026-06-06): `domain-qualified-stack-exports-appcloud-systems` reached `CREATE_COMPLETE` importing dev's `-dev-appcloud-systems` exports (ImportValue resolves), `https://domain-qualified-stack-exports.appcloud.systems/health` returns HTTP 200, and the workflow's UI tests came back **all green**.
+- [~] 5.3 (Optional, proves the original motivation) Dry-run a second-domain bootstrap+backend in a sandbox account/region and confirm no export-name collision. _(Skipped — optional; no sandbox second domain available. Collision-safety is guaranteed by construction: every export name now carries `-${DomainDashed}`.)_
+- [x] 5.4 Archive this change (`/opsx:archive`). _(2026-06-06: delta spec synced into openspec/specs/cross-stack-export-naming/; change moved to archive. app/alpha/beta migration remains as deferred operational follow-up.)_

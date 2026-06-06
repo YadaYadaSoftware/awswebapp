@@ -278,7 +278,7 @@ Resources:
         - Name: TargetGroup
           Value: !GetAtt WebTargetGroup.TargetGroupFullName
 Outputs:
-  WebEndpointDomainQualified:
+  WebEndpoint:
     Description: "Web application endpoint URL"
     Value: !Sub "https://${BranchName}.${DomainName}"
     Export:
@@ -286,7 +286,7 @@ Outputs:
         - "WebEndpoint-${BranchName}-${DomainDashed}"
         - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
 
-  WebLoadBalancerDNSDomainQualified:
+  WebLoadBalancerDNS:
     Description: "Web Load Balancer DNS name"
     Value: !GetAtt WebLoadBalancer.DNSName
     Export:
@@ -294,7 +294,7 @@ Outputs:
         - "WebLoadBalancerDNS-${BranchName}-${DomainDashed}"
         - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
 
-  WebLoadBalancerHostedZoneIdDomainQualified:
+  WebLoadBalancerHostedZoneId:
     Description: "Web Load Balancer hosted zone ID"
     Value: !FindInMap [RegionMap, !Ref AWS::Region, ALBHostedZoneId]
     Export:
@@ -302,7 +302,7 @@ Outputs:
         - "WebLoadBalancerHostedZoneId-${BranchName}-${DomainDashed}"
         - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
 
-  WebTaskDefinitionDomainQualified:
+  WebTaskDefinition:
     Description: "Web ECS task definition"
     Value: !Ref WebTaskDefinition
     Export:
@@ -310,7 +310,7 @@ Outputs:
         - "WebTaskDefinition-${BranchName}-${DomainDashed}"
         - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
 
-  WebServiceNameDomainQualified:
+  WebServiceName:
     Description: "Web ECS service name"
     Value: !Ref WebService
     Export:
