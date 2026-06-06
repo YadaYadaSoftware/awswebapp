@@ -782,6 +782,53 @@ jobs:
         PARAMS="$BASE_PARAMS"
         echo "params=$PARAMS" >> $GITHUB_OUTPUT
 
+    - name: Compute resource tags
+      id: compute-tags
+      if: matrix.deploy
+      run: |
+        set -uo pipefail
+        BRANCH="${{ needs.get-branch-name.outputs.branch-name }}"
+        PROCESSED_DOMAIN="${{ steps.process-domain.outputs.processed-domain }}"
+        REGION="${{ matrix.region }}"
+        STACK_NAME="${BRANCH}-${PROCESSED_DOMAIN}"
+
+        # Create Date: preserve the existing stack's tag (true creation date); only
+        # stamp a fresh date on first create. describe-stacks errors when the stack
+        # doesn't exist yet — the guard falls through to today's date without failing.
+        EXISTING=$(aws cloudformation describe-stacks \
+          --stack-name "$STACK_NAME" --region "$REGION" \
+          --query "Stacks[0].Tags[?Key=='Create Date'].Value | [0]" \
+          --output text 2>/dev/null || true)
+        if [ -n "$EXISTING" ] && [ "$EXISTING" != "None" ]; then
+          CREATE_DATE="$EXISTING"
+        else
+          CREATE_DATE=$(date -u +%F)
+        fi
+
+        # Specification = branch leaf (== OpenSpec change name for feature branches);
+        # the four shared-infrastructure branches get a fixed sentinel.
+        if [[ " app beta alpha dev " == *" $BRANCH "* ]]; then
+          SPECIFICATION="shared-infrastructure"
+        else
+          SPECIFICATION="$BRANCH"
+        fi
+
+        VERSION="${{ needs.build.outputs.customVersion }}"
+        DEPLOY_RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+        # Build the JSON with tag keys as literals (so "Stack Name"/"Create Date"
+        # keep their spaces) and only values injected, via jq args — no quoting hazards.
+        TAGS_JSON=$(jq -nc \
+          --arg sn "$STACK_NAME" \
+          --arg cd "$CREATE_DATE" \
+          --arg br "$BRANCH" \
+          --arg sp "$SPECIFICATION" \
+          --arg ver "$VERSION" \
+          --arg url "$DEPLOY_RUN_URL" \
+          '[{Key:"Stack Name",Value:$sn},{Key:"Create Date",Value:$cd},{Key:"Branch",Value:$br},{Key:"Specification",Value:$sp},{Key:"Version",Value:$ver},{Key:"DeployRunUrl",Value:$url}]')
+        echo "Computed tags: $TAGS_JSON"
+        echo "tags-json=$TAGS_JSON" >> "$GITHUB_OUTPUT"
+
     - name: Deploy template
       id: deploy-template
       if: matrix.deploy
@@ -790,6 +837,7 @@ jobs:
         name: ${{ needs.get-branch-name.outputs.branch-name }}-${{ steps.process-domain.outputs.processed-domain }}
         template: https://s3.amazonaws.com/${{ steps.account-id.outputs.account-id }}-${{ steps.process-domain.outputs.processed-domain }}-${{ matrix.region }}/${{ needs.get-branch-name.outputs.branch-name }}/${{ env.TEMPLATE_NAME }}-template.yaml?versionId=${{ env.TEMPLATE_VERSION_ID }}
         parameter-overrides: ${{ steps.set-params.outputs.params }}
+        tags: ${{ steps.compute-tags.outputs.tags-json }}
         capabilities: "CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND"
         no-fail-on-empty-changeset: "1"
         timeout-in-minutes: 90

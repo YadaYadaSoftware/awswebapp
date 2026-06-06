@@ -110,6 +110,21 @@ Resource names across CloudFormation templates and the deploy workflow are **der
 
 **Why this matters when editing templates or the workflow:** don't reintroduce hardcoded project names or region literals. The whole pipeline is domain-and-region-agnostic; reintroducing a literal anywhere breaks that property silently until someone tries to deploy a second domain or change a region.
 
+## Resource tagging (tag-cloudformation-resources)
+
+Every deploy applies six **stack-level tags** via the `tags:` input on the `Deploy template` step (`aws-actions/aws-cloudformation-github-deploy`), computed in the `Compute resource tags` step. CloudFormation auto-propagates them to every taggable resource, including those in nested stacks (`master`→`backend`/`application`→children); the ECS web service additionally sets `PropagateTags: SERVICE` so running tasks inherit them. No per-resource `Tags:` blocks.
+
+| Tag | Value source |
+| --- | --- |
+| `Stack Name` | `${branch-leaf}-${processed-domain}` |
+| `Create Date` | existing stack's tag if present (preserved across redeploys), else `date -u +%F` on first create |
+| `Branch` | branch leaf |
+| `Specification` | branch leaf (= OpenSpec change name for feature branches); `shared-infrastructure` on `app`/`beta`/`alpha`/`dev` |
+| `Version` | `build.customVersion` (SemVer) |
+| `DeployRunUrl` | the GitHub Actions run URL |
+
+Note the two keys with spaces (`Stack Name`, `Create Date`) — keep them literal. **Cost-allocation activation is separate:** tags existing ≠ cost-allocation tags enabled; that's a manual, account-level step in the Billing console.
+
 ## Branch model & CI/CD ([BRANCH_MANAGEMENT_README.md](BRANCH_MANAGEMENT_README.md), [.github/workflows/zbuild.yml](.github/workflows/zbuild.yml))
 
 This repo has an unusual branching scheme — read carefully before doing anything git-related:
