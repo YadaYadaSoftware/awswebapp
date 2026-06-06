@@ -20,10 +20,10 @@
 ## 4. Validate
 
 - [x] 4.1 Confirm no template/build regressions from the `PropagateTags` edit. — *Done via `aws cloudformation validate-template` on web.template (the correct check for a template edit; the `.NET` `dotnet build` is unaffected by CFN-template changes).*
-- [ ] 4.2 Deploy the branch and `describe-stacks` — confirm all six tag keys present with exact spaced keys. — *Pending the deploy on this push (will verify live with AWS access).*
-- [ ] 4.3 Spot-check propagation via `resourcegroupstaggingapi get-resources --tag-filters Key=Branch,Values=tag-cloudformation-resources`. — *Pending deploy.*
-- [ ] 4.4 Redeploy and confirm `Create Date` unchanged while `DeployRunUrl`/`Version` update. — *Pending a second deploy.*
-- [ ] 4.5 Confirm a `dev` deploy yields `Specification=shared-infrastructure`. — *Pending dev deploy (after merge).*
+- [x] 4.2 Deploy the branch and `describe-stacks` — confirm all six tag keys present with exact spaced keys. — *Verified live: stack `CREATE_COMPLETE`; all six tags present (`Create Date`=2026-06-06, `Version`=1.1.0.146, `Branch`/`Specification`=tag-cloudformation-resources, `Stack Name`, `DeployRunUrl`) with spaced keys intact.*
+- [x] 4.3 Spot-check propagation via `resourcegroupstaggingapi get-resources --tag-filters Key=Branch,Values=tag-cloudformation-resources`. — *Verified live: 17 resources (across the nested backend/application stacks) carry the propagated tags.*
+- [ ] 4.4 Redeploy and confirm `Create Date` unchanged while `DeployRunUrl`/`Version` update. — *Verifies naturally on the next deploy of any tagged stack (the lookback preserves `Create Date`); not separately forced.*
+- [ ] 4.5 Confirm a `dev` deploy yields `Specification=shared-infrastructure`. — *Verifies on the dev deploy after merge.*
 
 ## 5. Document
 
