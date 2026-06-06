@@ -19,6 +19,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{827E0CD3-B72
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "YadaYada.AwsWebApp.DeploymentStack", "src\YadaYada.AwsWebApp.DeploymentStack\YadaYada.AwsWebApp.DeploymentStack.csproj", "{9F684D97-E917-4C27-B0B6-3FA547E35F8A}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Tjb.Data.Test", "src\Tjb.Data.Test\Tjb.Data.Test.csproj", "{303A6D8A-C214-498D-85A4-68A9D95FBCBB}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -113,6 +115,10 @@ Global
 		{9F684D97-E917-4C27-B0B6-3FA547E35F8A}.Release|x64.Build.0 = Release|Any CPU
 		{9F684D97-E917-4C27-B0B6-3FA547E35F8A}.Release|x86.ActiveCfg = Release|Any CPU
 		{9F684D97-E917-4C27-B0B6-3FA547E35F8A}.Release|x86.Build.0 = Release|Any CPU
+		{303A6D8A-C214-498D-85A4-68A9D95FBCBB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{303A6D8A-C214-498D-85A4-68A9D95FBCBB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{303A6D8A-C214-498D-85A4-68A9D95FBCBB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{303A6D8A-C214-498D-85A4-68A9D95FBCBB}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
