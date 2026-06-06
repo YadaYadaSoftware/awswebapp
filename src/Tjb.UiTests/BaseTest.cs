@@ -45,6 +45,15 @@ public class BaseTest : IAsyncLifetime
             IgnoreHTTPSErrors = true // Handle self-signed certificates in development
         });
 
+        // Capture a Playwright trace (DOM snapshots, network, console) so a failed
+        // UI test has a downloadable trace.zip artifact (see test-summary-reporting).
+        await Context.Tracing.StartAsync(new TracingStartOptions
+        {
+            Screenshots = true,
+            Snapshots = true,
+            Sources = true
+        });
+
         Page = await Context.NewPageAsync();
 
         // Initialize test data manager
@@ -84,6 +93,7 @@ public class BaseTest : IAsyncLifetime
 
             if (Context != null)
             {
+                await StopTracingAsync();
                 await Context.CloseAsync();
             }
 
@@ -207,6 +217,39 @@ public class BaseTest : IAsyncLifetime
         {
             Console.WriteLine($"Failed to capture screenshot: {ex.Message}");
             Console.WriteLine($"Stack trace: {ex.StackTrace}");
+        }
+    }
+
+    private async Task StopTracingAsync()
+    {
+        try
+        {
+            if (Context == null) return;
+
+            // Resolve the repo workspace so the trace lands where the workflow's
+            // "Upload UI test artifacts" step looks: src/Tjb.UiTests/test-results/.
+            var workspace = System.Environment.GetEnvironmentVariable("GITHUB_WORKSPACE");
+            if (string.IsNullOrEmpty(workspace))
+            {
+                var dir = new DirectoryInfo(Directory.GetCurrentDirectory());
+                while (dir != null && !Directory.Exists(Path.Combine(dir.FullName, "src")))
+                {
+                    dir = dir.Parent;
+                }
+                workspace = dir?.FullName ?? Directory.GetCurrentDirectory();
+            }
+
+            var traceDir = Path.Combine(workspace, "src", "Tjb.UiTests", "test-results", this.GetType().Name);
+            Directory.CreateDirectory(traceDir);
+
+            await Context.Tracing.StopAsync(new TracingStopOptions
+            {
+                Path = Path.Combine(traceDir, "trace.zip")
+            });
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Warning: failed to save Playwright trace: {ex.Message}");
         }
     }
 

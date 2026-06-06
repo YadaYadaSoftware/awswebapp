@@ -1,0 +1,4 @@
+Manual redeploy trigger. Bump this file (and push dev) to re-run the deploy workflow
+when a stack needs to be recreated/repaired. Not referenced by any code or template.
+
+2026-06-06: re-trigger dev deploy after stack issues.

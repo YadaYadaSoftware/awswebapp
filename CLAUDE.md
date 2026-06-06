@@ -55,6 +55,8 @@ dotnet test --filter "FullyQualifiedName~LoginNavigation"   # single test
 .\Connect-AuroraDB.ps1 -UseSSM
 ```
 
+**Reading test results in CI:** the deploy workflow ([.github/workflows/zbuild.yml](.github/workflows/zbuild.yml)) produces a first-class test summary on the run page via `dorny/test-reporter@v1` (TRX → markdown summary + check-run annotations), plus uploaded artifacts. Start debugging a red run at the **run-page summary** (the `Unit tests` / `UI tests` report and the `ui-test-artifacts-*` artifact containing Playwright `trace.zip`), not by scrolling the raw step logs. TRX filenames are pinned (`unit-tests.trx`, `ui-tests.trx`); artifact retention is 7 days (30 on `app`).
+
 ## Architecture
 
 Six projects in [Tjb.sln](Tjb.sln):
