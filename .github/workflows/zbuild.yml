@@ -1087,3 +1087,4 @@ jobs:
          --source https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json \
          --skip-duplicate
          
+# ci-trigger: recreate dev env after teardown test (2026-06-08)
