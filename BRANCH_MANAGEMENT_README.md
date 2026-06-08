@@ -144,6 +144,21 @@ If you encounter issues:
 3. Ensure branch naming follows the required convention
 4. Check that `changes.md` contains meaningful content
 
+## Automatic Stack Cleanup on Branch Delete
+
+> ⚠️ **GitHub Actions constraint:** the `delete` event only triggers workflows that exist on the **default branch** (`app`). A copy of `cleanup-on-branch-delete.yml` on a feature branch is inert — branch deletions will silently do nothing. This workflow only becomes live once it is merged into `app`.
+
+When a branch is deleted from the remote (via the GitHub UI, the REST API, or `git push origin --delete <branch>`), `.github/workflows/cleanup-on-branch-delete.yml` automatically tears down the CloudFormation stack that branch deployed:
+
+- **Trigger**: GitHub `delete` event, filtered to `ref_type == 'branch'` (tag deletions are ignored).
+- **Stack name**: `{branch-leaf}-{processed-domain}` — the same formula the deploy workflow uses (`branch-leaf` is the segment after the final `/`; `processed-domain` is `DOMAIN_NAME` with dots replaced by hyphens).
+- **Region**: `us-east-1` only. Non-shared branches never deploy to `us-west-2`, so cross-region cleanup is unnecessary.
+- **Protected branches**: `app`, `beta`, `alpha`, and `dev` are exempt. If one of these is deleted, the workflow exits successfully without making any AWS API calls. A `feature/dev`-style branch (leaf segment `dev`) is also treated as protected, by design.
+- **What gets deleted**: the CloudFormation stack itself (waiting for `DELETE_COMPLETE` with a 30-minute timeout) and, only on success, the `s3://cf-templates-{account}-us-east-1/{branch-leaf}/` prefix that holds packaged SAM templates for the branch.
+- **What does not get cleaned up**: ECR images tagged with the branch name (the ECR repo is shared and uses content-addressed tags). Manage these with an ECR lifecycle policy if pruning is desired.
+
+If the stack ends in `DELETE_FAILED` or the waiter times out, the workflow fails red and dumps the last 25 `describe-stack-events` rows to the job log and step summary so a human can investigate.
+
 ## Configuration
 
 The system uses these key files:
@@ -151,5 +166,6 @@ The system uses these key files:
 - `scripts/update-changelog.ps1` - Changelog update logic
 - `scripts/push-changelog.ps1` - Safe changelog publishing
 - `.github/workflows/zbuild.yml` - CI/CD integration
+- `.github/workflows/cleanup-on-branch-delete.yml` - Stack teardown on branch deletion
 
 No additional configuration is required - the system works out of the box with the existing project setup.

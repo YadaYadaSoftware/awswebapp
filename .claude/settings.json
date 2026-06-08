@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash",
+      "Read",
+      "Write",
+      "Edit",
+      "Glob",
+      "Grep",
+      "PowerShell",
+      "NotebookEdit",
+      "Agent",
+      "Skill",
+      "WebFetch",
+      "WebSearch"
+    ]
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "powershell -NoProfile -File scripts/Get-StatusLine.ps1"
+  }
+}

@@ -1,0 +1,20 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <PackageId>Tjb.Shared</PackageId>
+    <Title>Tjb Shared Library</Title>
+    <Authors>Your Organization</Authors>
+    <Description>Shared models, DTOs, and enums for Tjb applications</Description>
+    <PackageTags>tjb;shared;models;dto;enums</PackageTags>
+    <RepositoryUrl>https://github.com/your-org/taskmanager</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+    <PackageProjectUrl>https://github.com/your-org/taskmanager</PackageProjectUrl>
+  </PropertyGroup>
+
+</Project>

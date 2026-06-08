@@ -1,6 +1,6 @@
 ---
 AWSTemplateFormatVersion: 2010-09-09
-Description: TaskManager Regional Database Infrastructure - Aurora Clusters, RDS Resources
+Description: "Regional Database Infrastructure - Aurora Clusters, RDS Resources. Identifiers and secret paths derive from DomainName (dot form): dashed form for cluster IDs / Secrets paths, underscored form for MySQL master username (MySQL disallows hyphens)."
 
 Parameters:
   DatabasePassword:
@@ -8,6 +8,10 @@ Parameters:
     NoEcho: true
     MinLength: 8
     Description: Password for the Aurora MySQL database
+
+  DomainName:
+    Type: String
+    Description: "Domain name in dot form (e.g. appcloud.systems). Derived to dashed/underscored forms locally."
 
   EngineVersion:
     Type: String
@@ -20,6 +24,10 @@ Parameters:
   AuroraKmsKeyArn:
     Type: String
     Description: ARN of the KMS key (primary or replica) for Aurora encryption in this region
+
+  AuroraClusterDeleteHandlerArn:
+    Type: String
+    Description: "ARN of the bootstrap-owned Aurora cluster force-teardown Lambda for this region. Sourced by the deploy workflow from /{dashed-domain}/lambda/aurora-cluster-delete-handler-arn in SSM and threaded through master -> backend. Used as the AuroraClusterDrainOnDelete custom resource's ServiceToken."
 
   IsPrimaryRegion:
     Type: String
@@ -74,8 +82,12 @@ Resources:
     Properties:
       DBSubnetGroupDescription: "Subnet group for Aurora cluster in this region"
       SubnetIds:
-        - Fn::ImportValue: !Sub "PrivateSubnet1Id-${EnvironmentToImport}"
-        - Fn::ImportValue: !Sub "PrivateSubnet2Id-${EnvironmentToImport}"
+        - Fn::ImportValue: !Sub
+            - "PrivateSubnet1Id-${EnvironmentToImport}-${DomainDashed}"
+            - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
+        - Fn::ImportValue: !Sub
+            - "PrivateSubnet2Id-${EnvironmentToImport}-${DomainDashed}"
+            - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
   # Aurora DB Cluster Parameter Group
   AuroraClusterParameterGroup:
     Type: AWS::RDS::DBClusterParameterGroup
@@ -94,6 +106,15 @@ Resources:
   AuroraCluster:
     Type: AWS::RDS::DBCluster
     Properties:
+      # No explicit DBClusterIdentifier — CFN auto-names the cluster. An explicit
+      # name forces REPLACEMENT on existing stacks AND changes the DatabaseHost
+      # export, which CFN refuses while Web/Api/feature-branch stacks import it,
+      # so the whole stack update rolls back (observed on dev 2026-06-05). The
+      # teardown Lambda doesn't need a predictable name: the
+      # AuroraClusterDrainOnDelete custom resource below passes the resolved
+      # cluster id (!Ref AuroraCluster) into the Lambda, whose IAM policy is
+      # scoped to rds cluster:*/db:* precisely because auto-names can't be
+      # prefix-matched (see bootstrap.template).
       GlobalClusterIdentifier:
         !If [
           IsPrimary,
@@ -106,14 +127,21 @@ Resources:
         ]
       Engine: aurora-mysql
       EngineVersion: !Ref EngineVersion
-      MasterUsername: !If [IsPrimary, "taskmanager_admin", !Ref "AWS::NoValue"]
+      MasterUsername: !If
+        - IsPrimary
+        - !Sub
+          - "${DomainUnderscored}_admin"
+          - DomainUnderscored: !Join ["_", !Split [".", !Ref DomainName]]
+        - !Ref "AWS::NoValue"
       MasterUserPassword:
         !If [IsPrimary, !Ref DatabasePassword, !Ref "AWS::NoValue"]
       DatabaseName: !If [IsPrimary, !Ref BranchName, !Ref "AWS::NoValue"]
       DBClusterParameterGroupName: !Ref AuroraClusterParameterGroup
       DBSubnetGroupName: !Ref AuroraDBSubnetGroup
       VpcSecurityGroupIds:
-        - Fn::ImportValue: !Sub "RDSSecurityGroupId-${EnvironmentToImport}"
+        - Fn::ImportValue: !Sub
+            - "RDSSecurityGroupId-${EnvironmentToImport}-${DomainDashed}"
+            - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
       BackupRetentionPeriod: 7
       PreferredBackupWindow: "03:00-04:00"
       PreferredMaintenanceWindow: "sun:04:00-sun:05:00"
@@ -133,15 +161,37 @@ Resources:
   AuroraInstance:
     Type: AWS::RDS::DBInstance
     Properties:
+      # No explicit DBInstanceIdentifier (CFN auto-names it) — same rationale as
+      # the cluster above: avoids replacement, and the teardown Lambda is scoped
+      # to db:* rather than a name prefix.
       DBClusterIdentifier: !Ref AuroraCluster
       DBInstanceClass: db.serverless
       Engine: aurora-mysql
       PubliclyAccessible: false
+
+  # Force-drain backstop for stack deletes. On Create/Update the backing Lambda
+  # is a no-op; its only job is the Delete path. DependsOn: AuroraCluster is
+  # LOAD-BEARING: CFN deletes resources in reverse creation order, so declaring
+  # this resource as depending on the cluster makes CFN delete THIS resource
+  # FIRST on a stack delete. The Lambda drains the (possibly stuck) cluster, and
+  # CFN's own subsequent AWS::RDS::DBCluster delete then finds it already gone
+  # and succeeds — instead of deadlocking the AuroraDBSubnetGroup delete. Do NOT
+  # remove the DependsOn, and do NOT delete this resource from a stack that
+  # still has a live cluster (that would trigger an unintended drain).
+  AuroraClusterDrainOnDelete:
+    Type: Custom::AuroraClusterDrainOnDelete
+    DependsOn: AuroraCluster
+    Properties:
+      ServiceToken: !Ref AuroraClusterDeleteHandlerArn
+      ClusterIdentifier: !Ref AuroraCluster
+
   AuroraGlobalCluster:
     Condition: ShouldCreateGlobalCluster
     Type: AWS::RDS::GlobalCluster
     Properties:
-      GlobalClusterIdentifier: !Sub taskmanager-${BranchName}-global-cluster
+      GlobalClusterIdentifier: !Sub
+        - "${DomainDashed}-${BranchName}-global-cluster"
+        - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
       Engine: aurora-mysql
       EngineVersion: !Ref EngineVersion
       DeletionProtection: false
@@ -150,7 +200,9 @@ Resources:
   DatabasePasswordSecret:
     Type: AWS::SecretsManager::Secret
     Properties:
-      Name: !Sub "taskmanager/database/${BranchName}/regional/${AWS::Region}/password"
+      Name: !Sub
+        - "${DomainDashed}/database/${BranchName}/regional/${AWS::Region}/password"
+        - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
       Description: Database password for Aurora Regional Cluster
       SecretString: !Ref DatabasePassword
 Outputs:
@@ -158,65 +210,89 @@ Outputs:
     Description: Aurora Regional Cluster ID
     Value: !Ref AuroraCluster
     Export:
-      Name: !Sub "AuroraClusterId-${BranchName}"
+      Name: !Sub
+        - "AuroraClusterId-${BranchName}-${DomainDashed}"
+        - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
 
   DatabaseEndpoint:
     Description: Aurora MySQL cluster endpoint
     Value: !GetAtt AuroraCluster.Endpoint.Address
     Export:
-      Name: !Sub "DatabaseEndpoint-${BranchName}"
+      Name: !Sub
+        - "DatabaseEndpoint-${BranchName}-${DomainDashed}"
+        - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
 
   DatabaseReaderEndpoint:
     Description: Aurora MySQL reader endpoint
     Value: !GetAtt AuroraCluster.ReadEndpoint.Address
     Export:
-      Name: !Sub "DatabaseReaderEndpoint-${BranchName}"
+      Name: !Sub
+        - "DatabaseReaderEndpoint-${BranchName}-${DomainDashed}"
+        - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
 
   DatabaseUsername:
     Description: Database username
-    Value: "taskmanager_admin"
+    Value: !Sub
+      - "${DomainUnderscored}_admin"
+      - DomainUnderscored: !Join ["_", !Split [".", !Ref DomainName]]
     Export:
-      Name: !Sub "DatabaseUsername-${BranchName}"
+      Name: !Sub
+        - "DatabaseUsername-${BranchName}-${DomainDashed}"
+        - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
 
   DatabaseEngine:
     Description: Database engine
     Value: "aurora-mysql"
     Export:
-      Name: !Sub "DatabaseEngine-${BranchName}"
+      Name: !Sub
+        - "DatabaseEngine-${BranchName}-${DomainDashed}"
+        - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
 
   DatabaseHost:
     Description: Database host endpoint
     Value: !GetAtt AuroraCluster.Endpoint.Address
     Export:
-      Name: !Sub "DatabaseHost-${BranchName}"
+      Name: !Sub
+        - "DatabaseHost-${BranchName}-${DomainDashed}"
+        - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
 
   DatabasePort:
     Description: Database port
     Value: !GetAtt AuroraCluster.Endpoint.Port
     Export:
-      Name: !Sub "DatabasePort-${BranchName}"
+      Name: !Sub
+        - "DatabasePort-${BranchName}-${DomainDashed}"
+        - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
 
   DatabaseName:
     Description: Database name
     Value: !Ref BranchName
     Export:
-      Name: !Sub "DatabaseName-${BranchName}"
+      Name: !Sub
+        - "DatabaseName-${BranchName}-${DomainDashed}"
+        - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
 
   DatabaseClusterArn:
     Description: Database cluster ARN
     Value: !Ref AuroraCluster
     Export:
-      Name: !Sub "DatabaseClusterArn-${BranchName}"
+      Name: !Sub
+        - "DatabaseClusterArn-${BranchName}-${DomainDashed}"
+        - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
 
   DatabasePasswordSecretArn:
     Description: Database password secret ARN
     Value: !Ref DatabasePasswordSecret
     Export:
-      Name: !Sub "DatabasePasswordSecretArn-${BranchName}"
+      Name: !Sub
+        - "DatabasePasswordSecretArn-${BranchName}-${DomainDashed}"
+        - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
 
   AuroraGlobalClusterId:
     Condition: ShouldCreateGlobalCluster
     Description: Aurora Global Database cluster identifier
     Value: !Ref AuroraGlobalCluster
     Export:
-      Name: !Sub "AuroraGlobalClusterId-${BranchName}"
+      Name: !Sub
+        - "AuroraGlobalClusterId-${BranchName}-${DomainDashed}"
+        - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]

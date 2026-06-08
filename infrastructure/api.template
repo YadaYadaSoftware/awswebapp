@@ -1,11 +1,15 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
-Description: "TaskManager API - Lambda Function with Branch-Specific Database"
+Description: "Tjb API - Lambda Function with Branch-Specific Database"
 
 Parameters:
   BranchName:
     Type: String
     Description: "Branch name for resource naming"
+
+  DomainName:
+    Type: String
+    Description: "Deployment domain in dot form (e.g. appcloud.systems); dashed form is derived locally for export naming"
 
   EnvironmentToImport:
     Type: String
@@ -34,39 +38,55 @@ Globals:
         DataTraceEnabled: true
 
 Resources:
-  # TaskManager API Function
-  TaskManagerApiFunction:
+  # API Lambda Function
+  ApiFunction:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: ../src/TaskManager.Api/
+      CodeUri: ../src/Tjb.Api/
       Handler: >-
-        TaskManager.Api::TaskManager.Api.LambdaEntryPoint::FunctionHandlerAsync
+        Tjb.Api::Tjb.Api.LambdaEntryPoint::FunctionHandlerAsync
       Runtime: dotnet8
       PackageType: Zip
       Role:
-        Fn::ImportValue: !Sub "SharedLambdaRoleArn-${EnvironmentToImport}"
+        Fn::ImportValue: !Sub
+          - "SharedLambdaRoleArn-${EnvironmentToImport}-${DomainDashed}"
+          - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
       Environment:
         Variables:
           ASPNETCORE_ENVIRONMENT: !Ref Environment
           ConnectionStrings__DefaultConnection: !Sub
             - "Server=${DatabaseHost};Database=${DatabaseName};User Id=${DatabaseUsername};Password=${DatabasePassword};SslMode=Required;"
             - DatabaseHost:
-                Fn::ImportValue: !Sub "DatabaseHost-${EnvironmentToImport}"
+                Fn::ImportValue: !Sub
+                  - "DatabaseHost-${EnvironmentToImport}-${DomainDashed}"
+                  - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
               DatabaseName:
-                Fn::ImportValue: !Sub "DatabaseName-${EnvironmentToImport}"
+                Fn::ImportValue: !Sub
+                  - "DatabaseName-${EnvironmentToImport}-${DomainDashed}"
+                  - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
               DatabaseUsername:
-                Fn::ImportValue: !Sub "DatabaseUsername-${EnvironmentToImport}"
+                Fn::ImportValue: !Sub
+                  - "DatabaseUsername-${EnvironmentToImport}-${DomainDashed}"
+                  - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
               DatabasePassword: !Join
                 - ""
                 - - "{{resolve:secretsmanager:"
-                  - Fn::ImportValue: !Sub "DatabasePasswordSecretArn-${EnvironmentToImport}"
+                  - Fn::ImportValue: !Sub
+                      - "DatabasePasswordSecretArn-${EnvironmentToImport}-${DomainDashed}"
+                      - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
                   - ":SecretString}}"
       VpcConfig:
         SecurityGroupIds:
-          - Fn::ImportValue: !Sub "LambdaSecurityGroupId-${EnvironmentToImport}"
+          - Fn::ImportValue: !Sub
+              - "LambdaSecurityGroupId-${EnvironmentToImport}-${DomainDashed}"
+              - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
         SubnetIds:
-          - Fn::ImportValue: !Sub "PrivateSubnet1Id-${EnvironmentToImport}"
-          - Fn::ImportValue: !Sub "PrivateSubnet2Id-${EnvironmentToImport}"
+          - Fn::ImportValue: !Sub
+              - "PrivateSubnet1Id-${EnvironmentToImport}-${DomainDashed}"
+              - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
+          - Fn::ImportValue: !Sub
+              - "PrivateSubnet2Id-${EnvironmentToImport}-${DomainDashed}"
+              - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
       Events:
         # Health check endpoint for deployment verification
         HealthCheck:
@@ -95,7 +115,7 @@ Resources:
       ComparisonOperator: GreaterThanThreshold
       Dimensions:
         - Name: FunctionName
-          Value: !Ref TaskManagerApiFunction
+          Value: !Ref ApiFunction
 Outputs:
   ApiEndpoint:
     Description: "API Gateway endpoint URL"
@@ -104,10 +124,14 @@ Outputs:
       - ApiId: !Ref ServerlessRestApi
         Region: !Ref AWS::Region
     Export:
-      Name: !Sub "ApiEndpoint-${BranchName}"
+      Name: !Sub
+        - "ApiEndpoint-${BranchName}-${DomainDashed}"
+        - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
 
   ApiLambdaFunctionName:
     Description: "API Lambda function name"
-    Value: !Ref TaskManagerApiFunction
+    Value: !Ref ApiFunction
     Export:
-      Name: !Sub "ApiLambdaFunctionName-${BranchName}"
+      Name: !Sub
+        - "ApiLambdaFunctionName-${BranchName}-${DomainDashed}"
+        - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]

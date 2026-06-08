@@ -1,15 +1,16 @@
 ---
 AWSTemplateFormatVersion: "2010-09-09"
-Description: "TaskManager Backend Infrastructure Template - Includes security, networking, database, and infrastructure components"
+Description: "Backend infrastructure - security, networking, database, infrastructure components. DomainName is the dot form (e.g. appcloud.systems); nested templates derive the dashed (appcloud-systems) form locally where needed."
 
 Parameters:
-  GitHubActionsUserArn:
-    Type: String
-    Description: ARN of the GitHub Actions IAM user
   # Common parameters
   BranchName:
     Type: String
     Description: Branch name for resource naming
+
+  DomainName:
+    Type: String
+    Description: "Domain name in dot form (e.g. appcloud.systems). Nested templates derive dashed/underscored forms locally via Fn::Join+Fn::Split."
 
   DatabasePassword:
     Type: String
@@ -47,11 +48,13 @@ Parameters:
     Default: ""
     Description: ID of the Aurora global cluster
 
-  # Parameters for secondary regions
   KmsKeyArn:
     Type: String
-    Description: ARN of the primary KMS key (for secondary regions)
-    Default: ""
+    Description: "ARN of the Aurora KMS key for this region. Required. Sourced by the deploy workflow from /{dashed-domain}/kms/{prod,nonprod}/aurora-key-arn in SSM Parameter Store and passed through master.template."
+
+  AuroraClusterDeleteHandlerArn:
+    Type: String
+    Description: "ARN of the bootstrap-owned Aurora cluster force-teardown Lambda for this region. Sourced by the deploy workflow from /{dashed-domain}/lambda/aurora-cluster-delete-handler-arn in SSM and passed through master.template. Threaded to DbStack."
 
   # Google OAuth parameters
   GoogleOAuthClientId:
@@ -65,16 +68,6 @@ Parameters:
     NoEcho: true
 
 Conditions:
-  IsPrimary: !Equals [!Ref IsPrimaryRegion, "true"]
-  IsSecondary: !Equals [!Ref IsPrimaryRegion, "false"]
-  HasKmsKeyArn: !Not [!Equals [!Ref KmsKeyArn, ""]]
-  HasGlobalClusterId: !Not [!Equals [!Ref AuroraGlobalClusterId, ""]]
-  IsSingleRegion: !Equals [!Ref EnableGlobalCluster, "false"]
-  IsPrimarySingleRegion:
-    !And [
-      !Equals [!Ref IsPrimaryRegion, "true"],
-      !Equals [!Ref EnableGlobalCluster, "false"],
-    ]
   ShouldCreateGlobalCluster:
     !And [
       !Equals [!Ref IsPrimaryRegion, "true"],
@@ -82,16 +75,16 @@ Conditions:
     ]
 
 Resources:
-  # KMS Key (Primary or Replica)
+  # Security stack: provides SharedLambdaExecutionRole only. The cluster's
+  # KmsKeyId comes directly from the workflow via the KmsKeyArn parameter
+  # on this template (bootstrap stack's prod or nonprod key, selected by branch).
   SecurityStack:
     Type: AWS::CloudFormation::Stack
     Properties:
       TemplateURL: ./security.template
       Parameters:
         BranchName: !Ref BranchName
-        KmsKeyArn: !If [HasKmsKeyArn, !Ref KmsKeyArn, !Ref "AWS::NoValue"]
-        IsPrimaryRegion: !Ref IsPrimaryRegion
-        GitHubActionsUserArn: !Ref GitHubActionsUserArn
+        DomainName: !Ref DomainName
 
   # Regional VPC
   NetworkingStack:
@@ -100,19 +93,22 @@ Resources:
       TemplateURL: ./network.template
       Parameters:
         BranchName: !Ref BranchName
+        DomainName: !Ref DomainName
         LogRetentionDays: 7
 
   # Regional Database
   DbStack:
     Type: AWS::CloudFormation::Stack
-    DependsOn: [SecurityStack, NetworkingStack]
+    DependsOn: NetworkingStack
     Properties:
       TemplateURL: ./db.template
       Parameters:
         DatabasePassword: !Ref DatabasePassword
+        DomainName: !Ref DomainName
         EngineVersion: !Ref EngineVersion
         AuroraGlobalClusterId: !Ref AuroraGlobalClusterId
-        AuroraKmsKeyArn: !GetAtt SecurityStack.Outputs.AuroraKmsKeyArn
+        AuroraKmsKeyArn: !Ref KmsKeyArn
+        AuroraClusterDeleteHandlerArn: !Ref AuroraClusterDeleteHandlerArn
         IsPrimaryRegion: !Ref IsPrimaryRegion
         BranchName: !Ref BranchName
         EnvironmentToImport: !Ref BranchName
@@ -128,14 +124,15 @@ Resources:
       TemplateURL: ./infrastructure.template
       Parameters:
         BranchName: !Ref BranchName
+        DomainName: !Ref DomainName
         GoogleOAuthClientId: !Ref GoogleOAuthClientId
         GoogleOAuthClientSecret: !Ref GoogleOAuthClientSecret
 
 Outputs:
   # KMS outputs (for orchestration, not exported)
   AuroraKmsKeyArn:
-    Description: ARN of the KMS key
-    Value: !GetAtt SecurityStack.Outputs.AuroraKmsKeyArn
+    Description: ARN of the KMS key (sourced from workflow's bootstrap-{prod,nonprod} SSM lookup)
+    Value: !Ref KmsKeyArn
 
   # Global outputs (for orchestration, not exported)
   AuroraGlobalClusterId:

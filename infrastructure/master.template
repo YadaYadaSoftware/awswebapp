@@ -1,11 +1,9 @@
 ---
 AWSTemplateFormatVersion: "2010-09-09"
-Description: "TaskManager Master Infrastructure Template - Includes backend and application nested stacks"
+Description: "Master env-stack template - includes backend and application nested stacks. Receives DomainName (dot form, e.g. appcloud.systems) and threads it through; templates that need the dashed (appcloud-systems) or underscored (appcloud_systems) forms derive them locally via Fn::Join+Fn::Split on DomainName."
+# Cutover marker: domain-named-bootstrap-stack applied to beta on 2026-06-04 (retrigger).
 
 Parameters:
-  GitHubActionsUserArn:
-    Type: String
-    Description: ARN of the GitHub Actions IAM user
   BranchName:
     Type: String
     Description: Branch name for resource naming
@@ -51,11 +49,13 @@ Parameters:
     Default: ""
     Description: ID of the Aurora global cluster
 
-  # Parameters for secondary regions
   KmsKeyArn:
     Type: String
-    Description: ARN of the primary KMS key (for secondary regions)
-    Default: ""
+    Description: "ARN of the Aurora KMS key for this region. Required. Sourced by the deploy workflow from /{dashed-domain}/kms/{prod,nonprod}/aurora-key-arn in SSM Parameter Store (e.g., /appcloud-systems/kms/nonprod/aurora-key-arn)."
+
+  AuroraClusterDeleteHandlerArn:
+    Type: String
+    Description: "ARN of the bootstrap-owned Aurora cluster force-teardown Lambda for this region. Required. Sourced by the deploy workflow from /{dashed-domain}/lambda/aurora-cluster-delete-handler-arn in SSM (e.g., /appcloud-systems/lambda/aurora-cluster-delete-handler-arn). Threaded to BackendStack -> DbStack."
 
   # Google OAuth parameters
   GoogleOAuthClientId:
@@ -111,7 +111,6 @@ Parameters:
 Conditions:
   IsPrimary: !Equals [!Ref IsPrimaryRegion, "true"]
   IsSecondary: !Equals [!Ref IsPrimaryRegion, "false"]
-  HasKmsKeyArn: !Not [!Equals [!Ref KmsKeyArn, ""]]
   HasGlobalClusterId: !Not [!Equals [!Ref AuroraGlobalClusterId, ""]]
   IsMultiRegionDeploy: !Equals [!Ref IsMultiRegion, "true"]
   IsSingleRegionDeploy: !Equals [!Ref IsMultiRegion, "false"]
@@ -139,6 +138,7 @@ Resources:
       TemplateURL: ./backend.template
       Parameters:
         BranchName: !Ref BranchName
+        DomainName: !Ref DomainName
         DatabasePassword: !Ref DatabasePassword
         EngineVersion: !Ref EngineVersion
         MinCapacity: !Ref MinCapacity
@@ -147,9 +147,9 @@ Resources:
         IsPrimaryRegion: !Ref IsPrimaryRegion
         AuroraGlobalClusterId: !Ref AuroraGlobalClusterId
         KmsKeyArn: !Ref KmsKeyArn
+        AuroraClusterDeleteHandlerArn: !Ref AuroraClusterDeleteHandlerArn
         GoogleOAuthClientId: !Ref GoogleOAuthClientId
         GoogleOAuthClientSecret: !Ref GoogleOAuthClientSecret
-        GitHubActionsUserArn: !Ref GitHubActionsUserArn
 
   ApplicationStack:
     Type: AWS::CloudFormation::Stack

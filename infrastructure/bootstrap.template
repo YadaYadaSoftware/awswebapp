@@ -1,29 +1,863 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Description: "GitHub Actions IAM User and Permissions Setup"
+Description: "Bootstrap stack - deploy with stack name = dashed deployment domain (e.g., appcloud-systems for appcloud.systems). Owns account-wide infrastructure (S3 templates-bucket, ECR, ApiGateway logs, Config log-retention rules) plus both Aurora KMS keys (prod + nonprod) and both GitHub Actions IAM users. Resource names that previously embedded the project literal are derived from ${AWS::StackName} (e.g., alias/${AWS::StackName}-aurora-{prod,nonprod}, /${AWS::StackName}/kms/{prod,nonprod}/aurora-key-arn). The templates bucket is named ${AWS::AccountId}-${AWS::StackName}-${AWS::Region}. One stack per region. Primary region (us-east-1) owns the multi-region KMS keys and the (global) IAM resources; the secondary region owns AWS::KMS::ReplicaKey copies for each scope."
 
 Parameters:
-  TemplatesBucketName:
-    Type: String
-    Description: "Name of the S3 bucket for CloudFormation templates (must already exist or be created separately)"
-
   RetentionDays:
     Type: Number
     Default: 7
-    Description: "Number of days to retain CloudWatch logs"
+    Description: "Number of days to retain CloudWatch logs (enforced by the Config rule and remediation below)."
+
+  PrimaryNonprodKeyArn:
+    Type: String
+    Default: ""
+    Description: "ARN of the primary (us-east-1) nonprod multi-region KMS key. Leave empty (default) for the primary-region deploy; for the secondary region, pass the AuroraKmsKeyNonprodArn output from the primary-region deploy of this template. Presence determines IsPrimary/IsReplica."
+
+  PrimaryProdKeyArn:
+    Type: String
+    Default: ""
+    Description: "ARN of the primary (us-east-1) prod multi-region KMS key. Pass alongside PrimaryNonprodKeyArn for the secondary-region deploy."
+
+Conditions:
+  IsPrimary: !Equals [!Ref PrimaryNonprodKeyArn, ""]
+  IsReplica: !Not [!Equals [!Ref PrimaryNonprodKeyArn, ""]]
 
 Resources:
-  # IAM User for GitHub Actions
+  # ---------- Shared infrastructure (always created) ----------
+  # Stack-name-derived naming: every resource that previously embedded a
+  # project literal now derives from ${AWS::StackName} (= dashed domain).
+
+  TemplatesBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      # Derived from account+stackname+region for global uniqueness without
+      # an externally-managed name. Bootstrap is small enough (<51KB) to deploy
+      # without an intermediate S3 upload, so this bucket can be owned by the
+      # same stack that needs it. Env-stack deploys (which use nested stacks
+      # and exceed the inline limit) upload to this bucket via the workflow.
+      BucketName: !Sub "${AWS::AccountId}-${AWS::StackName}-${AWS::Region}"
+      # Versioning ON — the deploy workflow appends ?versionId=... to each
+      # nested-template URL so a redeploy uses the exact uploaded version.
+      VersioningConfiguration:
+        Status: Enabled
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  WebECRRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      # Explicit name derived from the bootstrap stack name so multiple
+      # bootstrap stacks can coexist in one account+region (and so the
+      # repository identifies which deployment owns it). The deploy
+      # workflow's image URI builder uses the same dashed-domain value
+      # to construct `{account}.dkr.ecr.{region}.amazonaws.com/${AWS::StackName}`.
+      RepositoryName: !Ref "AWS::StackName"
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      ImageTagMutability: MUTABLE
+      LifecyclePolicy:
+        LifecyclePolicyText: |
+          {
+            "rules": [
+              {
+                "rulePriority": 1,
+                "description": "Expire untagged images older than 3 days",
+                "selection": {
+                  "tagStatus": "untagged",
+                  "countType": "sinceImagePushed",
+                  "countUnit": "days",
+                  "countNumber": 3
+                },
+                "action": {
+                  "type": "expire"
+                }
+              }
+            ]
+          }
+
+  TemplatesBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref TemplatesBucket
+      # IAM users are referenced by !Sub'd ARN so the same policy body works
+      # in both the primary and replica region deploys (the users only exist
+      # as CFN resources in the primary stack).
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowCloudFormationAccess
+            Effect: Allow
+            Principal:
+              Service: cloudformation.amazonaws.com
+            Action:
+              - s3:GetObject
+            Resource: !Sub "arn:aws:s3:::${TemplatesBucket}/*"
+          - Sid: AllowGitHubActionsNonprodFullAccess
+            Effect: Allow
+            Principal:
+              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:user/${AWS::StackName}-GitHubActionsUser"
+            Action:
+              - s3:*
+            Resource:
+              - !Sub "arn:aws:s3:::${TemplatesBucket}"
+              - !Sub "arn:aws:s3:::${TemplatesBucket}/*"
+          - Sid: AllowGitHubActionsProdFullAccess
+            Effect: Allow
+            Principal:
+              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:user/${AWS::StackName}-GitHubActionsUserProd"
+            Action:
+              - s3:*
+            Resource:
+              - !Sub "arn:aws:s3:::${TemplatesBucket}"
+              - !Sub "arn:aws:s3:::${TemplatesBucket}/*"
+
+  ApiGatewayCloudWatchLogsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: apigateway.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: !Sub "ApiGatewayCloudWatchLogsPolicy-${AWS::Region}"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                  - logs:DescribeLogGroups
+                  - logs:DescribeLogStreams
+                  - logs:FilterLogEvents
+                  - logs:GetLogEvents
+                Resource: "*"
+
+  ApiGatewayAccount:
+    Type: AWS::ApiGateway::Account
+    Properties:
+      CloudWatchRoleArn: !GetAtt ApiGatewayCloudWatchLogsRole.Arn
+
+  LogRetentionConfigFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: python3.12
+      Handler: index.lambda_handler
+      Role: !GetAtt ConfigRuleRole.Arn
+      Code:
+        ZipFile: |
+          import boto3
+          import json
+          import os
+          from datetime import datetime
+
+          def lambda_handler(event, context):
+              print(f"Received event: {json.dumps(event)}")
+
+              if 'RetentionDays' in event:
+                  return handle_remediation(event)
+
+              return handle_evaluation(event)
+
+          def handle_evaluation(event):
+              config_client = boto3.client('config')
+              logs_client = boto3.client('logs')
+
+              retention_days = int(os.environ['RETENTION_DAYS'])
+
+              invoking_event = json.loads(event['invokingEvent'])
+              configuration_item = invoking_event['configurationItem']
+
+              log_group_name = configuration_item['resourceName']
+
+              try:
+                  response = logs_client.describe_log_groups(
+                      logGroupNamePrefix=log_group_name
+                  )
+
+                  if response['logGroups']:
+                      log_group = response['logGroups'][0]
+                      current_retention = log_group.get('retentionInDays')
+
+                      if current_retention != retention_days:
+                          return {
+                              'ComplianceType': 'NON_COMPLIANT',
+                              'Annotation': f'Log group retention is {current_retention}, should be {retention_days}'
+                          }
+                      else:
+                          return {'ComplianceType': 'COMPLIANT'}
+
+              except Exception as e:
+                  print(f"Error evaluating log group {log_group_name}: {str(e)}")
+                  return {
+                      'ComplianceType': 'NON_COMPLIANT',
+                      'Annotation': f'Error evaluating log group: {str(e)}'
+                  }
+
+              return {'ComplianceType': 'NOT_APPLICABLE'}
+
+          def handle_remediation(event):
+              logs_client = boto3.client('logs')
+
+              log_group_name = event.get('LogGroupName')
+              retention_days = int(event['RetentionDays'])
+
+              if not log_group_name:
+                  raise ValueError("LogGroupName not provided in remediation event")
+
+              try:
+                  logs_client.put_retention_policy(
+                      logGroupName=log_group_name,
+                      retentionInDays=retention_days
+                  )
+                  print(f"Set retention to {retention_days} days for {log_group_name}")
+                  return {'status': 'SUCCESS'}
+              except Exception as e:
+                  print(f"Error setting retention for {log_group_name}: {str(e)}")
+                  raise e
+      Environment:
+        Variables:
+          RETENTION_DAYS: !Ref RetentionDays
+
+  ConfigRuleRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: !Sub "ConfigRulePolicy-${AWS::Region}"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - config:PutEvaluations
+                  - logs:DescribeLogGroups
+                  - logs:PutRetentionPolicy
+                Resource: "*"
+
+  LogRetentionConfigRule:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      Description: "Checks that CloudWatch log groups have appropriate retention settings"
+      Scope:
+        ComplianceResourceTypes:
+          - AWS::Logs::LogGroup
+      Source:
+        Owner: CUSTOM_LAMBDA
+        SourceIdentifier: !GetAtt LogRetentionConfigFunction.Arn
+        SourceDetails:
+          - EventSource: aws.config
+            MessageType: ConfigurationItemChangeNotification
+
+  LogRetentionRemediationDocument:
+    Type: AWS::SSM::Document
+    Properties:
+      DocumentType: Automation
+      Content:
+        schemaVersion: "0.3"
+        assumeRole: "{{AutomationAssumeRole}}"
+        parameters:
+          LogGroupName:
+            type: String
+            description: The name of the log group to remediate
+          RetentionDays:
+            type: String
+            description: The retention period in days
+          AutomationAssumeRole:
+            type: String
+            description: The ARN of the role that allows Automation to perform actions
+        mainSteps:
+          - name: InvokeLambdaFunction
+            action: aws:invokeLambdaFunction
+            inputs:
+              FunctionName: !Ref LogRetentionConfigFunction
+              Payload: |
+                {
+                  "LogGroupName": "{{LogGroupName}}",
+                  "RetentionDays": "{{RetentionDays}}"
+                }
+
+  SSMAutomationRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ssm.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonSSMAutomationRole
+      Policies:
+        - PolicyName: !Sub "SSMAutomationLambdaInvoke-${AWS::Region}"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource: !GetAtt LogRetentionConfigFunction.Arn
+
+  LogRetentionRemediation:
+    Type: AWS::Config::RemediationConfiguration
+    Properties:
+      ConfigRuleName: !Ref LogRetentionConfigRule
+      TargetId: !Ref LogRetentionRemediationDocument
+      TargetType: SSM_DOCUMENT
+      Parameters:
+        LogGroupName:
+          ResourceValue:
+            Value: RESOURCE_ID
+        RetentionDays:
+          StaticValue:
+            Values:
+              - !Ref RetentionDays
+        AutomationAssumeRole:
+          StaticValue:
+            Values:
+              - !GetAtt SSMAutomationRole.Arn
+      Automatic: true
+      MaximumAutomaticAttempts: 5
+      RetryAttemptSeconds: 60
+
+  ConfigInvokeLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref LogRetentionConfigFunction
+      Action: lambda:InvokeFunction
+      Principal: config.amazonaws.com
+      SourceAccount: !Ref AWS::AccountId
+
+  # ---------- Aurora cluster force-teardown handler (always created, one per region) ----------
+  # A CloudFormation custom-resource backing Lambda that force-drains a stuck
+  # Aurora DB cluster on stack delete (see OpenSpec change
+  # robust-aurora-cluster-teardown). Lambda is regional, not global, so unlike
+  # the IAM users below it is NOT gated on IsPrimary — both the primary and the
+  # replica region deploy create their own handler. db.template's
+  # AuroraClusterDrainOnDelete custom resource invokes it via its SSM-published
+  # ARN threaded through master -> backend -> db.
+
+  AuroraClusterDeleteHandlerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: !Sub "AuroraClusterDeleteHandlerPolicy-${AWS::Region}"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              # Describe APIs don't support resource-level permissions.
+              - Effect: Allow
+                Action:
+                  - rds:DescribeDBClusters
+                  - rds:DescribeDBInstances
+                Resource: "*"
+              # Mutating ops on RDS clusters/instances in THIS region, scoped to
+              # cluster:*/db:* (not a name prefix). Env clusters are CFN
+              # auto-named (e.g. dev-appcloud-systems-backendstack-7d-
+              # auroracluster-<rand>) because an explicit DBClusterIdentifier
+              # forces replacement and breaks the DatabaseHost export (see
+              # db.template). Those auto-names can't be reliably prefix-matched
+              # from this region-wide bootstrap role, and a safety-net teardown
+              # that silently lacks delete permission is worse than a broad
+              # grant. The Lambda only ever deletes the single cluster the
+              # AuroraClusterDrainOnDelete custom resource names in its event.
+              # FUTURE HARDENING: tag env clusters and scope via aws:ResourceTag.
+              - Effect: Allow
+                Action:
+                  - rds:DeleteDBCluster
+                  - rds:ModifyDBCluster
+                Resource: !Sub "arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster:*"
+              - Effect: Allow
+                Action:
+                  - rds:DeleteDBInstance
+                Resource: !Sub "arn:aws:rds:${AWS::Region}:${AWS::AccountId}:db:*"
+              # kms:DescribeKey is used for log enrichment when investigating
+              # KMS-related cluster stalls; harmless on Resource "*".
+              - Effect: Allow
+                Action:
+                  - kms:DescribeKey
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:*"
+
+  AuroraClusterDeleteHandler:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: python3.12
+      Handler: index.lambda_handler
+      Timeout: 900
+      Role: !GetAtt AuroraClusterDeleteHandlerRole.Arn
+      Code:
+        ZipFile: |
+          import time
+
+          import boto3
+          import cfnresponse
+
+          # RDS cluster states from which a delete request is rejected. We wait
+          # for the cluster to leave these before calling DeleteDBCluster.
+          TRANSIENT_STATES = {
+              "backing-up",
+              "creating",
+              "modifying",
+              "configuring-iam-database-auth",
+          }
+          POLL_INTERVAL_SECONDS = 30
+          # Overall wait budget. Lambda's hard ceiling is the 900s Timeout; leave
+          # headroom for the final delete call + the CFN response round-trip.
+          MAX_WAIT_SECONDS = 13 * 60
+
+
+          def lambda_handler(event, context):
+              request_type = event.get("RequestType")
+              print(f"RequestType={request_type}")
+              # The custom resource exists only to guarantee a clean DELETE.
+              # Create/Update are deliberate no-ops (zero RDS API calls).
+              if request_type in ("Create", "Update"):
+                  cfnresponse.send(
+                      event, context, cfnresponse.SUCCESS, {},
+                      reason=f"No-op on {request_type}",
+                  )
+                  return
+              try:
+                  _drain_cluster(event)
+                  cfnresponse.send(event, context, cfnresponse.SUCCESS, {})
+              except Exception as exc:  # noqa: BLE001 - surface root cause to CFN
+                  # Returning FAILED with the real message means the stack's
+                  # DELETE_FAILED event names the actual blocker instead of the
+                  # downstream "subnet group is still using cluster X" symptom.
+                  print(f"ERROR draining cluster: {exc}")
+                  cfnresponse.send(
+                      event, context, cfnresponse.FAILED, {}, reason=str(exc)[:1000],
+                  )
+
+
+          def _drain_cluster(event):
+              cluster_id = event.get("ResourceProperties", {}).get("ClusterIdentifier")
+              if not cluster_id:
+                  raise ValueError("ClusterIdentifier property is required")
+              rds = boto3.client("rds")
+
+              cluster = _describe(rds, cluster_id)
+              if cluster is None:
+                  print(f"Cluster {cluster_id} not found - already gone")
+                  return
+
+              # Clear deletion protection if set; tolerate a non-modifiable state.
+              if cluster.get("DeletionProtection"):
+                  try:
+                      rds.modify_db_cluster(
+                          DBClusterIdentifier=cluster_id,
+                          DeletionProtection=False,
+                          ApplyImmediately=True,
+                      )
+                      print(f"Disabled DeletionProtection on {cluster_id}")
+                  except Exception as exc:  # noqa: BLE001
+                      print(f"WARN could not disable DeletionProtection: {exc}")
+
+              # Member instances must be deleted before the cluster.
+              for member in cluster.get("DBClusterMembers", []):
+                  instance_id = member.get("DBInstanceIdentifier")
+                  if not instance_id:
+                      continue
+                  try:
+                      rds.delete_db_instance(
+                          DBInstanceIdentifier=instance_id, SkipFinalSnapshot=True,
+                      )
+                      print(f"Deleting instance {instance_id}")
+                  except rds.exceptions.DBInstanceNotFoundFault:
+                      pass
+                  except Exception as exc:  # noqa: BLE001
+                      print(f"WARN could not delete instance {instance_id}: {exc}")
+
+              deadline = time.time() + MAX_WAIT_SECONDS
+
+              # Wait for the cluster to leave any delete-blocking transient state.
+              while True:
+                  cluster = _describe(rds, cluster_id)
+                  if cluster is None:
+                      print(f"Cluster {cluster_id} disappeared while waiting - done")
+                      return
+                  status = cluster.get("Status")
+                  print(f"Cluster {cluster_id} status={status}")
+                  if status not in TRANSIENT_STATES:
+                      break
+                  if time.time() >= deadline:
+                      raise TimeoutError(
+                          f"Cluster {cluster_id} stuck in '{status}' after "
+                          f"{MAX_WAIT_SECONDS}s"
+                      )
+                  time.sleep(POLL_INTERVAL_SECONDS)
+
+              try:
+                  rds.delete_db_cluster(
+                      DBClusterIdentifier=cluster_id, SkipFinalSnapshot=True,
+                  )
+                  print(f"Deleting cluster {cluster_id}")
+              except rds.exceptions.DBClusterNotFoundFault:
+                  print(f"Cluster {cluster_id} already gone")
+                  return
+
+              # Wait until the cluster is fully gone before signalling success.
+              while True:
+                  if _describe(rds, cluster_id) is None:
+                      print(f"Cluster {cluster_id} fully deleted")
+                      return
+                  if time.time() >= deadline:
+                      raise TimeoutError(
+                          f"Cluster {cluster_id} did not finish deleting before timeout"
+                      )
+                  time.sleep(POLL_INTERVAL_SECONDS)
+
+
+          def _describe(rds, cluster_id):
+              try:
+                  resp = rds.describe_db_clusters(DBClusterIdentifier=cluster_id)
+                  clusters = resp.get("DBClusters", [])
+                  return clusters[0] if clusters else None
+              except rds.exceptions.DBClusterNotFoundFault:
+                  return None
+
+  AuroraClusterDeleteHandlerLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${AuroraClusterDeleteHandler}"
+      RetentionInDays: !Ref RetentionDays
+
+  AuroraClusterDeleteHandlerArnParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "/${AWS::StackName}/lambda/aurora-cluster-delete-handler-arn"
+      Type: String
+      Description: "ARN of the Aurora cluster force-teardown Lambda in this region. Consumed by the deploy workflow's SSM lookup step and threaded to db.template's custom resource."
+      Value: !GetAtt AuroraClusterDeleteHandler.Arn
+
+  # ---------- Nonprod KMS key (primary or replica) ----------
+
+  AuroraKmsKeyNonprod:
+    Type: AWS::KMS::Key
+    Condition: IsPrimary
+    Properties:
+      Description: !Sub "Aurora encryption key (nonprod) — ${AWS::StackName}"
+      KeyUsage: ENCRYPT_DECRYPT
+      KeySpec: SYMMETRIC_DEFAULT
+      MultiRegion: true
+      Enabled: true
+      PendingWindowInDays: 7
+      # IAM principal referenced via !GetAtt so CFN creates the user before
+      # the key (KMS validates principal existence at key-creation time).
+      KeyPolicy:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowAccountRoot
+            Effect: Allow
+            Principal:
+              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:root"
+            Action: kms:*
+            Resource: "*"
+          - Sid: AllowRDSService
+            Effect: Allow
+            Principal:
+              Service: rds.amazonaws.com
+            Action:
+              - kms:CreateGrant
+              - kms:DescribeKey
+              - kms:Decrypt
+              - kms:Encrypt
+              - kms:GenerateDataKey
+              - kms:ReEncryptFrom
+              - kms:ReEncryptTo
+              - kms:RetireGrant
+            Resource: "*"
+          - Sid: AllowGitHubActionsUser
+            Effect: Allow
+            Principal:
+              AWS: !GetAtt GitHubActionsUser.Arn
+            Action:
+              - kms:CreateGrant
+              - kms:DescribeKey
+              - kms:Decrypt
+              - kms:Encrypt
+              - kms:GenerateDataKey
+              - kms:ReEncryptFrom
+              - kms:ReEncryptTo
+              - kms:RetireGrant
+              - kms:CreateAlias
+              - kms:DeleteAlias
+              - kms:UpdateAlias
+              - kms:ListAliases
+              - kms:ListGrants
+              - kms:RevokeGrant
+            Resource: "*"
+
+  AuroraKmsKeyNonprodReplica:
+    Type: AWS::KMS::ReplicaKey
+    Condition: IsReplica
+    Properties:
+      Description: !Sub "Aurora encryption key replica (nonprod) — ${AWS::StackName}"
+      PrimaryKeyArn: !Ref PrimaryNonprodKeyArn
+      Enabled: true
+      PendingWindowInDays: 7
+      KeyPolicy:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowAccountRoot
+            Effect: Allow
+            Principal:
+              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:root"
+            Action: kms:*
+            Resource: "*"
+          - Sid: AllowRDSService
+            Effect: Allow
+            Principal:
+              Service: rds.amazonaws.com
+            Action:
+              - kms:CreateGrant
+              - kms:DescribeKey
+              - kms:Decrypt
+              - kms:Encrypt
+              - kms:GenerateDataKey
+              - kms:ReEncryptFrom
+              - kms:ReEncryptTo
+              - kms:RetireGrant
+            Resource: "*"
+          - Sid: AllowGitHubActionsUser
+            Effect: Allow
+            Principal:
+              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:user/${AWS::StackName}-GitHubActionsUser"
+            Action:
+              - kms:CreateGrant
+              - kms:DescribeKey
+              - kms:Decrypt
+              - kms:Encrypt
+              - kms:GenerateDataKey
+              - kms:ReEncryptFrom
+              - kms:ReEncryptTo
+              - kms:RetireGrant
+              - kms:CreateAlias
+              - kms:DeleteAlias
+              - kms:UpdateAlias
+              - kms:ListAliases
+              - kms:ListGrants
+              - kms:RevokeGrant
+            Resource: "*"
+
+  AuroraKmsKeyNonprodAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: !Sub "alias/${AWS::StackName}-aurora-nonprod"
+      TargetKeyId: !If [IsPrimary, !Ref AuroraKmsKeyNonprod, !Ref AuroraKmsKeyNonprodReplica]
+
+  AuroraKmsKeyNonprodArnParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "/${AWS::StackName}/kms/nonprod/aurora-key-arn"
+      Type: String
+      Description: "ARN of the nonprod Aurora KMS key (or replica) in this region. Consumed by the deploy workflow's SSM lookup step."
+      Value: !If [IsPrimary, !GetAtt AuroraKmsKeyNonprod.Arn, !GetAtt AuroraKmsKeyNonprodReplica.Arn]
+
+  # ---------- Prod KMS key (primary or replica) — restricted policy ----------
+
+  AuroraKmsKeyProd:
+    Type: AWS::KMS::Key
+    Condition: IsPrimary
+    Properties:
+      Description: !Sub "Aurora encryption key (prod) — ${AWS::StackName}"
+      KeyUsage: ENCRYPT_DECRYPT
+      KeySpec: SYMMETRIC_DEFAULT
+      MultiRegion: true
+      Enabled: true
+      PendingWindowInDays: 7
+      KeyPolicy:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowAccountRoot
+            Effect: Allow
+            Principal:
+              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:root"
+            Action: kms:*
+            Resource: "*"
+          - Sid: AllowRDSService
+            Effect: Allow
+            Principal:
+              Service: rds.amazonaws.com
+            Action:
+              - kms:CreateGrant
+              - kms:DescribeKey
+              - kms:Decrypt
+              - kms:Encrypt
+              - kms:GenerateDataKey
+              - kms:ReEncryptFrom
+              - kms:ReEncryptTo
+              - kms:RetireGrant
+            Resource: "*"
+          - Sid: AllowGitHubActionsUserProd
+            Effect: Allow
+            Principal:
+              AWS: !GetAtt GitHubActionsUserProd.Arn
+            Action:
+              - kms:CreateGrant
+              - kms:DescribeKey
+              - kms:Decrypt
+              - kms:Encrypt
+              - kms:GenerateDataKey
+              - kms:ReEncryptFrom
+              - kms:ReEncryptTo
+              - kms:RetireGrant
+              - kms:ListGrants
+              - kms:RevokeGrant
+            Resource: "*"
+          - Sid: AllowProdKmsAdmin
+            Effect: Allow
+            Principal:
+              AWS: !GetAtt ProdKmsAdminRole.Arn
+            Action: kms:*
+            Resource: "*"
+          # Targeted Deny for the nonprod CI principal. Without this, the
+          # AllowAccountRoot statement delegates KMS evaluation to IAM, and
+          # GitHubActionsUser's broad DeploymentPolicy (kms:* on Resource:"*")
+          # would let nonprod CI reach the prod key. An earlier draft used
+          # NotPrincipal+Deny kms:* with rds.amazonaws.com in the exemption,
+          # but that blocked Aurora's AWSServiceRoleForRDS (the SLR that
+          # actually performs encryption ops after the grant is created) —
+          # NotPrincipal's Service entry matches direct service calls, not
+          # SLR-session calls. The targeted Deny named below avoids that
+          # entire class of problem while still satisfying the spec
+          # requirement that nonprod CI cannot reach the prod key.
+          - Sid: DenyNonprodCI
+            Effect: Deny
+            Principal:
+              AWS: !GetAtt GitHubActionsUser.Arn
+            Action: kms:*
+            Resource: "*"
+
+  AuroraKmsKeyProdReplica:
+    Type: AWS::KMS::ReplicaKey
+    Condition: IsReplica
+    Properties:
+      Description: !Sub "Aurora encryption key replica (prod) — ${AWS::StackName}"
+      PrimaryKeyArn: !Ref PrimaryProdKeyArn
+      Enabled: true
+      PendingWindowInDays: 7
+      KeyPolicy:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowAccountRoot
+            Effect: Allow
+            Principal:
+              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:root"
+            Action: kms:*
+            Resource: "*"
+          - Sid: AllowRDSService
+            Effect: Allow
+            Principal:
+              Service: rds.amazonaws.com
+            Action:
+              - kms:CreateGrant
+              - kms:DescribeKey
+              - kms:Decrypt
+              - kms:Encrypt
+              - kms:GenerateDataKey
+              - kms:ReEncryptFrom
+              - kms:ReEncryptTo
+              - kms:RetireGrant
+            Resource: "*"
+          - Sid: AllowGitHubActionsUserProd
+            Effect: Allow
+            Principal:
+              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:user/${AWS::StackName}-GitHubActionsUserProd"
+            Action:
+              - kms:CreateGrant
+              - kms:DescribeKey
+              - kms:Decrypt
+              - kms:Encrypt
+              - kms:GenerateDataKey
+              - kms:ReEncryptFrom
+              - kms:ReEncryptTo
+              - kms:RetireGrant
+              - kms:ListGrants
+              - kms:RevokeGrant
+            Resource: "*"
+          - Sid: AllowProdKmsAdmin
+            Effect: Allow
+            Principal:
+              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:role/${AWS::StackName}-prod-kms-admin"
+            Action: kms:*
+            Resource: "*"
+          # Targeted Deny for the nonprod CI principal — see comment in
+          # AuroraKmsKeyProd for rationale.
+          - Sid: DenyNonprodCI
+            Effect: Deny
+            Principal:
+              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:user/${AWS::StackName}-GitHubActionsUser"
+            Action: kms:*
+            Resource: "*"
+
+  AuroraKmsKeyProdAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: !Sub "alias/${AWS::StackName}-aurora-prod"
+      TargetKeyId: !If [IsPrimary, !Ref AuroraKmsKeyProd, !Ref AuroraKmsKeyProdReplica]
+
+  AuroraKmsKeyProdArnParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "/${AWS::StackName}/kms/prod/aurora-key-arn"
+      Type: String
+      Description: "ARN of the prod Aurora KMS key (or replica) in this region. Consumed by the deploy workflow's SSM lookup step."
+      Value: !If [IsPrimary, !GetAtt AuroraKmsKeyProd.Arn, !GetAtt AuroraKmsKeyProdReplica.Arn]
+
+  # ---------- IAM (primary region only; IAM is global) ----------
+
   GitHubActionsUser:
     Type: AWS::IAM::User
-  # Custom IAM Policy with specific permissions
+    Condition: IsPrimary
+    Properties:
+      # Explicit name so the TemplatesBucketPolicy and the replica region's
+      # KMS key policies can reference this user by hardcoded ARN.
+      UserName: !Sub "${AWS::StackName}-GitHubActionsUser"
+
+  GitHubActionsAccessKey:
+    Type: AWS::IAM::AccessKey
+    Condition: IsPrimary
+    Properties:
+      UserName: !Ref GitHubActionsUser
+
   DeploymentPolicy:
     Type: AWS::IAM::Policy
+    Condition: IsPrimary
     Properties:
       PolicyName: !Sub "DeploymentPolicy-${AWS::Region}"
       PolicyDocument:
         Version: "2012-10-17"
         Statement:
-          # Core AWS service permissions
           - Effect: Allow
             Action:
               - cloudformation:*
@@ -46,8 +880,6 @@ Resources:
               - ssm:GetParameters
               - config:*
             Resource: "*"
-
-          # Service-linked role creation
           - Effect: Allow
             Action:
               - iam:CreateServiceLinkedRole
@@ -55,10 +887,8 @@ Resources:
             Condition:
               StringEquals:
                 iam:AWSServiceName:
-                  - "elasticloadbalancing.amazonaws.com"
-                  - "ecs.amazonaws.com"
-
-          # KMS permissions for Aurora encryption
+                  - elasticloadbalancing.amazonaws.com
+                  - ecs.amazonaws.com
           - Effect: Allow
             Action:
               - kms:CreateKey
@@ -81,8 +911,6 @@ Resources:
               - kms:ScheduleKeyDeletion
               - kms:GetKeyPolicy
             Resource: "*"
-
-          # Tagging permissions for all resources
           - Effect: Allow
             Action:
               - ec2:CreateTags
@@ -125,8 +953,6 @@ Resources:
               - cloudwatch:UntagResource
               - cloudwatch:ListTagsForResource
             Resource: "*"
-
-          # STS permissions
           - Effect: Allow
             Action:
               - sts:GetCallerIdentity
@@ -135,371 +961,217 @@ Resources:
       Users:
         - !Ref GitHubActionsUser
 
-  # Access Key for GitHub Actions
-  GitHubActionsAccessKey:
-    Type: AWS::IAM::AccessKey
+  GitHubActionsUserProd:
+    Type: AWS::IAM::User
+    Condition: IsPrimary
     Properties:
-      UserName: !Ref GitHubActionsUser
+      UserName: !Sub "${AWS::StackName}-GitHubActionsUserProd"
 
-  # S3 Bucket Policy for CloudFormation Access (bucket must exist)
-  TemplatesBucketPolicy:
-    Type: AWS::S3::BucketPolicy
+  GitHubActionsAccessKeyProd:
+    Type: AWS::IAM::AccessKey
+    Condition: IsPrimary
     Properties:
-      Bucket: !Ref TemplatesBucketName
+      UserName: !Ref GitHubActionsUserProd
+
+  DeploymentPolicyProd:
+    Type: AWS::IAM::Policy
+    Condition: IsPrimary
+    Properties:
+      PolicyName: !Sub "DeploymentPolicy-prod-${AWS::Region}"
+      # Mirror of nonprod DeploymentPolicy shape, with one tightening: KMS
+      # statement is restricted to the prod key only (Resource: AuroraKmsKeyProd.Arn)
+      # and excludes destructive ops (PutKeyPolicy, ScheduleKeyDeletion).
+      # Defense in depth — the prod key's resource policy is the primary control.
       PolicyDocument:
         Version: "2012-10-17"
         Statement:
-          - Sid: AllowCloudFormationAccess
-            Effect: Allow
-            Principal:
-              Service: cloudformation.amazonaws.com
+          - Effect: Allow
             Action:
-              - s3:GetObject
-            Resource: !Sub "arn:aws:s3:::${TemplatesBucketName}/*"
-          - Sid: AllowGitHubActionsFullAccess
-            Effect: Allow
-            Principal:
-              AWS: !GetAtt GitHubActionsUser.Arn
-            Action:
+              - cloudformation:*
+              - lambda:*
+              - apigateway:*
+              - rds:*
+              - ec2:*
+              - secretsmanager:*
+              - logs:*
+              - cloudwatch:*
               - s3:*
-            Resource:
-              - !Sub "arn:aws:s3:::${TemplatesBucketName}"
-              - !Sub "arn:aws:s3:::${TemplatesBucketName}/*"
-
-  # ECR Repository for Web Application
-  WebECRRepository:
-    Type: AWS::ECR::Repository
-    Properties:
-      ImageScanningConfiguration:
-        ScanOnPush: true
-      ImageTagMutability: MUTABLE
-      LifecyclePolicy:
-        LifecyclePolicyText: |
-          {
-            "rules": [
-              {
-                "rulePriority": 1,
-                "description": "Expire untagged images older than 3 days",
-                "selection": {
-                  "tagStatus": "untagged",
-                  "countType": "sinceImagePushed",
-                  "countUnit": "days",
-                  "countNumber": 3
-                },
-                "action": {
-                  "type": "expire"
-                }
-              }
-            ]
-          }
-  # API Gateway CloudWatch Logs Role
-  ApiGatewayCloudWatchLogsRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: 2012-10-17
-        Statement:
+              - sns:*
+              - ecs:*
+              - ecr:*
+              - elasticloadbalancing:*
+              - acm:*
+              - route53:*
+              - iam:*
+              - ssm:GetParameter
+              - ssm:GetParameters
+              - config:*
+            Resource: "*"
           - Effect: Allow
-            Principal:
-              Service: apigateway.amazonaws.com
-            Action: sts:AssumeRole
-      Policies:
-        - PolicyName: !Sub "ApiGatewayCloudWatchLogsPolicy-${AWS::Region}"
-          PolicyDocument:
-            Version: 2012-10-17
-            Statement:
-              - Effect: Allow
-                Action:
-                  - logs:CreateLogGroup
-                  - logs:CreateLogStream
-                  - logs:PutLogEvents
-                  - logs:DescribeLogGroups
-                  - logs:DescribeLogStreams
-                  - logs:FilterLogEvents
-                  - logs:GetLogEvents
-                Resource: "*"
-  # API Gateway Account Configuration
-  ApiGatewayAccount:
-    Type: AWS::ApiGateway::Account
-    Properties:
-      CloudWatchRoleArn: !GetAtt ApiGatewayCloudWatchLogsRole.Arn
+            Action:
+              - iam:CreateServiceLinkedRole
+            Resource: "*"
+            Condition:
+              StringEquals:
+                iam:AWSServiceName:
+                  - elasticloadbalancing.amazonaws.com
+                  - ecs.amazonaws.com
+          - Effect: Allow
+            Action:
+              - kms:DescribeKey
+              - kms:CreateGrant
+              - kms:Decrypt
+              - kms:Encrypt
+              - kms:GenerateDataKey
+              - kms:ReEncryptFrom
+              - kms:ReEncryptTo
+              - kms:RetireGrant
+              - kms:ListAliases
+              - kms:ListGrants
+              - kms:RevokeGrant
+              - kms:GetKeyPolicy
+            Resource: !GetAtt AuroraKmsKeyProd.Arn
+          - Effect: Allow
+            Action:
+              - ec2:CreateTags
+              - ec2:DeleteTags
+              - ec2:DescribeTags
+              - rds:AddTagsToResource
+              - rds:RemoveTagsFromResource
+              - rds:DescribeDBInstances
+              - rds:DescribeDBClusters
+              - lambda:TagResource
+              - lambda:UntagResource
+              - lambda:ListTags
+              - logs:TagLogGroup
+              - logs:UntagLogGroup
+              - logs:ListTagsLogGroup
+              - ecr:TagResource
+              - ecr:UntagResource
+              - ecr:ListTagsForResource
+              - ecs:TagResource
+              - ecs:UntagResource
+              - ecs:ListTagsForResource
+              - elasticloadbalancing:AddTags
+              - elasticloadbalancing:RemoveTags
+              - elasticloadbalancing:DescribeTags
+              - secretsmanager:TagResource
+              - secretsmanager:UntagResource
+              - secretsmanager:DescribeSecret
+              - kms:TagResource
+              - kms:UntagResource
+              - kms:ListResourceTags
+              - s3:PutBucketTagging
+              - s3:GetBucketTagging
+              - s3:DeleteBucketTagging
+              - route53:ChangeTagsForResource
+              - route53:ListTagsForResource
+              - acm:AddTagsToCertificate
+              - acm:RemoveTagsFromCertificate
+              - acm:ListTagsForCertificate
+              - cloudwatch:TagResource
+              - cloudwatch:UntagResource
+              - cloudwatch:ListTagsForResource
+            Resource: "*"
+          - Effect: Allow
+            Action:
+              - sts:GetCallerIdentity
+              - sts:AssumeRole
+            Resource: "*"
+      Users:
+        - !Ref GitHubActionsUserProd
 
-  # Lambda function for Config rule evaluation and remediation
-  LogRetentionConfigFunction:
-    Type: AWS::Lambda::Function
-    Properties:
-      Runtime: python3.9
-      Handler: index.lambda_handler
-      Role: !GetAtt ConfigRuleRole.Arn
-      Code:
-        ZipFile: |
-          import boto3
-          import json
-          import os
-          from datetime import datetime
-
-          def lambda_handler(event, context):
-              print(f"Received event: {json.dumps(event)}")
-
-              # Check if this is a remediation call
-              if 'RetentionDays' in event:
-                  return handle_remediation(event)
-
-              # Otherwise, handle Config evaluation
-              return handle_evaluation(event)
-
-          def handle_evaluation(event):
-              config_client = boto3.client('config')
-              logs_client = boto3.client('logs')
-
-              retention_days = int(os.environ['RETENTION_DAYS'])
-
-              # Get the log group from the configuration item
-              invoking_event = json.loads(event['invokingEvent'])
-              configuration_item = invoking_event['configurationItem']
-
-              log_group_name = configuration_item['resourceName']
-
-              # Evaluate compliance
-              try:
-                  response = logs_client.describe_log_groups(
-                      logGroupNamePrefix=log_group_name
-                  )
-
-                  if response['logGroups']:
-                      log_group = response['logGroups'][0]
-                      current_retention = log_group.get('retentionInDays')
-
-                      if current_retention != retention_days:
-                          # Non-compliant
-                          return {
-                              'ComplianceType': 'NON_COMPLIANT',
-                              'Annotation': f'Log group retention is {current_retention}, should be {retention_days}'
-                          }
-                      else:
-                          return {'ComplianceType': 'COMPLIANT'}
-
-              except Exception as e:
-                  print(f"Error evaluating log group {log_group_name}: {str(e)}")
-                  return {
-                      'ComplianceType': 'NON_COMPLIANT',
-                      'Annotation': f'Error evaluating log group: {str(e)}'
-                  }
-
-              return {'ComplianceType': 'NOT_APPLICABLE'}
-
-          def handle_remediation(event):
-              logs_client = boto3.client('logs')
-
-              log_group_name = event.get('LogGroupName')
-              retention_days = int(event['RetentionDays'])
-
-              if not log_group_name:
-                  raise ValueError("LogGroupName not provided in remediation event")
-
-              try:
-                  logs_client.put_retention_policy(
-                      logGroupName=log_group_name,
-                      retentionInDays=retention_days
-                  )
-                  print(f"Set retention to {retention_days} days for {log_group_name}")
-                  return {'status': 'SUCCESS'}
-              except Exception as e:
-                  print(f"Error setting retention for {log_group_name}: {str(e)}")
-                  raise e
-      Environment:
-        Variables:
-          RETENTION_DAYS: !Ref RetentionDays
-
-  # IAM role for Config rule Lambda
-  ConfigRuleRole:
+  ProdKmsAdminRole:
     Type: AWS::IAM::Role
+    Condition: IsPrimary
     Properties:
+      # Explicit name so the prod KMS key policy can reference this role by
+      # hardcoded ARN (also makes the replica region's policy stable).
+      RoleName: !Sub "${AWS::StackName}-prod-kms-admin"
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
           - Effect: Allow
             Principal:
-              Service: lambda.amazonaws.com
+              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:root"
             Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
       Policies:
-        - PolicyName: !Sub "ConfigRulePolicy-${AWS::Region}"
+        - PolicyName: !Sub "ProdKmsAdminPolicy-${AWS::Region}"
           PolicyDocument:
             Version: "2012-10-17"
             Statement:
               - Effect: Allow
-                Action:
-                  - config:PutEvaluations
-                  - logs:DescribeLogGroups
-                  - logs:PutRetentionPolicy
+                Action: kms:*
                 Resource: "*"
-
-  # Config Rule for log group retention
-  LogRetentionConfigRule:
-    Type: AWS::Config::ConfigRule
-    Properties:
-      Description: "Checks that CloudWatch log groups have appropriate retention settings"
-      Scope:
-        ComplianceResourceTypes:
-          - AWS::Logs::LogGroup
-      Source:
-        Owner: CUSTOM_LAMBDA
-        SourceIdentifier: !GetAtt LogRetentionConfigFunction.Arn
-        SourceDetails:
-          - EventSource: aws.config
-            MessageType: ConfigurationItemChangeNotification
-
-  # SSM Automation Document for remediation
-  LogRetentionRemediationDocument:
-    Type: AWS::SSM::Document
-    Properties:
-      DocumentType: Automation
-      Content:
-        schemaVersion: "0.3"
-        assumeRole: "{{AutomationAssumeRole}}"
-        parameters:
-          LogGroupName:
-            type: String
-            description: The name of the log group to remediate
-          RetentionDays:
-            type: String
-            description: The retention period in days
-          AutomationAssumeRole:
-            type: String
-            description: The ARN of the role that allows Automation to perform actions
-        mainSteps:
-          - name: InvokeLambdaFunction
-            action: aws:invokeLambdaFunction
-            inputs:
-              FunctionName: !Ref LogRetentionConfigFunction
-              Payload: |
-                {
-                  "LogGroupName": "{{LogGroupName}}",
-                  "RetentionDays": "{{RetentionDays}}"
-                }
-
-  # IAM role for SSM Automation
-  SSMAutomationRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: ssm.amazonaws.com
-            Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/service-role/AmazonSSMAutomationRole
-      Policies:
-        - PolicyName: !Sub "SSMAutomationLambdaInvoke-${AWS::Region}"
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: Allow
-                Action:
-                  - lambda:InvokeFunction
-                Resource: !GetAtt LogRetentionConfigFunction.Arn
-
-  # Remediation configuration using SSM document
-  LogRetentionRemediation:
-    Type: AWS::Config::RemediationConfiguration
-    Properties:
-      ConfigRuleName: !Ref LogRetentionConfigRule
-      TargetId: !Ref LogRetentionRemediationDocument
-      TargetType: SSM_DOCUMENT
-      Parameters:
-        LogGroupName:
-          ResourceValue:
-            Value: RESOURCE_ID
-        RetentionDays:
-          StaticValue:
-            Values:
-              - !Ref RetentionDays
-        AutomationAssumeRole:
-          StaticValue:
-            Values:
-              - !GetAtt SSMAutomationRole.Arn
-      Automatic: true
-      MaximumAutomaticAttempts: 5
-      RetryAttemptSeconds: 60
-
-  # Permission for Config to invoke Lambda
-  ConfigInvokeLambdaPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      FunctionName: !Ref LogRetentionConfigFunction
-      Action: lambda:InvokeFunction
-      Principal: config.amazonaws.com
-      SourceAccount: !Ref AWS::AccountId
 
 Outputs:
-  UserName:
-    Description: "IAM User name for GitHub Actions"
-    Value: !Ref GitHubActionsUser
-    Export:
-      Name: GitHubActionsUser
+  AuroraKmsKeyNonprodArn:
+    Description: "ARN of the nonprod Aurora KMS key (or replica in this region)"
+    Value: !If [IsPrimary, !GetAtt AuroraKmsKeyNonprod.Arn, !GetAtt AuroraKmsKeyNonprodReplica.Arn]
 
-  AccessKeyId:
-    Description: "Access Key ID for GitHub Actions (add to GitHub secrets)"
-    Value: !Ref GitHubActionsAccessKey
+  AuroraKmsKeyProdArn:
+    Description: "ARN of the prod Aurora KMS key (or replica in this region)"
+    Value: !If [IsPrimary, !GetAtt AuroraKmsKeyProd.Arn, !GetAtt AuroraKmsKeyProdReplica.Arn]
 
-  SecretAccessKey:
-    Description: "Secret Access Key for GitHub Actions (add to GitHub secrets)"
-    Value: !GetAtt GitHubActionsAccessKey.SecretAccessKey
+  AuroraKmsKeyNonprodAliasName:
+    Description: "Alias of the nonprod Aurora KMS key"
+    Value: !Ref AuroraKmsKeyNonprodAlias
 
-  UserArn:
-    Description: "IAM User ARN"
-    Value: !GetAtt GitHubActionsUser.Arn
-    Export:
-      Name: GitHubActionsUserArn
-
-  PolicyArn:
-    Description: "Custom policy ARN"
-    Value: !Ref DeploymentPolicy
-    Export:
-      Name: DeploymentPolicy
+  AuroraKmsKeyProdAliasName:
+    Description: "Alias of the prod Aurora KMS key"
+    Value: !Ref AuroraKmsKeyProdAlias
 
   TemplatesBucketName:
-    Description: "S3 bucket name for CloudFormation templates"
-    Value: !Ref TemplatesBucketName
-    Export:
-      Name: TemplatesBucketName
+    Description: "S3 bucket name for CloudFormation templates (created by this stack)"
+    Value: !Ref TemplatesBucket
+
+  AuroraClusterDeleteHandlerArn:
+    Description: "ARN of the Aurora cluster force-teardown Lambda in this region (also published to SSM at /${AWS::StackName}/lambda/aurora-cluster-delete-handler-arn)"
+    Value: !GetAtt AuroraClusterDeleteHandler.Arn
 
   WebECRRepositoryName:
-    Description: "ECR repository name for web application"
+    Description: "ECR repository name for the web container"
     Value: !Ref WebECRRepository
-    Export:
-      Name: WebECRRepository
 
   WebECRRepositoryUri:
-    Description: "ECR repository URI for web application"
+    Description: "ECR repository URI for the web container"
     Value: !GetAtt WebECRRepository.RepositoryUri
-    Export:
-      Name: WebECRRepositoryUri
 
   ApiGatewayCloudWatchLogsRoleArn:
     Description: "API Gateway CloudWatch Logs role ARN"
     Value: !GetAtt ApiGatewayCloudWatchLogsRole.Arn
-    Export:
-      Name: ApiGatewayCloudWatchLogsRoleArn
 
-  SetupInstructions:
-    Description: "Instructions for GitHub Secrets setup"
-    Value: !Sub |
-      Add these to your GitHub repository secrets:
-      AWS_ACCESS_KEY_ID=${GitHubActionsAccessKey}
-      AWS_SECRET_ACCESS_KEY=${GitHubActionsAccessKey.SecretAccessKey}
+  GitHubActionsUserAccessKeyId:
+    Condition: IsPrimary
+    Description: "Access Key ID for non-prod CI. Copy to AWS_ACCESS_KEY_ID GitHub secret."
+    Value: !Ref GitHubActionsAccessKey
 
-      Also add:
-      DATABASE_PASSWORD=your-secure-password
-      GOOGLE_CLIENT_ID=your-google-client-id
-      GOOGLE_CLIENT_SECRET=your-google-client-secret
+  GitHubActionsUserSecretAccessKey:
+    Condition: IsPrimary
+    Description: "Secret Access Key for non-prod CI. Copy to AWS_SECRET_ACCESS_KEY GitHub secret, then rotate (Phase 5 task)."
+    Value: !GetAtt GitHubActionsAccessKey.SecretAccessKey
 
-      IMPORTANT: Ensure the S3 bucket '${TemplatesBucketName}' exists and is configured with:
-      - Versioning enabled
-      - Server-side encryption (SSE-S3 or SSE-KMS)
-      - Public access blocked
-      - Appropriate bucket policies for CloudFormation and GitHub Actions access
+  GitHubActionsUserArn:
+    Condition: IsPrimary
+    Description: "ARN of the non-prod CI IAM user"
+    Value: !GetAtt GitHubActionsUser.Arn
+
+  GitHubActionsUserProdAccessKeyId:
+    Condition: IsPrimary
+    Description: "Access Key ID for prod CI. Copy to AWS_ACCESS_KEY_ID_PROD GitHub secret."
+    Value: !Ref GitHubActionsAccessKeyProd
+
+  GitHubActionsUserProdSecretAccessKey:
+    Condition: IsPrimary
+    Description: "Secret Access Key for prod CI. Copy to AWS_SECRET_ACCESS_KEY_PROD GitHub secret, then rotate (Phase 5 task)."
+    Value: !GetAtt GitHubActionsAccessKeyProd.SecretAccessKey
+
+  GitHubActionsUserProdArn:
+    Condition: IsPrimary
+    Description: "ARN of the prod CI IAM user"
+    Value: !GetAtt GitHubActionsUserProd.Arn
+
+  ProdKmsAdminRoleArn:
+    Condition: IsPrimary
+    Description: "ARN of the prod-kms-admin role (assumable by account root only)"
+    Value: !GetAtt ProdKmsAdminRole.Arn

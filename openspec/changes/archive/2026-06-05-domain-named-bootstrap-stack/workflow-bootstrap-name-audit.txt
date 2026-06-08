@@ -1,0 +1,20 @@
+# Hardcoded `bootstrap-*` references — generated 2026-06-03
+# Scope: .github/workflows/zbuild.yml, scripts/
+
+## Workflow (zbuild.yml)
+
+412: # Comment: "from bootstrap-nonprod's GitHubActionsUser."
+415: Error message: "...sourced from bootstrap-prod stack outputs."
+567: Step id: bootstrap-kms
+582: Error message: "Deploy bootstrap-$SCOPE in this region before continuing."
+
+## Scripts
+
+(none — `Grep -path scripts/ -pattern 'bootstrap-'` returned no matches)
+
+## Decision per line
+
+- 412 (comment): rewrite to refer to the new bare-domain bootstrap stack
+- 415 (error msg): rewrite — sourced from the bootstrap stack (singular, no prod/nonprod split in the new model)
+- 567 (step id): rename to e.g. `lookup-bootstrap-kms` or `domain-kms` (just an id; cosmetic)
+- 582 (error msg): rewrite — point at the new bootstrap stack name (the dashed-domain value)

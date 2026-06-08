@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Description: "TaskManager Web Frontend - Blazor Server ECS Container with Application Load Balancer"
+Description: "Web Frontend - Blazor Server ECS Container with Application Load Balancer"
 # Fixed ECS service getting stuck and 502 Bad Gateway by:
 # - Health check path: /health (excluded from authentication)
 # - Adjusted health check timing (30s interval, 5s timeout)
@@ -81,10 +81,16 @@ Resources:
       Type: application
       Scheme: internet-facing
       SecurityGroups:
-        - Fn::ImportValue: !Sub "ALBSecurityGroupId-${EnvironmentToImport}"
+        - Fn::ImportValue: !Sub
+            - "ALBSecurityGroupId-${EnvironmentToImport}-${DomainDashed}"
+            - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
       Subnets:
-        - Fn::ImportValue: !Sub "PublicSubnet1Id-${EnvironmentToImport}"
-        - Fn::ImportValue: !Sub "PublicSubnet2Id-${EnvironmentToImport}"
+        - Fn::ImportValue: !Sub
+            - "PublicSubnet1Id-${EnvironmentToImport}-${DomainDashed}"
+            - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
+        - Fn::ImportValue: !Sub
+            - "PublicSubnet2Id-${EnvironmentToImport}-${DomainDashed}"
+            - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
   # Target Group
   WebTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
@@ -92,7 +98,9 @@ Resources:
       Protocol: HTTP
       Port: 80
       VpcId:
-        Fn::ImportValue: !Sub "VPCId-${EnvironmentToImport}"
+        Fn::ImportValue: !Sub
+          - "VPCId-${EnvironmentToImport}-${DomainDashed}"
+          - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
       TargetType: ip
       HealthCheckPath: /health
       HealthCheckIntervalSeconds: 30
@@ -151,9 +159,13 @@ Resources:
       Cpu: "512"
       Memory: "1024"
       ExecutionRoleArn:
-        Fn::ImportValue: !Sub "SharedLambdaRoleArn-${EnvironmentToImport}"
+        Fn::ImportValue: !Sub
+          - "SharedLambdaRoleArn-${EnvironmentToImport}-${DomainDashed}"
+          - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
       TaskRoleArn:
-        Fn::ImportValue: !Sub "SharedLambdaRoleArn-${EnvironmentToImport}"
+        Fn::ImportValue: !Sub
+          - "SharedLambdaRoleArn-${EnvironmentToImport}-${DomainDashed}"
+          - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
       ContainerDefinitions:
         - Name: web
           Image: !Ref WebContainerImage
@@ -170,15 +182,23 @@ Resources:
               Value: !Sub
                 - "Server=${DatabaseHost};Database=${DatabaseName};User Id=${DatabaseUsername};Password=${DatabasePassword};SslMode=Required;"
                 - DatabaseHost:
-                    Fn::ImportValue: !Sub "DatabaseHost-${EnvironmentToImport}"
+                    Fn::ImportValue: !Sub
+                      - "DatabaseHost-${EnvironmentToImport}-${DomainDashed}"
+                      - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
                   DatabaseName:
-                    Fn::ImportValue: !Sub "DatabaseName-${EnvironmentToImport}"
+                    Fn::ImportValue: !Sub
+                      - "DatabaseName-${EnvironmentToImport}-${DomainDashed}"
+                      - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
                   DatabaseUsername:
-                    Fn::ImportValue: !Sub "DatabaseUsername-${EnvironmentToImport}"
+                    Fn::ImportValue: !Sub
+                      - "DatabaseUsername-${EnvironmentToImport}-${DomainDashed}"
+                      - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
                   DatabasePassword: !Join
                     - ""
                     - - "{{resolve:secretsmanager:"
-                      - Fn::ImportValue: !Sub "DatabasePasswordSecretArn-${EnvironmentToImport}"
+                      - Fn::ImportValue: !Sub
+                          - "DatabasePasswordSecretArn-${EnvironmentToImport}-${DomainDashed}"
+                          - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
                       - ":SecretString}}"
             - Name: ASPNETCORE_URLS
               Value: "http://*:80"
@@ -191,9 +211,15 @@ Resources:
             - Name: DEPLOYMENT_TOKEN
               Value: !Ref DeploymentToken
             - Name: Authentication__Google__ClientId
-              Value: !Sub "{{resolve:secretsmanager:taskmanager/google-oauth/${EnvironmentToImport}:SecretString:clientId}}"
+              Value: !Sub
+                - "{{resolve:secretsmanager:${DomainDashed}/google-oauth/${EnvironmentToImport}:SecretString:clientId}}"
+                - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
             - Name: Authentication__Google__ClientSecret
-              Value: !Sub "{{resolve:secretsmanager:taskmanager/google-oauth/${EnvironmentToImport}:SecretString:clientSecret}}"
+              Value: !Sub
+                - "{{resolve:secretsmanager:${DomainDashed}/google-oauth/${EnvironmentToImport}:SecretString:clientSecret}}"
+                - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
+            - Name: AwsSes__SenderEmail
+              Value: noreply@appcloud.systems
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -210,17 +236,28 @@ Resources:
       - WebTaskDefinition
     Properties:
       Cluster:
-        Fn::ImportValue: !Sub "ECSClusterName-${EnvironmentToImport}"
+        Fn::ImportValue: !Sub
+          - "ECSClusterName-${EnvironmentToImport}-${DomainDashed}"
+          - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
       TaskDefinition: !Ref WebTaskDefinition
+      # Propagate the (stack-level) tags CloudFormation applies to this service onto
+      # the running tasks — ECS tasks don't otherwise inherit stack tags (tag-cloudformation-resources).
+      PropagateTags: SERVICE
       DesiredCount: 1
       LaunchType: FARGATE
       NetworkConfiguration:
         AwsvpcConfiguration:
           SecurityGroups:
-            - Fn::ImportValue: !Sub "ECSTaskSecurityGroupId-${EnvironmentToImport}"
+            - Fn::ImportValue: !Sub
+                - "ECSTaskSecurityGroupId-${EnvironmentToImport}-${DomainDashed}"
+                - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
           Subnets:
-            - Fn::ImportValue: !Sub "PrivateSubnet1Id-${EnvironmentToImport}"
-            - Fn::ImportValue: !Sub "PrivateSubnet2Id-${EnvironmentToImport}"
+            - Fn::ImportValue: !Sub
+                - "PrivateSubnet1Id-${EnvironmentToImport}-${DomainDashed}"
+                - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
+            - Fn::ImportValue: !Sub
+                - "PrivateSubnet2Id-${EnvironmentToImport}-${DomainDashed}"
+                - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
       LoadBalancers:
         - TargetGroupArn: !Ref WebTargetGroup
           ContainerName: web
@@ -248,28 +285,38 @@ Outputs:
     Description: "Web application endpoint URL"
     Value: !Sub "https://${BranchName}.${DomainName}"
     Export:
-      Name: !Sub "WebEndpoint-${BranchName}"
+      Name: !Sub
+        - "WebEndpoint-${BranchName}-${DomainDashed}"
+        - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
 
   WebLoadBalancerDNS:
     Description: "Web Load Balancer DNS name"
     Value: !GetAtt WebLoadBalancer.DNSName
     Export:
-      Name: !Sub "WebLoadBalancerDNS-${BranchName}"
+      Name: !Sub
+        - "WebLoadBalancerDNS-${BranchName}-${DomainDashed}"
+        - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
 
   WebLoadBalancerHostedZoneId:
     Description: "Web Load Balancer hosted zone ID"
     Value: !FindInMap [RegionMap, !Ref AWS::Region, ALBHostedZoneId]
     Export:
-      Name: !Sub "WebLoadBalancerHostedZoneId-${BranchName}"
+      Name: !Sub
+        - "WebLoadBalancerHostedZoneId-${BranchName}-${DomainDashed}"
+        - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
 
   WebTaskDefinition:
     Description: "Web ECS task definition"
     Value: !Ref WebTaskDefinition
     Export:
-      Name: !Sub "WebTaskDefinition-${BranchName}"
+      Name: !Sub
+        - "WebTaskDefinition-${BranchName}-${DomainDashed}"
+        - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
 
   WebServiceName:
     Description: "Web ECS service name"
     Value: !Ref WebService
     Export:
-      Name: !Sub "WebServiceName-${BranchName}"
+      Name: !Sub
+        - "WebServiceName-${BranchName}-${DomainDashed}"
+        - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]

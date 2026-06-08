@@ -433,7 +433,7 @@ $RECYCLE.BIN/
 !.vscode/extensions.json
 
 ##
-## Custom additions for TaskManager project
+## Custom additions for project
 ##
 
 # Secrets and sensitive files
@@ -472,8 +472,6 @@ logs/
 
 # AWS SAM build artifacts
 .aws-sam/
-taskmanager-bastion-key
-taskmanager-bastion-key.pub
 
 # Playwright
 /playwright-report/
@@ -481,3 +479,6 @@ taskmanager-bastion-key.pub
 /playwright/.cache/
 /playwright/.auth/
 *.nupkg
+
+# Per-folder brother status note (see BROTHERS.md) - local to each work folder, never committed
+.brother-status

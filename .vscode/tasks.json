@@ -3,11 +3,11 @@
     "tasks": [
         {
             "label": "build",
-            "command": "/Users/timothybassett/bin/dotnet",
+            "command": "dotnet",
             "type": "process",
             "args": [
                 "build",
-                "${workspaceFolder}/TaskManager.sln",
+                "${workspaceFolder}/Tjb.sln",
                 "/property:GenerateFullPaths=true",
                 "/consoleloggerparameters:NoSummary"
             ],
@@ -27,11 +27,11 @@
         },
         {
             "label": "clean",
-            "command": "/Users/timothybassett/bin/dotnet",
+            "command": "dotnet",
             "type": "process",
             "args": [
                 "clean",
-                "${workspaceFolder}/TaskManager.sln"
+                "${workspaceFolder}/Tjb.sln"
             ],
             "problemMatcher": "$msCompile",
             "group": "build",
@@ -44,11 +44,11 @@
         },
         {
             "label": "restore",
-            "command": "/Users/timothybassett/bin/dotnet",
+            "command": "dotnet",
             "type": "process",
             "args": [
                 "restore",
-                "${workspaceFolder}/TaskManager.sln"
+                "${workspaceFolder}/Tjb.sln"
             ],
             "problemMatcher": "$msCompile",
             "group": "build",
@@ -61,13 +61,13 @@
         },
         {
             "label": "watch",
-            "command": "/Users/timothybassett/bin/dotnet",
+            "command": "dotnet",
             "type": "process",
             "args": [
                 "watch",
                 "run",
                 "--project",
-                "${workspaceFolder}/src/TaskManager.Api/TaskManager.Api.csproj"
+                "${workspaceFolder}/src/Tjb.Api/Tjb.Api.csproj"
             ],
             "problemMatcher": "$msCompile",
             "group": "build",

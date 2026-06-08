@@ -1,0 +1,18 @@
+@page
+@using Tjb.Web.Areas.Identity.Pages.Account
+@model RegisterConfirmationModel
+@{
+    ViewData["Title"] = "Register confirmation";
+}
+
+<h1>@ViewData["Title"]</h1>
+
+<div class="alert alert-info">
+    <h4>Almost there!</h4>
+    <p>
+        We've created your account using <strong>@Model.Email</strong>.
+    </p>
+    <p>
+        Please check your email at <strong>@Model.Email</strong> for a verification link and click it to complete your registration.
+    </p>
+</div>
