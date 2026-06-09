@@ -1,21 +1,22 @@
 ## 1. Prereqs
 
-- [ ] 1.1 Confirm `extract-web-framework-package` has published `Tjb.Web.Framework` + `Tjb.Web.Hosting` (and the Identity-only base context) to GitHub Packages; record the exact version to consume.
-- [ ] 1.2 Branch from `dev` with the spec's exact name: `git checkout dev; git pull; git checkout -b sample-solution-local`.
-- [ ] 1.3 Resolve design Open Questions: sample subdomain/`ProjectName` (Q1) before the Dockerfile lands; `Sample.Shared` vs consume `Tjb.Shared` (Q2); minimum local boot config (Q3).
+- [x] 1.1 Confirm `extract-web-framework-package` has published the framework packages; record the version. — *CONFIRMED on GitHub Packages at **`1.1.0.190-dev`**: `Tjb.Web.Framework`, `Tjb.Web.Hosting`, `Tjb.Web.Framework.Data` (the Identity-only base `AwsWebAppIdentityDbContext`), pushed by dev run `27217107673`. The sample pins `1.1.0.190-dev`.*
+- [x] 1.2 Branch from `dev` with the spec's exact name. — *Done: `sample-solution-local` off dev tip `2884a82` (wilhelm worktree).*
+- [x] 1.3 Resolve design Open Questions (Q1/Q2/Q3). — *DECIDED: **Q1** ProjectName/leaf = `sample` (projects `Sample.*` under `src/sample`; deploy URL `sample.appcloud.systems`, image `sample-web`). **Q2 = add a dedicated `Sample.Shared`** (deviates from the design's consume-`Tjb.Shared` default — see new task 3.0). **Q3 = real Google OAuth locally** (full round-trip, not email/password) — requires a Google OAuth app + ClientId/Secret via user-secrets and a localhost callback; the run-checkpoints (3.5/6.2/6.3) are therefore gated on the operator's local env (MySQL + Google app). Framework note: `AddAwsWebAppIdentity` sets `RequireConfirmedAccount = true`, so first sign-in triggers the SES confirmation path — local config must supply an `AwsSes` sender/region or accept that the confirmation email won't send locally.*
 
 ## 2. Solution + feed scaffolding
 
-- [ ] 2.1 Create `src/sample/Sample.sln` and a `src/sample/nuget.config` (or documented `dotnet nuget add source`) pointing at the GitHub Packages feed with a `read:packages` PAT.
-- [ ] 2.2 Add a `src/sample/README.md` documenting feed/PAT setup and the local run steps.
+- [x] 2.1 Create `src/sample/Sample.sln` + `src/sample/nuget.config`. — *Done: classic-format `Sample.sln`; `nuget.config` mirrors the repo's feed-auth (`%GH_PACKAGES_TOKEN%`, `Tjb.*` mapped to the GitHub Packages feed, everything else nuget.org), committed under `src/sample` so the sample is self-contained.*
+- [x] 2.2 Add `src/sample/README.md` (feed/PAT setup + local run steps). — *Done: documents the `read:packages` PAT as `GH_PACKAGES_TOKEN`, local MySQL, the Google OAuth app (Q3), user-secrets, and the restore/build/migrate/run sequence. Records the pinned framework version `1.1.0.190-dev` and the project layout.*
 
-## 3. Sample.Data + Sample.Migrations
+## 3. Sample.Shared + Sample.Data + Sample.Migrations
 
-- [ ] 3.1 Create `src/sample/Sample.Data/Sample.Data.csproj` (`net10.0`); add `PackageReference` to `Tjb.Web.Framework` (for the Identity base) and `Tjb.Shared`. Verify no `ProjectReference` into `src/Tjb.*`.
-- [ ] 3.2 Define the Guestbook domain: `GuestbookEntry` (Id, AuthorUserId, Message, CreatedUtc) and `SampleDbContext : AwsWebAppIdentityDbContext` with `DbSet<GuestbookEntry>` and `OnModelCreating` calling `base` first.
-- [ ] 3.3 Create `src/sample/Sample.Migrations` mirroring `Tjb.Migrations`: `IDesignTimeDbContextFactory<SampleDbContext>` reading its own `appsettings.json`, `MigrationsAssembly("Sample.Migrations")` wiring, and a standalone migrate/seed `Program`.
-- [ ] 3.4 Generate the initial migration: `dotnet ef migrations add InitialCreate --project src/sample/Sample.Migrations --startup-project src/sample/Sample.Migrations`.
-- [ ] 3.5 **Checkpoint:** run `dotnet run --project src/sample/Sample.Migrations` against a fresh local MySQL; confirm Identity + `GuestbookEntries` tables are created.
+- [x] 3.0 (Q2) Create `src/sample/Sample.Shared`. — *Done: `Sample.Shared.csproj` (net10.0) + `GuestbookEntryDto`. Sample's own shared contract; no `Tjb.*` ref.*
+- [x] 3.1 Create `src/sample/Sample.Data`. — *Done: `PackageReference Tjb.Web.Framework.Data 1.1.0.190-dev` (restored from GitHub Packages ✓) + `Pomelo 8.0.2` + `EFCore.Design 8.0.11`; `ProjectReference` to `Sample.Shared`. No `Tjb.*` project ref, no `Tjb.Shared` package (§6.4 verified). Builds clean.*
+- [x] 3.2 Define the Guestbook domain. — *Done: `GuestbookEntry` (Id/AuthorUserId/Message/CreatedUtc) + `SampleDbContext : AwsWebAppIdentityDbContext` with `DbSet<GuestbookEntry>`, `OnModelCreating` calls `base` first then configures the entry; `OnConfiguring` sets `MigrationsAssembly("Sample.Migrations")`.*
+- [x] 3.3 Create `src/sample/Sample.Migrations`. — *Done: `SampleDbContextFactory : IDesignTimeDbContextFactory<SampleDbContext>` (FIXED `MySqlServerVersion 8.0.35` so migrations generate without a live DB), `appsettings.json`, and a standalone migrate `Program` (no seed — Guestbook entries are user-created).*
+- [x] 3.4 Generate the initial migration. — *Done: `dotnet ef migrations add InitialCreate` (EF tools 8.0.27) produced `20260609174217_InitialCreate` + snapshot. Verified the migration creates the full Identity schema (`AspNetUsers`/`Roles`/…) from the framework base **and** `GuestbookEntries` — the reuse seam works at the model level.*
+- [ ] 3.5 **Checkpoint (operator):** run `dotnet run --project src/sample/Sample.Migrations` against a fresh local MySQL; confirm Identity + `GuestbookEntries` tables are created. — *GATED on a local MySQL (not available in this scaffolding session). The migration is generated and build-verified; applying it needs the operator's DB.*
 
 ## 4. Sample.Web host
 
