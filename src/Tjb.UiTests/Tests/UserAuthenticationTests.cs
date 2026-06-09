@@ -1,4 +1,5 @@
 using FluentAssertions;
+using Tjb.UiTests.Fixtures;
 using Tjb.UiTests.Pages;
 using Xunit;
 using System.Threading.Tasks;
@@ -8,8 +9,12 @@ using Microsoft.Extensions.Configuration;
 
 namespace Tjb.UiTests.Tests;
 
-public class UserAuthenticationTests : BaseTest
+[Collection("UiTests")]
+public class UserAuthenticationTests : BaseUiTest
 {
+    public UserAuthenticationTests(OAuthTokenFixture auth, AppReadinessFixture appReady)
+        : base(auth, appReady) { }
+
     [Fact]
     public async Task LoggedInUser_ShouldDisplayUserName()
     {
@@ -29,23 +34,14 @@ public class UserAuthenticationTests : BaseTest
                 return;
             }
 
-            // Get Google access token
-            using var httpClient = new HttpClient();
-            var tokenService = new GoogleTokenService(httpClient, new ConfigurationBuilder().Build());
-            var accessToken = await tokenService.GetAccessTokenAsync();
+            // Use the shared, suite-fresh Google access token from the OAuthTokenFixture
+            // rather than reading env directly.
+            var accessToken = AccessToken;
 
             // Skip test if no token is available
             if (string.IsNullOrEmpty(accessToken))
             {
                 Console.WriteLine("Skipping test - no access token available");
-                return;
-            }
-
-            // Validate token before using it
-            var isValidToken = await tokenService.ValidateTokenAsync(accessToken);
-            if (!isValidToken)
-            {
-                Console.WriteLine("Skipping test - access token is not valid");
                 return;
             }
 
@@ -67,8 +63,7 @@ public class UserAuthenticationTests : BaseTest
                 });
 
                 // Verify we're on the login page
-                var isOnLoginPage = await loginPage.IsOnLoginPageAsync();
-                isOnLoginPage.Should().BeTrue();
+                await loginPage.ExpectOnLoginPageAsync();
 
                 // Use token to authenticate directly (bypass Google OAuth flow)
                 await RetryAsync(async () =>
@@ -84,8 +79,7 @@ public class UserAuthenticationTests : BaseTest
             }
 
             // Assert - Verify user is logged in and name is displayed
-            isUserLoggedIn = await mainPage.IsUserLoggedInAsync();
-            isUserLoggedIn.Should().BeTrue("User should be logged in");
+            await mainPage.ExpectUserLoggedInAsync();
 
             // Act - Get the logged in user name
             var userName = await mainPage.GetLoggedInUserNameAsync();
@@ -149,8 +143,7 @@ public class UserAuthenticationTests : BaseTest
             else
             {
                 // If not logged in, verify login link is visible
-                var isLoginVisible = await mainPage.IsLoginLinkVisibleAsync();
-                isLoginVisible.Should().BeTrue("Login link should be visible when not logged in");
+                await mainPage.ExpectLoginLinkVisibleAsync();
             }
 
             // Record test success

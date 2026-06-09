@@ -1,4 +1,5 @@
 using FluentAssertions;
+using Tjb.UiTests.Fixtures;
 using Tjb.UiTests.Pages;
 using Xunit;
 using Xunit.Sdk;
@@ -9,8 +10,12 @@ using Microsoft.Extensions.Configuration;
 
 namespace Tjb.UiTests.Tests;
 
-public class GoogleOAuthTests : BaseTest
+[Collection("UiTests")]
+public class GoogleOAuthTests : BaseUiTest
 {
+    public GoogleOAuthTests(OAuthTokenFixture auth, AppReadinessFixture appReady)
+        : base(auth, appReady) { }
+
     [Fact]
     public async Task GoogleLogin_ShouldRedirectToGoogle()
     {
@@ -31,8 +36,7 @@ public class GoogleOAuthTests : BaseTest
             });
 
             // Assert - Verify we're on the login page
-            var isOnLoginPage = await loginPage.IsOnLoginPageAsync();
-            isOnLoginPage.Should().BeTrue();
+            await loginPage.ExpectOnLoginPageAsync();
 
             // Act - Click Google login
             await RetryAsync(async () =>
@@ -40,12 +44,8 @@ public class GoogleOAuthTests : BaseTest
                 await loginPage.ClickGoogleLoginAsync();
             });
 
-            // Assert - Verify we're redirected to Google
-            await RetryAsync(async () =>
-            {
-                var isGoogleRedirect = await loginPage.IsGoogleOauthRedirectAsync();
-                isGoogleRedirect.Should().BeTrue("Should be redirected to Google OAuth");
-            });
+            // Assert - Verify we're redirected to Google (Expect has built-in waiting)
+            await loginPage.ExpectGoogleOauthRedirectAsync();
 
             // Record test success
             RecordTestSuccess();
@@ -80,10 +80,9 @@ public async Task TokenBasedGoogleLogin_ShouldAuthenticateWithValidToken()
         var mainPage = new MainPage(Page!, Config.BaseUrl);
         var loginPage = new LoginPage(Page!);
 
-        // Get Google access token
-        using var httpClient = new HttpClient();
-        var tokenService = new GoogleTokenService(httpClient, new ConfigurationBuilder().Build());
-        var accessToken = await tokenService.GetAccessTokenAsync();
+        // Use the shared, suite-fresh Google access token from the OAuthTokenFixture
+        // (minted at suite start / refreshed on staleness) rather than reading env directly.
+        var accessToken = AccessToken;
 
         // Skip test if no token is available
         if (string.IsNullOrEmpty(accessToken))
@@ -91,10 +90,6 @@ public async Task TokenBasedGoogleLogin_ShouldAuthenticateWithValidToken()
             Console.WriteLine("Skipping token-based test - no access token available");
             return;
         }
-
-        // Validate token before using it
-        var isValidToken = await tokenService.ValidateTokenAsync(accessToken);
-        isValidToken.Should().BeTrue("Access token should be valid");
 
         // Act - Navigate to main page and click login
         await RetryAsync(async () =>
@@ -104,8 +99,7 @@ public async Task TokenBasedGoogleLogin_ShouldAuthenticateWithValidToken()
         });
 
         // Assert - Verify we're on the login page
-        var isOnLoginPage = await loginPage.IsOnLoginPageAsync();
-        isOnLoginPage.Should().BeTrue();
+        await loginPage.ExpectOnLoginPageAsync();
 
         // Act - Use token to authenticate directly (bypass Google OAuth flow)
         await RetryAsync(async () =>
@@ -113,12 +107,8 @@ public async Task TokenBasedGoogleLogin_ShouldAuthenticateWithValidToken()
             await loginPage.AuthenticateWithTokenAsync(accessToken);
         });
 
-        // Assert - Verify user is logged in
-        await RetryAsync(async () =>
-        {
-            var isUserLoggedIn = await mainPage.IsUserLoggedInAsync();
-            isUserLoggedIn.Should().BeTrue("User should be logged in after token authentication");
-        });
+        // Assert - Verify user is logged in (Expect has built-in waiting)
+        await mainPage.ExpectUserLoggedInAsync();
 
         // Record test success
         RecordTestSuccess();
