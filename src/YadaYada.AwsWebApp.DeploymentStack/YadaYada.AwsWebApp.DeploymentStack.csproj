@@ -3,9 +3,12 @@
   <!--
     Packages the project-agnostic CloudFormation templates in infrastructure/ for
     reuse by other .NET web-app projects (openspec change: make-deployment-stack-reusable).
-    WORKING/PREVIEW package name — the final id is a human decision (task 1.2) and is
-    NOT locked until a v1.0.0 tag on `app`. This is a content-only package (no build
-    output); the templates land under contentFiles/any/any/infrastructure/.
+    Package id is LOCKED (task 1.2): YadaYada.AwsWebApp.DeploymentStack. Until a v1.0.0
+    tag on `app`, only branch-suffixed pre-releases publish. This is a content-only
+    package (no build output); templates land under contentFiles/any/any/infrastructure/.
+    api.template is intentionally excluded (task §0.1 / 2.x): it carries Tjb.Api-specific
+    source paths (CodeUri/handler) and Tjb.Api is vestigial / not in the deployed surface,
+    so it is not part of the reusable contract.
   -->
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -26,8 +29,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- Every template in the repo's infrastructure/ directory is the source of truth. -->
-    <Content Include="..\..\infrastructure\**\*">
+    <!-- Every template in the repo's infrastructure/ directory is the source of truth,
+         except api.template (Tjb.Api-specific, vestigial — excluded from the reusable contract). -->
+    <Content Include="..\..\infrastructure\**\*" Exclude="..\..\infrastructure\api.template">
       <Pack>true</Pack>
       <PackagePath>contentFiles/any/any/infrastructure/</PackagePath>
       <PackageCopyToOutput>false</PackageCopyToOutput>

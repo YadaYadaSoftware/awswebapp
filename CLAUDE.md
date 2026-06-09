@@ -134,7 +134,7 @@ Confirmation emails sent after Google OAuth registration are delivered via AWS S
 
 **Config** (read via `IOptions<AwsSesOptions>`, section `AwsSes`):
 - `AwsSes:Region` — leave empty in deployed envs (AWS SDK auto-detects from Fargate metadata). Set explicitly only for local dev.
-- `AwsSes:SenderEmail` — must be a verified SES identity. Hardcoded to `noreply@appcloud.systems` in [infrastructure/web.template](infrastructure/web.template) (container env var). Override locally via `dotnet user-secrets set "AwsSes:SenderEmail" "..."`.
+- `AwsSes:SenderEmail` — must be a verified SES identity. Derived in [infrastructure/web.template](infrastructure/web.template) as `!Sub "noreply@${DomainName}"` (container env var), so it resolves to `noreply@appcloud.systems` for this repo and to `noreply@<consumer-domain>` for any other consumer. Override locally via `dotnet user-secrets set "AwsSes:SenderEmail" "..."`.
 
 **IAM**: ECS tasks assume `SharedLambdaExecutionRole` from [infrastructure/security.template](infrastructure/security.template) which now includes a `SesAccess` policy granting `ses:SendEmail` / `ses:SendRawEmail`. Adding any other AWS SDK call from the container requires extending this role.
 

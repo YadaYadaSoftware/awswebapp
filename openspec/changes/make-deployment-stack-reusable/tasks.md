@@ -1,9 +1,12 @@
 ## 0. AUTONOMOUS-RUN STATUS — read first
 
-This change was partially implemented during an autonomous feature-branch run. **Phase 2
-(NuGet packaging) is done; Phases 1, 3, and 4 are deferred and need your decisions** — see
-the per-task notes and the "Implementation notes" at the bottom. Two reasons this spec is
-only partially auto-implementable:
+Status: **Phase 1 (template parameterization) and Phase 2 (NuGet packaging) are done.**
+§0.1 was decided *derive-from-domain* (no separate `ProjectName` axis) and the package name
+is locked; `api.template` was dropped from the reusable contract. **Phases 3 (reusable
+`workflow_call` extraction) and 4 (docs/release) remain, plus task 1.3 (account model) and
+3.6/5.3 (release tags).** Phase 3 is the highest-risk change and should be done attended on a
+throwaway branch with a watched deploy. Original autonomous-run context follows. Two reasons
+this spec was only partially auto-implementable:
 
 1. **Phase 1 is largely already satisfied.** `grep -rn 'taskmanager' infrastructure/` returns
    **zero hits** — the bootstrap consolidation + `domain-qualified-stack-exports` already moved
@@ -21,15 +24,15 @@ only partially auto-implementable:
 
 ## 1. Prereqs and audit
 
-- [ ] 1.1 Confirm foundational changes landed/deferred. — *`move-shared-lambda-role-to-bootstrap` is implemented on its own branch (not merged); ordering per design still applies.*
-- [ ] 1.2 Decide + document the final NuGet package name. — *NEEDS DECISION. Used working name `YadaYada.AwsWebApp.DeploymentStack` as a PREVIEW (not locked; only branch-suffixed pre-release versions publish).*
+- [x] 1.1 Confirm foundational changes landed/deferred. — *Confirmed: `move-shared-lambda-role-to-bootstrap` is implemented on its own branch (not merged); ordering per design still applies. `centralize-aurora-kms-keys` is archived/deployed. This change proceeds ahead of the others per the design's working order.*
+- [x] 1.2 Decide + document the final NuGet package name. — *DECIDED: `YadaYada.AwsWebApp.DeploymentStack` is locked as the final name (already the csproj's package id). Only branch-suffixed pre-releases publish until a release tag.*
 - [ ] 1.3 Decide + document the AWS-account model (one-consumer-per-account vs namespaced). — *NEEDS DECISION before any v1.0.0 tag.*
 - [x] 1.4 Audit hardcoded project-specific values. — *Done: `taskmanager` → 0 hits in `infrastructure/`. `appcloud.systems` hits are descriptions + a few `Default:` values on `DomainName` params (api/application/dns/infrastructure). `Tjb` hits are genuinely project-specific source paths in `api.template` (CodeUri/handler) and descriptions.*
 
 ## 2. Phase 1 — Template parameterization
 
-- [ ] 2.1–2.6 Add `ProjectName` parameter across templates; replace `taskmanager-*`. — *DEFERRED pending the §0.1 design decision. The `taskmanager` literals are already gone (derived from `${AWS::StackName}`); introducing a separate `ProjectName` axis would diverge from the convention and should be decided first. Remaining genuinely-project-specific bits: `DomainName` `Default: "appcloud.systems"` (remove so consumers must specify) and `api.template`'s `Tjb.Api` CodeUri/handler.*
-- [ ] 2.7–2.11 Workflow ProjectName override, validate, deploy checks, grep audit. — *DEFERRED with 2.1–2.6.*
+- [x] 2.1–2.6 Parameterize remaining project-specific literals (no separate `ProjectName` axis — §0.1 DECIDED: derive from domain). — *DONE: removed `DomainName` `Default: "appcloud.systems"` from `master`/`application`/`web`/`dns` (consumers must now supply it; safe — every parent passes `DomainName: !Ref DomainName` to nested stacks and the workflow passes it to top-level deploys). Derived the SES sender to `!Sub "noreply@${DomainName}"` in `web.template`. CLAUDE.md SES note synced. `api.template` (Tjb.Api-specific `CodeUri`/handler) DECIDED dropped from the reusable contract — excluded from the package via `Exclude` in the csproj (verified: the `.nupkg` now ships 10 templates, no `api.template`). Tjb.Api stays in the repo (vestigial) but is not part of the reusable stack.*
+- [x] 2.7–2.11 Workflow override, validate, deploy checks, grep audit. — *DONE (code side): under derive-from-domain there is no `ProjectName` override to add; the workflow already passes `DomainName=${{ secrets.DOMAIN_NAME }}` to every deploy, so no caller change is needed. `grep -rn taskmanager infrastructure/` = 0 hits. **Deploy verification gate:** the parameterization changes (removed `DomainName` defaults, derived SES sender) are exercised when this branch is pushed and its CI deploys `https://make-deployment-stack-reusable.appcloud.systems` — watch that run end-to-end to confirm no visible change.*
 
 ## 3. Phase 2 — NuGet package the templates
 

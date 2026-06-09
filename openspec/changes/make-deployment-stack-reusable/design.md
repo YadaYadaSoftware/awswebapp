@@ -113,7 +113,15 @@ A workflow input gets passed *into* the workflow, which then forwards it as a te
 - `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` — Google OAuth (if the consumer uses Google OAuth; should be optional eventually but required for now to match TaskManager's contract)
 - `GITHUB_TOKEN` — auto-provided
 
-### D4. CFN templates use `${ProjectName}` everywhere `taskmanager` is hardcoded
+### D4. CFN templates derive project naming from the domain — no separate `ProjectName` parameter
+
+**Decided (supersedes the original D4 below):** resource names continue to derive from the dashed domain (`${AWS::StackName}` / `DomainName`-derived forms) per the established CLAUDE.md convention. A separate `ProjectName` axis is **not** introduced — the `taskmanager-*` literals this section was written to remove are already gone (a `grep taskmanager infrastructure/` returns zero hits), so the premise is satisfied. The remaining project-specific work is narrower than "add `ProjectName` everywhere":
+
+- Remove the `DomainName` `Default: "appcloud.systems"` from the templates that carried it (`master`, `application`, `web`, `dns`) so a consumer must supply their domain. Safe because every parent passes `DomainName: !Ref DomainName` to its nested stacks and the workflow passes `DomainName` to the top-level deploys — the defaults were never relied on.
+- Derive any remaining domain-shaped literal from `DomainName` rather than hardcoding it — e.g. the SES sender env var becomes `!Sub "noreply@${DomainName}"`.
+- **Open (api.template):** `api.template`'s `CodeUri: ../src/Tjb.Api/` and handler `Tjb.Api::...FunctionHandlerAsync` are source-code paths, not resource names, so they cannot derive from the domain. Under the no-`ProjectName` decision there is no naming axis to hang them on. Needs a separate call: parameterize the API source path via a dedicated workflow input, treat `api.template` as consumer-supplied/out-of-contract, or drop it (Tjb.Api is vestigial and not in the deployed surface).
+
+The original parameter-everywhere plan is retained below for historical context:
 
 Every template gets a new `ProjectName` parameter at the top, and every reference to `taskmanager` in the template body becomes `!Sub "${ProjectName}-..."`. The notable substitution sites (from a grep audit):
 
