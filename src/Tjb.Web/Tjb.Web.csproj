@@ -32,6 +32,8 @@
   <ItemGroup>
     <ProjectReference Include="..\Tjb.Data\Tjb.Data.csproj" />
     <ProjectReference Include="..\Tjb.Migrations\Tjb.Migrations.csproj" />
+    <ProjectReference Include="..\Tjb.Web.Framework\Tjb.Web.Framework.csproj" />
+    <ProjectReference Include="..\Tjb.Web.Hosting\Tjb.Web.Hosting.csproj" />
   </ItemGroup>
 
 </Project>

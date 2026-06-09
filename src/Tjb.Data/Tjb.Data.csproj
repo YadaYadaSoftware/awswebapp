@@ -30,6 +30,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Tjb.Shared\Tjb.Shared.csproj" />
+    <ProjectReference Include="..\Tjb.Web.Framework.Data\Tjb.Web.Framework.Data.csproj" />
   </ItemGroup>
 
 </Project>

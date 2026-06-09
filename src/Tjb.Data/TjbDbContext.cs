@@ -1,12 +1,10 @@
-using Microsoft.AspNetCore.Identity;
-using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
-using Pomelo.EntityFrameworkCore.MySql;
 using Tjb.Data.Entities;
+using Tjb.Web.Framework.Data;
 
 namespace Tjb.Data;
 
-public class TjbDbContext : IdentityDbContext<IdentityUser>
+public class TjbDbContext : AwsWebAppIdentityDbContext
 {
     public TjbDbContext(DbContextOptions<TjbDbContext> options) : base(options)
     {

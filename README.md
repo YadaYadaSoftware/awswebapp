@@ -75,6 +75,16 @@ This application is designed as a modern, cloud-native solution using:
 
 ## 📁 Project Structure
 
+> **Note:** The reusable web surface now ships as NuGet packages. The Identity UI, Blazor layout/shell,
+> SES email services, auth-state provider, and static assets live in **`Tjb.Web.Framework`** (a Razor Class
+> Library); the startup wiring (Identity, Google OAuth, SES, ALB forwarded-headers, migrate-on-startup) lives
+> in **`Tjb.Web.Hosting`** (extension methods); and the Identity-only `DbContext` base
+> (`AwsWebAppIdentityDbContext`) lives in **`Tjb.Web.Framework.Data`**. `Tjb.Web` is the first consumer of
+> these packages — a host app provides only configuration and its own pages. This is the
+> `extract-web-framework-package` change, the first step toward standing up additional web apps from one
+> framework (roadmap: `extract-web-framework-package` → `sample-solution-local` → `sample-ci-deploy` →
+> `framework-slipstream-upgrade`). The package names/layout below are stale (`TaskManager.*` → `Tjb.*`).
+
 ```
 src/
 ├── TaskManager.Api/              # Minimal Web API
