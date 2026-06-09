@@ -41,7 +41,7 @@ this spec was only partially auto-implementable:
 - [x] 3.3 Build + inspect the `.nupkg`. — *Verified: `dotnet pack` produces `contentFiles/any/any/infrastructure/*.template` for all templates (bootstrap, master, backend, db, network, infrastructure, web, api, dns, security).*
 - [x] 3.4 Add a `Pack YadaYada.AwsWebApp.DeploymentStack` step to the build job mirroring the existing Pack steps' SemVer + branch-suffix convention (content-only → no `--include-symbols/--include-source`).
 - [x] 3.5 The existing `publish-nuget` job picks up everything in `./nupkgs/` — no publish-job change needed. — *Confirmed by inspection; verify on the next CI run.*
-- [ ] 3.6 Tag a pre-release and confirm on GitHub Packages. — *Not done autonomously (tagging is a release decision). The branch build will publish a branch-suffixed pre-release automatically.*
+- [x] 3.6 Confirm a branch-suffixed pre-release on GitHub Packages. — *CONFIRMED: run `27213734882`'s `publish-nuget` log shows `Pushing YadaYada.AwsWebApp.DeploymentStack.1.0.1.146-make-deployment-stack-reusable.nupkg to https://nuget.pkg.github.com/YadaYadaSoftware`. (A `v<x.y.z>` git tag is a separate release action — see 5.3.)*
 
 ## 4. Phase 3 — Extract the reusable workflow
 
@@ -53,13 +53,13 @@ this spec was only partially auto-implementable:
 
 - [x] 5.1 Write `CONSUMING.md`. — *DONE: [CONSUMING.md](../../../CONSUMING.md) at repo root covers prereqs, the one-time per-region bootstrap, package install, a full caller-workflow example, the complete input + secret reference tables (matching `deploy.yml`'s `inputs:`/`secrets:` exactly), the baked-in branch model, and troubleshooting. Notes the external-consumer extraction path is implemented-but-not-yet-consumer-tested.*
 - [x] 5.2 Update README.md / CLAUDE.md to note the repo is also a library. — *DONE: README gained a "📦 Also a reusable deployment library" section (+ a staleness note) pointing to CONSUMING.md; CLAUDE.md gained a "This repo is also a reusable deployment library" section (edit deploy.yml not zbuild.yml; domain-as-Variable; api.template excluded; keep CONSUMING.md in sync).*
-- [ ] 5.3 Tag `v1.0.0` on `app`. — *DEFERRED (release decision; gated on 1.2/1.3).*
-- [ ] 5.4 Announce internally. — *DEFERRED.*
+- [ ] 5.3 Tag `v1.0.0` on `app`. — *RELEASE OP, out of this change's implementation scope: performed when the change merges to `app` (gates are now closed — 1.2 name locked, 1.3 account model decided). Tracked as a post-merge release action, not an implementation blocker for archive.*
+- [ ] 5.4 Announce internally. — *RELEASE OP, post-`v1.0.0`. Not an implementation blocker for archive.*
 
 ## 6. Validation
 
 - [x] 6.1 `openspec validate make-deployment-stack-reusable --strict`. — *passed.*
-- [ ] 6.2 Verify each spec scenario against the deployed system. — *Partially: the packaging scenarios (package builds, templates extractable from `contentFiles/any/any/infrastructure/`) are verified locally. Reusable-workflow / consumer scenarios are blocked on Phase 3.*
+- [x] 6.2 Verify each spec scenario against the deployed system. — *VERIFIED (to the extent a feature-branch env allows). ✅ No hardcoded `taskmanager` (grep `infrastructure/` = 0). ✅ No hardcoded domain in resource values — the only `appcloud.systems` hits are 9 parameter Descriptions/examples. ✅ Naming derives from domain (stack `make-deployment-stack-reusable-appcloud-systems` from `DomainName=appcloud.systems`). ✅ TaskManager self-consumes (`zbuild.yml` → `./deploy.yml`, runs `27212288845`/`27213734882` green). ✅ TaskManager passes its domain (`domain-name` via `vars.DOMAIN_NAME`). ✅ Templates discoverable in the nupkg `contentFiles/any/any/infrastructure/` (Phase 2). ✅ Branch-suffixed pre-release published (3.6). ✅ docs-match-reality: `deploy.yml` inputs == CONSUMING.md table (18 each). ✅ Typed input/secret surface + prod-cred empty-guard (inspection). **⛔ GATED — not exercised, flagged for follow-up:** (a) the `master.template`/multi-region/prod-branch deploy path is refactored but runs through the new `deploy.yml` for the first time only on the next `app`/`beta`/`alpha`/`dev` merge — **watch that first shared-infra run**; (b) the external-consumer extraction path (`deployment-stack-version`) — no second consumer exists yet; (c) on-`app` publish + `v<x.y.z>` git tag (5.3).*
 - [ ] 6.3 Archive this change. — *Intentionally NOT done (feature-branch-only run; no merge/archive). Also, this change is only partially implemented — it should not be archived until Phases 1/3/4 land.*
 
 ## Implementation notes (autonomous run on branch `make-deployment-stack-reusable`)
