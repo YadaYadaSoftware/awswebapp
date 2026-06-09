@@ -112,30 +112,4 @@ public class LoginPage
         }
     }
 
-    public async Task AuthenticateWithTokenAsync(string accessToken)
-    {
-        // Instead of going through the OAuth flow, we'll simulate being authenticated
-        // by setting the token in localStorage or using it directly with the API
-
-        // For testing purposes, we'll assume the application accepts tokens via a specific endpoint
-        // or we can set authentication cookies directly
-
-        // Option 1: Set authentication cookie directly (if your app supports it)
-        await _page.Context.AddCookiesAsync(new[]
-        {
-            new Cookie
-            {
-                Name = ".AspNetCore.Identity.Application",
-                Value = accessToken,
-                Domain = new Uri(_page.Url).Host,
-                Path = "/"
-            }
-        });
-
-        // Option 2: If your app has a token endpoint, use it
-        // await _page.EvaluateAsync($"fetch('/api/auth/token', {{ method: 'POST', headers: {{ 'Content-Type': 'application/json' }}, body: JSON.stringify({{ token: '{accessToken}' }}) }})");
-
-        // Cookie is applied synchronously to the context; no fixed sleep needed.
-        // Callers assert authenticated state via Expect(...) with built-in waiting.
-    }
 }

@@ -5,6 +5,7 @@ using Xunit;
 using Xunit.Sdk;
 using System.Threading.Tasks;
 using System;
+using System.Collections.Generic;
 using System.Net.Http;
 using Microsoft.Extensions.Configuration;
 
@@ -68,11 +69,7 @@ public class GoogleOAuthTests : BaseUiTest
     }
 
 
-// Skipped: authenticates by injecting a raw Google access token as the
-// .AspNetCore.Identity.Application cookie, which Tjb.Web correctly ignores (confirmed:
-// that cookie yields a byte-identical anonymous page). Needs a real Identity session —
-// tracked by the ui-test-authenticated-session change (openspec/changes/ui-test-authenticated-session).
-[Fact(Skip = "Token-cookie auth is non-functional; real session pending ui-test-authenticated-session change")]
+[Fact]
 public async Task TokenBasedGoogleLogin_ShouldAuthenticateWithValidToken()
 {
     // Set test name for screenshot capture
@@ -82,42 +79,25 @@ public async Task TokenBasedGoogleLogin_ShouldAuthenticateWithValidToken()
     {
         // Arrange
         var mainPage = new MainPage(Page!, Config.BaseUrl);
-        var loginPage = new LoginPage(Page!);
 
-        // Use the shared, suite-fresh Google access token from the OAuthTokenFixture
-        // (minted at suite start / refreshed on staleness) rather than reading env directly.
-        var accessToken = AccessToken;
-
-        // Skip test if no token is available
-        if (string.IsNullOrEmpty(accessToken))
+        // Establish a real Identity session via the gated test-auth endpoint (validates the
+        // id_token server-side and issues a genuine Identity cookie). Skips when no token is
+        // configured or the gate is off (404, as on app/beta/alpha).
+        if (!await TrySignInViaTestAuthAsync())
         {
-            Console.WriteLine("Skipping token-based test - no access token available");
             return;
         }
 
-        // Act - Navigate to main page and click login
-        await RetryAsync(async () =>
-        {
-            await mainPage.NavigateAsync();
-            await mainPage.ClickLoginLinkAsync();
-        });
+        // Act - Navigate to the app carrying the session cookie
+        await RetryAsync(async () => await mainPage.NavigateAsync());
 
-        // Assert - Verify we're on the login page
-        await loginPage.ExpectOnLoginPageAsync();
-
-        // Act - Use token to authenticate directly (bypass Google OAuth flow)
-        await RetryAsync(async () =>
-        {
-            await loginPage.AuthenticateWithTokenAsync(accessToken);
-        });
-
-        // Assert - Verify user is logged in (Expect has built-in waiting)
+        // Assert - Verify the authenticated nav renders (Expect has built-in waiting)
         await mainPage.ExpectUserLoggedInAsync();
 
         // Record test success
         RecordTestSuccess();
     }
-    catch (Exception ex)
+    catch (Exception)
     {
         // Capture screenshot on failure
         await CaptureScreenshotAsync("failure");
@@ -133,4 +113,44 @@ public async Task TokenBasedGoogleLogin_ShouldAuthenticateWithValidToken()
         await CleanupTestSessionAsync();
     }
 }
+
+    // Security/gate probe (runs on every env, including production-shaped app/beta/alpha):
+    // the test-auth endpoint must NEVER establish a session for a bogus id_token. When the gate is
+    // ON it validates and rejects (401/400); when OFF the endpoint is absent (404). Either way it
+    // must not return 200, and the app must remain anonymous.
+    [Fact]
+    public async Task TestAuthEndpoint_NeverEstablishesSessionForInvalidToken()
+    {
+        SetCurrentTestName(nameof(TestAuthEndpoint_NeverEstablishesSessionForInvalidToken));
+
+        try
+        {
+            var response = await Context!.APIRequest.PostAsync($"{Config.BaseUrl.TrimEnd('/')}/test-auth/signin",
+                new Microsoft.Playwright.APIRequestContextOptions
+                {
+                    Headers = new Dictionary<string, string> { ["Authorization"] = "Bearer not-a-real-id-token" }
+                });
+
+            response.Status.Should().NotBe(200,
+                "the test-auth endpoint must never issue a session for an invalid id_token");
+
+            // And the app must still be anonymous (no session was established).
+            var mainPage = new MainPage(Page!, Config.BaseUrl);
+            await RetryAsync(async () => await mainPage.NavigateAsync());
+            await mainPage.ExpectLoginLinkVisibleAsync();
+
+            RecordTestSuccess();
+        }
+        catch (Exception)
+        {
+            await CaptureScreenshotAsync("failure");
+            await CaptureFinalScreenshotAsync("failed");
+            throw;
+        }
+        finally
+        {
+            await CaptureFinalScreenshotAsync("completed");
+            await CleanupTestSessionAsync();
+        }
+    }
 }
