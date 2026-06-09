@@ -26,7 +26,10 @@ The framework is pinned to **`1.1.0.190-dev`** (the version published to GitHub 
 
 1. **.NET 10 SDK.**
 2. **A GitHub PAT with `read:packages`** to restore the framework packages from this org's feed.
-   Export it as `GH_PACKAGES_TOKEN` (consumed by [`nuget.config`](nuget.config)):
+   Create one at **<https://github.com/settings/tokens/new?scopes=read:packages&description=sample-read-packages>**
+   (the link pre-selects the `read:packages` scope; pick a short expiry, and if the `YadaYadaSoftware`
+   org enforces SSO, click **Configure SSO → Authorize** on the token). Then export it as
+   `GH_PACKAGES_TOKEN` (consumed by [`nuget.config`](nuget.config)):
    ```powershell
    $env:GH_PACKAGES_TOKEN = "<your PAT with read:packages>"
    ```
