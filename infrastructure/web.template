@@ -51,7 +51,6 @@ Parameters:
 
   DomainName:
     Type: String
-    Default: "appcloud.systems"
     Description: "Domain name for SSL certificate"
 
   HostedZoneId:
@@ -219,7 +218,7 @@ Resources:
                 - "{{resolve:secretsmanager:${DomainDashed}/google-oauth/${EnvironmentToImport}:SecretString:clientSecret}}"
                 - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
             - Name: AwsSes__SenderEmail
-              Value: noreply@appcloud.systems
+              Value: !Sub "noreply@${DomainName}"
           LogConfiguration:
             LogDriver: awslogs
             Options:
