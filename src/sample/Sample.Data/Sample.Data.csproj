@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Framework consumed as a PACKAGE (the decoupling invariant): the Identity base context
+         AwsWebAppIdentityDbContext comes from Tjb.Web.Framework.Data on the GitHub Packages feed. -->
+    <PackageReference Include="Tjb.Web.Framework.Data" Version="1.1.0.190-dev" />
+    <PackageReference Include="Pomelo.EntityFrameworkCore.MySql" Version="8.0.2" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.11">
+      <PrivateAssets>compile</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Sample.Shared\Sample.Shared.csproj" />
+  </ItemGroup>
+
+</Project>
