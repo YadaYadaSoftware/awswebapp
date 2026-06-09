@@ -1,7 +1,7 @@
 # Google OAuth Setup Guide
 
 ## Overview
-This guide explains how to set up Google OAuth authentication for the TaskManager application.
+This guide explains how to set up Google OAuth authentication for the application. All real authentication lives in `Tjb.Web` (ASP.NET Identity + Google OAuth); `Tjb.Api`'s auth is a no-op.
 
 ## Prerequisites
 - Google Cloud Console account
@@ -46,48 +46,30 @@ This guide explains how to set up Google OAuth authentication for the TaskManage
 5. Click **Create**
 6. Copy the **Client ID** and **Client Secret**
 
-## Step 3.5: Automated OAuth Configuration
+## Step 3.5: OAuth Configuration in CI
 
-The GitHub Actions workflow now includes automated OAuth configuration that generates the exact values needed for production deployments.
+The single OAuth client is supplied to the deploy workflow via two repository secrets (Settings → Secrets and variables → Actions):
 
-**Required GitHub Secrets for Automation:**
-Add these to your repository secrets (Settings → Secrets and variables → Actions):
+- `GOOGLE_CLIENT_ID` - Your Google OAuth 2.0 Client ID
+- `GOOGLE_CLIENT_SECRET` - Your Google OAuth 2.0 Client Secret
 
-- `GOOGLE_OAUTH_CLIENT_ID` - Your Google OAuth 2.0 Client ID
-- `GOOGLE_CLOUD_SERVICE_ACCOUNT_KEY` - Service account key JSON (for future API automation)
-- `GOOGLE_CLOUD_PROJECT_ID` - Your Google Cloud project ID
-- `GOOGLE_CLOUD_SERVICE_ACCOUNT_EMAIL` - Service account email
+The workflow passes these into the application stack so the deployed `Tjb.Web` container can perform the OAuth flow. There is no service-account key or Google Cloud project secret involved.
 
-**Automated Process:**
-1. After successful deployment, the workflow extracts your API Gateway ID
-2. Generates the correct redirect URI and JavaScript origin URLs
-3. Provides clear instructions for updating Google Cloud Console
-4. Runs automatically on every main branch deployment
+## Step 3.6: Production Redirect URIs
 
-## Step 3.6: Manual Production Redirect URIs
+The app is deployed behind an ALB on a stable, domain-derived URL — there is no API Gateway. Each branch deploys to `https://{branch-leaf}.{DOMAIN_NAME}` (e.g. `https://dev.appcloud.systems`), so the redirect URIs are predictable and only need to be set once per environment.
 
-**If you prefer manual updates, here's how to update the Google Cloud Console with the actual API Gateway URL:**
-
-1. **Get your API Gateway URL** from the CloudFormation outputs:
-   ```bash
-   aws cloudformation describe-stacks \
-     --stack-name taskmanager-main \
-     --query 'Stacks[0].Outputs[?OutputKey==`ApiEndpoint`].OutputValue' \
-     --output text
-   ```
+1. **Determine the deployed URL**: `https://{branch-leaf}.{DOMAIN_NAME}` — for the `dev` branch on domain `appcloud.systems` this is `https://dev.appcloud.systems`.
 
 2. **Update Google Cloud Console**:
    - Go to **APIs & Services** > **Credentials**
    - Edit your OAuth 2.0 Client ID
    - Add to **Authorized redirect URIs**:
-     - `https://[YOUR-API-GATEWAY-ID].execute-api.us-east-1.amazonaws.com/Prod/signin-google`
+     - `https://{branch-leaf}.{DOMAIN_NAME}/signin-google` (e.g. `https://dev.appcloud.systems/signin-google`)
    - Add to **Authorized JavaScript origins**:
-     - `https://[YOUR-API-GATEWAY-ID].execute-api.us-east-1.amazonaws.com`
+     - `https://{branch-leaf}.{DOMAIN_NAME}` (e.g. `https://dev.appcloud.systems`)
 
-3. **Alternative: Use Custom Domain** (Recommended for production):
-   - Configure a custom domain for your API Gateway
-   - Update Google Console with the custom domain
-   - This provides consistent URLs across deployments
+3. Repeat for each environment you deploy (`app`, `beta`, `alpha`, `dev`, and any feature branches you need to test against).
 
 ## Step 4: Configure Application Settings
 
@@ -95,17 +77,10 @@ Add these to your repository secrets (Settings → Secrets and variables → Act
 
 #### Option 1: User Secrets (Recommended)
 ```bash
-# Navigate to the API project
-cd src/TaskManager.Api
+# The Web project is the live application that performs OAuth
+cd src/Tjb.Web
 
 # Set the Google OAuth credentials
-dotnet user-secrets set "Authentication:Google:ClientId" "your-google-client-id-here"
-dotnet user-secrets set "Authentication:Google:ClientSecret" "your-google-client-secret-here"
-
-# Navigate to the Web project
-cd ../TaskManager.Web
-
-# Set the same credentials for the Web project
 dotnet user-secrets set "Authentication:Google:ClientId" "your-google-client-id-here"
 dotnet user-secrets set "Authentication:Google:ClientSecret" "your-google-client-secret-here"
 ```
@@ -113,7 +88,7 @@ dotnet user-secrets set "Authentication:Google:ClientSecret" "your-google-client
 **Note**: The projects have been configured with `UserSecretsId` properties to enable user secrets functionality.
 
 #### Option 2: appsettings.Development.json (Less Secure)
-Add to both `src/TaskManager.Api/appsettings.Development.json` and `src/TaskManager.Web/appsettings.Development.json`:
+Add to `src/Tjb.Web/appsettings.Development.json`:
 
 ```json
 {
@@ -142,11 +117,8 @@ export Authentication__Google__ClientSecret="your-google-client-secret-here"
 
 1. Start the application:
    ```bash
-   # For API
-   dotnet run --project src/TaskManager.Api
-
-   # For Web (in another terminal)
-   dotnet run --project src/TaskManager.Web
+   # Web is the live application that handles Google OAuth
+   dotnet run --project src/Tjb.Web
    ```
 
 2. Navigate to the web application (usually `https://localhost:7001`)
@@ -154,15 +126,9 @@ export Authentication__Google__ClientSecret="your-google-client-secret-here"
 4. Complete the Google OAuth flow
 5. Verify you're redirected back and logged in
 
-## API Endpoints
+## Authentication Surface
 
-The API provides these authentication endpoints:
-
-- `GET /api/auth/login` - Initiate Google OAuth login
-- `GET /api/auth/login-callback` - Handle OAuth callback
-- `GET /api/auth/user` - Get current user info (requires authentication)
-- `POST /api/auth/logout` - Logout user
-- `GET /api/auth/status` - Check authentication status
+Authentication is handled entirely by `Tjb.Web` via ASP.NET Identity + the Google OAuth middleware. The Google callback is the standard `/signin-google` endpoint registered by the middleware; the external-login flow lives under `src/Tjb.Web/Areas/Identity/Pages/Account/`. (The `AuthController` in `Tjb.Api` is intentionally a no-op — "authentication disabled" — and is not the deployed front door.)
 
 ## Blazor Components
 
@@ -185,8 +151,8 @@ The Web project includes:
 1. **"redirect_uri_mismatch" Error**
     - Verify redirect URIs in Google Console match your application URLs exactly
     - Check for trailing slashes and protocol (http vs https)
-    - **For production deployments**: Update Google Console with the actual API Gateway URL after deployment
-    - **Example**: `https://pkuatgoyed.execute-api.us-east-1.amazonaws.com/Prod/signin-google`
+    - **For production deployments**: ensure `https://{branch-leaf}.{DOMAIN_NAME}/signin-google` is registered in Google Console
+    - **Example**: `https://dev.appcloud.systems/signin-google`
 
 2. **"invalid_client" Error**
    - Verify Client ID and Client Secret are correct
@@ -209,35 +175,24 @@ The Web project includes:
 
 ## Production Deployment OAuth Fix
 
-### Quick Fix for Current Deployment
+### Quick Fix for a Deployment
 
-1. **Get your current API Gateway URL**:
-   ```bash
-   aws cloudformation describe-stacks \
-     --stack-name taskmanager-main \
-     --query 'Stacks[0].Outputs[?OutputKey==`ApiEndpoint`].OutputValue' \
-     --output text
-   ```
+1. **Determine the deployed URL** for the branch: `https://{branch-leaf}.{DOMAIN_NAME}` (e.g. `https://dev.appcloud.systems`).
 
 2. **Update Google Cloud Console**:
    - Go to [Google Cloud Console](https://console.cloud.google.com/)
    - Navigate to **APIs & Services** > **Credentials**
    - Edit your OAuth 2.0 Client ID
    - Add these **Authorized redirect URIs**:
-     - `https://[YOUR-API-GATEWAY-ID].execute-api.us-east-1.amazonaws.com/Prod/signin-google`
+     - `https://{branch-leaf}.{DOMAIN_NAME}/signin-google` (e.g. `https://dev.appcloud.systems/signin-google`)
    - Add these **Authorized JavaScript origins**:
-     - `https://[YOUR-API-GATEWAY-ID].execute-api.us-east-1.amazonaws.com`
+     - `https://{branch-leaf}.{DOMAIN_NAME}` (e.g. `https://dev.appcloud.systems`)
 
-3. **Replace `[YOUR-API-GATEWAY-ID]`** with the actual ID from step 1 (e.g., `pkuatgoyed`)
+3. **Test the login** - the redirect URI mismatch error should be resolved.
 
-4. **Test the login** - the redirect URI mismatch error should be resolved
+### Note on stable URLs
 
-### For Future Deployments
-
-Consider setting up a custom domain for your API Gateway to avoid this issue:
-- Use Route 53 + API Gateway custom domain
-- Update Google Console once with the custom domain
-- No need to update Google Console after each deployment
+Because the app sits behind an ALB on a domain-derived host (not an API Gateway with a per-deployment ID), the redirect URI is stable per environment — you only register it once per branch/domain rather than after every deployment.
 
 ## Next Steps
 

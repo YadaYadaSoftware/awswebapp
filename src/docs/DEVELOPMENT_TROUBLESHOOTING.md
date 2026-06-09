@@ -6,8 +6,8 @@
 
 **Problem**: Build fails with errors like:
 ```
-error MSB3027: Could not copy "apphost.exe" to "TaskManager.Web.exe". 
-The file is locked by: "TaskManager.Web (PID)"
+error MSB3027: Could not copy "apphost.exe" to "Tjb.Web.exe". 
+The file is locked by: "Tjb.Web (PID)"
 ```
 
 **Cause**: A previous instance of the application is still running and locking the executable file.
@@ -17,23 +17,23 @@ The file is locked by: "TaskManager.Web (PID)"
 #### Option 1: Find and Kill Specific Process
 ```bash
 # Find the running process
-tasklist /FI "IMAGENAME eq TaskManager.Web.exe"
+tasklist /FI "IMAGENAME eq Tjb.Web.exe"
 
 # Kill the specific process (replace PID with actual process ID)
 taskkill /PID [PID] /F
 ```
 
-#### Option 2: Kill All TaskManager Processes
+#### Option 2: Kill All Tjb Processes
 ```bash
-# Kill all TaskManager processes
-taskkill /IM "TaskManager.Web.exe" /F
-taskkill /IM "TaskManager.Api.exe" /F
+# Kill all Tjb processes
+taskkill /IM "Tjb.Web.exe" /F
+taskkill /IM "Tjb.Api.exe" /F
 ```
 
 #### Option 3: Use PowerShell (Alternative)
 ```powershell
-# Find and kill TaskManager processes
-Get-Process -Name "TaskManager*" | Stop-Process -Force
+# Find and kill Tjb processes
+Get-Process -Name "Tjb*" | Stop-Process -Force
 ```
 
 ### User Secrets Configuration Issues
@@ -52,8 +52,8 @@ Could not find the global property 'UserSecretsId' in MSBuild project
 ```
 
 **Current Configuration**:
-- API Project: `taskmanager-api-secrets`
-- Web Project: `taskmanager-web-secrets`
+- API Project (`Tjb.Api`): `tjb-api-secrets`
+- Web Project (`Tjb.Web`): `aspnet-TaskManager.Web-8398677e-2bef-4908-bb1b-78aae0d38aed`
 
 ## Development Workflow Best Practices
 
@@ -79,8 +79,8 @@ Could not find the global property 'UserSecretsId' in MSBuild project
 # List all .NET processes
 tasklist /FI "IMAGENAME eq dotnet.exe"
 
-# List TaskManager processes
-tasklist /FI "IMAGENAME eq TaskManager*"
+# List Tjb processes
+tasklist /FI "IMAGENAME eq Tjb*"
 
 # Kill all dotnet processes (use with caution)
 taskkill /IM "dotnet.exe" /F
@@ -98,22 +98,22 @@ dotnet restore
 dotnet build
 
 # Build specific project
-dotnet build src/TaskManager.Api/TaskManager.Api.csproj
+dotnet build src/Tjb.Api/Tjb.Api.csproj
 ```
 
 ### User Secrets Management
 ```bash
 # List secrets for a project
-dotnet user-secrets list --project src/TaskManager.Api
+dotnet user-secrets list --project src/Tjb.Api
 
 # Set a secret
-dotnet user-secrets set "key" "value" --project src/TaskManager.Api
+dotnet user-secrets set "key" "value" --project src/Tjb.Api
 
 # Remove a secret
-dotnet user-secrets remove "key" --project src/TaskManager.Api
+dotnet user-secrets remove "key" --project src/Tjb.Api
 
 # Clear all secrets
-dotnet user-secrets clear --project src/TaskManager.Api
+dotnet user-secrets clear --project src/Tjb.Api
 ```
 
 ## IDE-Specific Issues
@@ -135,4 +135,4 @@ dotnet user-secrets clear --project src/TaskManager.Api
 3. **Process monitoring**: Set up process monitoring in your development workflow
 4. **Automated cleanup**: Create scripts to clean up processes before builds
 
-This guide should help you avoid and resolve common development issues with the TaskManager application.
+This guide should help you avoid and resolve common development issues with the application.

@@ -1,116 +1,77 @@
+# Web Deployment Strategy
 
-# Web Project Deployment Strategy
+`Tjb.Web` (Blazor Server + Razor Pages + ASP.NET Identity + Google OAuth) **is the
+deployed application**. It runs as a Docker container on **ECS Fargate behind an
+Application Load Balancer (ALB)**. An earlier idea to deploy via AWS Lambda was
+abandoned; the Lambda packages that remain on `Tjb.Api` are vestigial (see
+[LAMBDA_ANNOTATIONS_NOTES.md](LAMBDA_ANNOTATIONS_NOTES.md)).
 
-## Current Situation
+## Architecture
 
-### **What's Currently Deployed**
-- ✅ **API Project**: `TaskManager.Api` deployed to AWS Lambda
-- ❌ **Web Project**: `TaskManager.Web` (Blazor Server) NOT deployed to AWS
-- ✅ **Database**: PostgreSQL with automatic migrations
-- ✅ **Authentication**: Google OAuth with invitation system
-
-### **Current Architecture**
 ```
-GitHub Actions → AWS Lambda (API only)
-Local Development → Blazor Server Web Project
+User browser → ALB (HTTPS :443) → ECS Fargate task (Tjb.Web container :80)
+                                        └→ Aurora MySQL (private subnets, :3306)
 ```
 
+- The ALB terminates HTTPS using an ACM certificate for `{branch}.{domain}` and
+  redirects HTTP→HTTPS. `Tjb.Web` configures `ForwardedHeaders` so the
+  `/signin-google` OAuth callback sees HTTPS behind the proxy.
+- The Fargate task runs in private subnets; the ALB sits in public subnets.
+- Health checks hit `/health` (excluded from authentication).
 
-### **Option 2: Elastic Beanstalk**
-**Deploy Blazor Server to Elastic Beanstalk**
+## How it's built and deployed
 
-#### **Benefits**
-- ✅ **Traditional Web Hosting**: More familiar deployment model
-- ✅ **Auto Scaling**: Automatic scaling based on traffic
-- ✅ **Load Balancing**: Built-in load balancer
-- ✅ **Health Monitoring**: Application health checks
+**Image build** — [../Tjb.Web/Dockerfile](../Tjb.Web/Dockerfile) is a multi-stage
+build on `mcr.microsoft.com/dotnet/sdk:10.0` → runtime
+`mcr.microsoft.com/dotnet/aspnet:10.0`, publishing `Tjb.Web` and exposing port 80
+(`ENTRYPOINT ["dotnet", "Tjb.Web.dll"]`).
 
-#### **Considerations**
-- ❌ **Higher Cost**: ~$25-50/month minimum
-- ❌ **More Complex**: Additional infrastructure to manage
-- ❌ **Separate Deployment**: Different pipeline from API
+**Pipeline** — [../../.github/workflows/zbuild.yml](../../.github/workflows/zbuild.yml)
+builds and tests, builds the Docker image, pushes it to **ECR**, then deploys via
+SAM/CloudFormation. The image is content-addressed by a SHA256 of `src/`; if a tag
+already exists in ECR the build step is skipped. UI tests
+([../Tjb.UiTests](../Tjb.UiTests)) then run against the deployed URL.
 
-### **Option 3: ECS Fargate**
-**Deploy Blazor Server as containerized application**
+**Infrastructure** — [../../infrastructure/web.template](../../infrastructure/web.template)
+defines the web tier:
 
-#### **Benefits**
-- ✅ **Container-Based**: Modern deployment approach
-- ✅ **Scalable**: Pay-per-use scaling
-- ✅ **Flexible**: Full control over runtime environment
+- `AWS::ECS::TaskDefinition` — Fargate, `Cpu: 512` / `Memory: 1024`, one container
+  named `web` on port 80.
+- `AWS::ECS::Service` — `LaunchType: FARGATE`, `DesiredCount: 1`, registered with the
+  target group; `HealthCheckGracePeriodSeconds: 300`.
+- `AWS::ElasticLoadBalancingV2::LoadBalancer` + HTTP listener (301 redirect to HTTPS)
+  + HTTPS listener forwarding to the target group (`TargetType: ip`, health check
+  `/health`).
+- `AWS::CertificateManager::Certificate` for `{BranchName}.{DomainName}` (DNS
+  validation).
 
-#### **Considerations**
-- ❌ **Complexity**: Requires Docker containerization
-- ❌ **Cost**: More expensive than Lambda for low traffic
-- ❌ **Setup Time**: Additional configuration required
+VPC, subnets, security groups, the ECS cluster, the execution/task role, and the
+database host/name/username/password-secret are **imported** from the backend stack
+via `Fn::ImportValue` (export names are domain-and-branch qualified).
 
-### **Option 4: Static Site (Blazor WebAssembly)**
-**Convert to Blazor WebAssembly and deploy to S3 + CloudFront**
+## Container configuration (environment variables)
 
-#### **Benefits**
-- ✅ **Very Low Cost**: S3 + CloudFront ~$1-5/month
-- ✅ **High Performance**: CDN distribution
-- ✅ **Scalable**: Handles any traffic level
+Set in the task definition in
+[../../infrastructure/web.template](../../infrastructure/web.template):
 
-#### **Considerations**
-- ❌ **Architecture Change**: Requires converting from Server to WebAssembly
-- ❌ **API Calls**: All data access through API calls
-- ❌ **Limited Features**: Some Blazor Server features not available
+- `ASPNETCORE_ENVIRONMENT`, `ASPNETCORE_URLS=http://*:80`.
+- `ConnectionStrings__DefaultConnection` — built from imported `DatabaseHost`,
+  `DatabaseName`, `DatabaseUsername`, and the password resolved from Secrets Manager
+  (`{{resolve:secretsmanager:...}}`), with `SslMode=Required` (Aurora MySQL, port
+  3306).
+- `Authentication__Google__ClientId` / `ClientSecret` — resolved from the
+  `{dashed-domain}/google-oauth/{branch}` secret.
+- `AwsSes__SenderEmail=noreply@appcloud.systems`.
+- CloudWatch logging via the `awslogs` driver to a per-deploy log group.
 
-## Recommended Approach
+## Deploy targets
 
-### **Option 1: Unified Lambda Deployment** ⭐ **RECOMMENDED**
+- `app` / `beta` / `alpha` — multi-region shared infrastructure (full
+  `master.template`, Aurora Global Cluster).
+- `dev` — single-region, also uses `master.template`.
+- Other `{type}/{name}` branches — deploy `application.template` (app stack only,
+  importing backend exports from `dev`) into a per-branch stack named
+  `{branch-leaf}-{dashed-domain}`, served at `https://{branch}.{domain}`.
 
-#### **Why This is Best**
-- ✅ **Simplest**: Minimal changes to current architecture
-- ✅ **Cost Effective**: No additional infrastructure
-- ✅ **Unified**: Single endpoint for both API and web
-- ✅ **Shared Auth**: Same authentication and session management
-
-#### **Implementation Steps**
-2. **Create LambdaEntryPoint** for Blazor Server
-3. **Configure routing** between API and web endpoints
-4. **Update GitHub Actions** to deploy both projects
-
-### **Current Web Project Status**
-**TaskManager.Web Features**:
-- ✅ **Google OAuth**: Configured and working
-- ✅ **Authorization**: 15-minute sessions, invitation checking
-- ✅ **Blazor Components**: Login/logout UI
-- ✅ **Authentication State**: Proper cascading auth state
-
-## Implementation Plan
-
-### **To Deploy Web Project to Lambda**
-
-
-#### **Step 2: Create Web Lambda Entry Point**
-```csharp
-// Add to TaskManager.Web/LambdaEntryPoint.cs
-public class LambdaEntryPoint : Amazon.Lambda.AspNetCoreServer.APIGatewayProxyFunction
-{
-    protected override void Init(IWebHostBuilder builder)
-    {
-        builder.UseStartup<Program>();
-    }
-}
-```
-
-#### **Step 3: Update GitHub Actions**
-- Build both API and Web projects
-- Deploy both to Lambda functions
-- Configure routing between them
-
-## Current Recommendation
-
-### **For Now: Keep Web Local, Deploy API**
-**Current setup is actually good for development**:
-- ✅ **API on AWS**: Production-ready API with database
-- ✅ **Web Local**: Fast development cycle for UI changes
-- ✅ **Shared Database**: Web can connect to AWS database for testing
-
-### **When Ready for Production**
-**Add web deployment using Option 1 (Unified Lambda)**
-
-**Would you like me to implement the web deployment to Lambda, or keep the current API-only deployment for now?**
-</result>
-</attempt_completion>
+See [../../BRANCH_MANAGEMENT_README.md](../../BRANCH_MANAGEMENT_README.md) for the full
+branch model.

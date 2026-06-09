@@ -1,265 +1,112 @@
-# TaskManager - C# Web Application for AWS
+# Tjb — Task & Project Management Web Application
 
-A full-stack task and project management web application built with C# that deploys to AWS Lambda, featuring Google OAuth authentication, PostgreSQL database, and Blazor Server frontend.
+A full-stack task and project management web application built with C# / ASP.NET on **.NET 10**, deployed to AWS as a Docker container on **ECS Fargate** behind an Application Load Balancer. Authentication is ASP.NET Identity + Google OAuth; the database is **Aurora MySQL Serverless v2**.
 
-## 🏗️ Architecture Overview
+## Architecture Overview
 
-This application is designed as a modern, cloud-native solution using:
+- **Framework**: .NET 10 (`net10.0`) across all projects.
+- **Application**: `Tjb.Web` — Blazor Server + Razor Pages + ASP.NET Identity + Google OAuth. This is the deployed front door.
+- **Database**: Aurora MySQL Serverless v2 (MySQL 8.0, port 3306) via `Pomelo.EntityFrameworkCore.MySql`. Connections use `UseMySql(...)` with `ServerVersion.AutoDetect`. (A stale `Npgsql` package reference lingers in `Tjb.Data.csproj` but is unused — there is no PostgreSQL.)
+- **Authentication**: ASP.NET Identity with Google OAuth, entirely within `Tjb.Web`. There is no JWT and no separate auth service. `Tjb.Api`'s `AuthController` is an intentional no-op.
+- **Hosting**: The `Tjb.Web` container image (built from [src/Tjb.Web/Dockerfile](src/Tjb.Web/Dockerfile), `mcr.microsoft.com/dotnet/aspnet:10.0`) is pushed to ECR and run on ECS Fargate behind an ALB. `Tjb.Web` configures `ForwardedHeaders` so the Google OAuth `/signin-google` callback sees HTTPS through the ALB.
+- **Infrastructure**: AWS CloudFormation/SAM templates under [infrastructure/](infrastructure/) (ECR, ECS/Fargate, ALB, Aurora, networking, SES). Resource names are derived from the deployment domain — see [CLAUDE.md](CLAUDE.md) for the naming convention.
+- **Email**: Confirmation emails after Google OAuth registration are sent via AWS SES from `Tjb.Web`.
 
-- **Backend**: .NET 8 Minimal Web API
-- **Frontend**: Blazor Server
-- **Database**: PostgreSQL (AWS RDS)
-- **Authentication**: Google OAuth with extensible provider pattern
-- **Hosting**: AWS Lambda with API Gateway
-- **Infrastructure**: AWS (RDS, Lambda, API Gateway, CloudWatch)
+## Project Structure
 
-## 📋 Features
-
-### Core Functionality
-- ✅ User authentication via Google OAuth
-- ✅ Project creation and management
-- ✅ Task creation, assignment, and tracking
-- ✅ Project member management with role-based access
-- ✅ Real-time updates with Blazor Server
-- ✅ Responsive design for mobile and desktop
-
-### Technical Features
-- ✅ Entity Framework Core with PostgreSQL
-- ✅ Minimal Web API with clean architecture
-- ✅ JWT-based authentication
-- ✅ Role-based authorization
-- ✅ AWS Lambda deployment
-- ✅ CloudWatch monitoring and logging
-- ✅ Automated CI/CD pipeline
-
-## 🚀 Quick Start
-
-### Prerequisites
-- .NET 8 SDK
-- PostgreSQL 15+ (for local development)
-- AWS CLI configured
-- Google Cloud Console account (for OAuth)
-- Visual Studio 2022 or VS Code
-
-### Local Development Setup
-
-1. **Clone the repository**
-   ```bash
-   git clone <repository-url>
-   cd awswebapp
-   ```
-
-2. **Set up local PostgreSQL database**
-   ```bash
-   # Create database
-   createdb taskmanager_dev
-   ```
-
-3. **Configure user secrets**
-   ```bash
-   cd src/TaskManager.Api
-   dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Host=localhost;Database=taskmanager_dev;Username=your_username;Password=your_password"
-   dotnet user-secrets set "Authentication:Google:ClientId" "your-google-client-id"
-   dotnet user-secrets set "Authentication:Google:ClientSecret" "your-google-client-secret"
-   ```
-
-4. **Run database migrations**
-   ```bash
-   dotnet ef database update
-   ```
-
-5. **Start the application**
-   ```bash
-   dotnet run --project src/TaskManager.Web
-   ```
-
-## 📁 Project Structure
+Six projects in [Tjb.sln](Tjb.sln) (plus a test project):
 
 ```
 src/
-├── TaskManager.Api/              # Minimal Web API
-│   ├── Program.cs               # API configuration and endpoints
-│   ├── Endpoints/               # API endpoint definitions
-│   ├── Services/                # Business logic services
-│   └── TaskManager.Api.csproj
-├── TaskManager.Data/             # Data access layer
-│   ├── TaskManagerDbContext.cs  # EF Core DbContext
-│   ├── Entities/                # Database entities
-│   ├── Configurations/          # EF Core configurations
-│   ├── Migrations/              # Database migrations
-│   └── TaskManager.Data.csproj
-├── TaskManager.Web/              # Blazor Server application
-│   ├── Program.cs               # Web app configuration
-│   ├── Pages/                   # Blazor pages
-│   ├── Components/              # Reusable components
-│   ├── Services/                # Client-side services
-│   └── TaskManager.Web.csproj
-├── TaskManager.Shared/           # Shared models and DTOs
-│   ├── Models/                  # Data transfer objects
-│   ├── Enums/                   # Shared enumerations
-│   └── TaskManager.Shared.csproj
-└── TaskManager.sln              # Solution file
+├── Tjb.Shared/        # DTOs and enums (TaskStatus, TaskPriority, ProjectRole); packed as a NuGet on each build
+├── Tjb.Data/          # EF Core DbContext (TjbDbContext : IdentityDbContext), entities, configurations
+├── Tjb.Migrations/    # EF migration files, IDesignTimeDbContextFactory, and a standalone migrate+seed Program.cs
+├── Tjb.Api/           # Minimal Web API — only /health, Swagger (dev), and a stub no-op AuthController.
+│                      #   Retains vestigial Lambda hosting glue but is NOT the deployed surface.
+├── Tjb.Web/           # THE DEPLOYED APP — Blazor Server + Razor Pages + Identity + Google OAuth
+└── Tjb.UiTests/       # Playwright + xUnit, run against a deployed URL (not a local server)
 ```
 
-## 🗄️ Database Schema
+`Tjb.Data.Test` holds unit tests for the data layer.
 
-### Core Entities
+> Migrations live in **`Tjb.Migrations`**, not `Tjb.Data`. `TjbDbContext` is wired with `MigrationsAssembly("Tjb.Migrations")`, so EF tooling must target that project.
 
-**Users**
-- Id, Email, FirstName, LastName
-- GoogleId (for OAuth integration)
-- CreatedAt, UpdatedAt, IsActive
+## Quick Start
 
-**Projects**
-- Id, Name, Description
-- OwnerId (foreign key to Users)
-- CreatedAt, UpdatedAt, IsActive
+### Prerequisites
+- .NET 10 SDK
+- A local MySQL 8.0 server (for local development)
+- Google Cloud Console OAuth credentials (Client ID/Secret)
+- AWS CLI configured (for deployment / DB access)
 
-**Tasks**
-- Id, Title, Description
-- ProjectId (foreign key to Projects)
-- AssignedToId (foreign key to Users)
-- Status (Todo, InProgress, Done)
-- Priority (Low, Medium, High)
-- DueDate, CreatedAt, UpdatedAt
+### Local Development
 
-**ProjectMembers** (Many-to-Many)
-- ProjectId, UserId
-- Role (Owner, Admin, Member, Viewer)
-- JoinedAt
+1. **Clone and restore**
+   ```powershell
+   git clone <repository-url>
+   dotnet restore
+   ```
 
-## 🔐 Authentication & Authorization
+2. **Configure local secrets** (connection string defaults to localhost MySQL; override OAuth via user-secrets)
+   ```powershell
+   dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Server=localhost;Database=TjbDb;User=root;Password=password;" --project src/Tjb.Web
+   dotnet user-secrets set "Authentication:Google:ClientId" "your-google-client-id" --project src/Tjb.Web
+   dotnet user-secrets set "Authentication:Google:ClientSecret" "your-google-client-secret" --project src/Tjb.Web
+   ```
+   The default connection string in `appsettings.json` is `Server=localhost;Database=TjbDb;User=root;Password=password;`. Real values come from the environment / Secrets Manager in deployed environments.
 
-### Google OAuth Integration
-- Extensible authentication provider pattern
-- Support for multiple OAuth providers (future)
-- JWT token-based API authentication
-- Role-based authorization for projects
+3. **Apply migrations** (migrations live in `Tjb.Migrations`)
+   ```powershell
+   dotnet ef database update --project src/Tjb.Migrations --startup-project src/Tjb.Migrations
+   # or run the standalone migrate + seed runner:
+   dotnet run --project src/Tjb.Migrations
+   ```
 
-### Security Features
-- HTTPS enforcement
-- CSRF protection
-- Input validation and sanitization
-- SQL injection prevention via EF Core
-- Secure credential storage in AWS Secrets Manager
+4. **Run the web app**
+   ```powershell
+   dotnet run --project src/Tjb.Web
+   ```
 
-## ☁️ AWS Deployment
+`Tjb.Web` calls `EnsureCreatedAsync()` then `MigrateAsync()` on startup; migration exceptions are swallowed so the app still boots.
 
-### Infrastructure Components
-- **RDS PostgreSQL**: Primary database
-- **Lambda Function**: Application hosting
-- **API Gateway**: HTTP API routing
-- **CloudWatch**: Logging and monitoring
-- **Secrets Manager**: Secure credential storage
+### Build & Test
 
-### Deployment Process
-1. Set up AWS infrastructure using CloudFormation
-2. Build and package .NET application
-3. Deploy Lambda function
-4. Configure API Gateway routing
-5. Run database migrations
-6. Configure monitoring and alerts
+```powershell
+dotnet build --configuration Release
+dotnet test --filter "FullyQualifiedName!~Tjb.UiTests"   # CI runs unit tests this way; UI tests are excluded pre-deploy
+```
 
-See [`AWS_DEPLOYMENT_GUIDE.md`](AWS_DEPLOYMENT_GUIDE.md) for detailed deployment instructions.
+### EF Core Migrations
 
-## 📊 Monitoring & Logging
+```powershell
+dotnet ef migrations add <Name> --project src/Tjb.Migrations --startup-project src/Tjb.Migrations
+dotnet ef database update        --project src/Tjb.Migrations --startup-project src/Tjb.Migrations
+```
 
-### CloudWatch Integration
-- Application logs with structured logging
-- Performance metrics and alarms
-- Error tracking and alerting
-- Database performance monitoring
+## Database Schema
 
-### Health Checks
-- Database connectivity monitoring
-- Lambda function health checks
-- API endpoint availability monitoring
+Core entities (see `Tjb.Data`):
 
-## 🧪 Testing Strategy
+- **Projects** — owned by a user; has members.
+- **Tasks** — belong to a project, optionally assigned to a user; carry a `TaskStatus` and `TaskPriority`.
+- **ProjectMembers** — link users to projects with a `ProjectRole`.
+- **Identity tables** — `TjbDbContext` extends `IdentityDbContext<IdentityUser>`, so ASP.NET Identity tables share the same database.
 
-### Unit Testing
-- Service layer unit tests
-- API endpoint testing
-- Business logic validation
-- Authentication flow testing
+Shared enums (`TaskStatus`, `TaskPriority`, `ProjectRole`) live in `Tjb.Shared`.
 
-### Integration Testing
-- Database operation testing
-- API integration testing
-- End-to-end workflow testing
+## Branch Model & CI/CD
 
-## 📈 Performance Considerations
+This repo is maintained by a **solo developer — there are no pull requests**; changes are integrated by direct merge/push.
 
-### Lambda Optimization
-- Connection pooling for database
-- Cold start mitigation strategies
-- Memory allocation tuning
-- Async/await patterns
+- **`app`** is the production branch (GitVersion `main`). **`dev`** is integration.
+- `app`, `beta`, and `alpha` are shared multi-region infrastructure branches using `infrastructure/master.template`. `dev` is single-region but also uses the master template.
+- Every other branch follows `{type}/{name}` (`build|deploy|system|feature|fix`) and deploys `infrastructure/application.template` into a per-branch stack.
+- Every push runs the **Deploy Everything** workflow ([.github/workflows/zbuild.yml](.github/workflows/zbuild.yml)): build → test → Docker image → ECR → CloudFormation/SAM deploy → UI tests against the deployed URL → publish NuGets.
 
-### Database Optimization
-- Proper indexing strategy
-- Query optimization with EF Core
-- Connection pooling
-- Read replica support (future)
+For each branch, the deployed URL is `https://{branch-leaf}.{DOMAIN_NAME}` (e.g. `https://dev.appcloud.systems`) and the CloudFormation stack is `{branch-leaf}-{dashed-domain}` (e.g. `dev-appcloud-systems`).
 
-## 🔄 CI/CD Pipeline
+See [BRANCH_MANAGEMENT_README.md](BRANCH_MANAGEMENT_README.md) for the branch-management scripts and changelog workflow, and [CLAUDE.md](CLAUDE.md) for the full infrastructure naming convention and deploy details.
 
-### GitHub Actions Workflow
-- Automated testing on pull requests
-- Build and package validation
-- Automated deployment to staging/production
-- Database migration automation
+## License
 
-### Deployment Stages
-1. **Development**: Local development environment
-2. **Staging**: AWS staging environment for testing
-3. **Production**: AWS production environment
-
-## 📚 Documentation
-
-- [`ARCHITECTURE.md`](ARCHITECTURE.md) - Detailed system architecture
-- [`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md) - Step-by-step implementation guide
-- [`AWS_DEPLOYMENT_GUIDE.md`](AWS_DEPLOYMENT_GUIDE.md) - AWS infrastructure and deployment
-- API documentation (generated via Swagger/OpenAPI)
-
-## 🛠️ Development Workflow
-
-### Getting Started with Development
-1. Review the architecture documentation
-2. Set up local development environment
-3. Follow the implementation plan phase by phase
-4. Test locally before deploying to AWS
-5. Use the deployment guide for AWS setup
-
-### Recommended Development Order
-1. **Phase 1**: Project setup and foundation
-2. **Phase 2**: Data layer implementation
-3. **Phase 3**: Authentication system
-4. **Phase 4**: API development
-5. **Phase 5**: Blazor Server frontend
-6. **Phase 6**: AWS infrastructure setup
-7. **Phase 7**: Deployment and DevOps
-8. **Phase 8**: Testing and quality assurance
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests for new functionality
-5. Submit a pull request
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🆘 Support
-
-For questions, issues, or contributions:
-- Review the documentation in this repository
-- Check the implementation plan for guidance
-- Refer to the AWS deployment guide for infrastructure questions
-
----
-
-**Next Steps**: Ready to start implementation? Switch to Code mode and begin with Phase 1 of the implementation plan!
+This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
