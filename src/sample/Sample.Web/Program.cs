@@ -14,7 +14,16 @@ builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 
 // Web framework wiring — all from the Tjb.Web.Hosting package (the thin-host shape).
 builder.Services.AddAwsWebAppIdentity<SampleDbContext>();
-builder.Services.AddAwsWebAppGoogleAuth<SampleDbContext>(builder.Configuration);
+
+// Register Google OAuth only when a ClientId is configured. The framework's AddGoogle validates
+// ClientId is non-empty on every request, so registering it unconfigured crashes the app locally.
+// Set Authentication:Google:ClientId/ClientSecret (user-secrets) to enable Google sign-in; without
+// them the app still runs (Identity email/password login works).
+if (!string.IsNullOrEmpty(builder.Configuration["Authentication:Google:ClientId"]))
+{
+    builder.Services.AddAwsWebAppGoogleAuth<SampleDbContext>(builder.Configuration);
+}
+
 builder.Services.AddAwsWebAppEmail(builder.Configuration);
 
 // Host-owned registrations.

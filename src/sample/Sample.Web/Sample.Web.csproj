@@ -14,6 +14,10 @@
     <PackageReference Include="Tjb.Web.Hosting" Version="1.1.0.190-dev" />
     <PackageReference Include="Microsoft.AspNetCore.Diagnostics.EntityFrameworkCore" Version="8.0.10" />
     <PackageReference Include="Pomelo.EntityFrameworkCore.MySql" Version="8.0.2" />
+    <!-- Direct reference (not just transitive via the framework RCL) so the default Identity UI's
+         static web assets — the bootstrap/CSS its Login layout links at ~/Identity/... — are served.
+         Without it the /Identity/Account/Login page renders unstyled. -->
+    <PackageReference Include="Microsoft.AspNetCore.Identity.UI" Version="8.0.10" />
   </ItemGroup>
 
   <ItemGroup>
