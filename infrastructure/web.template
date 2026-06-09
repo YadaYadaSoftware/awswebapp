@@ -67,6 +67,16 @@ Parameters:
     Default: 7
     Description: Number of days to retain CloudWatch logs
 
+Conditions:
+  # The test-only sign-in endpoint (TestAuth) must be OFF on the shared, production-shaped
+  # environments (app/beta/alpha) and ON everywhere the post-deploy UI suite runs (dev + per-branch
+  # feature stacks). BranchName is the branch leaf, so an exact match on the three protected names
+  # disables it there and leaves it enabled for everything else. See the ui-test-authenticated-session change.
+  TestAuthDisabled: !Or
+    - !Equals [!Ref BranchName, "app"]
+    - !Equals [!Ref BranchName, "beta"]
+    - !Equals [!Ref BranchName, "alpha"]
+
 Resources:
   # CloudWatch Log Group for ECS
   WebECSLogGroup:
@@ -219,6 +229,8 @@ Resources:
                 - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
             - Name: AwsSes__SenderEmail
               Value: !Sub "noreply@${DomainName}"
+            - Name: TestAuth__Enabled
+              Value: !If [TestAuthDisabled, "false", "true"]
           LogConfiguration:
             LogDriver: awslogs
             Options:
