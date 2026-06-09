@@ -129,7 +129,7 @@ public abstract class BaseUiTest : IAsyncLifetime
 
         if (response.Status == 404)
         {
-            // Gate off on this env (app/beta/alpha): the endpoint is intentionally absent. Skip.
+            // Clean 404 (endpoint intentionally absent). Skip.
             Console.WriteLine("test-auth endpoint returned 404 — TestAuth gate is off on this env; skipping authenticated-UI test.");
             return false;
         }
@@ -139,6 +139,17 @@ public abstract class BaseUiTest : IAsyncLifetime
             var body = await response.TextAsync();
             throw new InvalidOperationException(
                 $"test-auth sign-in failed: {response.Status} {response.StatusText}. Body: {body}");
+        }
+
+        // The endpoint is only mapped where the gate is on. Where it's off, the unmapped POST does NOT
+        // return 404 — in a Blazor app it falls through to MapFallbackToPage and returns the host page
+        // (HTTP 200, text/html). So a real sign-in is identified by the endpoint's JSON response, not the
+        // status code; a 200 text/html means the gate is off and we should skip.
+        var contentType = response.Headers.TryGetValue("content-type", out var ct) ? ct : string.Empty;
+        if (!contentType.Contains("application/json", StringComparison.OrdinalIgnoreCase))
+        {
+            Console.WriteLine("test-auth endpoint not active on this env (response was not JSON — gate off / fell through to the app fallback); skipping authenticated-UI test.");
+            return false;
         }
 
         return true;

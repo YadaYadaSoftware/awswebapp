@@ -131,10 +131,17 @@ public async Task TokenBasedGoogleLogin_ShouldAuthenticateWithValidToken()
                     Headers = new Dictionary<string, string> { ["Authorization"] = "Bearer not-a-real-id-token" }
                 });
 
-            response.Status.Should().NotBe(200,
+            // A bogus id_token must NEVER establish a session. With the gate ON the endpoint validates
+            // and rejects (401); with it OFF the unmapped POST falls through to the Blazor fallback page
+            // (HTTP 200 text/html) and signs no one in. The failure mode to catch is a *successful JSON
+            // sign-in* (200 + application/json) for an invalid token — a real auth bypass.
+            var contentType = response.Headers.TryGetValue("content-type", out var ct) ? ct : string.Empty;
+            var isJsonSignIn = response.Status == 200
+                && contentType.Contains("application/json", StringComparison.OrdinalIgnoreCase);
+            isJsonSignIn.Should().BeFalse(
                 "the test-auth endpoint must never issue a session for an invalid id_token");
 
-            // And the app must still be anonymous (no session was established).
+            // And the app must still be anonymous (no session was established), on either gate state.
             var mainPage = new MainPage(Page!, Config.BaseUrl);
             await RetryAsync(async () => await mainPage.NavigateAsync());
             await mainPage.ExpectLoginLinkVisibleAsync();
