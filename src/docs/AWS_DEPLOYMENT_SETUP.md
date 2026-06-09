@@ -75,7 +75,7 @@ created and DNS-validated by the templates.
 
 - **`app`** is the production branch (and GitVersion `main`). Solo developer; no
   pull requests — changes are merged/pushed directly.
-- **`app` / `beta` / `alpha`** deploy `master.template` **multi-region**
+- **`app` / `test`** deploy `master.template` **multi-region**
   (`AWS_REGION_PRIMARY` + `AWS_REGION_SECONDARY`), including an Aurora Global
   Cluster.
 - **`dev`** deploys `master.template` single-region.

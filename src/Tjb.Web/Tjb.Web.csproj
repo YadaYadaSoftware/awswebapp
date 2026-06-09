@@ -32,7 +32,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Tjb.Data\Tjb.Data.csproj" />
     <ProjectReference Include="..\Tjb.Migrations\Tjb.Migrations.csproj" />
-    <!-- Homestead branches (dev/alpha/beta/app) build the reusable web tier from source via
+    <!-- Homestead branches (dev/test/app) build the reusable web tier from source via
          ProjectReference. The package-consumption boundary is proven on feature branches and is the
          real consumption path for the sample solution; dev cannot pin to its own not-yet-published
          package version (build-time bootstrap). See extract-web-framework-package design D4. -->

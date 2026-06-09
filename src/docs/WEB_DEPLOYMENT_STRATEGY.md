@@ -66,7 +66,7 @@ Set in the task definition in
 
 ## Deploy targets
 
-- `app` / `beta` / `alpha` — multi-region shared infrastructure (full
+- `app` / `test` — multi-region shared infrastructure (full
   `master.template`, Aurora Global Cluster).
 - `dev` — single-region, also uses `master.template`.
 - Other `{type}/{name}` branches — deploy `application.template` (app stack only,

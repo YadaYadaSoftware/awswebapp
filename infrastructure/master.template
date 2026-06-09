@@ -1,7 +1,6 @@
 ---
 AWSTemplateFormatVersion: "2010-09-09"
 Description: "Master env-stack template - includes backend and application nested stacks. Receives DomainName (dot form, e.g. appcloud.systems) and threads it through; templates that need the dashed (appcloud-systems) or underscored (appcloud_systems) forms derive them locally via Fn::Join+Fn::Split on DomainName."
-# Cutover marker: domain-named-bootstrap-stack applied to beta on 2026-06-04 (retrigger).
 
 Parameters:
   BranchName:
@@ -41,7 +40,7 @@ Parameters:
   IsMultiRegion:
     Type: String
     AllowedValues: ["true", "false"]
-    Description: Whether this is a multi-region deployment (app, beta, alpha branches)
+    Description: Whether this is a multi-region deployment (app, test branches)
 
   # Parameters for global infrastructure outputs
   AuroraGlobalClusterId:

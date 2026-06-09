@@ -47,12 +47,12 @@ on:
         description: "Space-separated branch leaves that deploy to both regions."
         required: false
         type: string
-        default: "app beta alpha"
+        default: "app test"
       shared-infra-branches:
         description: "Space-separated branch leaves that deploy the full backend (master template)."
         required: false
         type: string
-        default: "app beta alpha dev"
+        default: "app test dev"
       prod-branch:
         description: "Branch leaf that receives prod credentials + prod KMS key."
         required: false
