@@ -69,7 +69,7 @@ The app is deployed behind an ALB on a stable, domain-derived URL — there is n
    - Add to **Authorized JavaScript origins**:
      - `https://{branch-leaf}.{DOMAIN_NAME}` (e.g. `https://dev.appcloud.systems`)
 
-3. Repeat for each environment you deploy (`app`, `beta`, `alpha`, `dev`, and any feature branches you need to test against).
+3. Repeat for each environment you deploy (`app`, `test`, `dev`, and any feature branches you need to test against).
 
 ## Step 4: Configure Application Settings
 

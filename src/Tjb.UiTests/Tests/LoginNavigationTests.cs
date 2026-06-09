@@ -1,4 +1,5 @@
 using FluentAssertions;
+using Tjb.UiTests.Fixtures;
 using Tjb.UiTests.Pages;
 using Xunit;
 using System.Threading.Tasks;
@@ -6,8 +7,12 @@ using System;
 
 namespace Tjb.UiTests.Tests;
 
-public class LoginNavigationTests : BaseTest
+[Collection("UiTests")]
+public class LoginNavigationTests : BaseUiTest
 {
+    public LoginNavigationTests(OAuthTokenFixture auth, AppReadinessFixture appReady)
+        : base(auth, appReady) { }
+
     [Fact]
     public async Task LoginLink_ShouldNavigateToLoginPage()
     {
@@ -28,8 +33,7 @@ public class LoginNavigationTests : BaseTest
 
 
             // Assert - Verify we're on the main page and login link is visible
-            var isLoginVisible = await mainPage.IsLoginLinkVisibleAsync();
-            isLoginVisible.Should().BeTrue("Login link should be visible on main page");
+            await mainPage.ExpectLoginLinkVisibleAsync();
 
             // Act - Click the login link
             await RetryAsync(async () =>
@@ -38,8 +42,7 @@ public class LoginNavigationTests : BaseTest
             });
 
             // Assert - Verify we're redirected to the login page
-            var isOnLoginPage = await loginPage.IsOnLoginPageAsync();
-            isOnLoginPage.Should().BeTrue("Should be redirected to login page after clicking login link");
+            await loginPage.ExpectOnLoginPageAsync();
 
             // Record test success
             RecordTestSuccess();
@@ -78,12 +81,10 @@ public class LoginNavigationTests : BaseTest
             });
 
             // Assert - Verify we're on the login page
-            var isOnLoginPage = await loginPage.IsOnLoginPageAsync();
-            isOnLoginPage.Should().BeTrue();
+            await loginPage.ExpectOnLoginPageAsync();
 
             // Assert - Verify Google login option is available
-            var isGoogleVisible = await loginPage.IsGoogleLoginVisibleAsync();
-            isGoogleVisible.Should().BeTrue("Google login option should be visible on login page");
+            await loginPage.ExpectGoogleLoginVisibleAsync();
 
             // Record test success
             RecordTestSuccess();

@@ -1,4 +1,5 @@
 using FluentAssertions;
+using Tjb.UiTests.Fixtures;
 using Tjb.UiTests.Pages;
 using Xunit;
 using System.Threading.Tasks;
@@ -8,8 +9,12 @@ using Microsoft.Extensions.Configuration;
 
 namespace Tjb.UiTests.Tests;
 
-public class UserAuthenticationTests : BaseTest
+[Collection("UiTests")]
+public class UserAuthenticationTests : BaseUiTest
 {
+    public UserAuthenticationTests(OAuthTokenFixture auth, AppReadinessFixture appReady)
+        : base(auth, appReady) { }
+
     [Fact]
     public async Task LoggedInUser_ShouldDisplayUserName()
     {
@@ -20,72 +25,22 @@ public class UserAuthenticationTests : BaseTest
         {
             // Arrange
             var mainPage = new MainPage(Page!, Config.BaseUrl);
-            var loginPage = new LoginPage(Page!);
 
-            // Skip test if token-based auth is not configured
-            if (!Config.UseTokenBasedAuth)
+            // Establish a real Identity session via the gated test-auth endpoint. Skips when no
+            // token is configured or the gate is off (404, as on app).
+            if (!await TrySignInViaTestAuthAsync())
             {
-                Console.WriteLine("Skipping test - token-based authentication is not enabled");
                 return;
             }
 
-            // Get Google access token
-            using var httpClient = new HttpClient();
-            var tokenService = new GoogleTokenService(httpClient, new ConfigurationBuilder().Build());
-            var accessToken = await tokenService.GetAccessTokenAsync();
-
-            // Skip test if no token is available
-            if (string.IsNullOrEmpty(accessToken))
-            {
-                Console.WriteLine("Skipping test - no access token available");
-                return;
-            }
-
-            // Validate token before using it
-            var isValidToken = await tokenService.ValidateTokenAsync(accessToken);
-            if (!isValidToken)
-            {
-                Console.WriteLine("Skipping test - access token is not valid");
-                return;
-            }
-
-            // Act - Navigate to main page
+            // Act - Navigate to main page carrying the session cookie
             await RetryAsync(async () =>
             {
                 await mainPage.NavigateAsync();
             });
 
-            // Check if user is already logged in
-            var isUserLoggedIn = await mainPage.IsUserLoggedInAsync();
-
-            if (!isUserLoggedIn)
-            {
-                // Click login link to go to login page
-                await RetryAsync(async () =>
-                {
-                    await mainPage.ClickLoginLinkAsync();
-                });
-
-                // Verify we're on the login page
-                var isOnLoginPage = await loginPage.IsOnLoginPageAsync();
-                isOnLoginPage.Should().BeTrue();
-
-                // Use token to authenticate directly (bypass Google OAuth flow)
-                await RetryAsync(async () =>
-                {
-                    await loginPage.AuthenticateWithTokenAsync(accessToken);
-                });
-
-                // Navigate back to main page after authentication
-                await RetryAsync(async () =>
-                {
-                    await mainPage.NavigateAsync();
-                });
-            }
-
             // Assert - Verify user is logged in and name is displayed
-            isUserLoggedIn = await mainPage.IsUserLoggedInAsync();
-            isUserLoggedIn.Should().BeTrue("User should be logged in");
+            await mainPage.ExpectUserLoggedInAsync();
 
             // Act - Get the logged in user name
             var userName = await mainPage.GetLoggedInUserNameAsync();
@@ -149,8 +104,7 @@ public class UserAuthenticationTests : BaseTest
             else
             {
                 // If not logged in, verify login link is visible
-                var isLoginVisible = await mainPage.IsLoginLinkVisibleAsync();
-                isLoginVisible.Should().BeTrue("Login link should be visible when not logged in");
+                await mainPage.ExpectLoginLinkVisibleAsync();
             }
 
             // Record test success

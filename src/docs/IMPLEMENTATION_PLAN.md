@@ -14,8 +14,8 @@ The application is built and deployed. New work is tracked through OpenSpec chan
 
 - **Framework**: `net10.0` across all projects (CI uses `dotnet-version: 10.0.x`).
 - **Database**: Aurora MySQL Serverless v2 via `Pomelo.EntityFrameworkCore.MySql`
-  (`UseMySql`, port 3306). The three shared-infrastructure branches (`app`, `beta`,
-  `alpha`) run an Aurora Global Cluster.
+  (`UseMySql`, port 3306). The two multi-region branches (`app`, `test`) run an
+  Aurora Global Cluster.
   > A stale `Npgsql.EntityFrameworkCore.PostgreSQL` package reference remains in
   > `Tjb.Data.csproj` but is unused — the runtime path is `UseMySql`.
 - **Hosting**: `Tjb.Web` is built into a Docker image

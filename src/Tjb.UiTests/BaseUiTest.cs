@@ -6,25 +6,49 @@ using System.Collections.Generic;
 using System.Linq;
 using System.IO;
 using Tjb.UiTests;
+using Tjb.UiTests.Fixtures;
 
 namespace Tjb.UiTests;
 
-public class BaseTest : IAsyncLifetime
+/// <summary>
+/// Base class for every UI test. Wires in the suite-level <see cref="OAuthTokenFixture"/>
+/// (fresh Google token) and <see cref="AppReadinessFixture"/> (app warmed up), and gives
+/// each test a <see cref="Page"/> with timeouts sized for SSR + ALB latency and the OAuth
+/// token pre-applied. Derived classes must carry <c>[Collection("UiTests")]</c> and forward
+/// the two fixtures through their constructor.
+/// </summary>
+public abstract class BaseUiTest : IAsyncLifetime
 {
     protected IPlaywright? Playwright { get; private set; }
     protected IBrowser? Browser { get; private set; }
     protected IBrowserContext? Context { get; private set; }
     protected IPage? Page { get; private set; }
 
+    protected OAuthTokenFixture Auth { get; }
+    protected AppReadinessFixture AppReady { get; }
+
     protected TestConfiguration Config => TestConfiguration.Instance;
     protected TestReporter Reporter { get; private set; } = new();
     protected TestEnvironment Environment { get; private set; } = TestEnvironment.GetCurrent();
     protected TestDataManager? DataManager { get; private set; }
 
+    /// <summary>The shared, suite-fresh Google access token (null when no refresh token is configured).</summary>
+    protected string? AccessToken => Auth?.AccessToken;
+
     private string? _currentTestName;
+
+    protected BaseUiTest(OAuthTokenFixture auth, AppReadinessFixture appReady)
+    {
+        Auth = auth;
+        AppReady = appReady;
+    }
 
     public async Task InitializeAsync()
     {
+        // Defensive refresh: a long suite could push the token past ~50min between
+        // collection start and this test. No-ops when the token is still fresh.
+        await Auth.RefreshIfStaleAsync();
+
         // Configure test environment
         Environment.ConfigureTestSettings();
 
@@ -56,6 +80,11 @@ public class BaseTest : IAsyncLifetime
 
         Page = await Context.NewPageAsync();
 
+        // Sensible defaults so no test re-derives them: 30s covers SSR + ALB request
+        // time; 60s navigation supports cold-context first navigation.
+        Page.SetDefaultTimeout(30_000);
+        Page.SetDefaultNavigationTimeout(60_000);
+
         // Initialize test data manager
         DataManager = new TestDataManager(Context!, Environment);
 
@@ -67,6 +96,63 @@ public class BaseTest : IAsyncLifetime
         var testResultsDir = Path.Combine(workingDirectory, "src", "TaskManager.UiTests", "TestResults");
         var screenshotsDir = Path.Combine(testResultsDir, "Screenshots");
         Directory.CreateDirectory(screenshotsDir);
+    }
+
+    /// <summary>
+    /// Attempts to establish a REAL ASP.NET Identity session by posting the Google id_token to the
+    /// deployed app's gated test-auth endpoint (<c>POST /test-auth/signin</c>; see the
+    /// ui-test-authenticated-session change). The endpoint validates the id_token and issues a
+    /// genuine <c>.AspNetCore.Identity.Application</c> cookie; because the request goes through the
+    /// browser context's request API, that cookie is stored on the context and used by subsequent
+    /// navigations.
+    /// <para>
+    /// Returns <c>false</c> (so the caller should skip) when there is no id_token configured, or when
+    /// the endpoint returns 404 — which is the EXPECTED state on the production-shaped environments
+    /// (`app`) where the <c>TestAuth</c> gate is off. Throws only on a genuine failure
+    /// (gate on but the sign-in did not succeed).
+    /// </para>
+    /// </summary>
+    protected async Task<bool> TrySignInViaTestAuthAsync()
+    {
+        var idToken = Auth.IdToken;
+        if (string.IsNullOrEmpty(idToken))
+        {
+            Console.WriteLine("No Google id_token available from OAuthTokenFixture; skipping authenticated-UI test.");
+            return false;
+        }
+
+        var response = await Context!.APIRequest.PostAsync($"{Config.BaseUrl.TrimEnd('/')}/test-auth/signin",
+            new APIRequestContextOptions
+            {
+                Headers = new Dictionary<string, string> { ["Authorization"] = $"Bearer {idToken}" }
+            });
+
+        if (response.Status == 404)
+        {
+            // Clean 404 (endpoint intentionally absent). Skip.
+            Console.WriteLine("test-auth endpoint returned 404 — TestAuth gate is off on this env; skipping authenticated-UI test.");
+            return false;
+        }
+
+        if (!response.Ok)
+        {
+            var body = await response.TextAsync();
+            throw new InvalidOperationException(
+                $"test-auth sign-in failed: {response.Status} {response.StatusText}. Body: {body}");
+        }
+
+        // The endpoint is only mapped where the gate is on. Where it's off, the unmapped POST does NOT
+        // return 404 — in a Blazor app it falls through to MapFallbackToPage and returns the host page
+        // (HTTP 200, text/html). So a real sign-in is identified by the endpoint's JSON response, not the
+        // status code; a 200 text/html means the gate is off and we should skip.
+        var contentType = response.Headers.TryGetValue("content-type", out var ct) ? ct : string.Empty;
+        if (!contentType.Contains("application/json", StringComparison.OrdinalIgnoreCase))
+        {
+            Console.WriteLine("test-auth endpoint not active on this env (response was not JSON — gate off / fell through to the app fallback); skipping authenticated-UI test.");
+            return false;
+        }
+
+        return true;
     }
 
     public async Task DisposeAsync()

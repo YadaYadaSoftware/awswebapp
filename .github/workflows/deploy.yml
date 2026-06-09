@@ -47,12 +47,12 @@ on:
         description: "Space-separated branch leaves that deploy to both regions."
         required: false
         type: string
-        default: "app beta alpha"
+        default: "app test"
       shared-infra-branches:
         description: "Space-separated branch leaves that deploy the full backend (master template)."
         required: false
         type: string
-        default: "app beta alpha dev"
+        default: "app test dev"
       prod-branch:
         description: "Branch leaf that receives prod credentials + prod KMS key."
         required: false
@@ -113,6 +113,11 @@ on:
       GOOGLE_TEST_REFRESH_TOKEN:
         required: false
       DEPLOYMENT_STACK_FEED_TOKEN:
+        required: false
+      framework-feed-token:
+        # GitHub Packages token for restoring the web app's framework packages in the Docker
+        # build. Optional: a cross-org consumer passes a read:packages PAT here; when unset the
+        # build falls back to the workflow GITHUB_TOKEN (sufficient for same-org callers).
         required: false
 
 jobs:
@@ -307,6 +312,10 @@ jobs:
 
     - name: Build and Push Web Container Image
       if: matrix.deploy && steps.check-image.outputs.image-exists == 'false'
+      env:
+        # framework-feed-token (a cross-org read:packages PAT) when provided, else GITHUB_TOKEN.
+        FRAMEWORK_FEED_TOKEN: ${{ secrets.framework-feed-token }}
+        DEFAULT_GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         SRC_CHECKSUM=${{ steps.checksum.outputs.src-checksum }}
         BRANCH_NAME=${{ inputs.branch-name }}
@@ -323,10 +332,12 @@ jobs:
         echo "🏷️ SemVer tag: $SEMVER_TAG"
         echo "🌿 Branch tag: $BRANCH_TAG"
 
-        # Build container image from root context
+        # Build container image from root context.
         # GH_PACKAGES_TOKEN lets the Dockerfile restore framework packages (and satisfy the
-        # NuGet.config GitHub Packages source credential) — the consumer's GITHUB_TOKEN.
-        docker build -t $IMAGE_NAME:$SRC_CHECKSUM -f ${{ inputs.web-dockerfile-path }} . --build-arg VERSION=${{ inputs.custom-version }} --build-arg ASSEMBLY_VERSION=${{ inputs.assembly-sem-ver }} --build-arg GH_PACKAGES_TOKEN=${{ secrets.GITHUB_TOKEN }}
+        # NuGet.config GitHub Packages source credential): the cross-org framework-feed-token if
+        # the caller supplied it, otherwise the same-org GITHUB_TOKEN.
+        GH_PACKAGES_TOKEN="${FRAMEWORK_FEED_TOKEN:-$DEFAULT_GH_TOKEN}"
+        docker build -t $IMAGE_NAME:$SRC_CHECKSUM -f ${{ inputs.web-dockerfile-path }} . --build-arg VERSION=${{ inputs.custom-version }} --build-arg ASSEMBLY_VERSION=${{ inputs.assembly-sem-ver }} --build-arg GH_PACKAGES_TOKEN="$GH_PACKAGES_TOKEN"
 
         # Login to ECR
         aws ecr get-login-password --region ${{ matrix.region }} | docker login --username AWS --password-stdin $ECR_REPO

@@ -67,7 +67,7 @@ Parameters:
   IsMultiRegion:
     Type: String
     AllowedValues: ["true", "false"]
-    Description: Whether this is a multi-region deployment (app, beta, alpha branches)
+    Description: Whether this is a multi-region deployment (app, test branches)
 
   Environment:
     Type: String

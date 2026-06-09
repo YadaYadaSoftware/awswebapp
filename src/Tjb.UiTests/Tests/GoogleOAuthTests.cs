@@ -1,16 +1,22 @@
 using FluentAssertions;
+using Tjb.UiTests.Fixtures;
 using Tjb.UiTests.Pages;
 using Xunit;
 using Xunit.Sdk;
 using System.Threading.Tasks;
 using System;
+using System.Collections.Generic;
 using System.Net.Http;
 using Microsoft.Extensions.Configuration;
 
 namespace Tjb.UiTests.Tests;
 
-public class GoogleOAuthTests : BaseTest
+[Collection("UiTests")]
+public class GoogleOAuthTests : BaseUiTest
 {
+    public GoogleOAuthTests(OAuthTokenFixture auth, AppReadinessFixture appReady)
+        : base(auth, appReady) { }
+
     [Fact]
     public async Task GoogleLogin_ShouldRedirectToGoogle()
     {
@@ -31,8 +37,7 @@ public class GoogleOAuthTests : BaseTest
             });
 
             // Assert - Verify we're on the login page
-            var isOnLoginPage = await loginPage.IsOnLoginPageAsync();
-            isOnLoginPage.Should().BeTrue();
+            await loginPage.ExpectOnLoginPageAsync();
 
             // Act - Click Google login
             await RetryAsync(async () =>
@@ -40,12 +45,8 @@ public class GoogleOAuthTests : BaseTest
                 await loginPage.ClickGoogleLoginAsync();
             });
 
-            // Assert - Verify we're redirected to Google
-            await RetryAsync(async () =>
-            {
-                var isGoogleRedirect = await loginPage.IsGoogleOauthRedirectAsync();
-                isGoogleRedirect.Should().BeTrue("Should be redirected to Google OAuth");
-            });
+            // Assert - Verify we're redirected to Google (Expect has built-in waiting)
+            await loginPage.ExpectGoogleOauthRedirectAsync();
 
             // Record test success
             RecordTestSuccess();
@@ -78,52 +79,25 @@ public async Task TokenBasedGoogleLogin_ShouldAuthenticateWithValidToken()
     {
         // Arrange
         var mainPage = new MainPage(Page!, Config.BaseUrl);
-        var loginPage = new LoginPage(Page!);
 
-        // Get Google access token
-        using var httpClient = new HttpClient();
-        var tokenService = new GoogleTokenService(httpClient, new ConfigurationBuilder().Build());
-        var accessToken = await tokenService.GetAccessTokenAsync();
-
-        // Skip test if no token is available
-        if (string.IsNullOrEmpty(accessToken))
+        // Establish a real Identity session via the gated test-auth endpoint (validates the
+        // id_token server-side and issues a genuine Identity cookie). Skips when no token is
+        // configured or the gate is off (404, as on app).
+        if (!await TrySignInViaTestAuthAsync())
         {
-            Console.WriteLine("Skipping token-based test - no access token available");
             return;
         }
 
-        // Validate token before using it
-        var isValidToken = await tokenService.ValidateTokenAsync(accessToken);
-        isValidToken.Should().BeTrue("Access token should be valid");
+        // Act - Navigate to the app carrying the session cookie
+        await RetryAsync(async () => await mainPage.NavigateAsync());
 
-        // Act - Navigate to main page and click login
-        await RetryAsync(async () =>
-        {
-            await mainPage.NavigateAsync();
-            await mainPage.ClickLoginLinkAsync();
-        });
-
-        // Assert - Verify we're on the login page
-        var isOnLoginPage = await loginPage.IsOnLoginPageAsync();
-        isOnLoginPage.Should().BeTrue();
-
-        // Act - Use token to authenticate directly (bypass Google OAuth flow)
-        await RetryAsync(async () =>
-        {
-            await loginPage.AuthenticateWithTokenAsync(accessToken);
-        });
-
-        // Assert - Verify user is logged in
-        await RetryAsync(async () =>
-        {
-            var isUserLoggedIn = await mainPage.IsUserLoggedInAsync();
-            isUserLoggedIn.Should().BeTrue("User should be logged in after token authentication");
-        });
+        // Assert - Verify the authenticated nav renders (Expect has built-in waiting)
+        await mainPage.ExpectUserLoggedInAsync();
 
         // Record test success
         RecordTestSuccess();
     }
-    catch (Exception ex)
+    catch (Exception)
     {
         // Capture screenshot on failure
         await CaptureScreenshotAsync("failure");
@@ -139,4 +113,51 @@ public async Task TokenBasedGoogleLogin_ShouldAuthenticateWithValidToken()
         await CleanupTestSessionAsync();
     }
 }
+
+    // Security/gate probe (runs on every env, including production-shaped app/test):
+    // the test-auth endpoint must NEVER establish a session for a bogus id_token. When the gate is
+    // ON it validates and rejects (401/400); when OFF the endpoint is absent (404). Either way it
+    // must not return 200, and the app must remain anonymous.
+    [Fact]
+    public async Task TestAuthEndpoint_NeverEstablishesSessionForInvalidToken()
+    {
+        SetCurrentTestName(nameof(TestAuthEndpoint_NeverEstablishesSessionForInvalidToken));
+
+        try
+        {
+            var response = await Context!.APIRequest.PostAsync($"{Config.BaseUrl.TrimEnd('/')}/test-auth/signin",
+                new Microsoft.Playwright.APIRequestContextOptions
+                {
+                    Headers = new Dictionary<string, string> { ["Authorization"] = "Bearer not-a-real-id-token" }
+                });
+
+            // A bogus id_token must NEVER establish a session. With the gate ON the endpoint validates
+            // and rejects (401); with it OFF the unmapped POST falls through to the Blazor fallback page
+            // (HTTP 200 text/html) and signs no one in. The failure mode to catch is a *successful JSON
+            // sign-in* (200 + application/json) for an invalid token — a real auth bypass.
+            var contentType = response.Headers.TryGetValue("content-type", out var ct) ? ct : string.Empty;
+            var isJsonSignIn = response.Status == 200
+                && contentType.Contains("application/json", StringComparison.OrdinalIgnoreCase);
+            isJsonSignIn.Should().BeFalse(
+                "the test-auth endpoint must never issue a session for an invalid id_token");
+
+            // And the app must still be anonymous (no session was established), on either gate state.
+            var mainPage = new MainPage(Page!, Config.BaseUrl);
+            await RetryAsync(async () => await mainPage.NavigateAsync());
+            await mainPage.ExpectLoginLinkVisibleAsync();
+
+            RecordTestSuccess();
+        }
+        catch (Exception)
+        {
+            await CaptureScreenshotAsync("failure");
+            await CaptureFinalScreenshotAsync("failed");
+            throw;
+        }
+        finally
+        {
+            await CaptureFinalScreenshotAsync("completed");
+            await CleanupTestSessionAsync();
+        }
+    }
 }

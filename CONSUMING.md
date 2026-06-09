@@ -81,7 +81,7 @@ jobs:
           LEAF=${GITHUB_REF#refs/heads/}; LEAF=${LEAF##*/}
           case "$LEAF" in
             app) ENV=Production ;;
-            beta|alpha) ENV=Staging ;;
+            test) ENV=Staging ;;
             *) ENV=Development ;;
           esac
           echo "branch-name=$LEAF" >> $GITHUB_OUTPUT
@@ -133,8 +133,8 @@ jobs:
 | `hosted-zone-id` | yes | – | Route 53 hosted zone ID for the domain. |
 | `region-primary` | yes | – | Primary AWS region. |
 | `region-secondary` | yes | – | Secondary AWS region (used by multi-region branches). |
-| `multi-region-branches` | no | `app beta alpha` | Space-separated leaves that deploy to both regions. |
-| `shared-infra-branches` | no | `app beta alpha dev` | Space-separated leaves that deploy the full backend (master template). |
+| `multi-region-branches` | no | `app test` | Space-separated leaves that deploy to both regions. |
+| `shared-infra-branches` | no | `app test dev` | Space-separated leaves that deploy the full backend (master template). |
 | `prod-branch` | no | `app` | Leaf that receives prod credentials + the prod KMS key. |
 | `engine-version` | no | `8.0.mysql_aurora.3.10.0` | Aurora MySQL engine version. |
 | `dotnet-version` | no | `10.0.x` | .NET SDK version for the UI-test job (and template extraction). |
@@ -161,9 +161,9 @@ Baked in (not yet configurable beyond the branch-list inputs):
 
 - **`prod-branch`** (default `app`) → Production, prod credentials, prod KMS key, larger Aurora
   capacity, multi-region.
-- **`shared-infra-branches`** (default `app beta alpha dev`) → deploy the full backend via
+- **`shared-infra-branches`** (default `app test dev`) → deploy the full backend via
   `master.template` (Aurora cluster, networking, security).
-- **`multi-region-branches`** (default `app beta alpha`) → deploy to both regions with an Aurora
+- **`multi-region-branches`** (default `app test`) → deploy to both regions with an Aurora
   Global Cluster.
 - **Every other branch** → a feature stack via `application.template`, single region, nonprod
   credentials, importing the backend exports from `dev`. Deployed at
