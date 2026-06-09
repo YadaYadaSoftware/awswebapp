@@ -48,7 +48,7 @@ SharedLambdaExecutionRole:
   Type: AWS::IAM::Role
   Condition: IsPrimary           # IAM is global; only the primary-region bootstrap creates it
   Properties:
-    RoleName: taskmanager-shared-lambda-execution-role
+    RoleName: ${AWS::StackName}-shared-lambda-execution-role
     AssumeRolePolicyDocument:    # identical to security.template's
       ...
     Policies:                    # identical inline policies, lifted verbatim
@@ -66,11 +66,11 @@ The explicit `RoleName` matters for two reasons:
 Same pattern as the KMS keys and the Aurora-cluster-delete handler:
 
 ```
-/taskmanager/iam/shared-lambda-role-arn   (in each region)
+/${AWS::StackName}/iam/shared-lambda-role-arn   (in each region)
 ```
 
 - Primary region: `Value: !GetAtt SharedLambdaExecutionRole.Arn`.
-- Replica region: `Value: !Sub "arn:aws:iam::${AWS::AccountId}:role/taskmanager-shared-lambda-execution-role"`. The role doesn't exist in this stack's `Resources` block (`IsPrimary` excludes it), but its predictable ARN is known by construction.
+- Replica region: `Value: !Sub "arn:aws:iam::${AWS::AccountId}:role/${AWS::StackName}-shared-lambda-execution-role"`. The role doesn't exist in this stack's `Resources` block (`IsPrimary` excludes it), but its predictable ARN is known by construction.
 
 Both region's SSM parameter resolves to the same global IAM role ARN. The point of having a per-region SSM parameter is regional locality for the workflow's `aws ssm get-parameter` call — env stacks deploying to us-west-2 read from `--region us-west-2`.
 
@@ -115,10 +115,10 @@ The danger ordering: if api.template stops importing the legacy export but the r
 
 ## Risks / Trade-offs
 
-- **[Risk] Concurrent env-stack deletes during the migration could race on `taskmanager-shared-lambda-execution-role` — but it's owned by bootstrap, not env stacks, so this shouldn't happen.** → Mitigate: the migration touches env-stack `Update`s only, not `Delete`s. If someone deletes an env stack mid-migration, the legacy per-env `SharedLambdaExecutionRole-XXXX` gets cleaned up with the env stack and the new bootstrap-owned role is untouched.
-- **[Risk] The role name `taskmanager-shared-lambda-execution-role` collides with a pre-existing IAM role.** → Verify before deploy: `aws iam get-role --role-name taskmanager-shared-lambda-execution-role`. Pre-flight task in tasks.md.
+- **[Risk] Concurrent env-stack deletes during the migration could race on `${AWS::StackName}-shared-lambda-execution-role` — but it's owned by bootstrap, not env stacks, so this shouldn't happen.** → Mitigate: the migration touches env-stack `Update`s only, not `Delete`s. If someone deletes an env stack mid-migration, the legacy per-env `SharedLambdaExecutionRole-XXXX` gets cleaned up with the env stack and the new bootstrap-owned role is untouched.
+- **[Risk] The role name `${AWS::StackName}-shared-lambda-execution-role` collides with a pre-existing IAM role.** → Verify before deploy: `aws iam get-role --role-name ${AWS::StackName}-shared-lambda-execution-role`. Pre-flight task in tasks.md.
 - **[Risk] ECS task replacement during the migration.** When `web.template`'s `TaskDefinition.TaskRoleArn` reference changes, CFN replaces the task definition, which forces an ECS service deployment, which rolls Fargate tasks. → Mitigate: this is the standard ECS rolling deployment story. Brief, not zero-downtime — but `dev`/`alpha`/`beta` don't have SLO, and `app` has the existing rolling-deploy story. Acceptable.
-- **[Risk] One inline policy in the moved role references `taskmanager/database/regional/*` Secrets Manager paths — verify the existing prod secrets still match after the role moves.** → No actual path change; same role ARN concept but the role ARN itself changes (was `arn:aws:iam::ACCT:role/<env>-...-SharedLambdaExecutionRole-XXXX`, now `arn:aws:iam::ACCT:role/taskmanager-shared-lambda-execution-role`). Secrets-Manager resource policies (if any) referencing the old role ARN need to be checked. → Mitigate: tasks.md has an explicit check for any AWS resource (Secrets Manager, S3 buckets, KMS keys outside our control, etc.) whose own policies reference the *old* role ARN. We expect zero hits because we don't currently attach principal-specific policies to those resources, but verifying is cheap.
+- **[Risk] One inline policy in the moved role references `taskmanager/database/regional/*` Secrets Manager paths — verify the existing prod secrets still match after the role moves.** → No actual path change; same role ARN concept but the role ARN itself changes (was `arn:aws:iam::ACCT:role/<env>-...-SharedLambdaExecutionRole-XXXX`, now `arn:aws:iam::ACCT:role/${AWS::StackName}-shared-lambda-execution-role`). Secrets-Manager resource policies (if any) referencing the old role ARN need to be checked. → Mitigate: tasks.md has an explicit check for any AWS resource (Secrets Manager, S3 buckets, KMS keys outside our control, etc.) whose own policies reference the *old* role ARN. We expect zero hits because we don't currently attach principal-specific policies to those resources, but verifying is cheap.
 - **[Risk] CloudFormation may not delete `security.template` cleanly if any env stack's resources still reference the SecurityStack's outputs.** → Mitigate: backend.template no longer references `!GetAtt SecurityStack.Outputs.SharedLambdaRoleArn`; verify with a pre-merge `grep`. The `SecurityStack` resource itself is removed; on env-stack update, CFN deletes the nested SecurityStack, which deletes the role inside it. (For env stacks whose role was already exported and consumed by api.template/web.template, both consumers are also updated in the same merge to stop importing it before CFN tries to delete the export. Order: api/web nested-stack updates → SecurityStack delete. CFN should sequence this correctly.)
 - **[Trade-off] We're betting that no consumer of `SharedLambdaRoleArn-${BranchName}` exists outside this repo's templates.** → Verified by `grep`. Tasks.md includes the grep step.
 - **[Trade-off] One extra SSM lookup per CI deploy (~ms latency, negligible).** → Acceptable.
@@ -127,13 +127,13 @@ The danger ordering: if api.template stops importing the legacy export but the r
 
 **Phase 0 — Prereqs**
 1. Confirm `centralize-aurora-kms-keys` is fully archived (or at minimum all four env stacks are running the new templates).
-2. Confirm no pre-existing IAM role named `taskmanager-shared-lambda-execution-role`: `aws iam get-role --role-name taskmanager-shared-lambda-execution-role` should return `NoSuchEntity`.
+2. Confirm no pre-existing IAM role named `${AWS::StackName}-shared-lambda-execution-role`: `aws iam get-role --role-name ${AWS::StackName}-shared-lambda-execution-role` should return `NoSuchEntity`.
 3. Confirm no outside-this-repo consumer of `SharedLambdaRoleArn-${BranchName}` export: `aws cloudformation list-exports --query "Exports[?starts_with(Name, 'SharedLambdaRoleArn-')]"` shows only this-repo exports.
 
 **Phase 1 — Bootstrap update**
 4. Edit `bootstrap.template` to add `SharedLambdaExecutionRole` (Condition: IsPrimary, explicit RoleName, identical inline policies to security.template's) + `SharedLambdaRoleArnParameter` SSM resource + `SharedLambdaRoleArn` stack output.
 5. Operator deploys updated bootstrap to us-east-1: `aws cloudformation deploy --stack-name bootstrap-appcloud-systems --template-file infrastructure/bootstrap.template --parameter-overrides TemplatesBucketName=... --capabilities CAPABILITY_NAMED_IAM --region us-east-1`.
-6. Verify SSM parameter resolves: `aws ssm get-parameter --name /taskmanager/iam/shared-lambda-role-arn --region us-east-1`.
+6. Verify SSM parameter resolves: `aws ssm get-parameter --name /${AWS::StackName}/iam/shared-lambda-role-arn --region us-east-1`.
 7. Same for us-west-2 with the replica region's `PrimaryNonprodKeyArn`/`PrimaryProdKeyArn`/`TemplatesBucketName` overrides.
 
 **Phase 2 — Template + workflow merge**

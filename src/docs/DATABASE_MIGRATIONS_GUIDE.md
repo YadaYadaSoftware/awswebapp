@@ -2,31 +2,29 @@
 # Database Migrations Guide
 
 ## Overview
-The TaskManager application now includes automatic database migrations that run on API startup, ensuring the database schema is always up-to-date.
+The application includes automatic database migrations that run on application startup, ensuring the database schema is always up-to-date.
 
 ## Migration Architecture
 
-### **TaskManager.Migrations Project**
-**Purpose**: Dedicated assembly for database migration operations
-**Location**: [`src/TaskManager.Migrations`](src/TaskManager.Migrations)
+### **Tjb.Migrations Project**
+**Purpose**: Dedicated assembly for database migration operations. EF Core's `MigrationsAssembly` is set to this project, so all migration files live here (not in `Tjb.Data`).
+**Location**: [`src/Tjb.Migrations`](src/Tjb.Migrations)
 
 **Components**:
-- ✅ **DbContext Factory**: [`TaskManagerDbContextFactory.cs`](src/TaskManager.Migrations/TaskManagerDbContextFactory.cs) - Design-time context creation
-- ✅ **Migration Program**: [`Program.cs`](src/TaskManager.Migrations/Program.cs) - Standalone migration runner
-- ✅ **Configuration**: [`appsettings.json`](src/TaskManager.Migrations/appsettings.json) - Connection strings
+- ✅ **DbContext Factory**: `IDesignTimeDbContextFactory` in [`src/Tjb.Migrations`](src/Tjb.Migrations) - Design-time context creation (resolves a connection string from this project's `appsettings.json`)
+- ✅ **Migration Program**: [`Program.cs`](src/Tjb.Migrations/Program.cs) - Standalone migration runner + seed
+- ✅ **Configuration**: [`appsettings.json`](src/Tjb.Migrations/appsettings.json) - Connection strings
 
-### **API Integration**
-**Location**: [`src/TaskManager.Api/Services`](src/TaskManager.Api/Services)
+### **App Integration**
+Both `Tjb.Web` (the deployed app) and `Tjb.Api` reference `Tjb.Migrations` and apply migrations on startup (`EnsureCreatedAsync()` then `MigrateAsync()`). Startup migration exceptions are intentionally swallowed so the app still boots if a migration fails.
 
 **Components**:
-- ✅ **Interface**: [`IDatabaseMigrationService.cs`](src/TaskManager.Api/Services/IDatabaseMigrationService.cs)
-- ✅ **Implementation**: [`DatabaseMigrationService.cs`](src/TaskManager.Api/Services/DatabaseMigrationService.cs)
-- ✅ **Startup Integration**: [`Program.cs`](src/TaskManager.Api/Program.cs) - Automatic migration on startup
+- ✅ **Startup Integration**: [`src/Tjb.Web/Program.cs`](src/Tjb.Web/Program.cs) - Automatic migration on startup (the live application)
 
 ## How Automatic Migrations Work
 
-### **API Startup Process**
-1. **Application Starts**: Lambda function or local development server starts
+### **Startup Process**
+1. **Application Starts**: The containerized app (or local development server) starts
 2. **Migration Check**: `DatabaseMigrationService.MigrateAsync()` checks for pending migrations
 3. **Apply Migrations**: Any pending migrations are applied automatically
 4. **Seed Data**: Initial data is seeded if database is empty
@@ -53,7 +51,7 @@ public async Task MigrateAsync()
 ## Generated Migration
 
 ### **Initial Migration Created**
-**File**: `src/TaskManager.Data/Migrations/20250903095337_InitialCreate.cs`
+**File**: `src/Tjb.Migrations/20251007185200_InitialCreate.cs`
 
 **Creates Tables**:
 - ✅ **Users**: Email, names, Google OAuth integration
@@ -88,28 +86,28 @@ public async Task MigrateAsync()
 
 ### **Development**
 ```bash
-# Run migrations locally
-dotnet run --project src/TaskManager.Migrations
+# Run migrations locally (standalone runner + seed)
+dotnet run --project src/Tjb.Migrations
 
-# Or let API handle it automatically
-dotnet run --project src/TaskManager.Api
+# Or let the Web app handle it automatically on startup
+dotnet run --project src/Tjb.Web
 ```
 
 ### **Production (AWS)**
-- ✅ **Automatic**: Migrations run on Lambda cold start
+- ✅ **Automatic**: Migrations run on container/application startup
 - ✅ **Safe**: Error handling prevents application failure
 - ✅ **Logged**: All migration activity logged to CloudWatch
 
 ### **Manual Migration Management**
 ```bash
-# Add new migration
-dotnet ef migrations add NewFeature --project src/TaskManager.Data --startup-project src/TaskManager.Migrations
+# Add new migration (migrations live in Tjb.Migrations)
+dotnet ef migrations add NewFeature --project src/Tjb.Migrations --startup-project src/Tjb.Migrations
 
 # Remove last migration
-dotnet ef migrations remove --project src/TaskManager.Data --startup-project src/TaskManager.Migrations
+dotnet ef migrations remove --project src/Tjb.Migrations --startup-project src/Tjb.Migrations
 
 # Generate SQL script
-dotnet ef migrations script --project src/TaskManager.Data --startup-project src/TaskManager.Migrations
+dotnet ef migrations script --project src/Tjb.Migrations --startup-project src/Tjb.Migrations
 ```
 
 ## Benefits
@@ -137,7 +135,7 @@ dotnet ef migrations script --project src/TaskManager.Data --startup-project src
 ### **Connection Security**
 - ✅ **Secrets Manager**: Database credentials stored securely
 - ✅ **VPC Isolation**: Database in private subnets
-- ✅ **Security Groups**: Network access restricted to Lambda
+- ✅ **Security Groups**: Network access restricted to the ECS Fargate tasks
 
 ## Monitoring
 
@@ -153,10 +151,10 @@ dotnet ef migrations script --project src/TaskManager.Data --startup-project src
 
 **1. Migration Timeout**
 - **Cause**: Large migrations taking too long
-- **Solution**: Increase Lambda timeout or run migrations separately
+- **Solution**: Run migrations separately via `dotnet run --project src/Tjb.Migrations`
 
 **2. Connection Issues**
-- **Cause**: Database not accessible from Lambda
+- **Cause**: Database not accessible from the container/task
 - **Solution**: Check VPC configuration and security groups
 
 **3. Permission Issues**
@@ -166,9 +164,9 @@ dotnet ef migrations script --project src/TaskManager.Data --startup-project src
 ### **Debug Commands**
 ```bash
 # Check migration status
-dotnet ef migrations list --project src/TaskManager.Data --startup-project src/TaskManager.Migrations
+dotnet ef migrations list --project src/Tjb.Migrations --startup-project src/Tjb.Migrations
 
 # Validate migrations
-dotnet ef database update --dry-run --project src/TaskManager.Data --startup-project src/TaskManager.Migrations
+dotnet ef database update --dry-run --project src/Tjb.Migrations --startup-project src/Tjb.Migrations
 
 # Generate SQL script for review

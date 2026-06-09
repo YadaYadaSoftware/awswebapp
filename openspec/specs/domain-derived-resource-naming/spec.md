@@ -69,15 +69,17 @@ The bootstrap template SHALL contain zero case-sensitive matches for the literal
 
 ### Requirement: Env-stack templates take a `DomainName` parameter
 
-Every env-stack template that previously embedded `taskmanager` or referenced bootstrap-owned resources by hardcoded path SHALL declare a top-level `DomainName` parameter:
+Every env-stack template that previously embedded `taskmanager` or referenced bootstrap-owned resources by hardcoded path SHALL declare a top-level `DomainName` parameter in **dot form** (the deployment domain verbatim, e.g. `appcloud.systems`):
 
 ```yaml
 Parameters:
   DomainName:
     Type: String
-    Description: Domain name with dots replaced by dashes (matches the bootstrap stack name)
-    AllowedPattern: "^[a-z0-9]+(-[a-z0-9]+)*$"
+    Default: "appcloud.systems"
+    Description: "Deployment domain in dot form (e.g. appcloud.systems)"
 ```
+
+Each template that needs the dashed form (`appcloud-systems`) for resource names / SSM paths, or the underscored form (`appcloud_systems`) for the MySQL master username, derives it **locally** from `DomainName` via CFN intrinsics — there is no separate dashed/underscored parameter.
 
 Affected templates SHALL include at minimum:
 - [infrastructure/master.template](../../../../infrastructure/master.template)
@@ -87,31 +89,29 @@ Affected templates SHALL include at minimum:
 - [infrastructure/security.template](../../../../infrastructure/security.template) (for any inline policy `Resource:` scopes that previously matched `arn:aws:rds:*:*:cluster:taskmanager-*`)
 - Any other `infrastructure/*.template` that hardcodes `taskmanager` (audited during Phase 1)
 
-Wherever a template previously used a hardcoded `taskmanager` literal in a resource name, identifier, secret path, or IAM policy `Resource:` scope, it SHALL instead use `!Sub` with `${DomainName}`. For example:
+Wherever a template previously used a hardcoded `taskmanager` literal in a resource name, identifier, secret path, or IAM policy `Resource:` scope, it SHALL instead derive the value from `DomainName` via `!Sub` plus a locally-computed `DomainDashed` (`!Join ["-", !Split [".", !Ref DomainName]]`). For example (dashed form, `BranchName` is the branch leaf):
 
-- Aurora Global Cluster identifier: `!Sub "${DomainName}-${BranchLeaf}-global-cluster"`
-- Aurora regional cluster identifier: `!Sub "${DomainName}-${BranchLeaf}-${AWS::Region}"`
-- Secrets Manager path: `!Sub "${DomainName}/database/regional/${BranchLeaf}"`
-- IAM policy `Resource:`: `!Sub "arn:aws:rds:*:*:cluster:${DomainName}-*"`
-- Google OAuth Secrets Manager paths: `!Sub "${DomainName}/google-oauth/${BranchLeaf}"`
+- Aurora Global Cluster identifier: `!Sub ["${DomainDashed}-${BranchName}-global-cluster", { DomainDashed: !Join ["-", !Split [".", !Ref DomainName]] }]`
+- Secrets Manager path: `!Sub ["${DomainDashed}/database/${BranchName}/regional/${AWS::Region}/password", { DomainDashed: !Join ["-", !Split [".", !Ref DomainName]] }]`
+- IAM policy `Resource:`: `!Sub ["arn:aws:rds:*:*:cluster:${DomainDashed}-*", { DomainDashed: !Join ["-", !Split [".", !Ref DomainName]] }]`
 
-The Aurora MySQL master username — previously the literal `taskmanager_admin` — SHALL also derive from `DomainName`. Because MySQL usernames disallow hyphens, the dashes in `DomainName` SHALL be replaced with underscores via CFN intrinsics:
+The Aurora MySQL master username — previously the literal `taskmanager_admin` — SHALL also derive from `DomainName`. Because MySQL usernames disallow hyphens, the dots in `DomainName` SHALL be replaced with underscores via CFN intrinsics (splitting on `.`, since `DomainName` is in dot form):
 
 ```yaml
 MasterUsername: !Sub
   - "${DomainUnderscored}_admin"
-  - DomainUnderscored: !Join ["_", !Split ["-", !Ref DomainName]]
+  - DomainUnderscored: !Join ["_", !Split [".", !Ref DomainName]]
 ```
 
-For `DomainName=appcloud-systems` this evaluates to `appcloud_systems_admin`. This is the only place in any template where the underscored form is needed; everywhere else uses the dashed form.
+For `DomainName=appcloud.systems` this evaluates to `appcloud_systems_admin`. This is the only place in any template where the underscored form is needed; everywhere else uses the dashed form (derived via `!Join ["-", !Split [".", !Ref DomainName]]`).
 
 #### Scenario: master.template declares DomainName parameter
 - **WHEN** an operator reads [infrastructure/master.template](../../../../infrastructure/master.template)
 - **THEN** a `DomainName` parameter is defined in the `Parameters:` section with the constraint pattern shown above
 
 #### Scenario: Aurora cluster identifier uses DomainName
-- **WHEN** the workflow deploys the `dev-appcloud-systems` env stack with `--parameter-overrides DomainName=appcloud-systems`
-- **THEN** the resulting Aurora Global Cluster identifier is `appcloud-systems-dev-global-cluster` (no `taskmanager` prefix appears anywhere in the cluster's metadata)
+- **WHEN** the workflow deploys the `dev-appcloud-systems` env stack with `--parameter-overrides DomainName=appcloud.systems`
+- **THEN** the resulting Aurora Global Cluster identifier is `appcloud-systems-dev-global-cluster` (the dashed form derived locally from the dot-form `DomainName`; no `taskmanager` prefix appears anywhere in the cluster's metadata)
 
 #### Scenario: IAM policy Resource scopes use DomainName
 - **WHEN** the workflow deploys any env stack that includes inline IAM policies scoped to Aurora cluster ARNs
@@ -119,11 +119,11 @@ For `DomainName=appcloud-systems` this evaluates to `appcloud_systems_admin`. Th
 
 #### Scenario: MySQL master username uses underscored DomainName
 - **WHEN** a new Aurora cluster is created by an env stack
-- **THEN** its MasterUsername is `appcloud_systems_admin` (dashes in `DomainName` converted to underscores via CFN intrinsics; no `taskmanager_admin` literal remains in `db.template`)
+- **THEN** its MasterUsername is `appcloud_systems_admin` (dots in the dot-form `DomainName` converted to underscores via CFN intrinsics; no `taskmanager_admin` literal remains in `db.template`)
 
-### Requirement: Workflow computes the dashed-domain value once and passes it to every deploy
+### Requirement: Workflow computes the dashed-domain value once and reuses it
 
-The GitHub Actions deploy workflow ([.github/workflows/zbuild.yml](../../../../.github/workflows/zbuild.yml)) SHALL compute the dashed-domain value once per job from `secrets.DOMAIN_NAME` (replace `.` with `-`, lowercase) and expose it as a step output. Every subsequent step that uses this value — bootstrap-deploy `--stack-name`, SSM-lookup parameter path, env-stack `--parameter-overrides DomainName=...` — SHALL reference the same step output.
+The GitHub Actions deploy workflow ([.github/workflows/zbuild.yml](../../../../.github/workflows/zbuild.yml)) SHALL compute the dashed-domain value once per job from `secrets.DOMAIN_NAME` (replace `.` with `-`, lowercase) and expose it as a step output. Every subsequent step that needs the **dashed** form — bootstrap-deploy `--stack-name`, SSM-lookup parameter path, templates-bucket name, ECR image URIs — SHALL reference the same step output. The env-stack `--parameter-overrides DomainName=...` instead passes the **dot-form** domain (`secrets.DOMAIN_NAME` verbatim), because the templates derive the dashed/underscored forms locally.
 
 The workflow SHALL NOT contain any hardcoded reference to `taskmanager` or to any specific dashed-domain value (such as `appcloud-systems` written as a literal).
 
@@ -141,7 +141,7 @@ The workflow SHALL NOT contain any hardcoded reference to `taskmanager` or to an
 
 #### Scenario: Env stack deploy passes DomainName parameter
 - **WHEN** any env stack is deployed by the workflow
-- **THEN** the `aws cloudformation deploy` invocation includes `--parameter-overrides ... DomainName=${dashed} ...` (along with any other parameters)
+- **THEN** the `aws cloudformation deploy` invocation includes `--parameter-overrides ... DomainName=<dot-form domain, e.g. appcloud.systems> ...` (the dot-form `secrets.DOMAIN_NAME`; templates derive the dashed/underscored forms locally)
 
 ### Requirement: No `taskmanager` literals survive in templates or workflow
 

@@ -123,7 +123,9 @@ A workflow input gets passed *into* the workflow, which then forwards it as a te
 
 The original parameter-everywhere plan is retained below for historical context:
 
-Every template gets a new `ProjectName` parameter at the top, and every reference to `taskmanager` in the template body becomes `!Sub "${ProjectName}-..."`. The notable substitution sites (from a grep audit):
+> **Baseline note:** this section predates the archived `domain-named-bootstrap-stack` / `domain-derived-resource-naming` work. The `taskmanager` literals it lists have already been replaced by `DomainName`/`${AWS::StackName}` derivations — e.g. KMS aliases are now `alias/${AWS::StackName}-aurora-{prod,nonprod}`, KMS SSM paths `/${AWS::StackName}/kms/*`, and Aurora cluster IDs / secrets paths derive from a locally-computed `DomainDashed`. So the remaining D4 work is introducing a `ProjectName` parameter where decoupling resource naming from the *domain* is desirable (the names below currently key off `DomainName`, not `taskmanager`), not removing `taskmanager`.
+
+Every template would get a new `ProjectName` parameter at the top. The substitution sites below describe the *original* (pre-domain-derived) hardcoding for historical context — read `taskmanager-*` as "the current `DomainName`/`${AWS::StackName}`-derived name":
 
 - `bootstrap.template` — KMS alias names (`alias/taskmanager-aurora-{prod,nonprod}` → `alias/${ProjectName}-aurora-{prod,nonprod}`), SSM parameter paths (`/taskmanager/kms/*` → `/${ProjectName}/kms/*`), `DeploymentPolicy` IAM policy resource scoping
 - `db.template` — Aurora cluster identifiers, secrets manager paths (`taskmanager/database/regional/*` → `${ProjectName}/database/regional/*`)

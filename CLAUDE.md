@@ -60,22 +60,28 @@ dotnet build                                # also restores Playwright browsers
 dotnet test                                 # runs against BaseUrl in appsettings.json (default: https://dev.appcloud.systems)
 dotnet test --filter "FullyQualifiedName~LoginNavigation"   # single test
 
-# Connect to the deployed Aurora DB through the bastion
-.\Connect-AuroraDB.ps1 -UseSSM
+# Inspect the deployed Aurora MySQL DB: AWS Console -> RDS -> Query Editor
+# (authenticate with the DB credentials secret in Secrets Manager). There is no
+# local tunnel/bastion helper — the prior Connect-AuroraDB.ps1 was removed as dead.
 ```
 
 **Reading test results in CI:** the deploy workflow ([.github/workflows/zbuild.yml](.github/workflows/zbuild.yml)) produces a first-class test summary on the run page via `dorny/test-reporter@v1` (TRX → markdown summary + check-run annotations), plus uploaded artifacts. Start debugging a red run at the **run-page summary** (the `Unit tests` / `UI tests` report and the `ui-test-artifacts-*` artifact containing Playwright `trace.zip`), not by scrolling the raw step logs. TRX filenames are pinned (`unit-tests.trx`, `ui-tests.trx`); artifact retention is 7 days (30 on `app`).
 
 ## Architecture
 
-Six projects in [Tjb.sln](Tjb.sln):
+Nine projects in [Tjb.sln](Tjb.sln) (plus `Tjb.Data.Test`):
 
 - **Tjb.Shared** — DTOs and enums (`TaskStatus`, `TaskPriority`, `ProjectRole`). Packed as a NuGet on every CI build.
-- **Tjb.Data** — EF Core `DbContext`, entity classes, configurations. `TjbDbContext` extends `IdentityDbContext<IdentityUser>`, so Identity tables share the same DB. The DbContext is wired via `mysqlOptions.MigrationsAssembly("Tjb.Migrations")` — migrations are NOT generated into this project.
+- **Tjb.Data** — EF Core `DbContext`, entity classes, configurations. `TjbDbContext` now derives **`AwsWebAppIdentityDbContext`** (from `Tjb.Web.Framework.Data`) rather than `IdentityDbContext<IdentityUser>` directly, so the Identity tables come from the reusable framework base while the task entities stay here. The DbContext is wired via `mysqlOptions.MigrationsAssembly("Tjb.Migrations")` — migrations are NOT generated into this project.
 - **Tjb.Migrations** — Holds EF migration files, an `IDesignTimeDbContextFactory` (so `dotnet ef` can resolve a connection string from its own `appsettings.json`), and a standalone `Program.cs` that applies migrations + seeds initial data. This is also referenced by `Api` and `Web` so they can apply migrations on startup.
+- **Tjb.Web.Framework.Data** — Tiny `Microsoft.NET.Sdk` library holding **`AwsWebAppIdentityDbContext : IdentityDbContext<IdentityUser>`**, the Identity-only base context a consumer derives. References only `Microsoft.AspNetCore.Identity.EntityFrameworkCore` + EF Core (no Pomelo, no task entities). Packed as NuGet `Tjb.Web.Framework.Data`.
+- **Tjb.Web.Framework** — Razor Class Library (`Microsoft.NET.Sdk.Razor`) holding the **reusable web surface**: the `Areas/Identity` pages (incl. the SES-sending `ExternalLogin`), the `Shared/` layout+shell (`MainLayout`/`NavMenu`/`LoginDisplay`/`SurveyPrompt`), `Pages/Error` + `Pages/EmailTemplates`, the `Services/` SES email + view-render, the `RevalidatingIdentityAuthenticationStateProvider`, and `wwwroot` static assets (served from `_content/Tjb.Web.Framework/`). Moved code keeps its `Tjb.Web.*` namespaces (RootNamespace pinned to `Tjb.Web`). Packed as NuGet `Tjb.Web.Framework`.
+- **Tjb.Web.Hosting** — `Microsoft.NET.Sdk` library of `IServiceCollection`/`IApplicationBuilder` extension methods (namespace `Microsoft.Extensions.DependencyInjection`): `AddAwsWebAppIdentity<TContext>`, `AddAwsWebAppGoogleAuth<TContext>`, `AddAwsWebAppEmail`, `UseAwsWebAppForwardedHeaders`, `ApplyDatabaseMigrationsAsync<TContext>`, and `LogAwsWebAppAuthConfig`. A host `Program.cs` shrinks to: register its own `DbContext`, call these, map its own pages. Packed as NuGet `Tjb.Web.Hosting`.
 - **Tjb.Api** — Minimal Web API. Currently exposes only `/health`, Swagger (in dev), and stub `AuthController` endpoints. Still contains Lambda hosting glue (`LambdaEntryPoint`, `Startup`) but is not the deployed front door.
-- **Tjb.Web** — **The deployed application.** Blazor Server + Razor Pages + ASP.NET Identity + Google OAuth. On startup it calls `EnsureCreatedAsync()` then `MigrateAsync()`. Sits behind an ALB so it configures `ForwardedHeaders` (`X-Forwarded-Proto`/`-For`) with `KnownProxies`/`KnownNetworks` cleared — needed for the Google OAuth `/signin-google` callback to see HTTPS.
+- **Tjb.Web** — **The deployed application, and the first consumer of the framework packages.** Blazor Server + Razor Pages + ASP.NET Identity + Google OAuth, now built from `Tjb.Web.Framework` + `Tjb.Web.Hosting` (it keeps only its own pages — `Index`/`Counter`/`FetchData` — `WeatherForecastService`, `App.razor`, and `Pages/_Host.cshtml`). On startup it calls `EnsureCreatedAsync()` then `MigrateAsync()` (via `ApplyDatabaseMigrationsAsync`). Sits behind an ALB so it configures `ForwardedHeaders` (`X-Forwarded-Proto`/`-For`) with `KnownProxies`/`KnownNetworks` cleared (via `UseAwsWebAppForwardedHeaders`) — needed for the Google OAuth `/signin-google` callback to see HTTPS. `App.razor`/`_Host.cshtml` stay in the host because the Blazor `Router` discovers the host's own pages by assembly.
 - **Tjb.UiTests** — Playwright + xUnit. Runs against a *deployed* URL, not a local server. Uses token-based Google auth in CI (`GOOGLE_TEST_ACCESS_TOKEN`/`REFRESH_TOKEN`) rather than scripting the OAuth UI.
+
+The reusable web tier (`Tjb.Web.Framework` + `Tjb.Web.Hosting` + `Tjb.Web.Framework.Data`) is the **`extract-web-framework-package`** OpenSpec change — the first of a roadmap (`extract-web-framework-package` → `sample-solution-local` → `sample-ci-deploy` → `framework-slipstream-upgrade`) toward spinning up multiple multi-regional web apps from one framework. `Tjb.Web` currently references the three via `ProjectReference`; the change's phase 4 swaps to `PackageReference` once CI publishes them.
 
 Both `Web` and `Api` apply migrations on startup but **swallow exceptions** so the app still boots if migrations fail (intentional, to avoid Lambda/cold-start crashes). Don't change this to throw without thinking through the deployment story.
 
@@ -118,6 +124,21 @@ Resource names across CloudFormation templates and the deploy workflow are **der
 - Zero hardcoded references to specific domains (`appcloud-systems`, `taskmanager`) or specific bucket/repo patterns remain in the workflow.
 
 **Why this matters when editing templates or the workflow:** don't reintroduce hardcoded project names or region literals. The whole pipeline is domain-and-region-agnostic; reintroducing a literal anywhere breaks that property silently until someone tries to deploy a second domain or change a region.
+
+## Resource tagging (tag-cloudformation-resources)
+
+Every deploy applies six **stack-level tags** via the `tags:` input on the `Deploy template` step (`aws-actions/aws-cloudformation-github-deploy`), computed in the `Compute resource tags` step. CloudFormation auto-propagates them to every taggable resource, including those in nested stacks (`master`→`backend`/`application`→children); the ECS web service additionally sets `PropagateTags: SERVICE` so running tasks inherit them. No per-resource `Tags:` blocks.
+
+| Tag | Value source |
+| --- | --- |
+| `Stack Name` | `${branch-leaf}-${processed-domain}` |
+| `Create Date` | existing stack's tag if present (preserved across redeploys), else `date -u +%F` on first create |
+| `Branch` | branch leaf |
+| `Specification` | branch leaf (= OpenSpec change name for feature branches); `shared-infrastructure` on `app`/`beta`/`alpha`/`dev` |
+| `Version` | `build.customVersion` (SemVer) |
+| `DeployRunUrl` | the GitHub Actions run URL |
+
+Note the two keys with spaces (`Stack Name`, `Create Date`) — keep them literal. **Cost-allocation activation is separate:** tags existing ≠ cost-allocation tags enabled; that's a manual, account-level step in the Billing console.
 
 ## Branch model & CI/CD ([BRANCH_MANAGEMENT_README.md](BRANCH_MANAGEMENT_README.md), [.github/workflows/zbuild.yml](.github/workflows/zbuild.yml))
 
@@ -203,4 +224,4 @@ All are read-only except `/newbrother` (creates the worktree). Never modify anyt
 - **Connection strings in `appsettings.json` are localhost defaults** (`Server=localhost;...root/password`). Real values come from environment / Secrets Manager in deployed envs and from `dotnet user-secrets` locally.
 - **Forwarded headers config in [src/Tjb.Web/Program.cs](src/Tjb.Web/Program.cs) clears `KnownProxies`/`KnownNetworks` on purpose** — the ALB has dynamic IPs. Don't tighten it without verifying OAuth still works.
 - **NuGet package versions are branch-suffixed** for non-`app` branches (`{version}-{sanitized-branch}`) so consumers can pin to a feature branch's build.
-- **Deleting a remote branch tears down its CloudFormation stack.** [.github/workflows/cleanup-on-branch-delete.yml](.github/workflows/cleanup-on-branch-delete.yml) fires on the GitHub `delete` event, computes the same `{branch-leaf}-{processed-domain}` stack name the deploy job uses, and calls `aws cloudformation delete-stack` in `us-east-1`. `app`, `beta`, `alpha`, and `dev` are hard-coded as protected — the workflow no-ops for any branch whose leaf segment matches one of those (including e.g. `feature/dev`). It also clears `s3://${AccountId}-${DashedDomain}-us-east-1/{branch-leaf}/` (the bootstrap-owned templates bucket — see Infrastructure naming convention above) after `DELETE_COMPLETE`. ECR images are not pruned. **GitHub Actions constraint:** the `delete` event only fires for workflow files that live on the default branch (`app`); a copy of this workflow sitting on a feature branch is inert.
+- **Deleting a remote branch tears down its CloudFormation stack.** [.github/workflows/cleanup-on-branch-delete.yml](.github/workflows/cleanup-on-branch-delete.yml) fires on the GitHub `delete` event, computes the same `{branch-leaf}-{processed-domain}` stack name the deploy job uses, and calls `aws cloudformation delete-stack` in `us-east-1`. `app`, `beta`, `alpha`, and `dev` are hard-coded as protected — the workflow no-ops for any branch whose leaf segment matches one of those (including e.g. `feature/dev`). It also clears `s3://${AccountId}-${DashedDomain}-us-east-1/{branch-leaf}/` (the bootstrap-owned templates bucket — see Infrastructure naming convention above) after `DELETE_COMPLETE`. **Pre-cleanup (robust-branch-stack-cleanup):** before `delete-stack`, the workflow now enumerates the full stack tree (recursing nested stacks via `list-stack-resources`) and preemptively empties every stack-owned S3 bucket, deletes every stack-owned ECR repo's images, and force-tears-down every stack-owned Aurora cluster (delete members → clear deletion-protection → `delete-db-cluster --skip-final-snapshot` → wait). It acts ONLY on CFN-tracked members of the stack being deleted — the bootstrap's `TemplatesBucket`/`WebECRRepository`/KMS keys are never touched — and halts before `delete-stack` if any pre-cleanup step fails, so operators no longer hand-clean these before retrying a stuck delete. **GitHub Actions constraint — default-branch-only workflows (gotcha):** GitHub dispatches repo-level events like `delete` **and `schedule`** using the workflow file *as it exists on the default branch* (`app`) — never the copy on `dev` or a feature branch. So edits to `cleanup-on-branch-delete.yml` (or any `delete`/`schedule`-triggered workflow) are integrated but **dormant** until a deliberate `dev`→`app` promotion; e.g. the `robust-branch-stack-cleanup` pre-cleanup logic above does not actually run until it reaches `app`. The `default-branch-workflow-promotion` change adds a CI drift guard that flags, on each non-`app` run, any such workflow that differs from `app` (a "dormant until promoted" notice on the run summary).

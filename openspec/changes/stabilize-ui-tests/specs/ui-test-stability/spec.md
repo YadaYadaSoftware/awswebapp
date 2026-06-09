@@ -73,7 +73,7 @@ Tests SHALL NOT use:
 
 ### Requirement: Tests marked flaky retry up to 2 times before reporting failure
 
-Tests with observed intermittent failures after the above hardening SHALL be marked with `[RetryFact(MaxRetries = 2)]` (from the `xRetry` package or equivalent). On a first-attempt failure, Playwright captures a trace (per the [`test-summary-reporting`](../../test-summary-reporting/proposal.md) configuration of `trace: 'on-first-retry'`); the retry then runs from a clean context. Tests that pass on retry are still reported as passed (no false-red), but the trace artifact remains so the operator can investigate whether the flake reflects a product or test issue.
+Tests with observed intermittent failures after the above hardening SHALL be marked with `[RetryFact(MaxRetries = 2)]` (from the `xRetry` package or equivalent). A trace is always available because `BaseTest` starts tracing unconditionally for every test (see the `test-result-reporting` capability — `BaseTest.InitializeAsync` calls `Context.Tracing.StartAsync`, equivalent to `trace: 'always'`, not `on-first-retry`); the retry then runs from a clean context. Tests that pass on retry are still reported as passed (no false-red), but the trace artifact remains so the operator can investigate whether the flake reflects a product or test issue.
 
 Blanket retry application to ALL tests is forbidden — that masks genuine regressions. Only tests with demonstrated intermittent failure get the attribute.
 

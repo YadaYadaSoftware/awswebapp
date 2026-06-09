@@ -13,7 +13,7 @@ The bootstrap template ([infrastructure/bootstrap.template](../../../../infrastr
 - Both GitHub Actions IAM users (`${AWS::StackName}-GitHubActionsUser` and `${AWS::StackName}-GitHubActionsUserProd` — for the `appcloud-systems` stack: `appcloud-systems-GitHubActionsUser` and `appcloud-systems-GitHubActionsUserProd`) with their access keys and per-scope deployment policies — primary region only, since IAM is global.
 - The `${AWS::StackName}-prod-kms-admin` IAM role (for the `appcloud-systems` stack: `appcloud-systems-prod-kms-admin`) — primary region only.
 
-The template MUST NOT be deployed as separate `bootstrap-shared` / `bootstrap-prod` / `bootstrap-nonprod` instances. There is no `BootstrapScope` (or equivalent) parameter; both scopes coexist in the same stack and are differentiated by resource name. The only conditions on the template SHALL be `IsPrimary` / `IsReplica` (derived from whether `PrimaryNonprodKeyArn` is empty) and `HasKeyAdmin` (driving the optional `KeyAdminPrincipalArn` exemption on the prod key's NotPrincipal Deny).
+The template MUST NOT be deployed as separate `bootstrap-shared` / `bootstrap-prod` / `bootstrap-nonprod` instances. There is no `BootstrapScope` (or equivalent) parameter; both scopes coexist in the same stack and are differentiated by resource name. The only conditions on the template SHALL be `IsPrimary` / `IsReplica` (derived from whether `PrimaryNonprodKeyArn` is empty). There is no `HasKeyAdmin` condition or `KeyAdminPrincipalArn` parameter — the prod key uses a targeted Deny (not the rejected `NotPrincipal+Deny` pattern), so no key-admin exemption is needed; see "Production key uses restricted access policy" below.
 
 The bootstrap template MUST NOT contain any case-sensitive occurrence of the literal `taskmanager` outside of comment lines. Every resource name that previously embedded `taskmanager` SHALL be expressed via `!Sub` referencing `${AWS::StackName}`.
 
@@ -53,18 +53,18 @@ Per-branch environment stacks (`dev`, `alpha`, `beta`, `app`, and feature branch
 
 The `bootstrap` stack (primary region) SHALL create two IAM users:
 
-- `GitHubActionsUser` (non-prod CI), with an `AWS::IAM::AccessKey` and a `DeploymentPolicy` granting the broad set of AWS permissions needed for env-stack deploys (same shape as the legacy bootstrap stack's policy).
-- `GitHubActionsUserProd` (prod CI), with an `AWS::IAM::AccessKey` and a `DeploymentPolicy-prod` granting the same broad set of permissions but with the KMS statement restricted to the prod key only (`Resource: !GetAtt AuroraKmsKeyProd.Arn`) and excluding destructive KMS actions (`kms:PutKeyPolicy`, `kms:ScheduleKeyDeletion`, `kms:ReplicateKey`, `kms:CreateKey`, `kms:CreateAlias`, `kms:DeleteAlias`, `kms:UpdateAlias`).
+- `GitHubActionsUser` (logical ID; `UserName: !Sub "${AWS::StackName}-GitHubActionsUser"`, e.g. `appcloud-systems-GitHubActionsUser`) for non-prod CI, with an `AWS::IAM::AccessKey` and a `DeploymentPolicy` granting the broad set of AWS permissions needed for env-stack deploys (same shape as the legacy bootstrap stack's policy).
+- `GitHubActionsUserProd` (logical ID; `UserName: !Sub "${AWS::StackName}-GitHubActionsUserProd"`, e.g. `appcloud-systems-GitHubActionsUserProd`) for prod CI, with an `AWS::IAM::AccessKey` and a `DeploymentPolicy-prod` granting the same broad set of permissions but with the KMS statement restricted to the prod key only (`Resource: !GetAtt AuroraKmsKeyProd.Arn`) and excluding destructive KMS actions (`kms:PutKeyPolicy`, `kms:ScheduleKeyDeletion`, `kms:ReplicateKey`, `kms:CreateKey`, `kms:CreateAlias`, `kms:DeleteAlias`, `kms:UpdateAlias`).
 
-Both IAM users have explicit `UserName:` properties so their ARNs are predictable (`arn:aws:iam::{account}:user/GitHubActionsUser` and `.../GitHubActionsUserProd`); the TemplatesBucketPolicy and the secondary-region KMS key policies reference them by hardcoded ARN.
+Both IAM users have explicit `UserName:` properties derived from `${AWS::StackName}`, so their ARNs are predictable (`arn:aws:iam::{account}:user/${AWS::StackName}-GitHubActionsUser` and `.../${AWS::StackName}-GitHubActionsUserProd`, e.g. `.../appcloud-systems-GitHubActionsUserProd`); the TemplatesBucketPolicy and the secondary-region KMS key policies reference them by `${AWS::StackName}`-derived ARN.
 
 #### Scenario: Prod CI user exists
 - **WHEN** the `bootstrap` stack is deployed in the primary region
-- **THEN** an IAM user named `GitHubActionsUserProd` exists with an access key, and the stack outputs `GitHubActionsUserProdAccessKeyId` and `GitHubActionsUserProdSecretAccessKey`
+- **THEN** an IAM user named `${AWS::StackName}-GitHubActionsUserProd` (e.g. `appcloud-systems-GitHubActionsUserProd`) exists with an access key, and the stack outputs `GitHubActionsUserProdAccessKeyId` and `GitHubActionsUserProdSecretAccessKey`
 
 #### Scenario: Non-prod CI user exists in bootstrap
 - **WHEN** the `bootstrap` stack is deployed in the primary region
-- **THEN** an IAM user named `GitHubActionsUser` exists with an access key, and the stack outputs `GitHubActionsUserAccessKeyId` and `GitHubActionsUserSecretAccessKey`
+- **THEN** an IAM user named `${AWS::StackName}-GitHubActionsUser` (e.g. `appcloud-systems-GitHubActionsUser`) exists with an access key, and the stack outputs `GitHubActionsUserAccessKeyId` and `GitHubActionsUserSecretAccessKey`
 
 #### Scenario: Non-prod CI user cannot deploy app stack
 - **WHEN** the `GitHubActionsUser` attempts `cloudformation:UpdateStack` against the `app-appcloud-systems` stack
@@ -80,7 +80,7 @@ An earlier draft used `NotPrincipal+Deny` (deny everyone except an exemption lis
 
 The targeted-Deny shape also removes the need for a `KeyAdminPrincipalArn` parameter that the earlier draft required: KMS's lockout-safety check only fires when the proposed policy would block the calling principal from `kms:PutKeyPolicy`. A Deny on `GitHubActionsUser` doesn't affect the deployer (a different IAM user), so the check passes and no exemption parameter is needed.
 
-Destructive operations on the production key SHALL be granted only to the AWS account root principal and to a dedicated IAM role named `prod-kms-admin` that is also created in the `bootstrap` stack (primary region).
+Destructive operations on the production key SHALL be granted only to the AWS account root principal and to a dedicated IAM role named `${AWS::StackName}-prod-kms-admin` (e.g. `appcloud-systems-prod-kms-admin`) that is also created in the `bootstrap` stack (primary region).
 
 #### Scenario: Prod CI cannot delete the prod key
 - **WHEN** `GitHubActionsUserProd` calls `kms:ScheduleKeyDeletion` against the prod key

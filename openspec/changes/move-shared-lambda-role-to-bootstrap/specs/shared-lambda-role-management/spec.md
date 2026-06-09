@@ -2,13 +2,13 @@
 
 ### Requirement: Single bootstrap-owned `SharedLambdaExecutionRole` per account
 
-The `bootstrap` stack SHALL create exactly one `AWS::IAM::Role` named `taskmanager-shared-lambda-execution-role` per AWS account, gated on the `IsPrimary` condition (the primary-region deploy creates it; IAM is global so the replica region does not). The role's `AssumeRolePolicyDocument` SHALL allow `lambda.amazonaws.com` and `ecs-tasks.amazonaws.com` to assume it (matching the legacy `security.template` policy). The role's inline policies SHALL be byte-identical to those in the legacy `security.template`'s `SharedLambdaExecutionRole`, with the same managed-policy attachments (`AWSLambdaVPCAccessExecutionRole`).
+The `bootstrap` stack SHALL create exactly one `AWS::IAM::Role` named `${AWS::StackName}-shared-lambda-execution-role` per AWS account, gated on the `IsPrimary` condition (the primary-region deploy creates it; IAM is global so the replica region does not). The role's `AssumeRolePolicyDocument` SHALL allow `lambda.amazonaws.com` and `ecs-tasks.amazonaws.com` to assume it (matching the legacy `security.template` policy). The role's inline policies SHALL be byte-identical to those in the legacy `security.template`'s `SharedLambdaExecutionRole`, with the same managed-policy attachments (`AWSLambdaVPCAccessExecutionRole`).
 
 Per-env-stack `SharedLambdaExecutionRole` resources MUST NOT be created. The legacy `security.template` file is deleted as part of this change.
 
 #### Scenario: Role exists with predictable name
 - **WHEN** `bootstrap` is deployed in `us-east-1`
-- **THEN** an IAM role named exactly `taskmanager-shared-lambda-execution-role` exists, with ARN `arn:aws:iam::${AWS::AccountId}:role/taskmanager-shared-lambda-execution-role`
+- **THEN** an IAM role named exactly `${AWS::StackName}-shared-lambda-execution-role` exists, with ARN `arn:aws:iam::${AWS::AccountId}:role/${AWS::StackName}-shared-lambda-execution-role`
 
 #### Scenario: Role is not duplicated in replica region
 - **WHEN** `bootstrap` is deployed in `us-west-2` (replica)
@@ -24,9 +24,9 @@ Per-env-stack `SharedLambdaExecutionRole` resources MUST NOT be created. The leg
 
 ### Requirement: Role ARN is published via SSM Parameter Store
 
-The `bootstrap` stack SHALL publish the role's ARN to AWS Systems Manager Parameter Store at the path `/taskmanager/iam/shared-lambda-role-arn` in **both** regions:
+The `bootstrap` stack SHALL publish the role's ARN to AWS Systems Manager Parameter Store at the path `/${AWS::StackName}/iam/shared-lambda-role-arn` in **both** regions:
 - Primary region: the SSM parameter value is `!GetAtt SharedLambdaExecutionRole.Arn`.
-- Replica region: the SSM parameter value is `!Sub "arn:aws:iam::${AWS::AccountId}:role/taskmanager-shared-lambda-execution-role"` — the role's predictable ARN, since the role resource itself isn't in the replica stack.
+- Replica region: the SSM parameter value is `!Sub "arn:aws:iam::${AWS::AccountId}:role/${AWS::StackName}-shared-lambda-execution-role"` — the role's predictable ARN, since the role resource itself isn't in the replica stack.
 
 The bootstrap stack SHALL also emit a `SharedLambdaRoleArn` output (no Export) for diagnostic visibility.
 
@@ -34,7 +34,7 @@ The legacy `SharedLambdaRoleArn-${BranchName}` CloudFormation Export SHALL no lo
 
 #### Scenario: SSM parameter resolves in both regions
 - **WHEN** the bootstrap stack is deployed in `us-east-1` and `us-west-2`
-- **THEN** both `aws ssm get-parameter --name /taskmanager/iam/shared-lambda-role-arn --region us-east-1` and `--region us-west-2` return the same string, equal to the global IAM role's ARN
+- **THEN** both `aws ssm get-parameter --name /${AWS::StackName}/iam/shared-lambda-role-arn --region us-east-1` and `--region us-west-2` return the same string, equal to the global IAM role's ARN
 
 #### Scenario: Legacy Export is gone
 - **WHEN** `aws cloudformation list-exports --region us-east-1` is run after the change has been applied to all env stacks
@@ -42,24 +42,24 @@ The legacy `SharedLambdaRoleArn-${BranchName}` CloudFormation Export SHALL no lo
 
 ### Requirement: Deploy workflow looks up role ARN from SSM and passes it as a stack parameter
 
-The deploy workflow ([.github/workflows/zbuild.yml](../../../.github/workflows/zbuild.yml)) SHALL include a "Lookup shared Lambda role ARN from SSM" step that runs after the existing KMS-key lookup step. It reads `/taskmanager/iam/shared-lambda-role-arn` from `${{ matrix.region }}` and writes the result to `$GITHUB_ENV` as `SHARED_LAMBDA_ROLE_ARN`. The workflow SHALL fail loudly if the SSM parameter is missing or empty.
+The deploy workflow ([.github/workflows/zbuild.yml](../../../.github/workflows/zbuild.yml)) SHALL include a "Lookup shared Lambda role ARN from SSM" step that runs after the existing KMS-key lookup step. It reads `/${AWS::StackName}/iam/shared-lambda-role-arn` from `${{ matrix.region }}` and writes the result to `$GITHUB_ENV` as `SHARED_LAMBDA_ROLE_ARN`. The workflow SHALL fail loudly if the SSM parameter is missing or empty.
 
 The "Set parameter overrides" step SHALL append `SharedLambdaRoleArn=${SHARED_LAMBDA_ROLE_ARN}` to `BASE_PARAMS` for **both** branch paths — the master-template path (`dev`, `alpha`, `beta`, `app`) AND the application-template path (feature branches) — because both deploys' nested stacks (api.template and web.template) need the value.
 
 #### Scenario: Workflow reads SSM and exports env var
 - **WHEN** the deploy workflow runs for any branch
-- **THEN** before "Set parameter overrides" runs, `$GITHUB_ENV` contains `SHARED_LAMBDA_ROLE_ARN=arn:aws:iam::ACCT:role/taskmanager-shared-lambda-execution-role`
+- **THEN** before "Set parameter overrides" runs, `$GITHUB_ENV` contains `SHARED_LAMBDA_ROLE_ARN=arn:aws:iam::ACCT:role/${AWS::StackName}-shared-lambda-execution-role`
 
 #### Scenario: Master-template branches get the parameter
 - **WHEN** the workflow deploys `dev`, `alpha`, `beta`, or `app`
-- **THEN** the master-template deploy's `parameter-overrides` includes `SharedLambdaRoleArn=arn:aws:iam::ACCT:role/taskmanager-shared-lambda-execution-role`
+- **THEN** the master-template deploy's `parameter-overrides` includes `SharedLambdaRoleArn=arn:aws:iam::ACCT:role/${AWS::StackName}-shared-lambda-execution-role`
 
 #### Scenario: Feature-branch deploys get the parameter
 - **WHEN** the workflow deploys a feature branch (application.template path)
-- **THEN** the application-template deploy's `parameter-overrides` includes `SharedLambdaRoleArn=arn:aws:iam::ACCT:role/taskmanager-shared-lambda-execution-role`
+- **THEN** the application-template deploy's `parameter-overrides` includes `SharedLambdaRoleArn=arn:aws:iam::ACCT:role/${AWS::StackName}-shared-lambda-execution-role`
 
 #### Scenario: Missing SSM parameter fails the workflow
-- **WHEN** the deploy workflow runs in a region where `/taskmanager/iam/shared-lambda-role-arn` is not set (bootstrap not yet deployed there)
+- **WHEN** the deploy workflow runs in a region where `/${AWS::StackName}/iam/shared-lambda-role-arn` is not set (bootstrap not yet deployed there)
 - **THEN** the workflow fails before any CloudFormation deploy step, with a log message identifying the missing SSM parameter
 
 ### Requirement: Templates consume role ARN via `!Ref` parameter, not `Fn::ImportValue`
