@@ -401,6 +401,23 @@ jobs:
         fi
         echo "AURORA_CLUSTER_DELETE_HANDLER_ARN=$AURORA_CLUSTER_DELETE_HANDLER_ARN" >> $GITHUB_ENV
 
+    - name: Lookup shared Lambda/ECS role ARN from SSM
+      id: bootstrap-shared-lambda-role
+      if: matrix.deploy
+      run: |
+        # Bootstrap publishes one account-wide shared Lambda/ECS execution role per region
+        # at this dashed-domain-scoped path (parallel to the Aurora teardown lookup above).
+        # The value is threaded into master/application.template as SharedLambdaRoleArn and
+        # used as the API Lambda Role and the web ECS task Execution/Task role.
+        SSM_PATH="/${{ steps.process-domain.outputs.processed-domain }}/iam/shared-lambda-role-arn"
+        echo "Looking up $SSM_PATH in ${{ matrix.region }}"
+        SHARED_LAMBDA_ROLE_ARN=$(aws ssm get-parameter --name "$SSM_PATH" --region ${{ matrix.region }} --query 'Parameter.Value' --output text)
+        if [ -z "$SHARED_LAMBDA_ROLE_ARN" ] || [ "$SHARED_LAMBDA_ROLE_ARN" = "None" ]; then
+          echo "ERROR: SSM parameter $SSM_PATH in ${{ matrix.region }} is empty or missing. Deploy the bootstrap stack (named for the dashed-domain) in this region before continuing." >&2
+          exit 1
+        fi
+        echo "SHARED_LAMBDA_ROLE_ARN=$SHARED_LAMBDA_ROLE_ARN" >> $GITHUB_ENV
+
     - name: Get primary region outputs for secondary
       id: get-primary-outputs
       if: matrix.is_primary == 'false' && matrix.deploy
@@ -461,6 +478,9 @@ jobs:
         BASE_PARAMS="$BASE_PARAMS,Environment=$ENVIRONMENT"
         BASE_PARAMS="$BASE_PARAMS,IsPrimaryRegion=${{ matrix.is_primary }}"
         BASE_PARAMS="$BASE_PARAMS,IsMultiRegion=$IS_MULTI_REGION"
+        # Shared Lambda/ECS role ARN (bootstrap-owned, looked up from SSM above). Accepted by both
+        # master.template and application.template, so it lives in the common params.
+        BASE_PARAMS="$BASE_PARAMS,SharedLambdaRoleArn=${SHARED_LAMBDA_ROLE_ARN}"
 
 
         # Add primary region parameters if needed (for secondary region in multi-region deployment)
