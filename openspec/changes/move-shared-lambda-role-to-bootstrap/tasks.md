@@ -16,7 +16,7 @@ name, say so and I'll switch it.** Everything below reflects the domain-derived 
 ## 1. Prereqs
 
 - [ ] 1.1 Confirm `centralize-aurora-kms-keys` deployed to all four env stacks; KMS SSM params resolve in both regions. — *Operator/live-AWS verification; not done autonomously. (That change is archived.)*
-- [ ] 1.2 Verify no pre-existing IAM role collides with the new name. — *Name changed to `${AWS::StackName}-shared-lambda-execution-role` (see §0); collision check is an operator step before the bootstrap deploy.*
+- [x] 1.2 Verify no pre-existing IAM role collides with the new name. — *Checked 2026-06-09: `aws iam get-role --role-name appcloud-systems-shared-lambda-execution-role` → `NoSuchEntity` (no collision). Safe to create.*
 - [ ] 1.3 Verify no out-of-tree consumer of the legacy `SharedLambdaRoleArn-*` export. — *Operator/live-AWS audit; not done autonomously.*
 - [ ] 1.4 Verify no AWS resource policy references the existing per-env role ARNs. — *Operator/live-AWS audit; not done autonomously.*
 
@@ -26,9 +26,9 @@ name, say so and I'll switch it.** Everything below reflects the domain-derived 
 - [x] 2.2 Add `SharedLambdaRoleArnParameter` (`AWS::SSM::Parameter`, `/${AWS::StackName}/iam/shared-lambda-role-arn`), always created; `!If [IsPrimary, !GetAtt …Arn, !Sub predictable-arn]`.
 - [x] 2.3 Add `SharedLambdaRoleArn` to bootstrap outputs (same `!If` form, no Export).
 - [x] 2.4 `aws cloudformation validate-template` on bootstrap.template — *VALID.*
-- [ ] 2.5 Operator deploys bootstrap update to us-east-1. — *NOT done: deploying the shared bootstrap stack is an operator action affecting all envs; out of scope for an autonomous feature-branch run.*
-- [ ] 2.6 Verify SSM param + role in us-east-1. — *Blocked on 2.5.*
-- [ ] 2.7 Deploy bootstrap to the replica region; verify same ARN. — *Blocked on 2.5; operator action.*
+- [x] 2.5 Operator deploys bootstrap update to us-east-1. — *Done 2026-06-09 (operator-authorized). Reviewed via change set first: the only changes were the new `SharedLambdaExecutionRole` + `SharedLambdaRoleArnParameter` (Add) plus `???`→`—` encoding normalization in comments/descriptions (KMS/policy `Modify`s, all `RequiresRecreation: Never`); full live-vs-branch template diff confirmed no semantic drift. Stack `UPDATE_COMPLETE`.*
+- [x] 2.6 Verify SSM param + role in us-east-1. — *Role `arn:aws:iam::991795635857:role/appcloud-systems-shared-lambda-execution-role`; SSM `/appcloud-systems/iam/shared-lambda-role-arn` resolves to it.*
+- [x] 2.7 Deploy bootstrap to the replica region; verify same ARN. — *us-east-2 `UPDATE_COMPLETE`; no role resource (replica), SSM param publishes the same global ARN. Change set reviewed (Add SSM param; no role; encoding-only Modifies).*
 
 ## 3. Template + workflow changes (Phase 2)
 
