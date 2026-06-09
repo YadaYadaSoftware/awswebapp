@@ -46,14 +46,18 @@ The reusable stack **derives all resource naming from the domain** (dashed form)
 
 ## Enabling the deploy
 
-Once the prerequisites exist, set the repo **Variable** (not secret):
+Once the prerequisites exist, set the repo **Variable** `SAMPLE_DEPLOY_ENABLED = true`, plus
+`HOSTED_ZONE_ID` (`sample-deploy.yml` reads the zone from `vars.HOSTED_ZONE_ID`). A
+`validate-config` preflight runs first and fails with a checklist if any required Variable/Secret is
+missing.
 
-```
-SAMPLE_DEPLOY_ENABLED = true
-```
+> **Cross-org forks:** the framework packages live on this org's GitHub Packages feed, so a fork in a
+> different org can't restore them with the workflow `GITHUB_TOKEN` — create a `read:packages` PAT and
+> set it as the secret **`FRAMEWORK_FEED_TOKEN`**. Same-org TaskManager needs nothing (it falls back
+> to `GITHUB_TOKEN`).
 
 Then a push touching `src/sample/**` runs `sample-deploy.yml`: it builds/tests `Sample.sln`
-(restoring the framework with the workflow `GITHUB_TOKEN`), then calls `deploy.yml` with
+(restoring the framework with `FRAMEWORK_FEED_TOKEN` or the workflow `GITHUB_TOKEN`), then calls `deploy.yml` with
 `domain-name=sample.appcloud.systems`, `web-dockerfile-path=src/sample/Sample.Web/Dockerfile`,
 `web-image-name=sample-web`, `ui-tests-project-path=src/sample/Sample.UiTests`. The reusable
 workflow deploys (single-region on feature branches, multi-region on `app`/`test`) and runs
