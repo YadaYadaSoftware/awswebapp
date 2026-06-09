@@ -16,7 +16,7 @@ public class MainPage
     }
 
     private ILocator LoginLink => _page.Locator("a[href*='Identity/Account/Login']");
-    private ILocator UserGreeting => _page.Locator("a[title='Manage']:has-text('Hello')");
+    private ILocator UserGreeting => _page.Locator("a[href*='Identity/Account/Manage']");
 
     // Expect-based assertions: built-in waiting/retry so SSR + ALB latency doesn't
     // surface as an element-not-ready race. Use these in assertion context instead
@@ -54,13 +54,14 @@ public class MainPage
 
     public async Task<bool> IsUserLoggedInAsync()
     {
-        return await _page.IsVisibleAsync("a[title='Manage']:has-text('Hello')");
+        return await _page.IsVisibleAsync("a[href*='Identity/Account/Manage']");
     }
 
     public async Task<string> GetLoggedInUserNameAsync()
     {
-        var userElement = _page.Locator("a[title='Manage']:has-text('Hello')");
+        var userElement = _page.Locator("a[href*='Identity/Account/Manage']");
         var text = await userElement.TextContentAsync();
-        return text?.Replace("Hello ", "").Replace("!", "").Trim() ?? string.Empty;
+        // Greeting renders as "Hello, {user}!" — strip the prefix/suffix.
+        return text?.Replace("Hello,", "").Replace("Hello", "").Replace("!", "").Trim() ?? string.Empty;
     }
 }
