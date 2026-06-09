@@ -15,7 +15,9 @@ public class UserAuthenticationTests : BaseUiTest
     public UserAuthenticationTests(OAuthTokenFixture auth, AppReadinessFixture appReady)
         : base(auth, appReady) { }
 
-    [Fact]
+    // Skipped: depends on token-cookie auth that Tjb.Web correctly ignores (no real session).
+    // Re-enabled by the ui-test-authenticated-session change (openspec/changes/ui-test-authenticated-session).
+    [Fact(Skip = "Token-cookie auth is non-functional; real session pending ui-test-authenticated-session change")]
     public async Task LoggedInUser_ShouldDisplayUserName()
     {
         // Set test name for screenshot capture

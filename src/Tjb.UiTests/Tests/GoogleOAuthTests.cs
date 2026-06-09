@@ -68,7 +68,11 @@ public class GoogleOAuthTests : BaseUiTest
     }
 
 
-[Fact]
+// Skipped: authenticates by injecting a raw Google access token as the
+// .AspNetCore.Identity.Application cookie, which Tjb.Web correctly ignores (confirmed:
+// that cookie yields a byte-identical anonymous page). Needs a real Identity session —
+// tracked by the ui-test-authenticated-session change (openspec/changes/ui-test-authenticated-session).
+[Fact(Skip = "Token-cookie auth is non-functional; real session pending ui-test-authenticated-session change")]
 public async Task TokenBasedGoogleLogin_ShouldAuthenticateWithValidToken()
 {
     // Set test name for screenshot capture
