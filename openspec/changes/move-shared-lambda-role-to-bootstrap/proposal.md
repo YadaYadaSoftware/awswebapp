@@ -4,8 +4,8 @@ After the [`centralize-aurora-kms-keys`](../centralize-aurora-kms-keys/proposal.
 
 ## What Changes
 
-- **BREAKING** Move `SharedLambdaExecutionRole` out of [security.template](../../../infrastructure/security.template) and into the consolidated [bootstrap.template](../../../infrastructure/bootstrap.template). The role becomes a single global IAM resource owned by `bootstrap` (gated on `IsPrimary` since IAM is global), with an explicit `RoleName: taskmanager-shared-lambda-execution-role` so its ARN is predictable across regions.
-- Publish the role ARN at SSM Parameter Store path `/taskmanager/iam/shared-lambda-role-arn` in **both** regions (primary writes via `!GetAtt`, replica writes via `!Sub`'d predictable ARN — same pattern as the existing Aurora KMS key SSM publishing).
+- **BREAKING** Move `SharedLambdaExecutionRole` out of [security.template](../../../infrastructure/security.template) and into the consolidated [bootstrap.template](../../../infrastructure/bootstrap.template). The role becomes a single global IAM resource owned by `bootstrap` (gated on `IsPrimary` since IAM is global), with an explicit `RoleName: ${AWS::StackName}-shared-lambda-execution-role` so its ARN is predictable across regions.
+- Publish the role ARN at SSM Parameter Store path `/${AWS::StackName}/iam/shared-lambda-role-arn` in **both** regions (primary writes via `!GetAtt`, replica writes via `!Sub`'d predictable ARN — same pattern as the existing Aurora KMS key SSM publishing).
 - The deploy workflow ([.github/workflows/zbuild.yml](../../../.github/workflows/zbuild.yml)) gains a "Lookup shared Lambda role ARN from SSM" step parallel to the existing KMS lookup, exporting `SHARED_LAMBDA_ROLE_ARN` as a `$GITHUB_ENV` variable. The role ARN is added to `BASE_PARAMS` for **both** the master-template branch path (`dev`/`alpha`/`beta`/`app`) and the application-template branch path (feature branches) — both paths' nested stacks consume it.
 - A new `SharedLambdaRoleArn` parameter threads through the templates:
   - [master.template](../../../infrastructure/master.template) → [backend.template](../../../infrastructure/backend.template) → (consumed at backend.template's `SharedLambdaRoleArn` output for orchestration)
@@ -27,7 +27,7 @@ _None._ No existing capability spec describes this role today (the legacy `secur
 ## Impact
 
 **Infrastructure templates:**
-- [infrastructure/bootstrap.template](../../../infrastructure/bootstrap.template) — adds `SharedLambdaExecutionRole` (Condition: `IsPrimary`, RoleName: `taskmanager-shared-lambda-execution-role`) + `SharedLambdaRoleArnParameter` (SSM, always created — primary uses `!GetAtt`, replica uses `!Sub`) + new output `SharedLambdaRoleArn`.
+- [infrastructure/bootstrap.template](../../../infrastructure/bootstrap.template) — adds `SharedLambdaExecutionRole` (Condition: `IsPrimary`, RoleName: `${AWS::StackName}-shared-lambda-execution-role`) + `SharedLambdaRoleArnParameter` (SSM, always created — primary uses `!GetAtt`, replica uses `!Sub`) + new output `SharedLambdaRoleArn`.
 - [infrastructure/security.template](../../../infrastructure/security.template) — **deleted.**
 - [infrastructure/backend.template](../../../infrastructure/backend.template) — removes the `SecurityStack` nested-stack resource and its `SharedLambdaRoleArn` output reference. Adds `SharedLambdaRoleArn` parameter, passes it through where needed.
 - [infrastructure/master.template](../../../infrastructure/master.template) — adds `SharedLambdaRoleArn` parameter, passes to `BackendStack` and `ApplicationStack`.
@@ -40,7 +40,7 @@ _None._ No existing capability spec describes this role today (the legacy `secur
 
 **Existing env stacks (`dev`, `alpha`, `beta`, `app`) and feature branches:**
 - First post-change deploy will update each stack to: (a) drop the `SecurityStack` nested stack, (b) add a `SharedLambdaRoleArn` parameter resolving to the bootstrap-owned role, (c) update `api.template` / `web.template`'s `TaskRole`/`ExecutionRole` references to use the new parameter.
-- The role ARN in api/web changes from `arn:aws:iam::ACCT:role/<env>-<random>` to `arn:aws:iam::ACCT:role/taskmanager-shared-lambda-execution-role`. ECS task definitions get re-rendered with the new ARN — Fargate tasks will be replaced (rolling deploy).
+- The role ARN in api/web changes from `arn:aws:iam::ACCT:role/<env>-<random>` to `arn:aws:iam::ACCT:role/${AWS::StackName}-shared-lambda-execution-role`. ECS task definitions get re-rendered with the new ARN — Fargate tasks will be replaced (rolling deploy).
 
 **Existing per-env Lambda roles (one per env stack):**
 - They were created with `DeletionPolicy: Delete` (default), so CFN will delete them when the `SecurityStack` is removed from backend.template. Pre-existing references die with the stack; no orphans expected.

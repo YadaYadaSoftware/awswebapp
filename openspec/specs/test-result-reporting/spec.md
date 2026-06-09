@@ -69,19 +69,16 @@ The `dotnet test` invocations for both unit and UI suites SHALL pass `--logger "
 - UI tests: `ui-tests.trx`
 
 #### Scenario: TRX file at known path
-- **WHEN** `dotnet test --logger "trx;LogFileName=unit-tests.trx"` runs against `src/Tjb.Tests/`
-- **THEN** a file `TestResults/unit-tests.trx` exists at the project's `TestResults/` directory and contains the test outcomes in TRX XML format
+- **WHEN** `dotnet test --filter "FullyQualifiedName!~Tjb.UiTests" --logger "trx;LogFileName=unit-tests.trx" --results-directory ./TestResults` runs against the solution (the filter excludes the `Tjb.UiTests` project rather than targeting a single `src/Tjb.Tests/` project)
+- **THEN** a file `TestResults/unit-tests.trx` exists in the results directory and contains the test outcomes in TRX XML format
 
-### Requirement: Playwright captures trace and screenshot on failure
+### Requirement: Playwright captures a trace (with screenshots) for every UI test
 
-The UI test project's Playwright configuration SHALL set:
+The UI test project (xUnit + Playwright for .NET) SHALL start tracing in `BaseTest.InitializeAsync` for every test via `Context.Tracing.StartAsync` with `Screenshots = true`, `Snapshots = true`, and `Sources = true` (equivalent to `trace: 'always'`), then stop and save the trace to a zip in teardown. On the failure path the test SHALL additionally capture an explicit screenshot via `CaptureScreenshotAsync`.
 
-- `trace: 'on-first-retry'` — capture full Playwright trace (DOM snapshots, network log, console) when a test fails its first attempt.
-- `screenshot: 'only-on-failure'` — capture a single screenshot at the failure moment.
+Tracing is unconditional (not `on-first-retry`/`only-on-failure`), so a trace is always available regardless of retry count. These artifacts land under the UI test project's test output directory and are picked up by the artifact upload step.
 
-These artifacts land under `test-results/<test-name>/` and are picked up by the artifact upload step.
-
-#### Scenario: Trace captured on test failure
-- **WHEN** a Playwright-based UI test fails its first attempt
-- **THEN** the project's `test-results/` directory contains a `trace.zip` for that test
+#### Scenario: Trace captured for every test
+- **WHEN** a Playwright-based UI test runs (whether it passes or fails)
+- **THEN** the project's test output directory contains a `trace.zip` for that test; on failure an explicit screenshot is additionally captured
 

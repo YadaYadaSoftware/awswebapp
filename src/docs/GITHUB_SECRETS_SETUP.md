@@ -32,7 +32,8 @@
 ### **2. Add Required Secrets**
 Click **New repository secret** for each of these:
 
-#### **AWS Credentials**
+#### **AWS Credentials (non-prod)**
+Used for the non-production regions/branches (e.g. `dev`, feature branches).
 ```
 Name: AWS_ACCESS_KEY_ID
 Value: your-aws-access-key-id-here
@@ -43,12 +44,31 @@ Name: AWS_SECRET_ACCESS_KEY
 Value: your-aws-secret-access-key-here
 ```
 
+#### **AWS Credentials (prod)**
+Used for the production branch (`app`). The bootstrap stack creates a separate `{stack-name}-GitHubActionsUserProd` IAM user for these.
+```
+Name: AWS_ACCESS_KEY_ID_PROD
+Value: your-prod-aws-access-key-id-here
+```
+
+```
+Name: AWS_SECRET_ACCESS_KEY_PROD
+Value: your-prod-aws-secret-access-key-here
+```
+
 #### **Database Configuration**
 ```
 Name: DATABASE_PASSWORD
 Value: your-secure-database-password-here
 ```
 **Requirements**: Minimum 8 characters, mix of letters and numbers
+
+#### **Domain Configuration**
+The deployment domain (dot form, e.g. `appcloud.systems`). Drives all derived resource/stack names.
+```
+Name: DOMAIN_NAME
+Value: your-domain-here
+```
 
 #### **Google OAuth Credentials**
 ```
@@ -61,13 +81,30 @@ Name: GOOGLE_CLIENT_SECRET
 Value: your-google-oauth-client-secret-here
 ```
 
+#### **Google Test Tokens (for UI tests)**
+Token-based Google auth used by the Playwright UI tests in CI (avoids scripting the OAuth UI).
+```
+Name: GOOGLE_TEST_ACCESS_TOKEN
+Value: your-google-test-access-token-here
+```
+
+```
+Name: GOOGLE_TEST_REFRESH_TOKEN
+Value: your-google-test-refresh-token-here
+```
+
 ### **3. Verify Secrets**
 After adding all secrets, you should see:
 - ✅ AWS_ACCESS_KEY_ID
-- ✅ AWS_SECRET_ACCESS_KEY  
+- ✅ AWS_SECRET_ACCESS_KEY
+- ✅ AWS_ACCESS_KEY_ID_PROD
+- ✅ AWS_SECRET_ACCESS_KEY_PROD
 - ✅ DATABASE_PASSWORD
+- ✅ DOMAIN_NAME
 - ✅ GOOGLE_CLIENT_ID
 - ✅ GOOGLE_CLIENT_SECRET
+- ✅ GOOGLE_TEST_ACCESS_TOKEN
+- ✅ GOOGLE_TEST_REFRESH_TOKEN
 
 ## Alternative Options (Not Recommended for This Project)
 
@@ -92,13 +129,15 @@ After adding all secrets, you should see:
 - ✅ **Monitor Usage**: Check GitHub Actions logs for secret usage
 
 ### **AWS IAM User Setup**
-Create a dedicated IAM user for GitHub Actions with these policies:
+The deploy pipeline's bootstrap stack auto-creates the CI IAM users (`{stack-name}-GitHubActionsUser` / `{...}Prod`); you normally just generate access keys for them. If creating an IAM user by hand instead, grant these policies (the deployed surface is ECR/ECS Fargate, not Lambda/API Gateway):
 - `CloudFormationFullAccess`
-- `AWSLambdaFullAccess`
-- `AmazonAPIGatewayAdministrator`
-- `AmazonRDSFullAccess`
+- `AmazonEC2ContainerRegistryFullAccess` (ECR)
+- `AmazonECS_FullAccess` (ECS Fargate)
+- `AmazonRDSFullAccess` (Aurora MySQL)
 - `AmazonVPCFullAccess`
 - `SecretsManagerReadWrite`
+- `AmazonSSMFullAccess`
+- `AWSKeyManagementServicePowerUser` (KMS)
 - `CloudWatchFullAccess`
 
 ### **Google OAuth Security**
@@ -109,7 +148,7 @@ Create a dedicated IAM user for GitHub Actions with these policies:
 ## Testing Secrets Configuration
 
 ### **Verify Secrets Work**
-1. **Push to main branch** after configuring secrets
+1. **Push to the `app` branch** (production) or any feature branch after configuring secrets
 2. **Check GitHub Actions** → Actions tab
 3. **Monitor deployment** - should succeed if secrets are correct
 4. **Check logs** for any authentication errors
@@ -139,11 +178,16 @@ Error: Password does not meet requirements
 - [ ] Navigate to Repository → Settings → Secrets and variables → Actions
 - [ ] Add AWS_ACCESS_KEY_ID secret
 - [ ] Add AWS_SECRET_ACCESS_KEY secret
+- [ ] Add AWS_ACCESS_KEY_ID_PROD secret
+- [ ] Add AWS_SECRET_ACCESS_KEY_PROD secret
 - [ ] Add DATABASE_PASSWORD secret (8+ chars, letters + numbers)
+- [ ] Add DOMAIN_NAME secret
 - [ ] Add GOOGLE_CLIENT_ID secret
 - [ ] Add GOOGLE_CLIENT_SECRET secret
-- [ ] Verify all 5 secrets are listed
-- [ ] Push to main branch to test deployment
+- [ ] Add GOOGLE_TEST_ACCESS_TOKEN secret
+- [ ] Add GOOGLE_TEST_REFRESH_TOKEN secret
+- [ ] Verify all 10 secrets are listed
+- [ ] Push to the `app` branch (or a feature branch) to test deployment
 
 **Location**: Repository-level secrets in your awswebapp repository
 **Access**: Available to GitHub Actions workflows in this repository only

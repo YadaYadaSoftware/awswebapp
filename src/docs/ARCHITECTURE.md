@@ -1,289 +1,156 @@
-# Task Management Web Application - Architecture Design
+# Task Management Web Application — Architecture
+
+> Authoritative sources: [CLAUDE.md](../../CLAUDE.md), the templates under
+> [infrastructure/](../../infrastructure/), and the deploy workflow
+> [.github/workflows/zbuild.yml](../../.github/workflows/zbuild.yml). Where this
+> document and those disagree, trust the code.
 
 ## Overview
-A full-stack task/project management web application built with C# that deploys to AWS Lambda, featuring Google OAuth authentication, PostgreSQL database, and Blazor Server frontend.
 
-## Technology Stack
+A full-stack task/project management web application built on **.NET 10
+(`net10.0`)**. The deployed surface is a **Blazor Server** web app running as a
+**Docker container on ECS Fargate behind an Application Load Balancer (ALB)**,
+backed by **Aurora MySQL Serverless v2**, with authentication via **ASP.NET Core
+Identity + Google OAuth**.
 
-### Backend
-- **Framework**: .NET 8 Minimal Web API
-- **Database**: PostgreSQL (AWS RDS)
-- **ORM**: Entity Framework Core
-- **Authentication**: ASP.NET Core Identity with Google OAuth
-- **Hosting**: AWS Lambda with API Gateway
+> This app is **not** AWS Lambda + API Gateway, and the database is **not**
+> PostgreSQL/RDS. `Tjb.Api` retains some vestigial Lambda hosting glue but is not
+> the deployed front door.
 
-### Frontend
-- **Framework**: Blazor Server
-- **UI Components**: Bootstrap 5 + custom components
-- **State Management**: Built-in Blazor state management
+## Technology stack
 
-### Infrastructure
-- **Cloud Provider**: AWS
-- **Database**: Amazon RDS PostgreSQL
-- **Compute**: AWS Lambda
-- **API Gateway**: Amazon API Gateway
-- **Storage**: Amazon S3 (for static assets if needed)
-- **Monitoring**: AWS CloudWatch
+- **Runtime / framework**: .NET 10 (`net10.0`), ASP.NET Core. CI uses
+  `dotnet-version: 10.0.x`.
+- **Frontend**: Blazor Server + Razor Pages, served by `Tjb.Web`.
+- **Auth**: ASP.NET Core Identity (Identity tables live in the same database) +
+  Google OAuth (`/signin-google` callback).
+- **Database**: Aurora MySQL Serverless v2 via
+  `Pomelo.EntityFrameworkCore.MySql` (`UseMySql`), port `3306`, engine
+  `8.0.mysql_aurora.3.10.0`. ORM is Entity Framework Core.
+- **Hosting**: Docker image (`mcr.microsoft.com/dotnet/aspnet:10.0`) →
+  Amazon ECR → ECS Fargate → ALB (HTTPS via ACM cert, HTTP→HTTPS redirect).
+- **Infrastructure as code**: AWS SAM-packaged, nested CloudFormation templates
+  under `infrastructure/`, deployed by GitHub Actions.
 
-## System Architecture
+## System architecture
 
 ```mermaid
 graph TB
-    User[User Browser] --> BZ[Blazor Server App]
-    BZ --> API[Minimal Web API]
-    API --> EF[Entity Framework Core]
-    EF --> PG[(PostgreSQL RDS)]
-    
-    API --> AUTH[Authentication Service]
-    AUTH --> GOOGLE[Google OAuth]
-    
-    BZ --> LAMBDA[AWS Lambda]
-    API --> LAMBDA
-    LAMBDA --> APIGW[API Gateway]
-    
-    subgraph "AWS Infrastructure"
-        LAMBDA
-        APIGW
-        PG
-        CW[CloudWatch Logs]
+    User[User Browser] -->|HTTPS 443| ALB[Application Load Balancer]
+    ALB -->|HTTP 80, /health checks| ECS[ECS Fargate Service<br/>Blazor Server container]
+    ECS --> EF[Entity Framework Core<br/>Pomelo MySQL]
+    EF --> AURORA[(Aurora MySQL<br/>Serverless v2)]
+
+    ECS --> IDENTITY[ASP.NET Identity]
+    IDENTITY --> GOOGLE[Google OAuth]
+
+    ECS --> SM[Secrets Manager<br/>DB password + Google OAuth]
+    ECS --> SES[AWS SES<br/>confirmation emails]
+    ECS --> CW[CloudWatch Logs]
+
+    subgraph "VPC"
+        ALB
+        ECS
+        AURORA
     end
-    
-    LAMBDA --> CW
+
+    R53[Route 53] -->|alias / failover| ALB
+    ECR[Amazon ECR] -.->|container image| ECS
 ```
 
-## Database Schema
+Request flow: clients hit `https://{branch-leaf}.{DOMAIN_NAME}` (e.g.
+`https://app.appcloud.systems`). The ALB terminates TLS with an ACM certificate,
+redirects HTTP→HTTPS, and forwards to the Fargate task on container port 80. The
+ALB health check targets `/health` (excluded from auth). The container reads
+`X-Forwarded-Proto`/`-For` (forwarded-headers config in
+[src/Tjb.Web/Program.cs](../Tjb.Web/Program.cs)) so the Google OAuth callback
+sees HTTPS.
 
-### Core Entities
+## Solution projects
 
-#### Users
-```sql
-Users
-- Id (Guid, PK)
-- Email (string, unique)
-- FirstName (string)
-- LastName (string)
-- GoogleId (string, nullable)
-- CreatedAt (DateTime)
-- UpdatedAt (DateTime)
-- IsActive (bool)
-```
+Six projects in [Tjb.sln](../../Tjb.sln):
 
-#### Projects
-```sql
-Projects
-- Id (Guid, PK)
-- Name (string)
-- Description (string, nullable)
-- OwnerId (Guid, FK -> Users.Id)
-- CreatedAt (DateTime)
-- UpdatedAt (DateTime)
-- IsActive (bool)
-```
+| Project | Role |
+|---|---|
+| **Tjb.Web** | **The deployed application.** Blazor Server + Razor Pages + ASP.NET Identity + Google OAuth. Containerized via [src/Tjb.Web/Dockerfile](../Tjb.Web/Dockerfile). Applies migrations on startup (`EnsureCreatedAsync` then `MigrateAsync`, exceptions swallowed so the app still boots). |
+| **Tjb.Api** | Minimal Web API; effectively secondary/vestigial. Exposes `/health`, Swagger (dev), and stub `AuthController` endpoints. Still contains Lambda hosting glue but is **not** the deployed surface. |
+| **Tjb.Data** | EF Core `TjbDbContext` (extends `IdentityDbContext<IdentityUser>`), entities, and configurations. `MigrationsAssembly` is `Tjb.Migrations` — migrations are **not** generated here. |
+| **Tjb.Migrations** | Holds EF migration files, an `IDesignTimeDbContextFactory`, and a standalone `Program.cs` that applies migrations + seeds. Referenced by `Api`/`Web` for startup migration. |
+| **Tjb.Shared** | DTOs and enums (`TaskStatus`, `TaskPriority`, `ProjectRole`). Packed as a NuGet on every CI build. |
+| **Tjb.UiTests** | Playwright + xUnit. Runs against a *deployed* URL (`TEST_BASE_URL`), using token-based Google auth in CI. |
 
-#### Tasks
-```sql
-Tasks
-- Id (Guid, PK)
-- Title (string)
-- Description (string, nullable)
-- ProjectId (Guid, FK -> Projects.Id)
-- AssignedToId (Guid, FK -> Users.Id, nullable)
-- Status (enum: Todo, InProgress, Done)
-- Priority (enum: Low, Medium, High)
-- DueDate (DateTime, nullable)
-- CreatedAt (DateTime)
-- UpdatedAt (DateTime)
-```
+## Data layer
 
-#### ProjectMembers (Many-to-Many)
-```sql
-ProjectMembers
-- ProjectId (Guid, FK -> Projects.Id)
-- UserId (Guid, FK -> Users.Id)
-- Role (enum: Owner, Admin, Member, Viewer)
-- JoinedAt (DateTime)
-```
+- `TjbDbContext` extends `IdentityDbContext<IdentityUser>`, so ASP.NET Identity
+  tables share the application database.
+- Provider: Pomelo MySQL (`UseMySql`), connecting to Aurora MySQL Serverless v2
+  on port 3306. The connection string is injected into the container as
+  `ConnectionStrings__DefaultConnection` (host/name/user imported from backend
+  CloudFormation exports; password resolved from Secrets Manager) — see
+  [infrastructure/web.template](../../infrastructure/web.template).
+- Migrations live in `Tjb.Migrations`. Generate with
+  `--project src/Tjb.Migrations --startup-project src/Tjb.Migrations`.
 
-## API Endpoints
+## Authentication
 
-### Authentication
-- `POST /api/auth/google` - Google OAuth callback
-- `POST /api/auth/logout` - Logout user
-- `GET /api/auth/user` - Get current user info
+All real authentication is in `Tjb.Web`: ASP.NET Core Identity plus Google
+OAuth. The Google client ID/secret reach the container as
+`Authentication__Google__ClientId` / `__ClientSecret`, resolved from Secrets
+Manager (`{dashed-domain}/google-oauth/{branch}`). `Tjb.Api`'s `AuthController`
+is intentionally a no-op.
 
-### Projects
-- `GET /api/projects` - Get user's projects
-- `POST /api/projects` - Create new project
-- `GET /api/projects/{id}` - Get project details
-- `PUT /api/projects/{id}` - Update project
-- `DELETE /api/projects/{id}` - Delete project
-- `POST /api/projects/{id}/members` - Add project member
-- `DELETE /api/projects/{id}/members/{userId}` - Remove member
+## Infrastructure (SAM-packaged nested CloudFormation)
 
-### Tasks
-- `GET /api/projects/{projectId}/tasks` - Get project tasks
-- `POST /api/projects/{projectId}/tasks` - Create new task
-- `GET /api/tasks/{id}` - Get task details
-- `PUT /api/tasks/{id}` - Update task
-- `DELETE /api/tasks/{id}` - Delete task
-- `PUT /api/tasks/{id}/status` - Update task status
-
-## Project Structure
+The running system is provisioned entirely from the templates in
+[infrastructure/](../../infrastructure/), deployed via AWS SAM + CloudFormation
+by [zbuild.yml](../../.github/workflows/zbuild.yml). The env stack is a tree of
+nested stacks:
 
 ```
-src/
-├── TaskManager.Api/              # Minimal Web API
-│   ├── Program.cs
-│   ├── Endpoints/
-│   │   ├── AuthEndpoints.cs
-│   │   ├── ProjectEndpoints.cs
-│   │   └── TaskEndpoints.cs
-│   ├── Services/
-│   │   ├── IAuthService.cs
-│   │   ├── AuthService.cs
-│   │   ├── IProjectService.cs
-│   │   ├── ProjectService.cs
-│   │   ├── ITaskService.cs
-│   │   └── TaskService.cs
-│   └── TaskManager.Api.csproj
-├── TaskManager.Data/             # Data Layer
-│   ├── TaskManagerDbContext.cs
-│   ├── Entities/
-│   │   ├── User.cs
-│   │   ├── Project.cs
-│   │   ├── Task.cs
-│   │   └── ProjectMember.cs
-│   ├── Configurations/
-│   │   ├── UserConfiguration.cs
-│   │   ├── ProjectConfiguration.cs
-│   │   └── TaskConfiguration.cs
-│   ├── Migrations/
-│   └── TaskManager.Data.csproj
-├── TaskManager.Web/              # Blazor Server App
-│   ├── Program.cs
-│   ├── Pages/
-│   │   ├── Index.razor
-│   │   ├── Projects/
-│   │   │   ├── ProjectList.razor
-│   │   │   ├── ProjectDetails.razor
-│   │   │   └── CreateProject.razor
-│   │   └── Tasks/
-│   │       ├── TaskList.razor
-│   │       ├── TaskDetails.razor
-│   │       └── CreateTask.razor
-│   ├── Components/
-│   │   ├── Layout/
-│   │   ├── Auth/
-│   │   └── Shared/
-│   ├── Services/
-│   │   ├── ApiService.cs
-│   │   └── AuthStateService.cs
-│   └── TaskManager.Web.csproj
-├── TaskManager.Shared/           # Shared Models/DTOs
-│   ├── Models/
-│   │   ├── UserDto.cs
-│   │   ├── ProjectDto.cs
-│   │   ├── TaskDto.cs
-│   │   └── CreateTaskRequest.cs
-│   ├── Enums/
-│   │   ├── TaskStatus.cs
-│   │   ├── TaskPriority.cs
-│   │   └── ProjectRole.cs
-│   └── TaskManager.Shared.csproj
-└── TaskManager.sln
+master.template
+├── backend.template
+│   ├── security.template        # SharedLambdaExecutionRole (assumed by ECS tasks; includes SES access)
+│   ├── network.template         # VPC, public/private subnets, ALB/ECS/Lambda security groups, flow logs
+│   ├── db.template              # Aurora MySQL Serverless v2 cluster (+ Global Cluster on app/beta/alpha)
+│   └── infrastructure.template  # ECS cluster, Google OAuth secret
+└── application.template
+    ├── api.template             # (regional API resources)
+    ├── web.template             # ALB + listeners + ACM cert + ECS Fargate task definition & service
+    └── dns.template             # Route 53 records / health checks (deployed once per env)
 ```
 
-## AWS Lambda Configuration
+- **Shared-infrastructure branches** (`app`, `beta`, `alpha`, `dev`) deploy
+  `master.template` (full backend incl. Aurora). `dev` is single-region;
+  `app`/`beta`/`alpha` are multi-region (Aurora Global Cluster).
+- **Every other branch** (`{type}/{name}` feature branches) deploys
+  `application.template` only, importing backend exports from `dev` via
+  `Fn::ImportValue`.
+- The bootstrap stack (one per region, named for the dashed domain) owns the ECR
+  repository, the templates S3 bucket, KMS keys, and the GitHub Actions IAM
+  users — see the "Infrastructure naming convention" section of CLAUDE.md.
 
-### Lambda Function Setup
-- **Runtime**: .NET 8
-- **Handler**: TaskManager.Api::TaskManager.Api.LambdaEntryPoint::FunctionHandlerAsync
-- **Memory**: 512 MB (adjustable based on performance)
-- **Timeout**: 30 seconds
-- **Environment Variables**:
-  - `ConnectionStrings__DefaultConnection`
-  - `Authentication__Google__ClientId`
-  - `Authentication__Google__ClientSecret`
+## Hosting details (from web.template)
 
-### API Gateway Integration
-- **Type**: HTTP API (v2)
-- **Routes**: `{proxy+}` to Lambda function
-- **CORS**: Configured for Blazor Server origin
-- **Custom Domain**: Optional
+- **ECS task**: Fargate, `awsvpc` networking, CPU `512` / memory `1024`,
+  container `web` listening on port 80, logs to a CloudWatch log group.
+- **ALB**: internet-facing; HTTP:80 listener redirects to HTTPS:443; HTTPS:443
+  listener forwards to a target group (`TargetType: ip`, health check `/health`).
+- **TLS**: ACM certificate for `{branch}.{DomainName}`, DNS-validated in the
+  Route 53 hosted zone.
+- **DNS / multi-region**: Route 53 alias records (and failover health checks in
+  multi-region) point the subdomain at the ALB(s).
 
-## Security Considerations
+## Environment & configuration
 
-### Authentication & Authorization
-- Google OAuth 2.0 integration
-- JWT tokens for API authentication
-- Role-based access control for projects
-- HTTPS enforcement
-- CSRF protection for Blazor Server
+- Secrets and connection details come from environment variables / AWS Secrets
+  Manager in deployed environments, and from `dotnet user-secrets` locally.
+  `appsettings.json` connection strings are localhost defaults only.
+- `AwsSes:SenderEmail` is set to `noreply@appcloud.systems` in
+  [infrastructure/web.template](../../infrastructure/web.template); confirmation
+  emails are sent through AWS SES (see CLAUDE.md "Email" section).
 
-### Data Protection
-- Connection string encryption
-- Sensitive data in AWS Secrets Manager
-- Input validation and sanitization
-- SQL injection prevention via EF Core
+## See also
 
-## Deployment Strategy
-
-### Development Environment
-1. Local PostgreSQL database
-2. Local development server
-3. Google OAuth test credentials
-
-### Production Deployment
-1. **Database**: AWS RDS PostgreSQL instance
-2. **Application**: AWS Lambda deployment package
-3. **API Gateway**: HTTP API configuration
-4. **Monitoring**: CloudWatch logs and metrics
-5. **CI/CD**: GitHub Actions workflow
-
-## Performance Considerations
-
-### Database Optimization
-- Proper indexing on foreign keys
-- Query optimization with EF Core
-- Connection pooling
-- Read replicas for scaling (future)
-
-### Lambda Optimization
-- Cold start mitigation
-- Memory allocation tuning
-- Connection reuse
-- Minimal dependencies
-
-## Monitoring & Logging
-
-### Application Logging
-- Structured logging with Serilog
-- CloudWatch integration
-- Error tracking and alerting
-- Performance metrics
-
-### Health Checks
-- Database connectivity
-- External service availability
-- Lambda function health
-
-## Future Enhancements
-
-### Authentication Providers
-- Microsoft Azure AD
-- GitHub OAuth
-- Facebook Login
-- Custom SAML integration
-
-### Features
-- Real-time notifications (SignalR)
-- File attachments
-- Time tracking
-- Reporting and analytics
-- Mobile app support
-
-### Scalability
-- Read replicas
-- Caching layer (Redis)
-- CDN for static assets
-- Multi-region deployment
+- [DEPLOYMENT_STRATEGY.md](DEPLOYMENT_STRATEGY.md) — the deployment model.
+- [AWS_DEPLOYMENT_GUIDE.md](AWS_DEPLOYMENT_GUIDE.md) — how a push deploys.
+- [AWS_DEPLOYMENT_SETUP.md](AWS_DEPLOYMENT_SETUP.md) — secrets/variables/bootstrap setup.

@@ -70,7 +70,7 @@ The Lambda's execution role's policy SHALL grant only:
 - `rds:DeleteDBCluster`, `rds:ModifyDBCluster` on `arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster:*` (the deploying region/account only).
 - `rds:DeleteDBInstance` on `arn:aws:rds:${AWS::Region}:${AWS::AccountId}:db:*` (the deploying region/account only).
 - `kms:DescribeKey` on `Resource: "*"` (used for log enrichment when investigating KMS-related cluster issues).
-- CloudWatch Logs (`logs:CreateLogGroup`, `logs:CreateLogStream`, `logs:PutLogEvents`) on the Lambda's own log group only.
+- CloudWatch Logs (`logs:CreateLogGroup`, `logs:CreateLogStream`, `logs:PutLogEvents`) on `arn:aws:logs:${AWS::Region}:${AWS::AccountId}:*` (all log groups in the deploying region/account — the inline policy is region-scoped but not narrowed to the Lambda's own log group).
 
 Env clusters are CFN **auto-named** (e.g. `dev-appcloud-systems-backendstack-7d-auroracluster-<rand>`): an explicit `DBClusterIdentifier` would force a cluster **replacement** whose new endpoint changes the `DatabaseHost` export, which CloudFormation refuses to update while Web/Api/feature-branch stacks import it (observed on dev 2026-06-05). Auto-names cannot be reliably prefix-matched from the region-wide bootstrap role, so the mutating actions are scoped to `cluster:*`/`db:*` within the deploying region rather than a name prefix. A safety-net teardown that silently lacks delete permission is worse than a broad in-region grant; the Lambda only ever deletes the single cluster the custom resource names in its event. FUTURE HARDENING: tag env clusters with the domain and constrain via `aws:ResourceTag`.
 

@@ -23,7 +23,7 @@ The system SHALL allow email templates to include dynamic data like recipient na
 
 #### Scenario: Template receives model with email and token
 - **WHEN** confirmation email template is rendered with user email and token
-- **THEN** the template has access to variables: `Email`, `ConfirmationLink`, `RecipientName` (if available)
+- **THEN** the template has access to the `ConfirmationEmailViewModel` properties `Email` and `ConfirmationUrl` (the model exposes no `RecipientName`; the URL property is `ConfirmationUrl`, not `ConfirmationLink`)
 
 #### Scenario: Confirmation link is properly formatted
 - **WHEN** template renders confirmation link

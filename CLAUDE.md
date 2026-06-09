@@ -51,8 +51,9 @@ dotnet build                                # also restores Playwright browsers
 dotnet test                                 # runs against BaseUrl in appsettings.json (default: https://dev.appcloud.systems)
 dotnet test --filter "FullyQualifiedName~LoginNavigation"   # single test
 
-# Connect to the deployed Aurora DB through the bastion
-.\Connect-AuroraDB.ps1 -UseSSM
+# Inspect the deployed Aurora MySQL DB: AWS Console -> RDS -> Query Editor
+# (authenticate with the DB credentials secret in Secrets Manager). There is no
+# local tunnel/bastion helper — the prior Connect-AuroraDB.ps1 was removed as dead.
 ```
 
 **Reading test results in CI:** the deploy workflow ([.github/workflows/zbuild.yml](.github/workflows/zbuild.yml)) produces a first-class test summary on the run page via `dorny/test-reporter@v1` (TRX → markdown summary + check-run annotations), plus uploaded artifacts. Start debugging a red run at the **run-page summary** (the `Unit tests` / `UI tests` report and the `ui-test-artifacts-*` artifact containing Playwright `trace.zip`), not by scrolling the raw step logs. TRX filenames are pinned (`unit-tests.trx`, `ui-tests.trx`); artifact retention is 7 days (30 on `app`).
