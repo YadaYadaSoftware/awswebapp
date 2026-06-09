@@ -119,6 +119,9 @@ jobs:
   deploy:
     name: Deploy to AWS
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
     concurrency:
       group: deploy-${{ matrix.region }}-${{ inputs.branch-name }}
       cancel-in-progress: false
@@ -321,7 +324,9 @@ jobs:
         echo "🌿 Branch tag: $BRANCH_TAG"
 
         # Build container image from root context
-        docker build -t $IMAGE_NAME:$SRC_CHECKSUM -f ${{ inputs.web-dockerfile-path }} . --build-arg VERSION=${{ inputs.custom-version }} --build-arg ASSEMBLY_VERSION=${{ inputs.assembly-sem-ver }}
+        # GH_PACKAGES_TOKEN lets the Dockerfile restore framework packages (and satisfy the
+        # NuGet.config GitHub Packages source credential) — the consumer's GITHUB_TOKEN.
+        docker build -t $IMAGE_NAME:$SRC_CHECKSUM -f ${{ inputs.web-dockerfile-path }} . --build-arg VERSION=${{ inputs.custom-version }} --build-arg ASSEMBLY_VERSION=${{ inputs.assembly-sem-ver }} --build-arg GH_PACKAGES_TOKEN=${{ secrets.GITHUB_TOKEN }}
 
         # Login to ECR
         aws ecr get-login-password --region ${{ matrix.region }} | docker login --username AWS --password-stdin $ECR_REPO
