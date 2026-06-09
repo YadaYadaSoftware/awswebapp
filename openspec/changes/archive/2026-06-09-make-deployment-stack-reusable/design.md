@@ -113,7 +113,15 @@ A workflow input gets passed *into* the workflow, which then forwards it as a te
 - `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` — Google OAuth (if the consumer uses Google OAuth; should be optional eventually but required for now to match TaskManager's contract)
 - `GITHUB_TOKEN` — auto-provided
 
-### D4. CFN templates use `${ProjectName}` everywhere `taskmanager` is hardcoded
+### D4. CFN templates derive project naming from the domain — no separate `ProjectName` parameter
+
+**Decided (supersedes the original D4 below):** resource names continue to derive from the dashed domain (`${AWS::StackName}` / `DomainName`-derived forms) per the established CLAUDE.md convention. A separate `ProjectName` axis is **not** introduced — the `taskmanager-*` literals this section was written to remove are already gone (a `grep taskmanager infrastructure/` returns zero hits), so the premise is satisfied. The remaining project-specific work is narrower than "add `ProjectName` everywhere":
+
+- Remove the `DomainName` `Default: "appcloud.systems"` from the templates that carried it (`master`, `application`, `web`, `dns`) so a consumer must supply their domain. Safe because every parent passes `DomainName: !Ref DomainName` to its nested stacks and the workflow passes `DomainName` to the top-level deploys — the defaults were never relied on.
+- Derive any remaining domain-shaped literal from `DomainName` rather than hardcoding it — e.g. the SES sender env var becomes `!Sub "noreply@${DomainName}"`.
+- **Open (api.template):** `api.template`'s `CodeUri: ../src/Tjb.Api/` and handler `Tjb.Api::...FunctionHandlerAsync` are source-code paths, not resource names, so they cannot derive from the domain. Under the no-`ProjectName` decision there is no naming axis to hang them on. Needs a separate call: parameterize the API source path via a dedicated workflow input, treat `api.template` as consumer-supplied/out-of-contract, or drop it (Tjb.Api is vestigial and not in the deployed surface).
+
+The original parameter-everywhere plan is retained below for historical context:
 
 > **Baseline note:** this section predates the archived `domain-named-bootstrap-stack` / `domain-derived-resource-naming` work. The `taskmanager` literals it lists have already been replaced by `DomainName`/`${AWS::StackName}` derivations — e.g. KMS aliases are now `alias/${AWS::StackName}-aurora-{prod,nonprod}`, KMS SSM paths `/${AWS::StackName}/kms/*`, and Aurora cluster IDs / secrets paths derive from a locally-computed `DomainDashed`. So the remaining D4 work is introducing a `ProjectName` parameter where decoupling resource naming from the *domain* is desirable (the names below currently key off `DomainName`, not `taskmanager`), not removing `taskmanager`.
 
@@ -189,8 +197,8 @@ The same repo will be both the library AND its first consumer. Concretely:
 
 ## Open Questions
 
-1. **AWS account model — one account per consumer, or shared?** Currently TaskManager has its own account. If a second consumer lands in the *same* account, the per-account singletons (`AWS::ApiGateway::Account`, the templates-bucket policy) need to be either shared (one consumer "wins" ownership) or moved out to a higher-level account-bootstrap stack. Likely answer: each consumer gets its own AWS account; document that assumption clearly. Confirm before tagging v1.0.0.
-2. **NuGet package name.** `YadaYada.AwsWebApp.DeploymentStack` is a working name. Could also be `YadaYada.DeploymentStack`, `YadaYada.WebApp.AwsDeploy`, etc. Pick during implementation; once tagged it's hard to change.
+1. **AWS account model — one account per consumer, or shared? → RESOLVED: namespaced / shared account.** Multiple consumers may share one AWS account, isolated by name (the dashed domain = `${AWS::StackName}`, per D4/§0.1 derive-from-domain). Per-project resources already don't collide — each consumer's bootstrap + env stacks are dashed-domain-scoped. The true account-singletons (`AWS::ApiGateway::Account`, the `cf-templates-${AccountId}-${Region}` bucket policy) must be handled so two consumers in one account don't fight over them: give one consumer ownership, or hoist them into a higher-level account-bootstrap stack. Phase 3 / bootstrap work must honor this. (Chose shared over the earlier "one account per consumer" lean.) Still confirm/resolve the singleton handling before tagging v1.0.0.
+2. **NuGet package name. → RESOLVED:** locked to `YadaYada.AwsWebApp.DeploymentStack` (task 1.2). Only branch-suffixed pre-releases publish until a v1.0.0 tag on `app`.
 3. **Does the reusable workflow assume Aurora MySQL specifically, or accept Postgres as a future variant?** Initial implementation is Aurora MySQL (matching TaskManager). Adding Postgres variant is straightforward (db.template branches on engine) but adds input-surface complexity. Defer.
 4. **Versioning across templates and workflow — single SemVer track or independent?** Single track simpler; pick that unless we hit a reason to decouple.
 5. **Consumer's container build — assume the consumer provides their `Dockerfile` at a known path, or accept the Dockerfile path as an input?** Latter is more flexible. Use a `web-dockerfile-path` input with a sensible default.

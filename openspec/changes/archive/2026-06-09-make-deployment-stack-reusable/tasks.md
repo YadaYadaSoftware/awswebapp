@@ -1,0 +1,69 @@
+## 0. AUTONOMOUS-RUN STATUS — read first
+
+Status: **Phase 1 (template parameterization) and Phase 2 (NuGet packaging) are done.**
+§0.1 was decided *derive-from-domain* (no separate `ProjectName` axis) and the package name
+is locked; `api.template` was dropped from the reusable contract. **Phases 3 (reusable
+`workflow_call` extraction) and 4 (docs/release) remain, plus task 1.3 (account model) and
+3.6/5.3 (release tags).** Phase 3 is the highest-risk change and should be done attended on a
+throwaway branch with a watched deploy. Original autonomous-run context follows. Two reasons
+this spec was only partially auto-implementable:
+
+1. **Phase 1 is largely already satisfied.** `grep -rn 'taskmanager' infrastructure/` returns
+   **zero hits** — the bootstrap consolidation + `domain-qualified-stack-exports` already moved
+   all naming to `${AWS::StackName}` / `DomainName`-derived forms. The spec's premise (strip
+   `taskmanager-*` literals) is effectively complete. What remains — adding a *separate*
+   `ProjectName` parameter distinct from the domain — **conflicts with the established
+   convention** (CLAUDE.md: names derive from the dashed domain = `${AWS::StackName}`). That's
+   a design decision, not a mechanical edit. **Need your call:** keep deriving from the domain
+   (recommended; ProjectName == dashed domain), or introduce a distinct ProjectName axis?
+2. **Decision gates + risk.** Tasks 1.2 (lock the final package name — "hard to change") and
+   1.3 (confirm the AWS account model before tagging v1.0.0) are explicit human decisions.
+   Phase 3 (rewriting the entire `deploy` job into a reusable `workflow_call` + turning
+   `zbuild.yml` into a thin caller) is the single highest-risk change in the backlog and was
+   not done blind/unattended.
+
+## 1. Prereqs and audit
+
+- [x] 1.1 Confirm foundational changes landed/deferred. — *Confirmed: `move-shared-lambda-role-to-bootstrap` is implemented on its own branch (not merged); ordering per design still applies. `centralize-aurora-kms-keys` is archived/deployed. This change proceeds ahead of the others per the design's working order.*
+- [x] 1.2 Decide + document the final NuGet package name. — *DECIDED: `YadaYada.AwsWebApp.DeploymentStack` is locked as the final name (already the csproj's package id). Only branch-suffixed pre-releases publish until a release tag.*
+- [x] 1.3 Decide + document the AWS-account model (one-consumer-per-account vs namespaced). — *DECIDED: **namespaced / shared account** — multiple consumers may share one AWS account, isolated by name. The namespace is the dashed domain (`${AWS::StackName}`, per §0.1 derive-from-domain), so per-project resources already don't collide: each consumer's bootstrap + env stacks are dashed-domain-scoped (KMS aliases, SSM paths, IAM users, ECR repo, templates bucket all carry the dashed domain). **Constraint Phase 3 / bootstrap must honor:** the true account-singletons — `AWS::ApiGateway::Account` and the `cf-templates-${AccountId}-${Region}` bucket policy — can't be owned by every consumer's stack in a shared account; resolve by giving one consumer ownership or hoisting them into a higher-level account-bootstrap stack. Still gates a v1.0.0 tag (`5.3`).*
+- [x] 1.4 Audit hardcoded project-specific values. — *Done: `taskmanager` → 0 hits in `infrastructure/`. `appcloud.systems` hits are descriptions + a few `Default:` values on `DomainName` params (api/application/dns/infrastructure). `Tjb` hits are genuinely project-specific source paths in `api.template` (CodeUri/handler) and descriptions.*
+
+## 2. Phase 1 — Template parameterization
+
+- [x] 2.1–2.6 Parameterize remaining project-specific literals (no separate `ProjectName` axis — §0.1 DECIDED: derive from domain). — *DONE: removed `DomainName` `Default: "appcloud.systems"` from `master`/`application`/`web`/`dns` (consumers must now supply it; safe — every parent passes `DomainName: !Ref DomainName` to nested stacks and the workflow passes it to top-level deploys). Derived the SES sender to `!Sub "noreply@${DomainName}"` in `web.template`. CLAUDE.md SES note synced. `api.template` (Tjb.Api-specific `CodeUri`/handler) DECIDED dropped from the reusable contract — excluded from the package via `Exclude` in the csproj (verified: the `.nupkg` now ships 10 templates, no `api.template`). Tjb.Api stays in the repo (vestigial) but is not part of the reusable stack.*
+- [x] 2.7–2.11 Workflow override, validate, deploy checks, grep audit. — *DONE (code side): under derive-from-domain there is no `ProjectName` override to add; the workflow already passes `DomainName=${{ secrets.DOMAIN_NAME }}` to every deploy, so no caller change is needed. `grep -rn taskmanager infrastructure/` = 0 hits. **Deploy verification: PASSED** — commit `b452d6c` pushed; the `Deploy Everything` CI run `27206056588` completed `success` in 13m19s, deploying to `https://make-deployment-stack-reusable.appcloud.systems` (removed `DomainName` defaults + derived SES sender produced no visible breakage).*
+
+## 3. Phase 2 — NuGet package the templates
+
+- [x] 3.1 Create `src/YadaYada.AwsWebApp.DeploymentStack/…csproj` — content-only package (`IsPackable`, `IncludeBuildOutput=false`), packing every file in `infrastructure/` to `contentFiles/any/any/infrastructure/`.
+- [x] 3.2 Add the project to [Tjb.sln](../../../Tjb.sln). — *`dotnet sln add`.*
+- [x] 3.3 Build + inspect the `.nupkg`. — *Verified: `dotnet pack` produces `contentFiles/any/any/infrastructure/*.template` for all templates (bootstrap, master, backend, db, network, infrastructure, web, api, dns, security).*
+- [x] 3.4 Add a `Pack YadaYada.AwsWebApp.DeploymentStack` step to the build job mirroring the existing Pack steps' SemVer + branch-suffix convention (content-only → no `--include-symbols/--include-source`).
+- [x] 3.5 The existing `publish-nuget` job picks up everything in `./nupkgs/` — no publish-job change needed. — *Confirmed by inspection; verify on the next CI run.*
+- [x] 3.6 Confirm a branch-suffixed pre-release on GitHub Packages. — *CONFIRMED: run `27213734882`'s `publish-nuget` log shows `Pushing YadaYada.AwsWebApp.DeploymentStack.1.0.1.146-make-deployment-stack-reusable.nupkg to https://nuget.pkg.github.com/YadaYadaSoftware`. (A `v<x.y.z>` git tag is a separate release action — see 5.3.)*
+
+## 4. Phase 3 — Extract the reusable workflow
+
+- [x] 4.1–4.5 Create `.github/workflows/deploy.yml` (`workflow_call`); move the `deploy` + `post-deployment-ui-tests` jobs into it; parameterize every project-specific value (domain-name, hosted-zone-id, region-primary/secondary, multi-region/shared-infra/prod branch lists, engine/dotnet versions, dockerfile/ui-test paths) as inputs + secrets; rewrite `zbuild.yml`'s two inline jobs as one thin caller (`uses: ./.github/workflows/deploy.yml`, `secrets: inherit`) and repoint `publish-nuget.needs` to `deploy`. — *DONE. Derive-from-domain honored (no ProjectName/project-name; `domain-name` is the sole naming input, sourced from a new `DOMAIN_NAME` repo Variable since `${{ secrets.* }}` is invalid in a reusable-workflow `with:`). Workflow-level `env`+`inputs` avoided (refs inlined to `${{ inputs.* }}`) to dodge context-availability pitfalls. Latent `assemblySemVer` gap preserved as the `assembly-sem-ver` input (default `''`) — flagged for a separate fix. Both files pass `js-yaml`. **Verification pending the watched deploy on this branch (task 4.6).**`*
+- [x] 4.6 Watch a live deploy end-to-end (the spec's attended gate). — *PASSED: commit `e95422e` pushed; `Deploy Everything` run `27212288845` is green across `build → deploy (reusable workflow_call) → UI tests → publish-nuget`. The matrix correctly skipped the secondary region (`deploy: false` for a feature branch — the `contains(format(' {0} ', …))` expression evaluated right), the reusable `deploy` job ran the us-east-1 application.template deploy in 7m40s, and `secrets: inherit` + `vars.DOMAIN_NAME` behaved identically to the pre-refactor pipeline. **Caveat (for 6.2):** a feature branch only exercises the `application.template`/single-region/nonprod path; the `master.template`/multi-region/prod-branch path is refactored but unexercised until a shared-infra merge.*
+- [x] 4.7 External-consumer template extraction. — *DONE: added two guarded steps to `deploy.yml` (`Set up .NET (template extraction)` + `Extract reusable CloudFormation templates from NuGet`) plus inputs `deployment-stack-version` (default `''`) / `deployment-stack-feed` and secret `DEPLOYMENT_STACK_FEED_TOKEN`. They run only when `deployment-stack-version != '' && hashFiles('infrastructure/master.template') == ''`, so they are a double no-op for this repo's self-consume (version defaults to `''` and the templates exist). The step installs the package via a temp project + dedicated nuget.config and copies `contentFiles/any/any/infrastructure/.` into `./infrastructure/`. **Not yet exercised by a real external consumer** (no second consumer exists); verified only that the steps are present-but-correctly-skipped on self-consume (run `27213734882`, green — the Actions schema accepts the new inputs/steps) and that `deploy.yml` passes `js-yaml`.*
+
+## 5. Phase 4 — Documentation and release
+
+- [x] 5.1 Write `CONSUMING.md`. — *DONE: [CONSUMING.md](../../../CONSUMING.md) at repo root covers prereqs, the one-time per-region bootstrap, package install, a full caller-workflow example, the complete input + secret reference tables (matching `deploy.yml`'s `inputs:`/`secrets:` exactly), the baked-in branch model, and troubleshooting. Notes the external-consumer extraction path is implemented-but-not-yet-consumer-tested.*
+- [x] 5.2 Update README.md / CLAUDE.md to note the repo is also a library. — *DONE: README gained a "📦 Also a reusable deployment library" section (+ a staleness note) pointing to CONSUMING.md; CLAUDE.md gained a "This repo is also a reusable deployment library" section (edit deploy.yml not zbuild.yml; domain-as-Variable; api.template excluded; keep CONSUMING.md in sync).*
+- [ ] 5.3 Tag `v1.0.0` on `app`. — *RELEASE OP, out of this change's implementation scope: performed when the change merges to `app` (gates are now closed — 1.2 name locked, 1.3 account model decided). Tracked as a post-merge release action, not an implementation blocker for archive.*
+- [ ] 5.4 Announce internally. — *RELEASE OP, post-`v1.0.0`. Not an implementation blocker for archive.*
+
+## 6. Validation
+
+- [x] 6.1 `openspec validate make-deployment-stack-reusable --strict`. — *passed.*
+- [x] 6.2 Verify each spec scenario against the deployed system. — *VERIFIED (to the extent a feature-branch env allows). ✅ No hardcoded `taskmanager` (grep `infrastructure/` = 0). ✅ No hardcoded domain in resource values — the only `appcloud.systems` hits are 9 parameter Descriptions/examples. ✅ Naming derives from domain (stack `make-deployment-stack-reusable-appcloud-systems` from `DomainName=appcloud.systems`). ✅ TaskManager self-consumes (`zbuild.yml` → `./deploy.yml`, runs `27212288845`/`27213734882` green). ✅ TaskManager passes its domain (`domain-name` via `vars.DOMAIN_NAME`). ✅ Templates discoverable in the nupkg `contentFiles/any/any/infrastructure/` (Phase 2). ✅ Branch-suffixed pre-release published (3.6). ✅ docs-match-reality: `deploy.yml` inputs == CONSUMING.md table (18 each). ✅ Typed input/secret surface + prod-cred empty-guard (inspection). **⛔ GATED — not exercised, flagged for follow-up:** (a) the `master.template`/multi-region/prod-branch deploy path is refactored but runs through the new `deploy.yml` for the first time only on the next `app`/`beta`/`alpha`/`dev` merge — **watch that first shared-infra run**; (b) the external-consumer extraction path (`deployment-stack-version`) — no second consumer exists yet; (c) on-`app` publish + `v<x.y.z>` git tag (5.3).*
+- [x] 6.3 Archive this change. — *DONE via `openspec archive` on 2026-06-09: spec synced (pure ADD → `openspec/specs/reusable-deployment-stack/spec.md`, 5 requirements) and the change moved to `openspec/changes/archive/2026-06-09-make-deployment-stack-reusable/`. Phases 1–4 (impl + docs) landed and the self-consume path is deploy-verified. Open at archive time (non-blocking): 5.3 `v1.0.0` tag + 5.4 announce (release ops on `app` merge); and the gated 6.2 items — the `master.template`/multi-region/prod deploy path (watch the first shared-infra merge run) and the external-consumer extraction path (no second consumer yet).*
+
+## Implementation notes (autonomous run on branch `make-deployment-stack-reusable`)
+
+- **Delivered (safe, additive, decision-light):** the template NuGet package (`YadaYada.AwsWebApp.DeploymentStack`, preview name) + sln entry + a CI Pack step. The existing publish job will push a branch-suffixed pre-release. No deploy-path behavior changed, so the feature-branch deploy is unaffected by this change.
+- **Deferred for your input:** the `ProjectName`-vs-`${AWS::StackName}` design decision (§0.1), the package-name lock-in (1.2), the account-model decision (1.3), the high-risk reusable-workflow extraction (Phase 3), and the docs/release (Phase 4, which depend on Phase 3).
+- **Recommendation:** treat Phase 2 as a foundation; tackle Phase 3 attended on a throwaway branch with a watched deploy, after deciding the naming axis and package name.

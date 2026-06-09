@@ -2,6 +2,15 @@
 
 A full-stack task and project management web application built with C# / ASP.NET on **.NET 10**, deployed to AWS as a Docker container on **ECS Fargate** behind an Application Load Balancer. Authentication is ASP.NET Identity + Google OAuth; the database is **Aurora MySQL Serverless v2**.
 
+## Also a reusable deployment library
+
+Besides being an application, this repo packages its AWS deploy machinery for reuse by **other
+.NET web apps**: the CloudFormation templates ship as the `YadaYada.AwsWebApp.DeploymentStack`
+NuGet package, and the deploy pipeline is a reusable `workflow_call` workflow
+([`.github/workflows/deploy.yml`](.github/workflows/deploy.yml)) that this repo dogfoods. A new
+app onboards by deploying one bootstrap stack, installing the package, and calling the workflow
+with ~15 inputs. See **[CONSUMING.md](CONSUMING.md)** for the full guide.
+
 ## Architecture Overview
 
 - **Framework**: .NET 10 (`net10.0`) across all projects.

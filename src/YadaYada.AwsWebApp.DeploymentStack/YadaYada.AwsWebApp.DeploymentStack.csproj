@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Packages the project-agnostic CloudFormation templates in infrastructure/ for
+    reuse by other .NET web-app projects (openspec change: make-deployment-stack-reusable).
+    Package id is LOCKED (task 1.2): YadaYada.AwsWebApp.DeploymentStack. Until a v1.0.0
+    tag on `app`, only branch-suffixed pre-releases publish. This is a content-only
+    package (no build output); templates land under contentFiles/any/any/infrastructure/.
+    api.template is intentionally excluded (task §0.1 / 2.x): it carries Tjb.Api-specific
+    source paths (CodeUri/handler) and Tjb.Api is vestigial / not in the deployed surface,
+    so it is not part of the reusable contract.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>true</IsPackable>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
+    <!-- NU5128: no lib/ref assemblies — expected for a content-only package. -->
+    <NoWarn>$(NoWarn);NU5128</NoWarn>
+    <PackageId>YadaYada.AwsWebApp.DeploymentStack</PackageId>
+    <Title>YadaYada AWS Web App Deployment Stack (templates)</Title>
+    <Authors>YadaYada Software</Authors>
+    <Description>Reusable CloudFormation templates (bootstrap + multi-region env stacks: Aurora Serverless v2 + ECS Fargate behind an ALB) for deploying a .NET web app to AWS. Consumed alongside the YadaYadaSoftware/awswebapp reusable deploy workflow. PREVIEW — see the make-deployment-stack-reusable OpenSpec change.</Description>
+    <PackageTags>aws;cloudformation;deployment;dotnet;fargate;aurora;ecs</PackageTags>
+    <RepositoryUrl>https://github.com/YadaYadaSoftware/awswebapp</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Every template in the repo's infrastructure/ directory is the source of truth,
+         except api.template (Tjb.Api-specific, vestigial — excluded from the reusable contract). -->
+    <Content Include="..\..\infrastructure\**\*" Exclude="..\..\infrastructure\api.template">
+      <Pack>true</Pack>
+      <PackagePath>contentFiles/any/any/infrastructure/</PackagePath>
+      <PackageCopyToOutput>false</PackageCopyToOutput>
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+      <Link>infrastructure/%(RecursiveDir)%(Filename)%(Extension)</Link>
+    </Content>
+  </ItemGroup>
+
+</Project>
