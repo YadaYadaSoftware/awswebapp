@@ -15,9 +15,12 @@ The handler SHALL perform the following sequence on `Delete`:
 2. If the cluster has `DeletionProtection: true`, call `ModifyDBCluster` to set it to `false` with `ApplyImmediately: true`. Tolerate errors here (e.g., cluster in non-modifiable state); proceed regardless.
 3. For each `DBClusterMember`, call `DeleteDBInstance` with `SkipFinalSnapshot: true`.
 4. Poll `DescribeDBClusters` every ~30 seconds, waiting for the cluster to leave any of: `backing-up`, `creating`, `modifying`, `configuring-iam-database-auth`. Time out after the Lambda's configured timeout (15 minutes).
-5. Call `DeleteDBCluster` with `SkipFinalSnapshot: true`.
-6. Poll until the cluster returns `ClusterNotFoundFault`.
-7. Signal CFN SUCCESS.
+5. If the cluster is a member of an Aurora **global** cluster (determined via `DescribeGlobalClusters`, matching the cluster's ARN against each global cluster's `GlobalClusterMembers`), call `RemoveFromGlobalCluster` for it and poll until membership is gone. A global-cluster member cannot be deleted directly — `DeleteDBCluster` returns `InvalidDBClusterStateFault` ("...is a part of a global cluster, please remove it from global cluster first") — so this detach is required for both the secondary (read-replica) member and the primary/writer member. If the cluster is not a global member, this step is a no-op.
+6. Call `DeleteDBCluster` with `SkipFinalSnapshot: true`.
+7. Poll until the cluster returns `ClusterNotFoundFault`.
+8. Signal CFN SUCCESS.
+
+Because detaching the primary/writer member empties the global cluster, CFN's own subsequent `AWS::RDS::GlobalCluster` delete (the resource lives in the primary region's stack) finds it memberless and succeeds — so this single handler behavior unblocks both the secondary-region and primary-region stack deletes.
 
 On `RequestType: Create` and `RequestType: Update`, the handler SHALL signal CFN SUCCESS immediately without any RDS API call.
 
@@ -47,6 +50,14 @@ Any uncaught exception SHALL be returned to CFN as a FAILED signal with the exce
 - **WHEN** the Lambda is invoked with `RequestType=Update`
 - **THEN** the Lambda makes no RDS API calls and signals CFN SUCCESS immediately
 
+#### Scenario: Global-cluster member is detached before delete
+- **WHEN** the Lambda is invoked with `RequestType=Delete` for a regional cluster that is a member of an Aurora global cluster (e.g. the `alpha` secondary in us-east-2, or the primary/writer member in us-east-1)
+- **THEN** the Lambda discovers the membership via `DescribeGlobalClusters`, calls `RemoveFromGlobalCluster`, polls until the cluster is no longer a member, then calls `DeleteDBCluster` (which would otherwise return `InvalidDBClusterStateFault: "...is a part of a global cluster, please remove it from global cluster first"`) and completes the teardown
+
+#### Scenario: Non-global cluster is unaffected
+- **WHEN** the Lambda is invoked with `RequestType=Delete` for a single-region cluster that is not part of any global cluster (e.g. a feature-branch or `dev` cluster)
+- **THEN** the `DescribeGlobalClusters` lookup finds no matching membership, the detach step is a no-op, and the cluster is deleted directly as before
+
 ### Requirement: Lambda ARN is published via SSM Parameter Store
 
 The `bootstrap` stack SHALL publish the Lambda's ARN to AWS Systems Manager Parameter Store at the domain-derived path `/${AWS::StackName}/lambda/aurora-cluster-delete-handler-arn` (where `${AWS::StackName}` is the dashed deployment domain, e.g. `/appcloud-systems/lambda/aurora-cluster-delete-handler-arn`), in the same region as the Lambda. This mirrors the KMS key SSM convention (`/${AWS::StackName}/kms/{prod,nonprod}/aurora-key-arn`) established by the `domain-derived-resource-naming` refactor — **not** a hardcoded `/taskmanager/...` path. The SSM parameter SHALL NOT have `DeletionPolicy: Retain` during this change's setup phase (consistent with the parent `centralize-aurora-kms-keys` change's iteration-friendliness rationale).
@@ -66,7 +77,8 @@ The deploy workflow SHALL read this SSM parameter at deploy time and pass the va
 ### Requirement: Lambda IAM permissions are minimum-necessary and region-scoped
 
 The Lambda's execution role's policy SHALL grant only:
-- `rds:DescribeDBClusters`, `rds:DescribeDBInstances` on `Resource: "*"` (the Describe APIs do not support resource-level perms).
+- `rds:DescribeDBClusters`, `rds:DescribeDBInstances`, `rds:DescribeGlobalClusters` on `Resource: "*"` (the Describe APIs do not support resource-level perms).
+- `rds:RemoveFromGlobalCluster` on `Resource: "*"` — Aurora global clusters are account-global (their ARN carries no region), so this teardown-safety-net grant is intentionally broad, on the same rationale as the `cluster:*`/`db:*` grants below.
 - `rds:DeleteDBCluster`, `rds:ModifyDBCluster` on `arn:aws:rds:${AWS::Region}:${AWS::AccountId}:cluster:*` (the deploying region/account only).
 - `rds:DeleteDBInstance` on `arn:aws:rds:${AWS::Region}:${AWS::AccountId}:db:*` (the deploying region/account only).
 - `kms:DescribeKey` on `Resource: "*"` (used for log enrichment when investigating KMS-related cluster issues).
