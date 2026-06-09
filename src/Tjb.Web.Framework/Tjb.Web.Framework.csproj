@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AddRazorSupportForMvc>true</AddRazorSupportForMvc>
+    <!-- Keep the moved code's existing Tjb.Web.* namespaces (non-lossiness choice). -->
+    <RootNamespace>Tjb.Web</RootNamespace>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <IsPackable>true</IsPackable>
+    <PackageId>Tjb.Web.Framework</PackageId>
+    <Title>Tjb Web Framework (reusable UI)</Title>
+    <Authors>Your Organization</Authors>
+    <Description>Reusable ASP.NET web surface for the Tjb framework: Identity UI pages, the Blazor layout/shell, SES email services, the revalidating auth-state provider, and static web assets, packaged as a Razor Class Library.</Description>
+    <PackageTags>tjb;web;framework;blazor;identity;razor-class-library</PackageTags>
+    <RepositoryUrl>https://github.com/your-org/taskmanager</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+    <PackageProjectUrl>https://github.com/your-org/taskmanager</PackageProjectUrl>
+  </PropertyGroup>
+
+  <!-- The Web SDK contributes these implicit global usings; the Razor SDK does not.
+       The moved code (Services, Identity pages, auth-state provider) relies on them. -->
+  <ItemGroup>
+    <Using Include="Microsoft.AspNetCore.Builder" />
+    <Using Include="Microsoft.AspNetCore.Hosting" />
+    <Using Include="Microsoft.AspNetCore.Http" />
+    <Using Include="Microsoft.AspNetCore.Routing" />
+    <Using Include="Microsoft.Extensions.Configuration" />
+    <Using Include="Microsoft.Extensions.DependencyInjection" />
+    <Using Include="Microsoft.Extensions.Hosting" />
+    <Using Include="Microsoft.Extensions.Logging" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="AWSSDK.SimpleEmail" Version="3.7.300.10" />
+    <PackageReference Include="Microsoft.AspNetCore.Identity.UI" Version="8.0.10" />
+  </ItemGroup>
+
+</Project>

@@ -1,7 +1,9 @@
 # AWS Credentials Setup Guide
 
 ## Overview
-This guide walks you through creating AWS credentials for GitHub Actions deployment of the TaskManager application.
+This guide walks you through creating AWS credentials for GitHub Actions deployment of the application.
+
+> **Note:** The deploy pipeline's bootstrap stack ([infrastructure/bootstrap.template](infrastructure/bootstrap.template)) **auto-creates** the CI IAM users (`{stack-name}-GitHubActionsUser` and `{stack-name}-GitHubActionsUserProd`, where the stack name is the dashed domain). In that case you only need to generate access keys for the existing users and add them to GitHub secrets — the manual user-creation steps below are for environments where you are provisioning credentials by hand instead.
 
 ## Step-by-Step AWS IAM Setup
 
@@ -22,16 +24,17 @@ This guide walks you through creating AWS credentials for GitHub Actions deploym
 1. Click **Attach policies directly**
 2. Search and select these policies:
    - ✅ `CloudFormationFullAccess`
-   - ✅ `AWSLambdaFullAccess`
-   - ✅ `AmazonAPIGatewayAdministrator`
-   - ✅ `AmazonRDSFullAccess`
+   - ✅ `AmazonEC2ContainerRegistryFullAccess` (ECR — push/pull the Web container image)
+   - ✅ `AmazonECS_FullAccess` (ECS Fargate — the deployed surface)
+   - ✅ `AmazonRDSFullAccess` (Aurora MySQL)
    - ✅ `AmazonVPCFullAccess`
    - ✅ `SecretsManagerReadWrite`
+   - ✅ `AmazonSSMFullAccess` (SSM parameters used by the bootstrap/env stacks)
+   - ✅ `AWSKeyManagementServicePowerUser` (KMS — Aurora encryption keys)
    - ✅ `CloudWatchFullAccess`
    - ✅ `IAMFullAccess` (needed for creating roles)
-   - ✅ `AmazonS3FullAccess` (needed for SAM deployment artifacts)
+   - ✅ `AmazonS3FullAccess` (needed for SAM/CloudFormation template artifacts)
    - ✅ `AmazonEC2FullAccess` (needed for bastion host creation)
-   - ✅ `AmazonSNSFullAccess` (needed for SMS notifications)
 
 **Option B: Create Custom Policy (More Secure)**
 1. Click **Create policy**
@@ -63,10 +66,12 @@ This guide walks you through creating AWS credentials for GitHub Actions deploym
             "Effect": "Allow",
             "Action": [
                 "cloudformation:*",
-                "lambda:*",
-                "apigateway:*",
+                "ecr:*",
+                "ecs:*",
                 "rds:*",
                 "ec2:*",
+                "ssm:*",
+                "kms:*",
                 "secretsmanager:*",
                 "logs:*",
                 "iam:CreateRole",
@@ -105,11 +110,13 @@ aws iam create-user --user-name taskmanager-github-actions
 
 # Attach managed policies
 aws iam attach-user-policy --user-name taskmanager-github-actions --policy-arn arn:aws:iam::aws:policy/CloudFormationFullAccess
-aws iam attach-user-policy --user-name taskmanager-github-actions --policy-arn arn:aws:iam::aws:policy/AWSLambdaFullAccess
-aws iam attach-user-policy --user-name taskmanager-github-actions --policy-arn arn:aws:iam::aws:policy/AmazonAPIGatewayAdministrator
+aws iam attach-user-policy --user-name taskmanager-github-actions --policy-arn arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryFullAccess
+aws iam attach-user-policy --user-name taskmanager-github-actions --policy-arn arn:aws:iam::aws:policy/AmazonECS_FullAccess
 aws iam attach-user-policy --user-name taskmanager-github-actions --policy-arn arn:aws:iam::aws:policy/AmazonRDSFullAccess
 aws iam attach-user-policy --user-name taskmanager-github-actions --policy-arn arn:aws:iam::aws:policy/AmazonVPCFullAccess
 aws iam attach-user-policy --user-name taskmanager-github-actions --policy-arn arn:aws:iam::aws:policy/SecretsManagerReadWrite
+aws iam attach-user-policy --user-name taskmanager-github-actions --policy-arn arn:aws:iam::aws:policy/AmazonSSMFullAccess
+aws iam attach-user-policy --user-name taskmanager-github-actions --policy-arn arn:aws:iam::aws:policy/AWSKeyManagementServicePowerUser
 aws iam attach-user-policy --user-name taskmanager-github-actions --policy-arn arn:aws:iam::aws:policy/CloudWatchFullAccess
 aws iam attach-user-policy --user-name taskmanager-github-actions --policy-arn arn:aws:iam::aws:policy/IAMFullAccess
 
@@ -204,11 +211,11 @@ aws iam delete-user --user-name taskmanager-github-actions
 
 - [ ] Sign in to AWS Console
 - [ ] Navigate to IAM → Users
-- [ ] Create user: `taskmanager-github-actions`
-- [ ] Attach required policies (8 policies total)
+- [ ] Create user: `taskmanager-github-actions` (or use the bootstrap-created CI user — see Overview)
+- [ ] Attach required policies
 - [ ] Create access key
 - [ ] Copy Access Key ID and Secret Access Key
 - [ ] Add both to GitHub repository secrets
-- [ ] Test deployment by pushing to main branch
+- [ ] Test deployment by pushing to the `app` branch (production) or any feature branch
 
 **Result**: Secure AWS credentials ready for automated deployment!

@@ -1,14 +1,36 @@
 name: Cleanup Stack On Branch Delete
+# NOTE: `delete` is a default-branch-only event — GitHub runs this workflow using the
+# copy on the default branch (`app`), NOT the copy on the branch being deleted. Edits
+# here are dormant until promoted dev->app. See CLAUDE.md "default-branch-only workflows
+# (gotcha)" and the default-branch-workflow-promotion change.
 on:
   delete:
 
 jobs:
+  prepare:
+    name: Compute branch leaf
+    if: github.event.ref_type == 'branch'
+    runs-on: ubuntu-latest
+    outputs:
+      branch-leaf: ${{ steps.leaf.outputs.branch-leaf }}
+    steps:
+      - name: Compute branch leaf
+        id: leaf
+        run: |
+          REF="${{ github.event.ref }}"
+          echo "branch-leaf=${REF##*/}" >> "$GITHUB_OUTPUT"
+
   cleanup-stack:
     name: Delete CloudFormation Stack
+    needs: prepare
     if: github.event.ref_type == 'branch'
     runs-on: ubuntu-latest
     concurrency:
-      group: deploy-us-east-1-${{ github.event.ref }}
+      # Must match the deploy job's group EXACTLY. The deploy job (zbuild.yml) keys on the
+      # branch *leaf* (needs.get-branch-name.outputs.branch-name), so we key on the leaf too —
+      # otherwise a type/name branch (e.g. feature/foo) produced a mismatched group and cleanup
+      # was NOT serialized against an in-flight same-branch deploy.
+      group: deploy-us-east-1-${{ needs.prepare.outputs.branch-leaf }}
       cancel-in-progress: false
     env:
       AWS_REGION: us-east-1
@@ -87,6 +109,151 @@ jobs:
             exit 1
           fi
 
+      - name: Enumerate stack resources (recursive)
+        id: enumerate
+        if: steps.guard.outputs.protected == 'false' && steps.precheck.outputs.stack-exists == 'true'
+        run: |
+          set -euo pipefail
+          trap 'echo "- ❌ **Pre-cleanup failed in \`${GITHUB_JOB}\` / this step — halted BEFORE \`delete-stack\`. See job logs for the AWS error.**" >> "$GITHUB_STEP_SUMMARY"' ERR
+          : > buckets.txt
+          : > repos.txt
+          : > clusters.txt
+
+          {
+            echo "## Resources enumerated (pre-cleanup)"
+            echo ""
+            echo "Stack tree for \`$STACK_NAME\` (region \`$AWS_REGION\`). Only CFN-tracked"
+            echo "members below are eligible for pre-cleanup — nothing else is touched."
+            echo ""
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          # Breadth-first walk of the stack tree. aws-cli v2 auto-paginates
+          # list-stack-resources, so a single call per stack returns every resource.
+          STACKS=("$STACK_NAME")
+          i=0
+          while [ $i -lt ${#STACKS[@]} ]; do
+            stack="${STACKS[$i]}"
+            i=$((i+1))
+            echo "- Stack: \`$stack\`" >> "$GITHUB_STEP_SUMMARY"
+
+            RESOURCES=$(aws cloudformation list-stack-resources \
+              --stack-name "$stack" --region "$AWS_REGION" --output json)
+
+            while IFS=$'\t' read -r rtype pid lid; do
+              [ -z "$rtype" ] && continue
+              case "$rtype" in
+                AWS::CloudFormation::Stack)
+                  if [ -n "$pid" ] && [ "$pid" != "None" ]; then
+                    STACKS+=("$pid")
+                    echo "  - Nested stack: \`$lid\` → \`$pid\`" >> "$GITHUB_STEP_SUMMARY"
+                  fi ;;
+                AWS::S3::Bucket)
+                  echo "$pid" >> buckets.txt
+                  echo "  - AWS::S3::Bucket: \`$pid\`" >> "$GITHUB_STEP_SUMMARY" ;;
+                AWS::ECR::Repository)
+                  echo "$pid" >> repos.txt
+                  echo "  - AWS::ECR::Repository: \`$pid\`" >> "$GITHUB_STEP_SUMMARY" ;;
+                AWS::RDS::DBCluster)
+                  echo "$pid" >> clusters.txt
+                  echo "  - AWS::RDS::DBCluster: \`$pid\`" >> "$GITHUB_STEP_SUMMARY" ;;
+              esac
+            done < <(echo "$RESOURCES" | jq -r \
+              '.StackResourceSummaries[] | [.ResourceType, (.PhysicalResourceId // ""), .LogicalResourceId] | @tsv')
+          done
+
+          echo "Enumerated: $(wc -l < buckets.txt) bucket(s), $(wc -l < repos.txt) repo(s), $(wc -l < clusters.txt) cluster(s)."
+
+      - name: Empty owned S3 buckets
+        if: steps.guard.outputs.protected == 'false' && steps.precheck.outputs.stack-exists == 'true'
+        run: |
+          set -euo pipefail
+          trap 'echo "- ❌ **Pre-cleanup failed in \`${GITHUB_JOB}\` / this step — halted BEFORE \`delete-stack\`. See job logs for the AWS error.**" >> "$GITHUB_STEP_SUMMARY"' ERR
+          if [ ! -s buckets.txt ]; then
+            echo "No stack-owned S3 buckets to empty."
+            echo "- S3: no owned buckets" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          while read -r bucket; do
+            [ -z "$bucket" ] && continue
+            echo "Emptying s3://$bucket (all objects, versions, delete-markers)"
+            total=0
+            while : ; do
+              BATCH=$(aws s3api list-object-versions --bucket "$bucket" \
+                --max-items 1000 --region "$AWS_REGION" --output json 2>/dev/null || echo '{}')
+              DEL=$(echo "$BATCH" | jq -c \
+                '{Objects: ([(.Versions // []), (.DeleteMarkers // [])] | add | map({Key, VersionId})), Quiet: true}')
+              COUNT=$(echo "$DEL" | jq '.Objects | length')
+              [ "$COUNT" -eq 0 ] && break
+              echo "$DEL" > /tmp/delete-batch.json
+              aws s3api delete-objects --bucket "$bucket" \
+                --delete "file:///tmp/delete-batch.json" --region "$AWS_REGION" >/dev/null
+              total=$((total + COUNT))
+            done
+            echo "  emptied $total entr(ies) from $bucket"
+            echo "- S3 \`$bucket\` → $total entr(ies) emptied" >> "$GITHUB_STEP_SUMMARY"
+          done < buckets.txt
+
+      - name: Delete owned ECR images
+        if: steps.guard.outputs.protected == 'false' && steps.precheck.outputs.stack-exists == 'true'
+        run: |
+          set -euo pipefail
+          trap 'echo "- ❌ **Pre-cleanup failed in \`${GITHUB_JOB}\` / this step — halted BEFORE \`delete-stack\`. See job logs for the AWS error.**" >> "$GITHUB_STEP_SUMMARY"' ERR
+          if [ ! -s repos.txt ]; then
+            echo "No stack-owned ECR repositories."
+            echo "- ECR: no owned repositories" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          while read -r repo; do
+            [ -z "$repo" ] && continue
+            echo "Deleting all images in ECR repository $repo"
+            total=0
+            while : ; do
+              IDS=$(aws ecr list-images --repository-name "$repo" \
+                --region "$AWS_REGION" --query 'imageIds[0:100]' --output json)
+              COUNT=$(echo "$IDS" | jq 'length')
+              [ "$COUNT" -eq 0 ] && break
+              aws ecr batch-delete-image --repository-name "$repo" \
+                --image-ids "$IDS" --region "$AWS_REGION" >/dev/null
+              total=$((total + COUNT))
+            done
+            echo "  deleted $total image(s) from $repo"
+            echo "- ECR \`$repo\` → $total image(s) deleted" >> "$GITHUB_STEP_SUMMARY"
+          done < repos.txt
+
+      - name: Force-teardown owned Aurora clusters
+        if: steps.guard.outputs.protected == 'false' && steps.precheck.outputs.stack-exists == 'true'
+        run: |
+          set -euo pipefail
+          trap 'echo "- ❌ **Pre-cleanup failed in \`${GITHUB_JOB}\` / this step — halted BEFORE \`delete-stack\`. See job logs for the AWS error.**" >> "$GITHUB_STEP_SUMMARY"' ERR
+          if [ ! -s clusters.txt ]; then
+            echo "No stack-owned Aurora clusters."
+            echo "- RDS: no owned clusters" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          # Interim implementation (see robust-aurora-cluster-teardown): delete member
+          # instances, clear deletion protection, then delete the cluster skipping the
+          # final snapshot, and wait for it to be gone — past any backing-up state.
+          while read -r cluster; do
+            [ -z "$cluster" ] && continue
+            echo "Force-tearing-down Aurora cluster $cluster"
+            MEMBERS=$(aws rds describe-db-clusters --db-cluster-identifier "$cluster" \
+              --region "$AWS_REGION" \
+              --query 'DBClusters[0].DBClusterMembers[].DBInstanceIdentifier' \
+              --output text 2>/dev/null || echo "")
+            for inst in $MEMBERS; do
+              echo "  deleting member instance $inst"
+              aws rds delete-db-instance --db-instance-identifier "$inst" \
+                --skip-final-snapshot --region "$AWS_REGION" >/dev/null || true
+            done
+            aws rds modify-db-cluster --db-cluster-identifier "$cluster" \
+              --no-deletion-protection --apply-immediately --region "$AWS_REGION" >/dev/null 2>&1 || true
+            aws rds delete-db-cluster --db-cluster-identifier "$cluster" \
+              --skip-final-snapshot --region "$AWS_REGION" >/dev/null
+            echo "  waiting for $cluster to be deleted..."
+            aws rds wait db-cluster-deleted --db-cluster-identifier "$cluster" --region "$AWS_REGION"
+            echo "- RDS \`$cluster\` → force-deleted" >> "$GITHUB_STEP_SUMMARY"
+          done < clusters.txt
+
       - name: Request stack deletion
         if: steps.guard.outputs.protected == 'false' && steps.precheck.outputs.stack-exists == 'true'
         run: |
@@ -138,7 +305,12 @@ jobs:
         if: steps.guard.outputs.protected == 'false' && steps.wait.outputs.wait-result == 'success'
         run: |
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-          BUCKET="cf-templates-${ACCOUNT_ID}-us-east-1"
+          # The per-branch packaged templates live in the bootstrap-owned bucket
+          # ${AccountId}-${dashed-domain}-${region} (bootstrap.template), NOT the old
+          # AWS-managed cf-templates-* bucket. Derive the dashed domain the same way the
+          # compute step does.
+          PROCESSED_DOMAIN=$(echo "$DOMAIN_NAME" | tr '.' '-')
+          BUCKET="${ACCOUNT_ID}-${PROCESSED_DOMAIN}-us-east-1"
           PREFIX="$BRANCH_LEAF/"
 
           echo "Bucket: s3://$BUCKET/$PREFIX"

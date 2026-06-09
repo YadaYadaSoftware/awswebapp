@@ -2,9 +2,9 @@ schema: spec-driven
 
 context: |
   This is an existing framework that builds and deploys a .NET application to AWS.
-  Tech stack: c#, CSS, AWS
+  Tech stack: C#/.NET, Blazor Server, ASP.NET Identity, MySQL/Aurora, Docker/ECS, AWS
   We use conventional commits
-  Domain: e-commerce platform
+  Domain: task and project management platform
 
 # Project context (optional)
 # This is shown to AI when creating artifacts.

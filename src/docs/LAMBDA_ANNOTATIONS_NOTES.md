@@ -1,74 +1,57 @@
-# Lambda Annotations Implementation Notes
+# Lambda Annotations Notes
 
-## Current Status
-The project is configured with Amazon.Lambda.Annotations packages but the Lambda functions are not yet implemented due to dependency injection configuration challenges.
+## Status: Lambda hosting was abandoned
 
-## Issue Encountered
-The Lambda Annotations source generator creates Lambda function handlers that expect parameterless constructors, but our Functions class requires a `TaskManagerDbContext` parameter for dependency injection.
+Lambda was an early hosting idea for this application. It is **not** how the app runs
+today. The deployed surface is `Tjb.Web` as a Docker container on **ECS Fargate behind
+an Application Load Balancer** (see [WEB_DEPLOYMENT_STRATEGY.md](WEB_DEPLOYMENT_STRATEGY.md)).
+There is no Lambda function in the deployment pipeline.
 
-## Error Details
+## Why this file still exists
+
+`Tjb.Api` is a secondary, largely vestigial project. Its
+[Tjb.Api.csproj](../Tjb.Api/Tjb.Api.csproj) still references the Lambda packages:
+
+```xml
+<PackageReference Include="Amazon.Lambda.Annotations" Version="1.7.0" />
+<PackageReference Include="Amazon.Lambda.AspNetCoreServer" Version="8.1.0" />
 ```
-error CS7036: There is no argument given that corresponds to the required parameter 'context' of 'Functions.Functions(TaskManagerDbContext)'
-```
 
-## Solution Approaches to Try
+These are leftover hosting glue. `Tjb.Api` exposes only `/health`, Swagger (in dev),
+and a no-op stub `AuthController` — it is not deployed and adding endpoints there does
+not reach users. All real functionality lives in `Tjb.Web`.
 
-### Option 1: Use Lambda Startup Class
-Create a proper Lambda startup class that configures dependency injection:
+The DbContext is `TjbDbContext` (in `Tjb.Data`), which extends
+`IdentityDbContext<IdentityUser>` and is configured with **MySQL** via
+`UseMySql` (`Pomelo.EntityFrameworkCore.MySql`) — not PostgreSQL/Npgsql.
+
+## If Lambda is ever revisited
+
+The original blocker was wiring dependency injection through the Lambda Annotations
+source generator (it expects parameterless handler constructors, while a Functions
+class would need the `TjbDbContext` injected). The standard fix is a Lambda startup
+class that registers services, e.g.:
 
 ```csharp
 [assembly: LambdaStartup(typeof(Startup))]
 
-public class Startup : LambdaStartup
+public class Startup
 {
-    public override void ConfigureServices(IServiceCollection services)
+    public void ConfigureServices(IServiceCollection services)
     {
-        services.AddDbContext<TaskManagerDbContext>(options =>
-        {
-            var connectionString = Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection");
-            options.UseNpgsql(connectionString);
-        });
+        var connectionString =
+            Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection");
+        services.AddDbContext<TjbDbContext>(options =>
+            options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString)));
     }
 }
 ```
 
-### Option 2: Use Static Service Provider
-Configure a static service provider in the Lambda function:
-
-```csharp
-public class Functions
-{
-    private static IServiceProvider? _serviceProvider;
-    
-    static Functions()
-    {
-        var services = new ServiceCollection();
-        // Configure services...
-        _serviceProvider = services.BuildServiceProvider();
-    }
-    
-    [LambdaFunction]
-    public async Task<string> GetProjects(ILambdaContext context)
-    {
-        using var scope = _serviceProvider!.CreateScope();
-        var dbContext = scope.ServiceProvider.GetRequiredService<TaskManagerDbContext>();
-        // Implementation...
-    }
-}
-```
-
-### Option 3: Use Lambda Annotations with Dependency Injection Framework
-Follow the official AWS Lambda Annotations documentation for proper DI setup.
-
-## Next Steps
-1. Research the latest Lambda Annotations documentation
-2. Implement proper dependency injection configuration
-3. Test with a simple Lambda function first
-4. Gradually add more complex functions
-
-## Current Workaround
-For now, the Lambda Annotations packages are installed and configured, but no Lambda functions are implemented. The project builds successfully and can be deployed as a regular ASP.NET Core application.
+This is documented only for completeness. The current and intended hosting model is
+the ECS Fargate container described in
+[WEB_DEPLOYMENT_STRATEGY.md](WEB_DEPLOYMENT_STRATEGY.md); prefer it over reintroducing
+Lambda.
 
 ## References
-- [AWS Lambda Annotations Documentation](https://github.com/aws/aws-lambda-dotnet/tree/master/Libraries/src/Amazon.Lambda.Annotations)
-- [Lambda Dependency Injection](https://docs.aws.amazon.com/lambda/latest/dg/csharp-handler.html#csharp-handler-dependency-injection)
+
+- [AWS Lambda Annotations](https://github.com/aws/aws-lambda-dotnet/tree/master/Libraries/src/Amazon.Lambda.Annotations)

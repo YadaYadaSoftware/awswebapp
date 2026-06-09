@@ -1,21 +1,6 @@
-using Amazon;
-using Amazon.SimpleEmail;
-using Microsoft.AspNetCore.Components;
-using Microsoft.AspNetCore.Components.Authorization;
-using Microsoft.AspNetCore.Components.Web;
-using Microsoft.AspNetCore.HttpOverrides;
-using Microsoft.AspNetCore.Identity;
-using Microsoft.AspNetCore.Identity.UI;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
-using Pomelo.EntityFrameworkCore.MySql;
 using Tjb.Data;
-using Tjb.Web.Areas.Identity;
 using Tjb.Web.Data;
-using Tjb.Web.Services;
-using static Microsoft.Extensions.DependencyInjection.GoogleExtensions;
-
-
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -25,11 +10,6 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
 // Register TjbDbContext for both Identity and application data
 builder.Services.AddDbContext<TjbDbContext>(options =>
 {
-    if (string.IsNullOrEmpty(connectionString))
-    {
-        throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
-    }
-
     // Use MySQL for both development and production
     options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString), mysqlOptions =>
     {
@@ -38,130 +18,28 @@ builder.Services.AddDbContext<TjbDbContext>(options =>
     });
 });
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
-builder.Services.AddDefaultIdentity<IdentityUser>(options =>
-{
-    options.SignIn.RequireConfirmedAccount = true;
-})
-.AddEntityFrameworkStores<TjbDbContext>();
 
-builder.Services.ConfigureApplicationCookie(options =>
-{
-    options.Events.OnRedirectToLogin = context =>
-    {
-        var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
-        logger.LogInformation("Redirecting to login from {Path}", context.Request.Path);
-        return Task.CompletedTask;
-    };
+// Tjb web framework wiring (see Tjb.Web.Hosting).
+builder.Services.AddAwsWebAppIdentity<TjbDbContext>();
+builder.Services.AddAwsWebAppGoogleAuth<TjbDbContext>(builder.Configuration);
+builder.Services.AddAwsWebAppEmail(builder.Configuration);
 
-    options.Events.OnSignedIn = context =>
-    {
-        var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
-        logger.LogInformation("User signed in: {UserName}", context.Principal?.Identity?.Name ?? "Unknown");
-        return Task.CompletedTask;
-    };
-
-    options.Events.OnSigningIn = context =>
-    {
-        var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
-        logger.LogInformation("User signing in: {UserName}", context.Principal?.Identity?.Name ?? "Unknown");
-        return Task.CompletedTask;
-    };
-
-    options.Events.OnSigningOut = context =>
-    {
-        var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
-        logger.LogInformation("User signing out: {UserName}", context.HttpContext.User?.Identity?.Name ?? "Unknown");
-        return Task.CompletedTask;
-    };
-});
+// Host-owned registrations.
 builder.Services.AddRazorPages();
 builder.Services.AddServerSideBlazor();
-builder.Services.AddScoped<AuthenticationStateProvider, RevalidatingIdentityAuthenticationStateProvider<IdentityUser>>();
 builder.Services.AddSingleton<WeatherForecastService>();
 builder.Services.AddHealthChecks();
-
-// AWS SES email service. Region is empty in deployed envs so the SDK auto-detects from
-// Fargate task metadata; populate AwsSes:Region explicitly only for local dev.
-builder.Services.Configure<AwsSesOptions>(builder.Configuration.GetSection(AwsSesOptions.SectionName));
-builder.Services.AddSingleton<IAmazonSimpleEmailService>(sp =>
-{
-    var options = sp.GetRequiredService<IOptions<AwsSesOptions>>().Value;
-    return string.IsNullOrEmpty(options.Region)
-        ? new AmazonSimpleEmailServiceClient()
-        : new AmazonSimpleEmailServiceClient(RegionEndpoint.GetBySystemName(options.Region));
-});
-builder.Services.AddScoped<IEmailService, AwsSesEmailService>();
-
-builder.Services.AddHttpContextAccessor();
-builder.Services.AddScoped<IViewRenderService, ViewRenderService>();
-builder.Services.AddAuthentication().AddGoogle(googleOptions =>
-{
-    googleOptions.ClientId = builder.Configuration["Authentication:Google:ClientId"];
-    googleOptions.ClientSecret = builder.Configuration["Authentication:Google:ClientSecret"];
-
-    googleOptions.Events.OnCreatingTicket = async context =>
-    {
-        var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
-        logger.LogInformation("Google OAuth creating ticket for user: {User}", context.Identity?.Name ?? "Unknown");
-
-        try
-        {
-            // Test database connectivity
-            var dbContext = context.HttpContext.RequestServices.GetRequiredService<TjbDbContext>();
-            var canConnect = await dbContext.Database.CanConnectAsync();
-            logger.LogInformation("Database connectivity check: {CanConnect}", canConnect);
-
-            if (!canConnect)
-            {
-                logger.LogError("Database is not accessible during OAuth callback");
-            }
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Error during database connectivity check in OAuth");
-        }
-
-        await Task.CompletedTask;
-    };
-
-    googleOptions.Events.OnRemoteFailure = context =>
-    {
-        var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
-        logger.LogError(context.Failure, "Google OAuth remote failure");
-        return Task.CompletedTask;
-    };
-
-    googleOptions.Events.OnTicketReceived = context =>
-    {
-        var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
-        logger.LogInformation("Google OAuth ticket received");
-        return Task.CompletedTask;
-    };
-});
 
 var app = builder.Build();
 
 // Log Google OAuth configuration status
-using var scope = app.Services.CreateScope();
-var scopedLogger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-var scopedConfig = scope.ServiceProvider.GetRequiredService<IConfiguration>();
-var clientId = scopedConfig["Authentication:Google:ClientId"];
-var clientSecret = scopedConfig["Authentication:Google:ClientSecret"];
-scopedLogger.LogInformation("Google OAuth ClientId configured: {Configured}", !string.IsNullOrEmpty(clientId));
-scopedLogger.LogInformation("Google OAuth ClientSecret configured: {Configured}", !string.IsNullOrEmpty(clientSecret));
+app.LogAwsWebAppAuthConfig();
 
 // Apply database migrations on startup in all environments
-await ApplyDatabaseMigrations(app);
+await app.ApplyDatabaseMigrationsAsync<TjbDbContext>();
 
-// Configure forwarded headers for ALB
-var forwardedHeadersOptions = new ForwardedHeadersOptions
-{
-    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
-};
-// Clear known proxies/networks to allow ALB (which has dynamic IPs)
-forwardedHeadersOptions.KnownProxies.Clear();
-forwardedHeadersOptions.KnownNetworks.Clear();
-app.UseForwardedHeaders(forwardedHeadersOptions);
+// Configure forwarded headers for ALB (dynamic IPs)
+app.UseAwsWebAppForwardedHeaders();
 
 // Add authentication middleware here to ensure forwarded headers are applied first
 app.UseAuthentication();
@@ -205,31 +83,3 @@ app.MapBlazorHub();
 app.MapFallbackToPage("/_Host");
 
 app.Run();
-
-async Task ApplyDatabaseMigrations(WebApplication app)
-{
-    using var scope = app.Services.CreateScope();
-    var services = scope.ServiceProvider;
-    var logger = services.GetRequiredService<ILogger<Program>>();
-
-    try
-    {
-        // Apply migrations for TjbDbContext (Identity + application data)
-        logger.LogInformation("Ensuring database exists and applying migrations for TjbDbContext...");
-        var context = services.GetRequiredService<TjbDbContext>();
-
-        // This will create the database if it doesn't exist
-        await context.Database.EnsureCreatedAsync();
-
-        // This will apply all pending migrations
-        await context.Database.MigrateAsync();
-
-        logger.LogInformation("TjbDbContext migrations applied successfully.");
-    }
-    catch (Exception ex)
-    {
-        logger.LogError(ex, "An error occurred while applying database migrations.");
-        // Don't throw - let the application start even if migrations fail
-        // This prevents application startup issues in production
-    }
-}

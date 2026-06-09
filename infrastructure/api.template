@@ -118,7 +118,7 @@ Resources:
         - Name: FunctionName
           Value: !Ref ApiFunction
 Outputs:
-  ApiEndpointDomainQualified:
+  ApiEndpoint:
     Description: "API Gateway endpoint URL"
     Value: !Sub
       - "https://${ApiId}.execute-api.${Region}.amazonaws.com/Prod/"
@@ -129,7 +129,7 @@ Outputs:
         - "ApiEndpoint-${BranchName}-${DomainDashed}"
         - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
 
-  ApiLambdaFunctionNameDomainQualified:
+  ApiLambdaFunctionName:
     Description: "API Lambda function name"
     Value: !Ref ApiFunction
     Export:

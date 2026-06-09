@@ -1,240 +1,111 @@
-# Database Access Guide - Private VPC Database
+# Database Access Guide - Aurora MySQL (private VPC)
 
 ## Overview
-The TaskManager Aurora MySQL Global Database is deployed across multiple regions for high availability. This guide explains how to access it from your development environment.
 
-## Access Methods
+The deployed database is **Aurora MySQL Serverless v2** (port 3306), running in
+private subnets and never exposed to the internet. The shared-infrastructure
+branches (`app`, `beta`, `alpha`) run an Aurora Global Cluster; `dev` is
+single-region. Defined in
+[../../infrastructure/db.template](../../infrastructure/db.template).
 
-### **Option 1: Bastion Host (Recommended for Development)**
+There is no bastion host, no SSH/SSM tunnel, no RDS Proxy, and no way to point a
+local desktop client at the deployed cluster. **To query the deployed database,
+use the AWS Console RDS Query Editor** (browser-based). For local development you
+run your own MySQL on `localhost` (see "Local development" below).
 
-#### **Create EC2 Bastion Host**
+## Querying the deployed database: AWS RDS Query Editor
+
+The Aurora clusters for `dev`/`beta`/`alpha` have the RDS Data API HTTP endpoint
+enabled (`EnableHttpEndpoint` in
+[../../infrastructure/db.template](../../infrastructure/db.template)), which is
+what the Query Editor uses.
+
+1. Sign in to the **AWS Console** and go to **RDS → Query Editor**
+   (in the region the env is deployed to — e.g. `us-east-1` for `dev`).
+2. **Database instance/cluster**: pick the Aurora cluster for the branch you
+   want. The cluster is auto-named by CloudFormation, so identify it by the
+   stack it belongs to (see "Naming" below) or by the `DatabaseEndpoint` /
+   `DatabaseClusterArn` stack output.
+3. **Authentication**: choose **Secrets Manager ARN** and supply the cluster's
+   password secret (recommended — see "Credentials" below), or choose username +
+   password and enter the master username and the password from that secret.
+4. **Database name**: enter the database name for the branch — read it from the
+   stack's `DatabaseName` output (the deployed schema name; the application's
+   tables and the ASP.NET Identity `AspNet*` tables share it).
+5. Run SQL in the editor, e.g.:
+
+   ```sql
+   SELECT * FROM `__EFMigrationsHistory`;
+   SHOW TABLES;
+   ```
+
+## Credentials (AWS Secrets Manager)
+
+The DB password is stored per branch/region. The secret path pattern (from
+[../../infrastructure/db.template](../../infrastructure/db.template)) is:
+
+```
+{dashed-domain}/database/{branch}/regional/{region}/password
+```
+
+For example, for domain `appcloud.systems` on branch `dev` in `us-east-1`:
+`appcloud-systems/database/dev/regional/us-east-1/password`.
+
+The MySQL master username is derived (MySQL disallows hyphens), e.g.
+`appcloud_systems_admin` for `appcloud.systems`. Prefer authenticating the Query
+Editor with the secret ARN directly rather than copying the password.
+
+To find the secret ARN, endpoint, and database name from a deployed stack:
+
 ```bash
-# Create a small EC2 instance in the public subnet
-aws ec2 run-instances \
-  --image-id ami-0c02fb55956c7d316 \
-  --instance-type t3.micro \
-  --key-name your-key-pair \
-  --security-group-ids sg-your-bastion-sg \
-  --subnet-id subnet-your-public-subnet \
-  --associate-public-ip-address \
-  --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=TaskManager-Bastion}]'
+# Stack name follows the {branch-leaf}-{dashed-domain} pattern, e.g. dev-appcloud-systems
+aws cloudformation describe-stacks \
+  --stack-name dev-appcloud-systems \
+  --query 'Stacks[0].Outputs[?OutputKey==`DatabasePasswordSecretArn` || OutputKey==`DatabaseEndpoint` || OutputKey==`DatabaseName`].[OutputKey,OutputValue]' \
+  --output table
 ```
 
-#### **SSH Tunnel for Database Access**
+The deployed container reads this same secret via CloudFormation — see the
+`ConnectionStrings__DefaultConnection` environment variable in
+[../../infrastructure/web.template](../../infrastructure/web.template), which
+resolves `DatabasePasswordSecretArn` from Secrets Manager.
+
+## Naming
+
+- Per-branch CloudFormation stacks are named `{branch-leaf}-{dashed-domain}`
+  (e.g. `dev-appcloud-systems`).
+- Aurora cluster IDs and the global-cluster ID derive from the dashed domain and
+  branch; the per-region cluster is CFN-auto-named, so locate it via the stack's
+  `DatabaseEndpoint` / `DatabaseClusterArn` outputs rather than guessing a name.
+- Endpoints, the username, and the password secret ARN are exported by the
+  backend stack and imported by the app stack; prefer reading the stack outputs /
+  secret over hardcoding.
+
+## Local development
+
+For local work, run MySQL on `localhost:3306` and apply migrations. The
+`appsettings.json` connection strings are localhost defaults
+(`Server=localhost;Database=TjbDb;...`); real deployed values come from Secrets
+Manager.
+
 ```bash
-# Create SSH tunnel to database
-ssh -i your-key.pem -L 3306:your-aurora-endpoint:3306 ec2-user@your-bastion-ip
+# Install MySQL locally
+# Windows: download MySQL Community Server from dev.mysql.com
+# macOS: brew install mysql
+# Linux: sudo apt-get install mysql-server
 
-# Connect with mysql through tunnel
-mysql -h localhost -P 3306 -u taskmanager_admin -p -D taskmanager
+# Apply migrations + seed against local MySQL
+dotnet run --project src/Tjb.Migrations
 ```
 
-### **Option 2: AWS Systems Manager Session Manager (Secure)**
+You can point any local MySQL client (CLI, MySQL Workbench, DBeaver, VS Code
+SQLTools) at `localhost:3306` for local-dev work — see
+[VSCODE_POSTGRESQL_SETUP.md](VSCODE_POSTGRESQL_SETUP.md). The deployed cluster is
+queried only through the AWS RDS Query Editor.
 
-#### **Setup Session Manager**
-```bash
-# Install Session Manager plugin
-# https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html
+## Monitoring and logging
 
-# Connect to bastion via Session Manager
-aws ssm start-session --target i-your-instance-id
-
-# From bastion, connect to database
-psql -h your-rds-endpoint -U taskmanager_admin -d taskmanager
-```
-
-### **Option 3: Lambda Function for Database Queries**
-
-#### **Create Database Query Lambda**
-```yaml
-# Add to regional-infrastructure.yaml
-DatabaseQueryFunction:
-  Type: AWS::Serverless::Function
-  Properties:
-    FunctionName: !Sub 'TaskManager-DbQuery-${Environment}'
-    InlineCode: |
-      // Lambda function to execute database queries
-      // Returns results as JSON
-    Handler: index.handler
-    Runtime: nodejs18.x
-    VpcConfig:
-      SecurityGroupIds:
-        - !Ref LambdaSecurityGroup
-      SubnetIds:
-        - !Ref PrivateSubnet1
-        - !Ref PrivateSubnet2
-    Environment:
-      Variables:
-        DB_HOST: !GetAtt TaskManagerDatabase.Endpoint.Address
-        DB_NAME: taskmanager
-```
-
-### **Option 4: RDS Proxy (Production Recommended)**
-
-#### **Add RDS Proxy to Template**
-```yaml
-# Already included in regional-infrastructure.yaml
-TaskManagerRDSProxy:
-  Type: AWS::RDS::DBProxy
-  Properties:
-    DBProxyName: !Sub 'taskmanager-proxy-${Environment}'
-    EngineFamily: POSTGRESQL
-    Auth:
-      - AuthScheme: SECRETS
-        SecretArn: !Ref DatabaseSecret
-    RoleArn: !GetAtt RDSProxyRole.Arn
-    VpcSubnetIds:
-      - !Ref PrivateSubnet1
-      - !Ref PrivateSubnet2
-    VpcSecurityGroupIds:
-      - !Ref RDSSecurityGroup
-```
-
-## Quick Access Solutions
-
-### **Temporary Public Access (Development Only)**
-
-#### **⚠️ WARNING: Only for Development**
-```bash
-# Temporarily make RDS publicly accessible (NOT for production)
-aws rds modify-db-instance \
-  --db-instance-identifier taskmanager-db-main \
-  --publicly-accessible \
-  --apply-immediately
-
-# Connect directly
-psql -h your-rds-endpoint -U taskmanager_admin -d taskmanager
-
-# IMPORTANT: Revert after use
-aws rds modify-db-instance \
-  --db-instance-identifier taskmanager-db-main \
-  --no-publicly-accessible \
-  --apply-immediately
-```
-
-### **Database Administration Tools**
-
-#### **Using pgAdmin with SSH Tunnel**
-1. **Setup SSH Tunnel**: Use bastion host method above
-2. **Configure pgAdmin**:
-   - Host: `localhost`
-   - Port: `5432`
-   - Database: `taskmanager`
-   - Username: `taskmanager_admin`
-   - Password: From your GitHub secrets
-
-#### **Using DBeaver with SSH Tunnel**
-1. **Create Connection**: New PostgreSQL connection
-2. **SSH Tab**: Configure SSH tunnel through bastion
-3. **Main Tab**: Database connection details
-
-## Automated Database Inspection
-
-### **Create Database Inspection Script**
-```bash
-#!/bin/bash
-# inspect-database.sh
-
-# Get database endpoint from CloudFormation
-DB_ENDPOINT=$(aws cloudformation describe-stacks \
-  --stack-name taskmanager-main \
-  --query 'Stacks[0].Outputs[?OutputKey==`DatabaseEndpoint`].OutputValue' \
-  --output text)
-
-echo "Database endpoint: $DB_ENDPOINT"
-
-# Get database credentials from Secrets Manager
-SECRET_ARN=$(aws cloudformation describe-stacks \
-  --stack-name taskmanager-main \
-  --query 'Stacks[0].Outputs[?OutputKey==`DatabaseSecretArn`].OutputValue' \
-  --output text)
-
-DB_CREDS=$(aws secretsmanager get-secret-value \
-  --secret-id $SECRET_ARN \
-  --query 'SecretString' \
-  --output text)
-
-echo "Database credentials retrieved from Secrets Manager"
-echo "Use these with your preferred database client through a bastion host"
-```
-
-## Development Workflow
-
-### **Recommended Approach**
-1. **Local Development**: Use local PostgreSQL for development
-2. **Testing**: Use bastion host to inspect production data
-3. **Debugging**: Use Lambda logs and application endpoints
-4. **Administration**: Use RDS console for basic monitoring
-
-### **Local Development Setup**
-```bash
-# Install PostgreSQL locally
-# Windows: Download from postgresql.org
-# macOS: brew install postgresql
-# Linux: sudo apt-get install postgresql
-
-# Create local development database
-createdb taskmanager_dev
-
-# Run migrations locally
-dotnet run --project src/TaskManager.Migrations
-```
-
-## Security Best Practices
-
-### **Access Control**
-- ✅ **Bastion Host**: Minimal access, specific security groups
-- ✅ **SSH Keys**: Use key-based authentication
-- ✅ **Session Manager**: Preferred over direct SSH
-- ✅ **Temporary Access**: Remove bastion when not needed
-
-### **Network Security**
-- ✅ **Private Subnets**: Database never exposed to internet
-- ✅ **Security Groups**: Restrict access to specific sources
-- ✅ **VPC Flow Logs**: Monitor network access
-- ✅ **CloudTrail**: Audit all database access
-
-## Monitoring and Logging
-
-### **Database Monitoring**
-- ✅ **RDS Performance Insights**: Query performance monitoring
-- ✅ **CloudWatch Metrics**: CPU, connections, storage
-- ✅ **Enhanced Monitoring**: OS-level metrics
-- ✅ **Slow Query Logs**: Identify performance issues
-
-### **Application Monitoring**
-- ✅ **Lambda Logs**: Migration and application logs
-- ✅ **API Gateway Logs**: Request/response logging
-- ✅ **CloudWatch Alarms**: Error rate and performance alerts
-
-## Quick Commands
-
-### **Get Database Information**
-```bash
-# Get database endpoint
-aws rds describe-db-instances \
-  --db-instance-identifier taskmanager-db-main \
-  --query 'DBInstances[0].Endpoint.Address' \
-  --output text
-
-# Get database credentials
-aws secretsmanager get-secret-value \
-  --secret-id taskmanager/database/main \
-  --query 'SecretString' \
-  --output text | jq .
-```
-
-### **Check Database Status**
-```bash
-# Check RDS instance status
-aws rds describe-db-instances \
-  --db-instance-identifier taskmanager-db-main \
-  --query 'DBInstances[0].DBInstanceStatus' \
-  --output text
-
-# Check VPC and security groups
-aws ec2 describe-security-groups \
-  --group-names TaskManager-RDS-SG-main
-```
-
-**For development, the bastion host approach is most practical for database inspection and administration.**
+- **RDS Performance Insights / CloudWatch Metrics** — CPU, connections, storage.
+- **CloudWatch Logs** — Aurora exports `audit`, `error`, `general`, `slowquery`;
+  plus ECS/container migration and application logs.
+- **CloudTrail** — audits database and Secrets Manager access.

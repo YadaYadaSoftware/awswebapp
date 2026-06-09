@@ -1,6 +1,6 @@
-# TaskManager UI Tests
+# Tjb UI Tests
 
-Automated UI tests for the TaskManager application focusing on authentication and login flows.
+Automated UI tests for the Tjb application focusing on authentication and login flows.
 
 ## Test Coverage
 
@@ -26,7 +26,7 @@ dotnet test
 
 ### From the solution root:
 ```bash
-dotnet test src/TaskManager.UiTests/TaskManager.UiTests.csproj
+dotnet test src/Tjb.UiTests/Tjb.UiTests.csproj
 ```
 
 ## Configuration

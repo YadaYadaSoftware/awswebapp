@@ -55,7 +55,6 @@ Parameters:
 
   DomainName:
     Type: String
-    Default: "appcloud.systems"
     Description: "Domain name for SSL certificate"
 
   HostedZoneId:
@@ -217,7 +216,7 @@ Resources:
                 - "{{resolve:secretsmanager:${DomainDashed}/google-oauth/${EnvironmentToImport}:SecretString:clientSecret}}"
                 - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
             - Name: AwsSes__SenderEmail
-              Value: noreply@appcloud.systems
+              Value: !Sub "noreply@${DomainName}"
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -238,6 +237,9 @@ Resources:
           - "ECSClusterName-${EnvironmentToImport}-${DomainDashed}"
           - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
       TaskDefinition: !Ref WebTaskDefinition
+      # Propagate the (stack-level) tags CloudFormation applies to this service onto
+      # the running tasks — ECS tasks don't otherwise inherit stack tags (tag-cloudformation-resources).
+      PropagateTags: SERVICE
       DesiredCount: 1
       LaunchType: FARGATE
       NetworkConfiguration:
@@ -276,7 +278,7 @@ Resources:
         - Name: TargetGroup
           Value: !GetAtt WebTargetGroup.TargetGroupFullName
 Outputs:
-  WebEndpointDomainQualified:
+  WebEndpoint:
     Description: "Web application endpoint URL"
     Value: !Sub "https://${BranchName}.${DomainName}"
     Export:
@@ -284,7 +286,7 @@ Outputs:
         - "WebEndpoint-${BranchName}-${DomainDashed}"
         - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
 
-  WebLoadBalancerDNSDomainQualified:
+  WebLoadBalancerDNS:
     Description: "Web Load Balancer DNS name"
     Value: !GetAtt WebLoadBalancer.DNSName
     Export:
@@ -292,7 +294,7 @@ Outputs:
         - "WebLoadBalancerDNS-${BranchName}-${DomainDashed}"
         - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
 
-  WebLoadBalancerHostedZoneIdDomainQualified:
+  WebLoadBalancerHostedZoneId:
     Description: "Web Load Balancer hosted zone ID"
     Value: !FindInMap [RegionMap, !Ref AWS::Region, ALBHostedZoneId]
     Export:
@@ -300,7 +302,7 @@ Outputs:
         - "WebLoadBalancerHostedZoneId-${BranchName}-${DomainDashed}"
         - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
 
-  WebTaskDefinitionDomainQualified:
+  WebTaskDefinition:
     Description: "Web ECS task definition"
     Value: !Ref WebTaskDefinition
     Export:
@@ -308,7 +310,7 @@ Outputs:
         - "WebTaskDefinition-${BranchName}-${DomainDashed}"
         - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
 
-  WebServiceNameDomainQualified:
+  WebServiceName:
     Description: "Web ECS service name"
     Value: !Ref WebService
     Export:

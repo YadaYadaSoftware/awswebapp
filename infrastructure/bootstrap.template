@@ -372,6 +372,16 @@ Resources:
                 Action:
                   - rds:DescribeDBClusters
                   - rds:DescribeDBInstances
+                  - rds:DescribeGlobalClusters
+                Resource: "*"
+              # A cluster that is a member of an Aurora global cluster cannot be
+              # deleted directly, so the handler detaches it first. Global clusters
+              # are account-global (their ARN carries no region), and this is a
+              # best-effort teardown safety net, so the action is granted broadly —
+              # same rationale as the cluster:*/db:* grant below.
+              - Effect: Allow
+                Action:
+                  - rds:RemoveFromGlobalCluster
                 Resource: "*"
               # Mutating ops on RDS clusters/instances in THIS region, scoped to
               # cluster:*/db:* (not a name prefix). Env clusters are CFN
@@ -515,6 +525,11 @@ Resources:
                       )
                   time.sleep(POLL_INTERVAL_SECONDS)
 
+              # A global-cluster member can't be deleted directly
+              # (InvalidDBClusterStateFault: "...part of a global cluster, please
+              # remove it from global cluster first"). Detach before deleting.
+              _detach_from_global(rds, cluster, deadline)
+
               try:
                   rds.delete_db_cluster(
                       DBClusterIdentifier=cluster_id, SkipFinalSnapshot=True,
@@ -543,6 +558,53 @@ Resources:
                   return clusters[0] if clusters else None
               except rds.exceptions.DBClusterNotFoundFault:
                   return None
+
+
+          def _find_global_cluster(rds, cluster_arn):
+              # Return the GlobalClusterIdentifier this cluster belongs to, or None.
+              # Membership is looked up via describe_global_clusters rather than the
+              # DBCluster payload so it doesn't depend on that field being present.
+              if not cluster_arn:
+                  return None
+              paginator = rds.get_paginator("describe_global_clusters")
+              for page in paginator.paginate():
+                  for gc in page.get("GlobalClusters", []):
+                      for member in gc.get("GlobalClusterMembers", []):
+                          if member.get("DBClusterArn") == cluster_arn:
+                              return gc.get("GlobalClusterIdentifier")
+              return None
+
+
+          def _detach_from_global(rds, cluster, deadline):
+              # Detach the cluster from its Aurora global cluster, if any. Applies to
+              # both the secondary (read-replica) member and the primary/writer
+              # member. Once every member is detached, CFN's own
+              # AWS::RDS::GlobalCluster delete (in the primary stack) finds it empty
+              # and succeeds, so this single change unblocks both region stacks.
+              cluster_arn = cluster.get("DBClusterArn")
+              global_id = _find_global_cluster(rds, cluster_arn)
+              if not global_id:
+                  return
+              print(f"Cluster {cluster_arn} is a member of global cluster "
+                    f"{global_id} - detaching")
+              try:
+                  rds.remove_from_global_cluster(
+                      GlobalClusterIdentifier=global_id,
+                      DbClusterIdentifier=cluster_arn,
+                  )
+              except rds.exceptions.GlobalClusterNotFoundFault:
+                  return
+              except rds.exceptions.InvalidGlobalClusterStateFault as exc:
+                  print(f"WARN remove_from_global_cluster state issue: {exc}")
+              # Wait until membership is actually gone before attempting the delete.
+              while _find_global_cluster(rds, cluster_arn):
+                  if time.time() >= deadline:
+                      raise TimeoutError(
+                          f"Cluster {cluster_arn} still attached to global cluster "
+                          f"{global_id} after timeout"
+                      )
+                  time.sleep(POLL_INTERVAL_SECONDS)
+              print(f"Cluster {cluster_arn} detached from {global_id}")
 
   AuroraClusterDeleteHandlerLogGroup:
     Type: AWS::Logs::LogGroup
