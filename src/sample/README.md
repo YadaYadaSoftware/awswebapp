@@ -15,7 +15,7 @@ a buildable artifact. The trivial domain is a **Guestbook** (authenticated users
 | --- | --- | --- |
 | `Sample.Shared` | DTOs/enums for the sample | `Tjb.Shared` |
 | `Sample.Data` | `SampleDbContext : AwsWebAppIdentityDbContext` + `GuestbookEntry` | `Tjb.Data` |
-| `Sample.Migrations` | EF migrations + design-time factory + migrate/seed runner | `Tjb.Migrations` |
+| `Sample.Migrations` | EF migrations + design-time factory (a class library; not runnable) | `Tjb.Migrations` |
 | `Sample.Web` | Blazor Server thin host wired via the framework `Add*`/`Use*` extensions | `Tjb.Web` |
 | `Sample.Api` | minimal `/health` + Swagger (shape parity) | `Tjb.Api` |
 
@@ -74,8 +74,9 @@ dotnet user-secrets --project Sample.Web set "ConnectionStrings:DefaultConnectio
 dotnet user-secrets --project Sample.Web set "Authentication:Google:ClientId" "<google-client-id>"
 dotnet user-secrets --project Sample.Web set "Authentication:Google:ClientSecret" "<google-client-secret>"
 
-# apply migrations + seed, then run
-dotnet run --project Sample.Migrations
+# apply migrations — via the design-time factory (needs the dotnet-ef tool: dotnet tool install -g dotnet-ef)
+dotnet ef database update --project Sample.Migrations --startup-project Sample.Migrations
+# (or skip the line above and just run Sample.Web — it migrates on startup)
 dotnet run --project Sample.Web
 ```
 
