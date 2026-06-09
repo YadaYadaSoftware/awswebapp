@@ -1,15 +1,17 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <RootNamespace>Tjb.Web.Framework.Data</RootNamespace>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <PackageId>Tjb.Data</PackageId>
-    <Title>Tjb Data Access Library</Title>
+    <IsPackable>true</IsPackable>
+    <PackageId>Tjb.Web.Framework.Data</PackageId>
+    <Title>Tjb Web Framework Identity DbContext base</Title>
     <Authors>Your Organization</Authors>
-    <Description>Entity Framework Core context, entities, and data access logic for Tjb</Description>
-    <PackageTags>tjb;data;efcore;entityframework;database</PackageTags>
+    <Description>Identity-only EF Core DbContext base for the Tjb web framework; consumers derive their own context and add their own entities.</Description>
+    <PackageTags>tjb;web;framework;identity;efcore</PackageTags>
     <RepositoryUrl>https://github.com/your-org/taskmanager</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
@@ -20,16 +22,6 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="8.0.10" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.11" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.11">
-      <PrivateAssets>compile</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-    </PackageReference>
-    <PackageReference Include="Pomelo.EntityFrameworkCore.MySql" Version="8.0.2" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="..\Tjb.Shared\Tjb.Shared.csproj" />
-    <ProjectReference Include="..\Tjb.Web.Framework.Data\Tjb.Web.Framework.Data.csproj" />
   </ItemGroup>
 
 </Project>

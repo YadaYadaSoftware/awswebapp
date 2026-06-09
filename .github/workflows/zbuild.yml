@@ -108,6 +108,11 @@ jobs:
     permissions:
       contents: read
       checks: write
+      packages: read
+    env:
+      # Auth for restoring the Tjb.Web.Framework / Tjb.Web.Hosting packages from GitHub Packages
+      # (NuGet.config expands %GH_PACKAGES_TOKEN% in the github source credentials).
+      GH_PACKAGES_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     outputs:
       semVer: ${{ steps.gitversion.outputs.semVer }}
       customVersion: ${{ steps.custom-version.outputs.custom-version }}
@@ -368,6 +373,72 @@ jobs:
           --include-source \
           -p:PackageVersion=$NUGET_VERSION
 
+    - name: Pack Tjb.Web.Framework.Data
+      run: |
+        BRANCH_NAME="${{ needs.get-branch-name.outputs.branch-name }}"
+        VERSION="${{ steps.custom-version.outputs.custom-version }}"
+
+        # Sanitize branch name for package ID (replace special chars with hyphens)
+        SANITIZED_BRANCH=$(echo "$BRANCH_NAME" | sed 's/[^a-zA-Z0-9]/-/g')
+
+        if [ "$BRANCH_NAME" != "app" ]; then
+          NUGET_VERSION="$VERSION-$SANITIZED_BRANCH"
+        else
+          NUGET_VERSION=$VERSION
+        fi
+
+        dotnet pack src/Tjb.Web.Framework.Data/Tjb.Web.Framework.Data.csproj \
+          --configuration Release \
+          --output ./nupkgs \
+          --version "$VERSION" \
+          --include-symbols \
+          --include-source \
+          -p:PackageVersion=$NUGET_VERSION
+
+    - name: Pack Tjb.Web.Framework
+      run: |
+        BRANCH_NAME="${{ needs.get-branch-name.outputs.branch-name }}"
+        VERSION="${{ steps.custom-version.outputs.custom-version }}"
+
+        # Sanitize branch name for package ID (replace special chars with hyphens)
+        SANITIZED_BRANCH=$(echo "$BRANCH_NAME" | sed 's/[^a-zA-Z0-9]/-/g')
+
+        if [ "$BRANCH_NAME" != "app" ]; then
+          NUGET_VERSION="$VERSION-$SANITIZED_BRANCH"
+        else
+          NUGET_VERSION=$VERSION
+        fi
+
+        dotnet pack src/Tjb.Web.Framework/Tjb.Web.Framework.csproj \
+          --configuration Release \
+          --output ./nupkgs \
+          --version "$VERSION" \
+          --include-symbols \
+          --include-source \
+          -p:PackageVersion=$NUGET_VERSION
+
+    - name: Pack Tjb.Web.Hosting
+      run: |
+        BRANCH_NAME="${{ needs.get-branch-name.outputs.branch-name }}"
+        VERSION="${{ steps.custom-version.outputs.custom-version }}"
+
+        # Sanitize branch name for package ID (replace special chars with hyphens)
+        SANITIZED_BRANCH=$(echo "$BRANCH_NAME" | sed 's/[^a-zA-Z0-9]/-/g')
+
+        if [ "$BRANCH_NAME" != "app" ]; then
+          NUGET_VERSION="$VERSION-$SANITIZED_BRANCH"
+        else
+          NUGET_VERSION=$VERSION
+        fi
+
+        dotnet pack src/Tjb.Web.Hosting/Tjb.Web.Hosting.csproj \
+          --configuration Release \
+          --output ./nupkgs \
+          --version "$VERSION" \
+          --include-symbols \
+          --include-source \
+          -p:PackageVersion=$NUGET_VERSION
+
     - name: Pack Tjb.Web
       run: |
         BRANCH_NAME="${{ needs.get-branch-name.outputs.branch-name }}"
@@ -599,7 +670,7 @@ jobs:
         echo "🌿 Branch tag: $BRANCH_TAG"
 
         # Build container image from root context
-        docker build -t tjb-web:$SRC_CHECKSUM -f src/Tjb.Web/Dockerfile . --build-arg VERSION=${{ needs.build.outputs.customVersion }} --build-arg ASSEMBLY_VERSION=${{ needs.build.outputs.assemblySemVer }}
+        docker build -t tjb-web:$SRC_CHECKSUM -f src/Tjb.Web/Dockerfile . --build-arg VERSION=${{ needs.build.outputs.customVersion }} --build-arg ASSEMBLY_VERSION=${{ needs.build.outputs.assemblySemVer }} --build-arg GH_PACKAGES_TOKEN=${{ secrets.GITHUB_TOKEN }}
 
         # Login to ECR
         aws ecr get-login-password --region ${{ matrix.region }} | docker login --username AWS --password-stdin $ECR_REPO
@@ -849,6 +920,10 @@ jobs:
    permissions:
      contents: read
      checks: write
+     packages: read
+   env:
+     # Auth for restoring Tjb.Web.Framework / Tjb.Web.Hosting from GitHub Packages during `dotnet restore`.
+     GH_PACKAGES_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
    steps:
    - name: Checkout code

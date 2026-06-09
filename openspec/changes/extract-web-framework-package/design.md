@@ -102,3 +102,18 @@ Sequenced as five phases, each with a checkpoint that must pass before the next:
 2. **Where does `AwsWebAppIdentityDbContext` live** — inside the RCL or a dedicated tiny `Tjb.Web.Framework.Data` assembly? Default to the dedicated assembly to keep EF/Pomelo out of the Razor RCL. Confirm in phase 1.
 3. **Package names** — `Tjb.Web.Framework` / `Tjb.Web.Hosting` keep the `Tjb` prefix (consistent with existing packages) vs. a neutral `YadaYada.AwsWebApp.Web*` (consistent with wilhelm's `YadaYada.AwsWebApp.DeploymentStack`). Pick before phase 5 tags a version; once tagged it's hard to change. Recommend aligning with wilhelm's `YadaYada.AwsWebApp.*` naming for the reusable tier.
 4. **Does `NavMenu` belong in the RCL** given its links are TaskManager-specific (Counter/FetchData)? Likely the shell/chrome is framework but the link set is host-provided via a slot/parameter. Decide in phase 1; worst case the host overrides `NavMenu`.
+
+## Open-Question resolutions (implementation, 2026-06-09)
+
+- **Q1 (generic user type):** Resolved — keep `IdentityUser` concrete. No `TUser` generic this change.
+- **Q2 (base-context placement):** Resolved — dedicated `src/Tjb.Web.Framework.Data` assembly so the Razor RCL carries no EF/Pomelo dependency. It references only `Microsoft.AspNetCore.Identity.EntityFrameworkCore` + `Microsoft.EntityFrameworkCore` (no Pomelo — the provider stays in the consumer's `OnConfiguring`).
+- **Q3 (package names):** Deferred to phase 5 per tasks; using `Tjb.Web.Framework` / `Tjb.Web.Framework.Data` / `Tjb.Web.Hosting` (keep `Tjb` prefix) for now.
+- **Q4 (`NavMenu`):** Resolved — `NavMenu` moves into the RCL **with its current TaskManager links** (non-lossy for `Tjb.Web`). `MainLayout` references it directly, so it must live alongside the shell. Parameterizing the link set / host-override is deferred; the standard RCL same-path override is the escape hatch a future consumer (the sample) uses.
+
+### Namespace strategy (non-lossiness choice)
+
+The moved code keeps its existing `Tjb.Web.*` namespaces; the RCL sets `<RootNamespace>Tjb.Web</RootNamespace>` so Razor components compile to `Tjb.Web.Shared` etc. This keeps `Tjb.Web`'s `using`/`@using` statements and `_Host.cshtml`/`App.razor` references valid with minimal churn. Namespaces need not equal the assembly/package name; the package is `Tjb.Web.Framework` while the types remain under `Tjb.Web.*`. Neutral-namespace renaming is cosmetic and out of scope for the non-lossiness bar.
+
+### `App.razor` / `_Host.cshtml` placement (deviation from the file list)
+
+The proposal/spec list `_Host.cshtml` among the RCL contents. In Blazor Server, `App.razor` (the `Router` root) discovers routable components via `AppAssembly`/`AdditionalAssemblies`, and `_Host.cshtml` instantiates `typeof(App)`. Both are intrinsically coupled to the *host's* page assembly — moving them into the RCL would stop the host's own pages (`Counter`/`Index`/`FetchData`) from being routed without an `AdditionalAssemblies` workaround the RCL cannot express (it can't name host types). They are therefore **kept in the host** as the thin Blazor bootstrap; everything else moves. This satisfies every scenario in `spec.md` (Identity UI served from the RCL, static assets under `_content/Tjb.Web.Framework/`, shared layout renders, migrate-on-startup) and the byte-for-byte runtime bar. `Pages/Error.*` and `Pages/EmailTemplates/**` have no such coupling and **do** move to the RCL.

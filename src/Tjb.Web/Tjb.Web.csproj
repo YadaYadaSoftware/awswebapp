@@ -27,6 +27,10 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
     <PackageReference Include="Pomelo.EntityFrameworkCore.MySql" Version="8.0.2" />
+    <!-- Reusable web tier consumed as published packages (extract-web-framework-package phase 4).
+         Tjb.Web.Hosting pulls Tjb.Web.Framework + Tjb.Web.Framework.Data transitively. -->
+    <PackageReference Include="Tjb.Web.Framework" Version="1.1.0.158-extract-web-framework-package" />
+    <PackageReference Include="Tjb.Web.Hosting" Version="1.1.0.158-extract-web-framework-package" />
   </ItemGroup>
 
   <ItemGroup>
