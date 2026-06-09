@@ -87,3 +87,23 @@ dotnet run --project Sample.Web         # serves https://localhost:7242
 
 Then browse to **https://localhost:7242**, sign in (Google if configured), and use the Guestbook
 page to create/list entries.
+
+## Notes for framework consumers (gotchas)
+
+Things any app consuming `Tjb.Web.Framework` (not just this sample) needs to know:
+
+- **Reference `Microsoft.AspNetCore.Identity.UI` directly.** The framework RCL brings the Identity UI
+  pages, but the consuming web app must add its own
+  `<PackageReference Include="Microsoft.AspNetCore.Identity.UI" Version="8.0.10" />`. The Identity UI's
+  default pages (e.g. `/Identity/Account/Login`) link their CSS from that package's static web assets
+  under `~/Identity/...`; those assets are **not** served through the transitive (via-RCL) reference,
+  so the Login/Register pages render **unstyled** without the direct reference. (The Blazor pages are
+  unaffected — they pull CSS from the RCL's own `_content/Tjb.Web.Framework/...` assets, which *do*
+  flow transitively.) See `Sample.Web.csproj`.
+- **Register Google OAuth only when configured.** `AddAwsWebAppGoogleAuth` wires `AddGoogle`, whose
+  options validate a non-empty `ClientId` on every request — so registering it without
+  `Authentication:Google:ClientId` set throws on each request. Guard the call (see `Program.cs`) if you
+  want the app to run locally without Google creds.
+- **`RequireConfirmedAccount = true`.** The framework requires email confirmation on first sign-in, so a
+  consumer needs a working `AwsSes` sender/region (or must accept the confirmation email won't send in
+  local dev).
