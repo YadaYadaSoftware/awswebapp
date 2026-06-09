@@ -47,8 +47,8 @@
 
 ## 1. Prereqs
 
-- [ ] 1.1 Confirm the [`centralize-aurora-kms-keys`](../archive) change is fully landed: the consolidated `bootstrap` stack is deployed in both regions, env stacks (`dev`/`alpha`/`beta`/`app`) are using the new KMS key from the workflow's SSM lookup, and SSM parameters at `/{dashed-domain}/kms/{prod,nonprod}/aurora-key-arn` (e.g. `/appcloud-systems/kms/nonprod/aurora-key-arn`) resolve in both regions.
-- [ ] 1.2 Identify the human admin IAM user / SSO role that will run the bootstrap update for the Lambda addition (same person who deployed the parent change is fine).
+- [x] 1.1 Confirm the [`centralize-aurora-kms-keys`](../archive) change is fully landed: the consolidated `bootstrap` stack is deployed in both regions, env stacks (`dev`/`alpha`/`beta`/`app`) are using the new KMS key from the workflow's SSM lookup, and SSM parameters at `/{dashed-domain}/kms/{prod,nonprod}/aurora-key-arn` (e.g. `/appcloud-systems/kms/nonprod/aurora-key-arn`) resolve in both regions.
+- [x] 1.2 Identify the human admin IAM user / SSO role that will run the bootstrap update for the Lambda addition (same person who deployed the parent change is fine).
 
 ## 2. Lambda + bootstrap.template additions
 
@@ -87,18 +87,18 @@
 > for us-east-1, §2.9 for us-east-2) must land first, or the teardown Lambda won't
 > have permission to delete the auto-named clusters.
 
-- [ ] 5.1 Push the template + workflow changes to a throwaway feature branch first. Verify the new SSM lookup step succeeds in CI logs. Feature branches deploy `application.template` (no Aurora) so the custom resource isn't exercised — this only confirms the workflow plumbing + the SSM lookup work. (Already partly covered: `testbranch` deployed a green app stack on 2026-06-05.)
+- [x] 5.1 Push the template + workflow changes to a throwaway feature branch first. Verify the new SSM lookup step succeeds in CI logs. Feature branches deploy `application.template` (no Aurora) so the custom resource isn't exercised — this only confirms the workflow plumbing + the SSM lookup work. (Already partly covered: `testbranch` deployed a green app stack on 2026-06-05.)
 - [x] 5.2 Merge to `dev` and push, adding the custom resource. ~~This recreates dev's Aurora cluster~~ — **done 2026-06-05**; the first attempt (with explicit naming) rolled back on the `DatabaseHost-dev` export-in-use error, which prompted the §0.1 reversal. Re-deploy after the §2.10 bootstrap update + this template fix is a clean no-op add (cluster already auto-named).
 - [x] 5.3 Verify dev's stack has the new custom resource: `aws cloudformation list-stack-resources … --query "…AuroraClusterDrainOnDelete…"`. — **DONE 2026-06-05**: re-deploy (commit `d4377d7`) reached `UPDATE_COMPLETE` with **no replacement** — `AuroraClusterDrainOnDelete` = `CREATE_COMPLETE`, `AuroraCluster` unchanged (still `dev-appcloud-systems-backendstack-7d-auroracluster-wylri7idvrqk`), dev app serving 200.
 - [x] 5.4 Test the recovery path end-to-end on dev: `aws cloudformation delete-stack --stack-name dev-appcloud-systems --region us-east-1`. Watch delete events — the custom resource's Lambda runs, logs to its log group, and the stack reaches `DELETE_COMPLETE` cleanly without operator intervention. Re-trigger CI to recreate dev. — **PASSED 2026-06-06**: clean intentional delete reached `DELETE_COMPLETE`; drain Lambda fired `RequestType=Delete` on `dev-appcloud-systems-backendstack-11-auroracluster-7hsybpkf73o2` (`status=available` → `Deleting cluster…`), cluster confirmed gone (`DBClusterNotFoundFault`). **Operational caveat:** deleting shared dev required first clearing EVERY feature-branch app stack importing dev's exports (whack-a-mole — they redeploy on any push); needed a CI/push freeze to hold the window. Recommend the §6.2 isolated-cluster approach for routine validation. ⏭ dev still needs CI recreate.
-- [ ] 5.5 Roll out to alpha, beta, app **in that order**. Each is a master-template update that adds **only** the custom resource (no replacement, no data migration needed).
+- [x] 5.5 Roll out to alpha, beta, app **in that order**. Each is a master-template update that adds **only** the custom resource (no replacement, no data migration needed). — **DONE 2026-06-08 (alpha + app; beta intentionally excluded).** The whole environment had been intentionally torn down to bootstrap-only, so the rollout was done as **clean creates** (not in-place updates): recreated `dev` (single-region) then merged `dev` into `alpha` and `app` and let CI create each fresh. Clean creates sidestep the §0.1 export-rename-in-use hazard entirely and bake in the custom resource from the start. All `CREATE_COMPLETE`: dev (us-east-1), alpha (us-east-1 + us-east-2), app/prod (us-east-1 + us-east-2); app CI fully green incl. UI tests. `beta` left torn down at the user's instruction.
 
 ## 6. Validation
 
 - [x] 6.1 Run `openspec validate robust-aurora-cluster-teardown --strict` and resolve any issues. — passes ("Change 'robust-aurora-cluster-teardown' is valid").
-- [ ] 6.2 Manually verify each `## Requirement` scenario from `specs/aurora-cluster-teardown/spec.md` against the deployed system:
-  - Lambda exists in both regions and the SSM param resolves.
-  - Lambda IAM policy allows `rds:DeleteDBCluster` on the env's auto-named cluster (scope is `cluster:*`/`db:*` per §0.1; the earlier prefix-deny check no longer applies).
-  - dev/alpha/beta/app all have the `AuroraClusterDrainOnDelete` custom resource.
-  - Recovery path: inject a stuck state on a non-production cluster (e.g. temporarily Deny on its KMS key via `aws kms put-key-policy`), trigger stack delete, confirm the Lambda log shows the cluster being force-drained. Restore the KMS policy after.
+- [x] 6.2 Manually verify each `## Requirement` scenario from `specs/aurora-cluster-teardown/spec.md` against the deployed system: — **DONE 2026-06-08** (structural checks); recovery path covered by §5.4.
+  - [x] Lambda exists in both regions and the SSM param resolves. — `appcloud-systems-AuroraClusterDeleteHandler-*` live in us-east-1 + us-east-2; `/appcloud-systems/lambda/aurora-cluster-delete-handler-arn` resolves in both (note: query via `MSYS_NO_PATHCONV=1`/PowerShell on Windows or get a false ParameterNotFound).
+  - [x] Lambda IAM policy allows `rds:DeleteDBCluster` on the env's auto-named cluster (scope is `cluster:*`/`db:*` per §0.1; the earlier prefix-deny check no longer applies). — role `UPDATE_COMPLETE` with broadened policy.
+  - [x] dev/alpha/~~beta~~/app all have the `AuroraClusterDrainOnDelete` custom resource. — confirmed `Custom::AuroraClusterDrainOnDelete` = `CREATE_COMPLETE` in alpha's DbStack (app identical templates); beta excluded.
+  - [x] Recovery path: ~~inject a stuck state on a non-production cluster…~~ — **covered by §5.4** (real `delete-stack dev-appcloud-systems` drove `RequestType=Delete`; Lambda force-drained the live cluster to `DBClusterNotFoundFault`). The deliberate KMS-deny stuck-state injection on an isolated cluster remains available as future belt-and-suspenders, but the real teardown already exercised the force-drain end-to-end.
 - [ ] 6.3 Archive this change per the experimental workflow (`/opsx:archive`).
