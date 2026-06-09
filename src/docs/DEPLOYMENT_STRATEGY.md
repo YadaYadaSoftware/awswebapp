@@ -1,130 +1,92 @@
-# Deployment Strategy - CloudFormation vs Serverless Template
+# Deployment Strategy — SAM-packaged nested CloudFormation deploying ECS Fargate
 
-## Current Template Relationship
+> **Authoritative sources:** the templates under
+> [infrastructure/](../../infrastructure/) and the deploy workflow
+> [.github/workflows/zbuild.yml](../../.github/workflows/zbuild.yml). Trust those
+> over this summary.
 
-### 1. **serverless.template** (Lambda Annotations)
-**Location**: [`src/TaskManager.Api/serverless.template`](src/TaskManager.Api/serverless.template)
-**Purpose**: Managed by Amazon.Lambda.Annotations for Lambda function definitions
-**Current State**: Empty (will be populated when Lambda Annotations functions are implemented)
+## The model in one sentence
 
-### 2. **cloudformation.yaml** (Infrastructure)
-**Location**: [`infrastructure/cloudformation.yaml`](infrastructure/cloudformation.yaml)
-**Purpose**: Complete AWS infrastructure including VPC, RDS, API Gateway, and supporting resources
+A single deployment model: **AWS SAM packages a tree of nested CloudFormation
+templates, and CloudFormation deploys an ECS Fargate + ALB web app backed by
+Aurora MySQL Serverless v2.** There is no Lambda Annotations
+`serverless.template`, no `infrastructure/cloudformation.yaml`, and no
+"CloudFormation-for-infra + SAM-for-Lambda" hybrid.
 
-## Recommended Approach
+## Template tree
 
-### **Option 1: Unified CloudFormation (Current Implementation)**
-**Pros:**
-- Single template manages all resources
-- Complete infrastructure control
-- Easier to manage dependencies
-- Better for complex networking (VPC, RDS, etc.)
+The env stack is a nested-stack tree rooted at one of two top-level templates,
+chosen by branch:
 
-**Cons:**
-- Manual Lambda function definition
-- Less integration with Lambda Annotations
+```
+master.template            # app / beta / alpha / dev — full environment incl. backend
+├── backend.template
+│   ├── security.template        # SharedLambdaExecutionRole (ECS tasks assume it; includes SES access)
+│   ├── network.template         # VPC, subnets, ALB/ECS/Lambda security groups, flow logs
+│   ├── db.template              # Aurora MySQL Serverless v2 (+ Global Cluster on app/beta/alpha)
+│   └── infrastructure.template  # ECS cluster, Google OAuth secret
+└── application.template
+    ├── api.template
+    ├── web.template             # ALB + listeners + ACM cert + ECS Fargate task def & service
+    └── dns.template             # Route 53 records / failover health checks
 
-### **Option 2: Hybrid Approach (Recommended)**
-**Infrastructure Template**: Use CloudFormation for infrastructure (VPC, RDS, Security Groups)
-**Application Template**: Use SAM/Serverless for Lambda functions
-
-### **Option 3: Pure SAM/Serverless**
-**Pros:**
-- Better Lambda Annotations integration
-- Simplified Lambda deployment
-
-**Cons:**
-- Limited VPC/RDS management
-- More complex for enterprise infrastructure
-
-## Current Implementation Strategy
-
-### **Phase 1: Infrastructure First (Current)**
-1. **CloudFormation** creates all infrastructure (VPC, RDS, API Gateway)
-2. **GitHub Actions** deploys Lambda code to existing function
-3. **Lambda Annotations** will work within the created infrastructure
-
-### **Phase 2: Lambda Annotations Integration (Future)**
-When implementing Lambda Annotations functions:
-1. **Update serverless.template** with Lambda function definitions
-2. **Deploy using SAM CLI** or **AWS CDK**
-3. **Reference existing infrastructure** from CloudFormation outputs
-
-## Deployment Commands
-
-### **Current Approach (CloudFormation + Manual Lambda)**
-```bash
-# Deploy infrastructure
-aws cloudformation deploy \
-  --template-file infrastructure/cloudformation.yaml \
-  --stack-name taskmanager-prod \
-  --capabilities CAPABILITY_IAM
-
-# Deploy Lambda code
-aws lambda update-function-code \
-  --function-name TaskManagerApi-prod \
-  --zip-file fileb://lambda-deployment.zip
+application.template       # every other branch — app stack only, imports dev's backend exports
 ```
 
-### **Future Approach (Hybrid)**
-```bash
-# Deploy infrastructure
-aws cloudformation deploy \
-  --template-file infrastructure/cloudformation.yaml \
-  --stack-name taskmanager-infrastructure-prod
+- `backend.template` exports VPC/subnet/security-group IDs, the ECS cluster name,
+  the shared role ARN, and the Aurora connection details. Exports are
+  domain-qualified, named `{Key}-{branch}-{dashed-domain}`.
+- `application.template` (when deployed standalone for a feature branch) imports
+  those exports from **`dev`** via `Fn::ImportValue`, so feature branches reuse
+  dev's backend instead of standing up their own Aurora cluster.
 
-# Deploy Lambda functions
-sam deploy \
-  --template-file src/TaskManager.Api/serverless.template \
-  --stack-name taskmanager-api-prod \
-  --parameter-overrides VpcId=<from-infrastructure-stack>
-```
+## How the workflow drives it
 
-## Recommendation for Your Project
+For each region in the deploy matrix:
 
-### **Stick with Current CloudFormation Approach**
-**Reasons:**
-1. **Complete Control**: VPC, RDS, and networking are complex and better managed in CloudFormation
-2. **Single Stack**: Easier to manage and tear down
-3. **GitHub Actions Ready**: Current workflow is complete and functional
-4. **Lambda Annotations Compatible**: Can be added later without changing infrastructure
+1. `sam build` + `sam package` the chosen top-level template to the templates S3
+   bucket (`{account}-{dashed-domain}-{region}`), resolving nested `TemplateURL`
+   references to S3 URLs.
+2. Build/push the `Tjb.Web` Docker image to ECR (content-addressed by SHA256 of
+   `src/`; reused if the tag already exists).
+3. Deploy the packaged template as CloudFormation stack
+   `{branch-leaf}-{dashed-domain}` with capabilities
+   `CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND`, passing the container image URI
+   and the other parameter overrides.
 
-### **When to Consider Serverless Template**
-- When you have many Lambda functions
-- When you want automatic API Gateway generation from Lambda Annotations
-- When you prefer SAM CLI tooling
-- When you don't need complex VPC/RDS setup
+## Branch → strategy
 
-## Current Workflow Explanation
+| Branch | Template | Regions | Aurora |
+|---|---|---|---|
+| `app` | `master.template` | primary + secondary | Global Cluster; capacities 0.5–4 ACU |
+| `beta`, `alpha` | `master.template` | primary + secondary | Global Cluster; capacities 0–1 ACU |
+| `dev` | `master.template` | primary only | single-region cluster; capacities 0–1 ACU |
+| `{type}/{name}` and bare OpenSpec change branches | `application.template` | primary only | none — imports `dev`'s backend |
 
-### **GitHub Actions Workflow**
-1. **Build**: Compiles and packages .NET application
-2. **Infrastructure**: Deploys CloudFormation template (creates everything)
-3. **Application**: Updates Lambda function code
-4. **Configuration**: Sets environment variables and secrets
+Multi-region branches deploy the primary region first, then the secondary region
+reads the primary's stack outputs (Aurora Global Cluster ID, primary ALB DNS and
+hosted-zone) to wire up Route 53 failover and join the secondary Aurora cluster
+to the global cluster.
 
-### **CloudFormation Template Creates**
-- VPC with public/private subnets
-- RDS PostgreSQL database
-- Lambda function (placeholder code)
-- API Gateway with routes
-- Security groups and IAM roles
-- Secrets Manager for credentials
-- CloudWatch monitoring
+## Region/domain agnosticism
 
-### **Lambda Annotations Integration**
-The `serverless.template` is ready for future Lambda Annotations functions. When you implement them:
-1. Lambda Annotations will populate the template
-2. You can deploy using SAM CLI
-3. Functions will reference the existing VPC and database
+Nothing in the templates or workflow hardcodes a domain or region. The deploy
+job derives the dashed domain from `secrets.DOMAIN_NAME`; templates take
+`DomainName` in dot form and derive dashed/underscored forms locally with
+`Fn::Join`/`Fn::Split`. Regions come from the `AWS_REGION_PRIMARY` /
+`AWS_REGION_SECONDARY` repo variables.
 
-## Conclusion
+## What this strategy explicitly is not
 
-**Current approach is optimal** for your requirements:
-- ✅ Complete infrastructure management
-- ✅ Production-ready security
-- ✅ Automated deployment
-- ✅ Future Lambda Annotations compatibility
-- ✅ Single command deployment
+- **Not** AWS Lambda + API Gateway. `Tjb.Api` carries vestigial Lambda glue but
+  is not the deployed surface.
+- **Not** RDS PostgreSQL. The database is Aurora MySQL Serverless v2 (Pomelo /
+  `UseMySql`, engine `8.0.mysql_aurora.3.10.0`).
+- **Not** a two-template hybrid. The `serverless.template` /
+  `cloudformation.yaml` split described in older docs does not exist.
 
-The `serverless.template` exists for future Lambda Annotations expansion but doesn't conflict with the current CloudFormation approach.
+## See also
+
+- [AWS_DEPLOYMENT_GUIDE.md](AWS_DEPLOYMENT_GUIDE.md) — pipeline stages.
+- [AWS_DEPLOYMENT_SETUP.md](AWS_DEPLOYMENT_SETUP.md) — secrets/variables/bootstrap.
+- [ARCHITECTURE.md](ARCHITECTURE.md) — system architecture and projects.

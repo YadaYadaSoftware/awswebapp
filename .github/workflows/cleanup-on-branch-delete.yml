@@ -7,12 +7,30 @@ on:
   delete:
 
 jobs:
+  prepare:
+    name: Compute branch leaf
+    if: github.event.ref_type == 'branch'
+    runs-on: ubuntu-latest
+    outputs:
+      branch-leaf: ${{ steps.leaf.outputs.branch-leaf }}
+    steps:
+      - name: Compute branch leaf
+        id: leaf
+        run: |
+          REF="${{ github.event.ref }}"
+          echo "branch-leaf=${REF##*/}" >> "$GITHUB_OUTPUT"
+
   cleanup-stack:
     name: Delete CloudFormation Stack
+    needs: prepare
     if: github.event.ref_type == 'branch'
     runs-on: ubuntu-latest
     concurrency:
-      group: deploy-us-east-1-${{ github.event.ref }}
+      # Must match the deploy job's group EXACTLY. The deploy job (zbuild.yml) keys on the
+      # branch *leaf* (needs.get-branch-name.outputs.branch-name), so we key on the leaf too —
+      # otherwise a type/name branch (e.g. feature/foo) produced a mismatched group and cleanup
+      # was NOT serialized against an in-flight same-branch deploy.
+      group: deploy-us-east-1-${{ needs.prepare.outputs.branch-leaf }}
       cancel-in-progress: false
     env:
       AWS_REGION: us-east-1
@@ -287,7 +305,12 @@ jobs:
         if: steps.guard.outputs.protected == 'false' && steps.wait.outputs.wait-result == 'success'
         run: |
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-          BUCKET="cf-templates-${ACCOUNT_ID}-us-east-1"
+          # The per-branch packaged templates live in the bootstrap-owned bucket
+          # ${AccountId}-${dashed-domain}-${region} (bootstrap.template), NOT the old
+          # AWS-managed cf-templates-* bucket. Derive the dashed domain the same way the
+          # compute step does.
+          PROCESSED_DOMAIN=$(echo "$DOMAIN_NAME" | tr '.' '-')
+          BUCKET="${ACCOUNT_ID}-${PROCESSED_DOMAIN}-us-east-1"
           PREFIX="$BRANCH_LEAF/"
 
           echo "Bucket: s3://$BUCKET/$PREFIX"

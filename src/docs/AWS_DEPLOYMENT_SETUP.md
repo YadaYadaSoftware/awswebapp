@@ -1,223 +1,107 @@
-# AWS Deployment Setup Guide
+# AWS Deployment Setup
 
-## Overview
-This guide explains how to set up automated deployment of the TaskManager application to AWS using GitHub Actions.
+> **Authoritative sources:** [.github/workflows/zbuild.yml](../../.github/workflows/zbuild.yml),
+> [infrastructure/bootstrap.template](../../infrastructure/bootstrap.template),
+> and the "Infrastructure naming convention" / "Branch model & CI/CD" sections
+> of [CLAUDE.md](../../CLAUDE.md). This guide lists the prerequisites the deploy
+> pipeline expects; trust those files where they differ.
+
+## What the pipeline deploys
+
+A push triggers the `Deploy Everything` workflow, which builds and tests the
+solution, builds the `Tjb.Web` Docker image and pushes it to ECR, packages the
+nested CloudFormation templates with AWS SAM, deploys the env CloudFormation
+stack, and runs UI tests. The result is a Blazor Server container on **ECS
+Fargate behind an ALB**, backed by **Aurora MySQL Serverless v2** — not Lambda,
+API Gateway, or RDS PostgreSQL. The workflow file is **`zbuild.yml`**.
 
 ## Prerequisites
 
-### 1. AWS Account Setup
-- AWS account with appropriate permissions
-- AWS CLI installed and configured locally (for initial setup)
-- IAM user with programmatic access
+### 1. AWS accounts & the bootstrap stack
 
-### 2. Required AWS Permissions
-The IAM user needs the following permissions:
-- CloudFormation (full access)
-- Lambda (full access)
-- API Gateway (full access)
-- RDS (full access)
-- VPC (full access)
-- IAM (limited - for role creation)
-- Secrets Manager (full access)
-- CloudWatch (full access)
+Deploy the **bootstrap stack** once per region you intend to deploy into
+([infrastructure/bootstrap.template](../../infrastructure/bootstrap.template)).
+Its stack name **is the dashed domain** (e.g. `appcloud-systems`) — no
+`bootstrap-` prefix. It owns the per-domain shared resources the pipeline looks
+up, including:
 
-## GitHub Secrets Configuration
+- ECR repository (named for the dashed domain).
+- Templates S3 bucket: `{account}-{dashed-domain}-{region}`.
+- KMS keys for Aurora (prod + nonprod), published to SSM at
+  `/{dashed-domain}/kms/{prod,nonprod}/aurora-key-arn`.
+- The Aurora cluster delete-handler Lambda ARN, published to SSM at
+  `/{dashed-domain}/lambda/aurora-cluster-delete-handler-arn`.
+- GitHub Actions IAM users (`{dashed-domain}-GitHubActionsUser` and
+  `...UserProd`) whose access keys become the GitHub secrets below.
 
-### Required Secrets
-Configure these secrets in your GitHub repository (Settings → Secrets and variables → Actions):
+The deploy job fails fast if these SSM parameters are missing in the target
+region, so deploy bootstrap first.
 
-#### AWS Credentials
-```
-AWS_ACCESS_KEY_ID=your-aws-access-key-id
-AWS_SECRET_ACCESS_KEY=your-aws-secret-access-key
-```
+### 2. GitHub repository **secrets**
 
-#### Database Configuration
-```
-DATABASE_PASSWORD=your-secure-database-password-here
-```
-**Requirements**: Minimum 8 characters, include letters and numbers
+Settings → Secrets and variables → Actions → **Secrets**:
 
-#### Google OAuth Credentials
-```
-GOOGLE_CLIENT_ID=your-google-oauth-client-id
-GOOGLE_CLIENT_SECRET=your-google-oauth-client-secret
-```
+| Secret | Purpose |
+|---|---|
+| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | Non-prod credentials (every branch except `app`). |
+| `AWS_ACCESS_KEY_ID_PROD` / `AWS_SECRET_ACCESS_KEY_PROD` | Prod credentials (used only by the `app` branch; the deploy fails if missing on an `app` deploy). |
+| `DOMAIN_NAME` | Deployment domain in **dot** form (e.g. `appcloud.systems`). The pipeline derives the dashed form. |
+| `DATABASE_PASSWORD` | Aurora master password (min 8 chars). Used for master-template branches. |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google OAuth credentials. |
+| `GOOGLE_TEST_ACCESS_TOKEN` / `GOOGLE_TEST_REFRESH_TOKEN` | Token-based Google auth for post-deploy UI tests. |
 
-### How to Set GitHub Secrets
-1. Go to your GitHub repository
-2. Click **Settings** → **Secrets and variables** → **Actions**
-3. Click **New repository secret**
-4. Add each secret with the exact name and value
+(`GITHUB_TOKEN` is provided automatically and is used to publish NuGets.)
 
-## Deployment Process
+### 3. GitHub repository **variables**
 
-### Automatic Deployment
-The deployment happens automatically when you push to the `main` branch:
+Settings → Secrets and variables → Actions → **Variables**:
 
-1. **Build Stage**: Compiles and tests the application
-2. **Infrastructure Stage**: Deploys AWS resources using CloudFormation
-3. **Application Stage**: Deploys the Lambda function with your code
-4. **Web Stage**: Prepares web application deployment
+| Variable | Purpose |
+|---|---|
+| `AWS_REGION_PRIMARY` | Primary region (currently `us-east-1`). |
+| `AWS_REGION_SECONDARY` | Secondary region for multi-region branches (currently `us-east-2`). |
+| `DRIFT_GUARD_FAIL_ON_DEV` | Optional. If `true`, fails `dev` runs when a default-branch-only workflow has drifted from `app`. |
 
-### Manual Deployment
-You can also trigger deployment manually:
-1. Go to **Actions** tab in GitHub
-2. Select **TaskManager CI/CD** workflow
-3. Click **Run workflow**
-4. Choose the branch and click **Run workflow**
+The workflow has **no fallback** for the region variables — leaving them unset
+fails the deploy matrix.
 
-## AWS Resources Created
+### 4. Route 53
 
-### Infrastructure Components
-- **VPC**: Custom VPC with public and private subnets
-- **RDS PostgreSQL**: Database instance in private subnets
-- **Lambda Function**: API hosting with VPC access
-- **API Gateway**: HTTP API for routing requests
-- **Secrets Manager**: Secure credential storage
-- **CloudWatch**: Logging and monitoring
-- **Security Groups**: Network access control
+A hosted zone for the domain must exist (the workflow passes a hardcoded
+`HostedZoneId` parameter). ACM certificates for `{branch}.{DomainName}` are
+created and DNS-validated by the templates.
 
-### Resource Naming Convention
-All resources are named with the pattern: `TaskManager-{ResourceType}-{Environment}`
+## Branch model (summary)
 
-Example:
-- VPC: `TaskManager-VPC-prod`
-- Database: `taskmanager-db-prod`
-- Lambda: `TaskManagerApi-prod`
+- **`app`** is the production branch (and GitVersion `main`). Solo developer; no
+  pull requests — changes are merged/pushed directly.
+- **`app` / `beta` / `alpha`** deploy `master.template` **multi-region**
+  (`AWS_REGION_PRIMARY` + `AWS_REGION_SECONDARY`), including an Aurora Global
+  Cluster.
+- **`dev`** deploys `master.template` single-region.
+- **Every other branch** (`{type}/{name}`, type ∈
+  `build|deploy|system|feature|fix`, plus bare-named OpenSpec change branches)
+  deploys `application.template` single-region, importing backend exports from
+  `dev`.
 
-## Environment Configuration
+See [CLAUDE.md](../../CLAUDE.md) for the full branch/CI rules.
 
-### Current Setup
-- **Environment**: `prod` (production)
-- **Region**: `us-east-1` (configurable in workflow)
-- **Database**: PostgreSQL 15.4 on db.t3.micro
-- **Lambda**: .NET 8 runtime with 512MB memory
+## Resource naming convention
 
-### Customization
-To change environment settings, edit [`.github/workflows/dotnet.yml`](.github/workflows/dotnet.yml):
+Names are **derived, not hardcoded**, from `DOMAIN_NAME` and the branch:
 
-```yaml
-env:
-  AWS_REGION: us-east-1  # Change region here
-  ENVIRONMENT: prod      # Change environment here
-```
+- **Env CloudFormation stack**: `{branch-leaf}-{dashed-domain}`
+  (e.g. `dev-appcloud-systems`, `app-appcloud-systems`).
+- **App URL**: `https://{branch-leaf}.{DOMAIN_NAME}`.
+- **Templates bucket**: `{account}-{dashed-domain}-{region}`.
+- **ECR repo / bootstrap stack**: the dashed domain (e.g. `appcloud-systems`).
+- **SSM lookup paths**: `/{dashed-domain}/...`.
 
-## Database Setup
+Do not reintroduce literal project names or region values anywhere — the
+pipeline is domain- and region-agnostic by design.
 
-### Initial Database Creation
-The CloudFormation template creates:
-- PostgreSQL 15.4 instance
-- Database named `taskmanager`
-- Admin user: `taskmanager_admin`
-- Encrypted storage
-- Automated backups (7 days retention)
+## See also
 
-### Connection String
-The application automatically retrieves database credentials from AWS Secrets Manager.
-
-## Security Features
-
-### Network Security
-- Database in private subnets (no internet access)
-- Lambda in private subnets with NAT Gateway for outbound
-- Security groups restrict access between components
-- VPC isolation from other AWS resources
-
-### Credential Security
-- Database password stored in Secrets Manager
-- Google OAuth credentials passed as environment variables
-- No hardcoded secrets in code or configuration
-
-### Monitoring
-- CloudWatch alarms for Lambda errors
-- Database CPU utilization monitoring
-- Centralized logging in CloudWatch
-
-## Troubleshooting
-
-### Common Deployment Issues
-
-1. **CloudFormation Stack Creation Fails**
-   - Check IAM permissions
-   - Verify parameter values
-   - Check AWS service limits
-
-2. **Lambda Function Update Fails**
-   - Verify function exists (created by CloudFormation)
-   - Check deployment package size
-   - Verify IAM permissions
-
-3. **Database Connection Issues**
-   - Verify security group rules
-   - Check VPC configuration
-   - Validate connection string in Secrets Manager
-
-### Debugging Steps
-
-1. **Check CloudFormation Events**
-   ```bash
-   aws cloudformation describe-stack-events --stack-name taskmanager-prod
-   ```
-
-2. **View Lambda Logs**
-   ```bash
-   aws logs tail /aws/lambda/TaskManagerApi-prod --follow
-   ```
-
-3. **Test Database Connectivity**
-   ```bash
-   aws rds describe-db-instances --db-instance-identifier taskmanager-db-prod
-   ```
-
-## Cost Estimation
-
-### Monthly AWS Costs (Approximate)
-- **RDS db.t3.micro**: ~$15-20/month
-- **Lambda**: ~$0-5/month (depends on usage)
-- **API Gateway**: ~$0-5/month (depends on requests)
-- **NAT Gateway**: ~$45/month
-- **Data Transfer**: ~$0-10/month
-- **CloudWatch**: ~$0-5/month
-
-**Total Estimated**: ~$65-90/month
-
-### Cost Optimization Tips
-- Use RDS Reserved Instances for production
-- Consider Lambda Provisioned Concurrency only if needed
-- Monitor and set up billing alerts
-- Use CloudWatch cost monitoring
-
-## Production Readiness Checklist
-
-### Before First Deployment
-- [ ] Configure all GitHub secrets
-- [ ] Set up Google OAuth credentials with production URLs
-- [ ] Review and adjust CloudFormation parameters
-- [ ] Set up AWS billing alerts
-- [ ] Configure custom domain (optional)
-
-### After Deployment
-- [ ] Test all application functionality
-- [ ] Verify database connectivity
-- [ ] Test Google OAuth flow
-- [ ] Set up monitoring dashboards
-- [ ] Configure backup strategy
-- [ ] Document production URLs
-
-## Support and Maintenance
-
-### Regular Tasks
-- Monitor CloudWatch alarms
-- Review Lambda function performance
-- Update dependencies regularly
-- Backup database (automated)
-- Review security groups and access
-
-### Scaling Considerations
-- Increase Lambda memory if needed
-- Consider RDS read replicas for high traffic
-- Implement caching layer (Redis) if needed
-- Set up multi-region deployment for HA
-
-This deployment setup provides a production-ready, scalable foundation for the TaskManager application on AWS.
+- [AWS_DEPLOYMENT_GUIDE.md](AWS_DEPLOYMENT_GUIDE.md) — what each pipeline stage does.
+- [DEPLOYMENT_STRATEGY.md](DEPLOYMENT_STRATEGY.md) — the nested-stack / multi-region model.
+- [ARCHITECTURE.md](ARCHITECTURE.md) — the system and its projects.

@@ -18,8 +18,7 @@ The system supports five types of branches organized in folders:
 Use the PowerShell script to create a new branch:
 
 ```powershell
-# Navigate to project root
-cd c:\Users\17034\repos\awswebapp\awswebapp
+# Run from the repository root
 
 # Create a feature branch (interactive)
 .\scripts\create-branch.ps1
@@ -63,20 +62,22 @@ git merge feature/user-authentication
 git push origin dev
 ```
 
-## Automated Changelog Management
+## Changelog Management
 
-### What Happens During Merge
+Changelog updating is **not** performed by CI — it happens **locally**, at merge time, via `scripts/merge-to-dev.ps1` (or the `.sh` variant). CI only *validates* that the `changes/` folder is empty (see "What CI enforces" below); it does not edit or commit `changelog.md`.
 
-When you merge a categorized branch into `dev`, the GitHub Actions workflow automatically:
+### What happens when you merge to `dev`
 
-1. **Validates** that `changes.md` exists in the repository
-2. **Extracts** the first meaningful line as a synopsis
-3. **Updates** `changelog.md` with:
-   - Timestamp (UTC)
-   - Branch name
-   - One-line synopsis
-4. **Commits and pushes** the updated changelog back to `dev`
-5. **Cleans up** the `changes.md` file to prevent conflicts
+Run `scripts/merge-to-dev.ps1` instead of merging by hand. It:
+
+1. Merges the selected branch into `dev`.
+2. Reads the branch's change file under `changes/` (named `{type}-{name}.md`, e.g. `changes/feature-user-authentication.md`).
+3. Extracts the first meaningful line as a synopsis and prepends an entry to `changelog.md` (timestamp + branch + synopsis).
+4. Removes the consumed `changes/` file so the folder is empty again.
+
+### What CI enforces
+
+The `dev`/`alpha`/`beta`/`app` branches **fail the build if the `changes/` folder is non-empty** ([.github/workflows/zbuild.yml](.github/workflows/zbuild.yml)). This is a guard, not an updater — it forces you to flush pending change files into `changelog.md` (via `scripts/merge-to-dev.ps1`) before those branches will build green.
 
 ### Changelog Format
 
@@ -154,7 +155,7 @@ When a branch is deleted from the remote (via the GitHub UI, the REST API, or `g
 - **Stack name**: `{branch-leaf}-{processed-domain}` — the same formula the deploy workflow uses (`branch-leaf` is the segment after the final `/`; `processed-domain` is `DOMAIN_NAME` with dots replaced by hyphens).
 - **Region**: `us-east-1` only. Non-shared branches never deploy to `us-west-2`, so cross-region cleanup is unnecessary.
 - **Protected branches**: `app`, `beta`, `alpha`, and `dev` are exempt. If one of these is deleted, the workflow exits successfully without making any AWS API calls. A `feature/dev`-style branch (leaf segment `dev`) is also treated as protected, by design.
-- **What gets deleted**: the CloudFormation stack itself (waiting for `DELETE_COMPLETE` with a 30-minute timeout) and, only on success, the `s3://cf-templates-{account}-us-east-1/{branch-leaf}/` prefix that holds packaged SAM templates for the branch.
+- **What gets deleted**: the CloudFormation stack itself (waiting for `DELETE_COMPLETE` with a 30-minute timeout) and, only on success, the `{branch-leaf}/` prefix in the bootstrap-owned templates bucket that holds packaged SAM templates for the branch. Per [infrastructure/bootstrap.template](infrastructure/bootstrap.template) that bucket is named `{account}-{dashed-domain}-{region}` (e.g. `s3://{account}-appcloud-systems-us-east-1/{branch-leaf}/`). (Note: the cleanup workflow currently references the older `cf-templates-{account}-us-east-1` name instead — a known code bug flagged separately by the audit.)
 - **What does not get cleaned up**: ECR images tagged with the branch name (the ECR repo is shared and uses content-addressed tags). Manage these with an ECR lifecycle policy if pruning is desired.
 
 If the stack ends in `DELETE_FAILED` or the waiter times out, the workflow fails red and dumps the last 25 `describe-stack-events` rows to the job log and step summary so a human can investigate.
@@ -163,9 +164,9 @@ If the stack ends in `DELETE_FAILED` or the waiter times out, the workflow fails
 
 The system uses these key files:
 - `scripts/create-branch.ps1` - Interactive branch creation
-- `scripts/update-changelog.ps1` - Changelog update logic
-- `scripts/push-changelog.ps1` - Safe changelog publishing
-- `.github/workflows/zbuild.yml` - CI/CD integration
+- `scripts/merge-to-dev.ps1` - Merge a branch into `dev` and flush its `changes/` file into `changelog.md`
+- `scripts/update-changelog.ps1` - Changelog update helper
+- `.github/workflows/zbuild.yml` - CI/CD integration (validates the `changes/` folder is empty on `dev`/`alpha`/`beta`/`app`)
 - `.github/workflows/cleanup-on-branch-delete.yml` - Stack teardown on branch deletion
 
 No additional configuration is required - the system works out of the box with the existing project setup.

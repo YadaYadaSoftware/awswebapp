@@ -2,7 +2,7 @@
 # Invitation-Only Access System Guide
 
 ## Overview
-The TaskManager application now implements an invitation-only access system where only invited users can access the application through Google OAuth.
+The application implements an invitation-only access system where only invited users can access the application through Google OAuth.
 
 ## How It Works
 
@@ -21,7 +21,7 @@ The TaskManager application now implements an invitation-only access system wher
 ## Database Schema
 
 ### **Invitations Table**
-**Created by migration**: `20250903112736_AddInvitationSystem.cs`
+**Created by migration**: `src/Tjb.Migrations/20251007185200_InitialCreate.cs` (the `Invitations` table is part of the initial migration, not a separate migration)
 
 **Columns**:
 - `Id` (GUID) - Primary key
@@ -38,6 +38,8 @@ The TaskManager application now implements an invitation-only access system wher
 - Index on IsAccepted
 
 ## API Endpoints
+
+> **Base URL**: the deployed app is reached at `https://{branch-leaf}.{DOMAIN_NAME}` (e.g. `https://dev.appcloud.systems`) — behind an ALB, not an API Gateway. Substitute that for `https://your-api` in the examples below.
 
 ### **Invitation Management**
 ```
@@ -139,7 +141,7 @@ curl https://your-api/api/invitation/check/user@example.com -b "cookies"
 - Purpose: Initial access for application setup
 
 **To Use**:
-1. **Update email** in `DatabaseMigrationService.cs` to your email
+1. **Update email** in `src/Tjb.Migrations/Program.cs` (the seed routine) to your email
 2. **Deploy application** → Admin invitation created
 3. **Login with Google** using your email → Access granted
 4. **Invite other users** through API endpoints
