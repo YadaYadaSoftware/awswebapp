@@ -111,7 +111,7 @@ master.template
 ├── backend.template
 │   ├── security.template        # SharedLambdaExecutionRole (assumed by ECS tasks; includes SES access)
 │   ├── network.template         # VPC, public/private subnets, ALB/ECS/Lambda security groups, flow logs
-│   ├── db.template              # Aurora MySQL Serverless v2 cluster (+ Global Cluster on app/beta/alpha)
+│   ├── db.template              # Aurora MySQL Serverless v2 cluster (+ Global Cluster on app/test)
 │   └── infrastructure.template  # ECS cluster, Google OAuth secret
 └── application.template
     ├── api.template             # (regional API resources)
@@ -119,9 +119,9 @@ master.template
     └── dns.template             # Route 53 records / health checks (deployed once per env)
 ```
 
-- **Shared-infrastructure branches** (`app`, `beta`, `alpha`, `dev`) deploy
+- **Shared-infrastructure branches** (`app`, `test`, `dev`) deploy
   `master.template` (full backend incl. Aurora). `dev` is single-region;
-  `app`/`beta`/`alpha` are multi-region (Aurora Global Cluster).
+  `app`/`test` are multi-region (Aurora Global Cluster).
 - **Every other branch** (`{type}/{name}` feature branches) deploys
   `application.template` only, importing backend exports from `dev` via
   `Fn::ImportValue`.

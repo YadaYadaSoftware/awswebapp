@@ -19,11 +19,11 @@ The env stack is a nested-stack tree rooted at one of two top-level templates,
 chosen by branch:
 
 ```
-master.template            # app / beta / alpha / dev — full environment incl. backend
+master.template            # app / test / dev — full environment incl. backend
 ├── backend.template
 │   ├── security.template        # SharedLambdaExecutionRole (ECS tasks assume it; includes SES access)
 │   ├── network.template         # VPC, subnets, ALB/ECS/Lambda security groups, flow logs
-│   ├── db.template              # Aurora MySQL Serverless v2 (+ Global Cluster on app/beta/alpha)
+│   ├── db.template              # Aurora MySQL Serverless v2 (+ Global Cluster on app/test)
 │   └── infrastructure.template  # ECS cluster, Google OAuth secret
 └── application.template
     ├── api.template
@@ -59,7 +59,7 @@ For each region in the deploy matrix:
 | Branch | Template | Regions | Aurora |
 |---|---|---|---|
 | `app` | `master.template` | primary + secondary | Global Cluster; capacities 0.5–4 ACU |
-| `beta`, `alpha` | `master.template` | primary + secondary | Global Cluster; capacities 0–1 ACU |
+| `test` | `master.template` | primary + secondary | Global Cluster; capacities 0–1 ACU |
 | `dev` | `master.template` | primary only | single-region cluster; capacities 0–1 ACU |
 | `{type}/{name}` and bare OpenSpec change branches | `application.template` | primary only | none — imports `dev`'s backend |
 

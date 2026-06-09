@@ -118,7 +118,7 @@ Shared enums (`TaskStatus`, `TaskPriority`, `ProjectRole`) live in `Tjb.Shared`.
 This repo is maintained by a **solo developer — there are no pull requests**; changes are integrated by direct merge/push.
 
 - **`app`** is the production branch (GitVersion `main`). **`dev`** is integration.
-- `app`, `beta`, and `alpha` are shared multi-region infrastructure branches using `infrastructure/master.template`. `dev` is single-region but also uses the master template.
+- `app` and `test` are shared multi-region infrastructure branches using `infrastructure/master.template`. `dev` is single-region but also uses the master template.
 - Every other branch follows `{type}/{name}` (`build|deploy|system|feature|fix`) and deploys `infrastructure/application.template` into a per-branch stack.
 - Every push runs the **Deploy Everything** workflow ([.github/workflows/zbuild.yml](.github/workflows/zbuild.yml)): build → test → Docker image → ECR → CloudFormation/SAM deploy → UI tests against the deployed URL → publish NuGets.
 
