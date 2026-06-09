@@ -40,41 +40,43 @@ The reusable workflow SHALL be callable from another repo as `uses: YadaYadaSoft
 
 The reusable workflow SHALL declare every project-specific value as either an `input` (in the `on: workflow_call: inputs:` block) or a `secret` (in `on: workflow_call: secrets:`). The workflow SHALL fail loudly at run time if any required input or secret is missing.
 
-The required inputs SHALL include at minimum: `project-name`, `domain-name`, `hosted-zone-id`, `secondary-region`, `multi-region-branches`, `prod-branch`, `dotnet-version`, `web-project-path`, `web-dockerfile-path`.
+The required inputs SHALL include at minimum: `branch-name`, `environment`, `custom-version`, `domain-name`, `hosted-zone-id`, `region-primary`, `region-secondary`, `multi-region-branches`, `shared-infra-branches`, `prod-branch`, `dotnet-version`, `web-dockerfile-path`. (Per the §0.1 derive-from-domain decision there is **no** `project-name` input — `domain-name` is the sole naming input.)
 
 The required secrets SHALL include at minimum: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_ACCESS_KEY_ID_PROD`, `AWS_SECRET_ACCESS_KEY_PROD`, `DATABASE_PASSWORD`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`.
 
 Every input SHALL have a sensible default OR be marked `required: true`. The README/`CONSUMING.md` SHALL document each input's purpose, type, default, and example value.
 
 #### Scenario: Required input missing
-- **WHEN** a consumer calls the reusable workflow without providing the `project-name` input
+- **WHEN** a consumer calls the reusable workflow without providing the `domain-name` input
 - **THEN** GitHub Actions rejects the workflow at parse time, before any job runs, with a clear error naming the missing input
 
 #### Scenario: Required secret missing
 - **WHEN** a consumer calls the workflow with all inputs but without setting the `AWS_ACCESS_KEY_ID` secret
 - **THEN** the existing "Select AWS credentials by branch" step's empty-secret guard fires and fails the workflow with a clear message identifying the missing secret
 
-### Requirement: Templates accept ProjectName + DomainName parameters and use them in all naming
+### Requirement: Templates derive all naming from the domain (no ProjectName axis)
 
-Every CloudFormation template in the package SHALL accept a `ProjectName` parameter (and, where relevant, `DomainName`) and SHALL use `!Sub "${ProjectName}-..."` (or equivalent) for every resource-naming pattern that today hardcodes the string `taskmanager`. No template SHALL contain the literal string `taskmanager` after this change. Similarly, no template SHALL contain the literal `appcloud.systems`; the domain SHALL come from a parameter.
+Per the §0.1 design decision, every CloudFormation template SHALL derive project/resource naming from the deployment **domain** — the dashed form of `DomainName` (equivalently `${AWS::StackName}` for the bootstrap stack, whose name *is* the dashed domain) — rather than from a separate `ProjectName` parameter. No template SHALL introduce a `ProjectName` parameter, and the reusable workflow SHALL expose no `project-name` input; `domain-name` is the single naming input, passed through to each CFN deploy as `DomainName`.
 
-The IAM policies that scope to `taskmanager-*` resource ARNs SHALL scope to `${ProjectName}-*` instead.
+No template SHALL contain the literal string `taskmanager`. No template SHALL contain a hardcoded domain in a resource *value* — including parameter `Default`s; the domain SHALL come from the `DomainName` parameter (or be derived from it, e.g. `!Sub "noreply@${DomainName}"`). Descriptions, examples, and comments MAY still mention a domain for documentation.
+
+The IAM policies that scope to project-named resource ARNs SHALL scope to the dashed-domain-derived form (e.g. `!Sub "${AWS::StackName}-*"` in the bootstrap stack), not a hardcoded project literal.
 
 #### Scenario: No hardcoded taskmanager strings
 - **WHEN** `grep -r 'taskmanager' infrastructure/` is run after the change
 - **THEN** no matches are returned (other than possibly in YAML comments documenting the rename)
 
-#### Scenario: No hardcoded domain
-- **WHEN** `grep -r 'appcloud.systems' infrastructure/` is run after the change
-- **THEN** no matches are returned
+#### Scenario: No hardcoded domain in resource values
+- **WHEN** the templates are inspected for the literal `appcloud.systems`
+- **THEN** it appears only in parameter descriptions, examples, or comments — never in a resource value or a parameter `Default` (the SES sender, for instance, is `!Sub "noreply@${DomainName}"`)
 
-#### Scenario: ProjectName parameter exists in every template
+#### Scenario: Naming derives from the domain
 - **WHEN** every template file in the package is inspected
-- **THEN** each template's `Parameters` block contains `ProjectName` (or the template doesn't need it because it's a leaf template with no project-named resources)
+- **THEN** each template that names project-scoped resources derives those names from `DomainName` (or `${AWS::StackName}`); leaf templates with no project-named resources need no naming parameter
 
-#### Scenario: TaskManager passes its name
+#### Scenario: TaskManager passes its domain
 - **WHEN** TaskManager's caller workflow invokes the reusable deploy workflow
-- **THEN** `project-name: taskmanager` (and `domain-name: appcloud.systems`) are among the inputs, and the resulting CFN deploys carry `ProjectName=taskmanager` as a parameter override
+- **THEN** `domain-name: appcloud.systems` is among the inputs, and the resulting CFN deploys carry `DomainName=appcloud.systems` as a parameter override, from which the dashed form `appcloud-systems` is derived inside the templates
 
 ### Requirement: Onboarding documentation exists and covers the full lift
 

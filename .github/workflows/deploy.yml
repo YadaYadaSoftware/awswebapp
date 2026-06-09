@@ -1,0 +1,688 @@
+name: Reusable Deploy
+
+# Reusable deploy workflow (openspec change: make-deployment-stack-reusable, Phase 3).
+# Extracted verbatim from zbuild.yml's `deploy` + `post-deployment-ui-tests` jobs; every
+# project-specific value is now an input or secret so another .NET web app can call it via
+#   uses: YadaYadaSoftware/awswebapp/.github/workflows/deploy.yml@v1
+# TaskManager dogfoods it through zbuild.yml (uses: ./.github/workflows/deploy.yml).
+# Naming derives from the domain (the dashed form is computed inside the templates per the
+# §0.1 derive-from-domain decision) — there is no separate ProjectName axis.
+on:
+  workflow_call:
+    inputs:
+      branch-name:
+        description: "Stack-name branch leaf (e.g. dev, app, or a feature leaf)."
+        required: true
+        type: string
+      environment:
+        description: "Deployment environment label (Production/Staging/Development)."
+        required: true
+        type: string
+      custom-version:
+        description: "SemVer used for the container image SemVer tag (from the build job)."
+        required: true
+        type: string
+      assembly-sem-ver:
+        description: "Assembly version passed as the Docker ASSEMBLY_VERSION build-arg."
+        required: false
+        type: string
+        default: ""
+      domain-name:
+        description: "Deployment domain in dot form (e.g. example.com). Sole naming input; the dashed form is derived in the templates."
+        required: true
+        type: string
+      hosted-zone-id:
+        description: "Route 53 hosted zone ID for the domain."
+        required: true
+        type: string
+      region-primary:
+        description: "Primary AWS region."
+        required: true
+        type: string
+      region-secondary:
+        description: "Secondary AWS region (used by the multi-region branches)."
+        required: true
+        type: string
+      multi-region-branches:
+        description: "Space-separated branch leaves that deploy to both regions."
+        required: false
+        type: string
+        default: "app beta alpha"
+      shared-infra-branches:
+        description: "Space-separated branch leaves that deploy the full backend (master template)."
+        required: false
+        type: string
+        default: "app beta alpha dev"
+      prod-branch:
+        description: "Branch leaf that receives prod credentials + prod KMS key."
+        required: false
+        type: string
+        default: "app"
+      engine-version:
+        description: "Aurora MySQL engine version."
+        required: false
+        type: string
+        default: "8.0.mysql_aurora.3.10.0"
+      dotnet-version:
+        description: ".NET SDK version for the UI-test job."
+        required: false
+        type: string
+        default: "10.0.x"
+      web-dockerfile-path:
+        description: "Path to the web app Dockerfile (build context is the repo root)."
+        required: false
+        type: string
+        default: "src/Tjb.Web/Dockerfile"
+      web-image-name:
+        description: "Local docker image tag base for the web container."
+        required: false
+        type: string
+        default: "tjb-web"
+      ui-tests-project-path:
+        description: "Path to the Playwright UI-test project."
+        required: false
+        type: string
+        default: "src/Tjb.UiTests"
+    secrets:
+      AWS_ACCESS_KEY_ID:
+        required: true
+      AWS_SECRET_ACCESS_KEY:
+        required: true
+      AWS_ACCESS_KEY_ID_PROD:
+        required: false
+      AWS_SECRET_ACCESS_KEY_PROD:
+        required: false
+      DATABASE_PASSWORD:
+        required: true
+      GOOGLE_CLIENT_ID:
+        required: true
+      GOOGLE_CLIENT_SECRET:
+        required: true
+      GOOGLE_TEST_ACCESS_TOKEN:
+        required: false
+      GOOGLE_TEST_REFRESH_TOKEN:
+        required: false
+
+jobs:
+  deploy:
+    name: Deploy to AWS
+    runs-on: ubuntu-latest
+    concurrency:
+      group: deploy-${{ matrix.region }}-${{ inputs.branch-name }}
+      cancel-in-progress: false
+    strategy:
+      matrix:
+        include:
+          - region: ${{ inputs.region-primary }}
+            is_primary: "true"
+            deploy: true
+          - region: ${{ inputs.region-secondary }}
+            is_primary: "false"
+            deploy: ${{ contains(format(' {0} ', inputs.multi-region-branches), format(' {0} ', inputs.branch-name)) }}
+      max-parallel: 1
+    steps:
+    - name: Checkout code
+      if: matrix.deploy
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Calculate Source Checksum
+      if: matrix.deploy
+      id: checksum
+      run: |
+        # Calculate SHA256 checksum of all files in src/ directory
+        SRC_CHECKSUM=$(find src -type f -exec sha256sum {} \; | sort | sha256sum | cut -d' ' -f1)
+        echo "📋 Source checksum: $SRC_CHECKSUM"
+        echo "src-checksum=$SRC_CHECKSUM" >> $GITHUB_OUTPUT
+
+    - name: Install SAM CLI
+      if: matrix.deploy
+      run: |
+        pip install aws-sam-cli
+
+    - name: Select AWS credentials by branch
+      if: matrix.deploy
+      id: select-creds
+      env:
+        BRANCH_NAME: ${{ inputs.branch-name }}
+        PROD_BRANCH: ${{ inputs.prod-branch }}
+        AWS_AK_PROD: ${{ secrets.AWS_ACCESS_KEY_ID_PROD }}
+        AWS_SK_PROD: ${{ secrets.AWS_SECRET_ACCESS_KEY_PROD }}
+        AWS_AK_NONPROD: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SK_NONPROD: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      run: |
+        # The prod branch is the only one that gets prod credentials.
+        # Every other branch uses the non-prod (default) credentials sourced
+        # from the bootstrap stack's nonprod GitHubActionsUser.
+        if [ "$BRANCH_NAME" = "$PROD_BRANCH" ]; then
+          if [ -z "$AWS_AK_PROD" ] || [ -z "$AWS_SK_PROD" ]; then
+            echo "ERROR: $PROD_BRANCH-branch deploy requires AWS_ACCESS_KEY_ID_PROD and AWS_SECRET_ACCESS_KEY_PROD GitHub secrets to be set (sourced from the bootstrap stack's GitHubActionsUserProd outputs)." >&2
+            exit 1
+          fi
+          echo "access-key-id=$AWS_AK_PROD" >> $GITHUB_OUTPUT
+          echo "secret-access-key=$AWS_SK_PROD" >> $GITHUB_OUTPUT
+          echo "Using PROD credentials for $PROD_BRANCH branch"
+        else
+          echo "access-key-id=$AWS_AK_NONPROD" >> $GITHUB_OUTPUT
+          echo "secret-access-key=$AWS_SK_NONPROD" >> $GITHUB_OUTPUT
+          echo "Using NONPROD credentials for branch: $BRANCH_NAME"
+        fi
+
+    - name: Configure AWS credentials
+      if: matrix.deploy
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ steps.select-creds.outputs.access-key-id }}
+        aws-secret-access-key: ${{ steps.select-creds.outputs.secret-access-key }}
+        aws-region: ${{ matrix.region }}
+
+    - name: Get AWS Account ID
+      if: matrix.deploy
+      id: account-id
+      run: |
+        ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+        echo "AWS Account ID: $ACCOUNT_ID"
+        echo "account-id=$ACCOUNT_ID" >> $GITHUB_OUTPUT
+
+    - name: Process Domain Name
+      if: matrix.deploy
+      id: process-domain
+      run: |
+        # Get domain name from the input and process it (replace dots with hyphens)
+        RAW_DOMAIN="${{ inputs.domain-name }}"
+        PROCESSED_DOMAIN=$(echo $RAW_DOMAIN | tr '.' '-')
+        echo "Original domain: $RAW_DOMAIN"
+        echo "Processed domain: $PROCESSED_DOMAIN"
+        echo "processed-domain=$PROCESSED_DOMAIN" >> $GITHUB_OUTPUT
+
+
+    - name: Build and package template
+      if: matrix.deploy
+      run: |
+        BUCKET_NAME="${{ steps.account-id.outputs.account-id }}-${{ steps.process-domain.outputs.processed-domain }}-${{ matrix.region }}"
+        BRANCH_NAME="${{ inputs.branch-name }}"
+        ENVIRONMENT="${{ inputs.environment }}"
+        echo "BUCKET_NAME=$BUCKET_NAME" >> $GITHUB_ENV
+
+        # Choose template based on branch name
+        # Deploy master template for shared infrastructure branches
+        if [[ " ${{ inputs.shared-infra-branches }} " == *" $BRANCH_NAME "* ]]; then
+          TEMPLATE_FILE="infrastructure/master.template"
+          TEMPLATE_NAME="master"
+          echo "Using master template for shared infrastructure branch: $BRANCH_NAME"
+        else
+          TEMPLATE_FILE="infrastructure/application.template"
+          TEMPLATE_NAME="application"
+          echo "Using application template for feature branch: $BRANCH_NAME"
+        fi
+
+        echo "TEMPLATE_FILE=$TEMPLATE_FILE" >> $GITHUB_ENV
+        echo "TEMPLATE_NAME=$TEMPLATE_NAME" >> $GITHUB_ENV
+
+        echo "Building and packaging $TEMPLATE_NAME template to S3 bucket: $BUCKET_NAME"
+        sam build --template $TEMPLATE_FILE --region ${{ matrix.region }}
+        sam package --template-file .aws-sam/build/template.yaml --s3-bucket $BUCKET_NAME --s3-prefix $BRANCH_NAME --output-template-file packaged-${TEMPLATE_NAME}-template.yaml --region ${{ matrix.region }}
+
+        # Upload the packaged template with appropriate name
+        aws s3 cp packaged-${TEMPLATE_NAME}-template.yaml s3://$BUCKET_NAME/$BRANCH_NAME/${TEMPLATE_NAME}-template.yaml --region ${{ matrix.region }}
+        TEMPLATE_VERSION_ID=$(aws s3api head-object --bucket $BUCKET_NAME --key $BRANCH_NAME/${TEMPLATE_NAME}-template.yaml --query VersionId --output text)
+        echo "TEMPLATE_VERSION_ID=$TEMPLATE_VERSION_ID" >> $GITHUB_ENV
+
+    - name: Check if Web Container Image Exists
+      id: check-image
+      if: matrix.deploy
+      run: |
+        SRC_CHECKSUM=${{ steps.checksum.outputs.src-checksum }}
+        BRANCH_NAME=${{ inputs.branch-name }}
+        SEMVER_TAG=${{ inputs.custom-version }}
+
+        # Construct ECR repository URI
+        ACCOUNT_ID=${{ steps.account-id.outputs.account-id }}
+        ECR_REPO="${ACCOUNT_ID}.dkr.ecr.${{ matrix.region }}.amazonaws.com/${{ steps.process-domain.outputs.processed-domain }}"
+
+        echo "🎯 ECR repository: $ECR_REPO"
+        echo "📋 Checksum tag: $SRC_CHECKSUM"
+        echo "🏷️ SemVer tag: $SEMVER_TAG"
+
+        # Check if image with checksum tag already exists
+        if aws ecr describe-images --repository-name ${{ steps.process-domain.outputs.processed-domain }} --image-ids imageTag=$SRC_CHECKSUM --region ${{ matrix.region }} >/dev/null 2>&1; then
+          echo "✅ Image $ECR_REPO:$SRC_CHECKSUM already exists, reusing"
+          echo "image-exists=true" >> $GITHUB_OUTPUT
+        else
+          echo "❌ Image $ECR_REPO:$SRC_CHECKSUM does not exist, will build"
+          echo "image-exists=false" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Build and Push Web Container Image
+      if: matrix.deploy && steps.check-image.outputs.image-exists == 'false'
+      run: |
+        SRC_CHECKSUM=${{ steps.checksum.outputs.src-checksum }}
+        BRANCH_NAME=${{ inputs.branch-name }}
+        SEMVER_TAG=${{ inputs.custom-version }}
+        BRANCH_TAG=${BRANCH_NAME:-main}
+
+        # Construct ECR repository URI
+        ACCOUNT_ID=${{ steps.account-id.outputs.account-id }}
+        ECR_REPO="${ACCOUNT_ID}.dkr.ecr.${{ matrix.region }}.amazonaws.com/${{ steps.process-domain.outputs.processed-domain }}"
+        IMAGE_NAME="${{ inputs.web-image-name }}"
+
+        echo "🎯 ECR repository: $ECR_REPO"
+        echo "📋 Checksum tag: $SRC_CHECKSUM"
+        echo "🏷️ SemVer tag: $SEMVER_TAG"
+        echo "🌿 Branch tag: $BRANCH_TAG"
+
+        # Build container image from root context
+        docker build -t $IMAGE_NAME:$SRC_CHECKSUM -f ${{ inputs.web-dockerfile-path }} . --build-arg VERSION=${{ inputs.custom-version }} --build-arg ASSEMBLY_VERSION=${{ inputs.assembly-sem-ver }}
+
+        # Login to ECR
+        aws ecr get-login-password --region ${{ matrix.region }} | docker login --username AWS --password-stdin $ECR_REPO
+
+        # Tag and push checksum-tagged image
+        docker tag $IMAGE_NAME:$SRC_CHECKSUM $ECR_REPO:$SRC_CHECKSUM
+        docker push $ECR_REPO:$SRC_CHECKSUM
+        echo "✅ Pushed checksum image: $ECR_REPO:$SRC_CHECKSUM"
+
+        # Also tag and push with SemVer for reference
+        docker tag $IMAGE_NAME:$SRC_CHECKSUM $ECR_REPO:$SEMVER_TAG
+        docker push $ECR_REPO:$SEMVER_TAG
+        echo "✅ Pushed SemVer image: $ECR_REPO:$SEMVER_TAG"
+
+        # Tag and push branch-specific image (for easy reference)
+        docker tag $IMAGE_NAME:$SRC_CHECKSUM $ECR_REPO:$BRANCH_TAG
+        docker push $ECR_REPO:$BRANCH_TAG
+        echo "✅ Pushed branch image: $ECR_REPO:$BRANCH_TAG"
+
+        # Also tag as latest for main branch
+        if [ "$BRANCH_NAME" = "main" ]; then
+          docker tag $IMAGE_NAME:$SRC_CHECKSUM $ECR_REPO:latest
+          docker push $ECR_REPO:latest
+          echo "✅ Pushed latest image: $ECR_REPO:latest"
+        fi
+
+    - name: Set Container Image Variable
+      if: matrix.deploy
+      run: |
+        SRC_CHECKSUM=${{ steps.checksum.outputs.src-checksum }}
+        ACCOUNT_ID=${{ steps.account-id.outputs.account-id }}
+        ECR_REPO="${ACCOUNT_ID}.dkr.ecr.${{ matrix.region }}.amazonaws.com/${{ steps.process-domain.outputs.processed-domain }}"
+        CONTAINER_IMAGE=$ECR_REPO:$SRC_CHECKSUM
+        echo "CONTAINER_IMAGE=$CONTAINER_IMAGE" >> $GITHUB_ENV
+
+    - name: Lookup bootstrap KMS key from SSM
+      id: bootstrap-kms
+      if: matrix.deploy
+      run: |
+        BRANCH_NAME="${{ inputs.branch-name }}"
+        # The prod branch uses the prod KMS key; every other branch (including
+        # feature branches that consume dev's backend) uses the nonprod key.
+        if [ "$BRANCH_NAME" = "${{ inputs.prod-branch }}" ]; then
+          SCOPE="prod"
+        else
+          SCOPE="nonprod"
+        fi
+        SSM_PATH="/${{ steps.process-domain.outputs.processed-domain }}/kms/${SCOPE}/aurora-key-arn"
+        echo "Looking up $SSM_PATH in ${{ matrix.region }}"
+        BOOTSTRAP_KMS_KEY_ARN=$(aws ssm get-parameter --name "$SSM_PATH" --region ${{ matrix.region }} --query 'Parameter.Value' --output text)
+        if [ -z "$BOOTSTRAP_KMS_KEY_ARN" ] || [ "$BOOTSTRAP_KMS_KEY_ARN" = "None" ]; then
+          echo "ERROR: SSM parameter $SSM_PATH in ${{ matrix.region }} is empty or missing. Deploy the bootstrap stack (named for the dashed-domain) in this region before continuing." >&2
+          exit 1
+        fi
+        echo "BOOTSTRAP_KMS_KEY_ARN=$BOOTSTRAP_KMS_KEY_ARN" >> $GITHUB_ENV
+
+    - name: Lookup Aurora cluster delete handler ARN from SSM
+      id: bootstrap-aurora-teardown
+      if: matrix.deploy
+      run: |
+        # Bootstrap publishes one regional teardown Lambda per region at this
+        # dashed-domain-scoped path (parallel to the KMS key lookup above). The
+        # value is threaded into master.template as AuroraClusterDeleteHandlerArn
+        # and ends up as the AuroraClusterDrainOnDelete custom resource's
+        # ServiceToken in db.template.
+        SSM_PATH="/${{ steps.process-domain.outputs.processed-domain }}/lambda/aurora-cluster-delete-handler-arn"
+        echo "Looking up $SSM_PATH in ${{ matrix.region }}"
+        AURORA_CLUSTER_DELETE_HANDLER_ARN=$(aws ssm get-parameter --name "$SSM_PATH" --region ${{ matrix.region }} --query 'Parameter.Value' --output text)
+        if [ -z "$AURORA_CLUSTER_DELETE_HANDLER_ARN" ] || [ "$AURORA_CLUSTER_DELETE_HANDLER_ARN" = "None" ]; then
+          echo "ERROR: SSM parameter $SSM_PATH in ${{ matrix.region }} is empty or missing. Deploy the bootstrap stack (named for the dashed-domain) in this region before continuing." >&2
+          exit 1
+        fi
+        echo "AURORA_CLUSTER_DELETE_HANDLER_ARN=$AURORA_CLUSTER_DELETE_HANDLER_ARN" >> $GITHUB_ENV
+
+    - name: Get primary region outputs for secondary
+      id: get-primary-outputs
+      if: matrix.is_primary == 'false' && matrix.deploy
+      run: |
+        BRANCH_NAME="${{ inputs.branch-name }}"
+
+        echo "Getting outputs from primary region stack..."
+        # For feature branches, get exports from dev branch
+        # For shared infrastructure branches, get from current branch
+        if [[ " ${{ inputs.shared-infra-branches }} " == *" $BRANCH_NAME "* ]]; then
+          SOURCE_BRANCH="$BRANCH_NAME"
+        else
+          SOURCE_BRANCH="dev"
+        fi
+
+        PRIMARY_STACK_NAME="$SOURCE_BRANCH-${{ steps.process-domain.outputs.processed-domain }}"
+        echo "Source branch: $SOURCE_BRANCH"
+        echo "Primary stack name: $PRIMARY_STACK_NAME"
+
+        GLOBAL_CLUSTER_ID=$(aws cloudformation describe-stacks --stack-name $PRIMARY_STACK_NAME --region ${{ inputs.region-primary }} --query 'Stacks[0].Outputs[?OutputKey==`AuroraGlobalClusterId`].OutputValue' --output text)
+        PRIMARY_LB_DNS=$(aws cloudformation describe-stacks --stack-name $PRIMARY_STACK_NAME --region ${{ inputs.region-primary }} --query 'Stacks[0].Outputs[?OutputKey==`WebLoadBalancerDNS`].OutputValue' --output text)
+        PRIMARY_LB_HZ=$(aws cloudformation describe-stacks --stack-name $PRIMARY_STACK_NAME --region ${{ inputs.region-primary }} --query 'Stacks[0].Outputs[?OutputKey==`WebLoadBalancerHostedZoneId`].OutputValue' --output text)
+        echo "global-cluster-id=$GLOBAL_CLUSTER_ID" >> $GITHUB_OUTPUT
+        echo "primary-lb-dns=$PRIMARY_LB_DNS" >> $GITHUB_OUTPUT
+        echo "primary-lb-hz=$PRIMARY_LB_HZ" >> $GITHUB_OUTPUT
+
+    - name: Set parameter overrides
+      id: set-params
+      if: matrix.deploy
+      run: |
+        BRANCH_NAME="${{ inputs.branch-name }}"
+        ENVIRONMENT="${{ inputs.environment }}"
+
+        # Determine if this is a multi-region deployment
+        if [[ " ${{ inputs.multi-region-branches }} " == *" $BRANCH_NAME "* ]]; then
+          IS_MULTI_REGION="true"
+          echo "Multi-region deployment for branch: $BRANCH_NAME"
+        else
+          IS_MULTI_REGION="false"
+          echo "Single-region deployment for branch: $BRANCH_NAME"
+        fi
+
+        # Determine EnvironmentToImport value
+        if [[ " ${{ inputs.shared-infra-branches }} " == *" $BRANCH_NAME "* ]]; then
+          ENVIRONMENT_TO_IMPORT="$BRANCH_NAME"
+        else
+          ENVIRONMENT_TO_IMPORT="dev"
+        fi
+
+        # Build common BASE_PARAMS for all templates
+        BASE_PARAMS="BranchName=${BRANCH_NAME}"
+        BASE_PARAMS="$BASE_PARAMS,GoogleOAuthClientId=${{ secrets.GOOGLE_CLIENT_ID }}"
+        BASE_PARAMS="$BASE_PARAMS,GoogleOAuthClientSecret=${{ secrets.GOOGLE_CLIENT_SECRET }}"
+        BASE_PARAMS="$BASE_PARAMS,WebContainerImage=${{ env.CONTAINER_IMAGE }}"
+        BASE_PARAMS="$BASE_PARAMS,DeploymentToken=${{ github.sha }}"
+        BASE_PARAMS="$BASE_PARAMS,DomainName=${{ inputs.domain-name }}"
+        BASE_PARAMS="$BASE_PARAMS,HostedZoneId=${{ inputs.hosted-zone-id }}"
+        BASE_PARAMS="$BASE_PARAMS,Environment=$ENVIRONMENT"
+        BASE_PARAMS="$BASE_PARAMS,IsPrimaryRegion=${{ matrix.is_primary }}"
+        BASE_PARAMS="$BASE_PARAMS,IsMultiRegion=$IS_MULTI_REGION"
+
+
+        # Add primary region parameters if needed (for secondary region in multi-region deployment)
+        if [ "${{ matrix.is_primary }}" = "false" ]; then
+          BASE_PARAMS="$BASE_PARAMS,PrimaryRegion=${{ inputs.region-primary }}"
+          BASE_PARAMS="$BASE_PARAMS,PrimaryWebLoadBalancerDNS=${{ steps.get-primary-outputs.outputs.primary-lb-dns }}"
+          BASE_PARAMS="$BASE_PARAMS,PrimaryWebLoadBalancerHostedZoneId=${{ steps.get-primary-outputs.outputs.primary-lb-hz }}"
+        fi
+
+        # Set parameters based on branch name and template type
+        if [[ " ${{ inputs.shared-infra-branches }} " == *" $BRANCH_NAME "* ]]; then
+          # Master template parameters (includes backend infrastructure)
+          if [ "$BRANCH_NAME" = "${{ inputs.prod-branch }}" ]; then
+            MIN_CAP=0.5
+            MAX_CAP=4
+          else
+            MIN_CAP=0
+            MAX_CAP=1
+          fi
+          if [[ " ${{ inputs.multi-region-branches }} " == *" $BRANCH_NAME "* ]]; then
+            ENABLE_GLOBAL=true
+          else
+            ENABLE_GLOBAL=false
+          fi
+
+          # Add master template specific parameters
+          BASE_PARAMS="$BASE_PARAMS,DatabasePassword=${{ secrets.DATABASE_PASSWORD }}"
+          BASE_PARAMS="$BASE_PARAMS,EngineVersion=${{ inputs.engine-version }}"
+          BASE_PARAMS="$BASE_PARAMS,MinCapacity=$MIN_CAP"
+          BASE_PARAMS="$BASE_PARAMS,MaxCapacity=$MAX_CAP"
+          BASE_PARAMS="$BASE_PARAMS,EnableGlobalCluster=$ENABLE_GLOBAL"
+          # Only pass AuroraGlobalClusterId when global cluster is enabled
+          if [ "$ENABLE_GLOBAL" = "true" ]; then
+            BASE_PARAMS="$BASE_PARAMS,AuroraGlobalClusterId=${{ steps.get-primary-outputs.outputs.global-cluster-id }}"
+          fi
+          BASE_PARAMS="$BASE_PARAMS,KmsKeyArn=${BOOTSTRAP_KMS_KEY_ARN}"
+          BASE_PARAMS="$BASE_PARAMS,AuroraClusterDeleteHandlerArn=${AURORA_CLUSTER_DELETE_HANDLER_ARN}"
+
+        else
+          # Application template parameters (imports backend infrastructure from dev)
+          BASE_PARAMS="$BASE_PARAMS,EnvironmentToImport=${ENVIRONMENT_TO_IMPORT}"
+        fi
+
+        PARAMS="$BASE_PARAMS"
+        echo "params=$PARAMS" >> $GITHUB_OUTPUT
+
+    - name: Deploy template
+      id: deploy-template
+      if: matrix.deploy
+      uses: aws-actions/aws-cloudformation-github-deploy@v1
+      with:
+        name: ${{ inputs.branch-name }}-${{ steps.process-domain.outputs.processed-domain }}
+        template: https://s3.amazonaws.com/${{ steps.account-id.outputs.account-id }}-${{ steps.process-domain.outputs.processed-domain }}-${{ matrix.region }}/${{ inputs.branch-name }}/${{ env.TEMPLATE_NAME }}-template.yaml?versionId=${{ env.TEMPLATE_VERSION_ID }}
+        parameter-overrides: ${{ steps.set-params.outputs.params }}
+        capabilities: "CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND"
+        no-fail-on-empty-changeset: "1"
+        timeout-in-minutes: 90
+
+  post-deployment-ui-tests:
+   name: Post-Deployment UI Tests
+   runs-on: ubuntu-latest
+   needs: [deploy]
+   permissions:
+     contents: read
+     checks: write
+
+   steps:
+   - name: Checkout code
+     uses: actions/checkout@v4
+     with:
+       fetch-depth: 0
+
+   - name: Setup .NET
+     uses: actions/setup-dotnet@v4
+     with:
+       dotnet-version: ${{ inputs.dotnet-version }}
+
+   - name: Cache NuGet packages
+     uses: actions/cache@v4
+     with:
+       path: ~/.nuget/packages
+       key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+       restore-keys: |
+         ${{ runner.os }}-nuget-
+
+   - name: Restore dependencies
+     run: dotnet restore
+
+   - name: Install Playwright Browsers
+     run: |
+       cd ${{ inputs.ui-tests-project-path }}
+       dotnet build
+       pwsh -Command "& {dotnet tool install --global Microsoft.Playwright.CLI; playwright install --with-deps chromium}"
+   - name: Calculate Application URL
+     id: calc-app-url
+     run: |
+       BRANCH_NAME="${{ inputs.branch-name }}"
+       DOMAIN_NAME="${{ inputs.domain-name }}"
+       APP_URL="https://${BRANCH_NAME}.${DOMAIN_NAME}"
+       echo "Calculated application URL: $APP_URL"
+       echo "app-url=$APP_URL" >> $GITHUB_OUTPUT
+   - name: Run UI Tests Against Deployed Application
+     id: ui-tests
+     continue-on-error: true
+     env:
+       # Token-based authentication for reliable UI testing
+       GOOGLE_TEST_ACCESS_TOKEN: ${{ secrets.GOOGLE_TEST_ACCESS_TOKEN }}
+       GOOGLE_TEST_REFRESH_TOKEN: ${{ secrets.GOOGLE_TEST_REFRESH_TOKEN }}
+       GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+       GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+       USE_TOKEN_BASED_AUTH: true
+       ENABLE_OAUTH_TESTING: true
+       USE_MOCKED_OAUTH: false
+       # Override the base URL to point to deployed application
+       TEST_BASE_URL: ${{ steps.calc-app-url.outputs.app-url }}
+     run: |
+       cd ${{ inputs.ui-tests-project-path }}
+
+       # Set the base URL for tests if provided
+       if [ ! -z $TEST_BASE_URL ]; then
+         echo "Running UI tests against deployed application: $TEST_BASE_URL"
+       else
+         echo "Warning: No application URL available, UI tests may fail"
+       fi
+
+       echo "Running UI tests with token-based authentication..."
+       echo "Environment: USE_TOKEN_BASED_AUTH=$USE_TOKEN_BASED_AUTH, ENABLE_OAUTH_TESTING=$ENABLE_OAUTH_TESTING"
+       dotnet test --configuration Release --logger "trx;LogFileName=ui-tests.trx" --results-directory ./TestResults 2>&1 | tee test-output.log
+
+       # Capture the exit code
+       TEST_EXIT_CODE=${PIPESTATUS[0]}
+
+       # Parse test results from the output
+       if [ -f "./test-output.log" ]; then
+         echo "Parsing test results from output..."
+
+         # Show last few lines of output for debugging
+         echo "Last 10 lines of test output:"
+         tail -10 ./test-output.log
+
+         # Try multiple patterns to find test results
+         # Pattern 1: Standard xUnit output (e.g., "Failed: 0, Passed: 1, Skipped: 0, Total: 1")
+         SUMMARY_LINE=$(grep -E "Failed: [0-9]+, Passed: [0-9]+, Skipped: [0-9]+, Total: [0-9]+" ./test-output.log | tail -1)
+
+         # Pattern 2: Alternative format with different spacing
+         if [ -z "$SUMMARY_LINE" ]; then
+           SUMMARY_LINE=$(grep -E "Failed:[[:space:]]*[0-9]+.*Passed:[[:space:]]*[0-9]+.*Total:[[:space:]]*[0-9]+" ./test-output.log | tail -1)
+         fi
+
+         # Pattern 3: Look for any line with test counts
+         if [ -z "$SUMMARY_LINE" ]; then
+           SUMMARY_LINE=$(grep -E "[0-9]+ passed.*[0-9]+ failed" ./test-output.log | tail -1)
+         fi
+
+         if [ ! -z "$SUMMARY_LINE" ]; then
+           echo "Found summary line: $SUMMARY_LINE"
+
+           # Extract numbers using improved regex that handles different formats
+           FAILED_TESTS=$(echo "$SUMMARY_LINE" | grep -oE 'Failed:[[:space:]]*([0-9]+)' | grep -oE '[0-9]+')
+           PASSED_TESTS=$(echo "$SUMMARY_LINE" | grep -oE 'Passed:[[:space:]]*([0-9]+)' | grep -oE '[0-9]+')
+           TOTAL_TESTS=$(echo "$SUMMARY_LINE" | grep -oE 'Total:[[:space:]]*([0-9]+)' | grep -oE '[0-9]+')
+
+           # Fallback: try alternative patterns if standard extraction fails
+           if [ -z "$FAILED_TESTS" ]; then
+             FAILED_TESTS=$(echo "$SUMMARY_LINE" | grep -oE 'failed:[[:space:]]*([0-9]+)' | grep -oE '[0-9]+')
+           fi
+           if [ -z "$PASSED_TESTS" ]; then
+             PASSED_TESTS=$(echo "$SUMMARY_LINE" | grep -oE 'passed:[[:space:]]*([0-9]+)' | grep -oE '[0-9]+')
+           fi
+           if [ -z "$TOTAL_TESTS" ]; then
+             TOTAL_TESTS=$(echo "$SUMMARY_LINE" | grep -oE 'total:[[:space:]]*([0-9]+)' | grep -oE '[0-9]+')
+           fi
+
+           echo "Parsed results: Failed=${FAILED_TESTS:-0}, Passed=${PASSED_TESTS:-0}, Total=${TOTAL_TESTS:-0}"
+           echo "failed-tests=${FAILED_TESTS:-0}" >> $GITHUB_OUTPUT
+           echo "passed-tests=${PASSED_TESTS:-0}" >> $GITHUB_OUTPUT
+           echo "total-tests=${TOTAL_TESTS:-0}" >> $GITHUB_OUTPUT
+         else
+           echo "No summary line found in test output. Available lines:"
+           grep -E "(Failed|Passed|Total|failed|passed|total)" ./test-output.log | tail -5
+           echo "failed-tests=0" >> $GITHUB_OUTPUT
+           echo "passed-tests=0" >> $GITHUB_OUTPUT
+           echo "total-tests=0" >> $GITHUB_OUTPUT
+         fi
+       else
+         echo "No test output file found"
+         echo "failed-tests=0" >> $GITHUB_OUTPUT
+         echo "passed-tests=0" >> $GITHUB_OUTPUT
+         echo "total-tests=0" >> $GITHUB_OUTPUT
+       fi
+
+       # Check if tests passed or failed based on exit code and results
+       if [ "$TEST_EXIT_CODE" -eq 0 ] && [ "${FAILED_TESTS:-0}" -eq 0 ]; then
+         echo "✅ All UI tests passed"
+         echo "ui-tests-passed=true" >> $GITHUB_OUTPUT
+       else
+         echo "❌ Some UI tests failed"
+         echo "ui-tests-passed=false" >> $GITHUB_OUTPUT
+       fi
+
+   - name: Upload UI Test Results and Screenshots
+     if: always()
+     uses: actions/upload-artifact@v4
+     id: upload-ui-test-results
+     with:
+       name: ui-test-results-post-deployment
+       path: |
+         ${{ inputs.ui-tests-project-path }}/TestResults/
+       retention-days: ${{ inputs.branch-name == inputs.prod-branch && 30 || 7 }}
+       if-no-files-found: ignore
+
+   - name: Report UI test results
+     if: always()
+     uses: dorny/test-reporter@v1
+     with:
+       name: UI tests
+       path: '${{ inputs.ui-tests-project-path }}/TestResults/ui-tests.trx'
+       reporter: dotnet-trx
+       fail-on-error: false
+
+   - name: Upload UI test artifacts (Playwright traces/screenshots)
+     if: always()
+     uses: actions/upload-artifact@v4
+     with:
+       name: ui-test-artifacts-${{ github.run_id }}
+       path: ${{ inputs.ui-tests-project-path }}/test-results/
+       retention-days: ${{ inputs.branch-name == inputs.prod-branch && 30 || 7 }}
+       if-no-files-found: ignore
+
+   - name: Summarize UI test results
+     if: always()
+     run: |
+       # dorny/test-reporter posts its report to a CHECK RUN (the commit's Checks tab),
+       # never to this Summary tab. Render a full per-test table here from the TRX so
+       # the detailed results are visible on the run's Summary page as well.
+       TRX="${{ inputs.ui-tests-project-path }}/TestResults/ui-tests.trx"
+       {
+         echo "## UI tests"
+         echo ""
+         echo "✅ Passed: ${{ steps.ui-tests.outputs.passed-tests }} · ❌ Failed: ${{ steps.ui-tests.outputs.failed-tests }} · 🧪 Total: ${{ steps.ui-tests.outputs.total-tests }}"
+         echo ""
+       } >> "$GITHUB_STEP_SUMMARY"
+
+       if [ -f "$TRX" ]; then
+         {
+           echo "| Test | Outcome | Duration |"
+           echo "| --- | --- | --- |"
+         } >> "$GITHUB_STEP_SUMMARY"
+         # dotnet-trx writes one <UnitTestResult .../> element per line.
+         grep '<UnitTestResult ' "$TRX" | while IFS= read -r line; do
+           name=$(printf '%s' "$line" | grep -oP 'testName="\K[^"]+' | head -1)
+           [ -z "$name" ] && continue
+           outcome=$(printf '%s' "$line" | grep -oP 'outcome="\K[^"]+' | head -1)
+           dur=$(printf '%s' "$line" | grep -oP 'duration="\K[^"]+' | head -1)
+           case "$outcome" in
+             Passed) icon="✅" ;;
+             Failed) icon="❌" ;;
+             *) icon="⏭" ;;
+           esac
+           echo "| \`$name\` | $icon ${outcome:-Unknown} | ${dur:-–} |" >> "$GITHUB_STEP_SUMMARY"
+         done
+         echo "" >> "$GITHUB_STEP_SUMMARY"
+       else
+         echo "_No \`ui-tests.trx\` was produced for this run._" >> "$GITHUB_STEP_SUMMARY"
+       fi
+
+       {
+         echo "Failure messages + source-line annotations are on the **UI tests** check (dorny/test-reporter)."
+         if [ -n "${{ steps.upload-ui-test-results.outputs.artifact-id }}" ]; then
+           echo "Artifacts: [TRX + screenshots](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts/${{ steps.upload-ui-test-results.outputs.artifact-id }}) · Playwright traces in \`ui-test-artifacts-${{ github.run_id }}\`."
+         fi
+       } >> "$GITHUB_STEP_SUMMARY"
+
+   - name: Fail workflow if UI tests failed
+     if: steps.ui-tests.outputs.ui-tests-passed == 'false'
+     run: |
+       echo "❌ Post-deployment UI tests failed - failing the workflow"
+       exit 1
