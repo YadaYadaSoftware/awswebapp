@@ -24,4 +24,4 @@
 - [x] 5.1 Run `openspec validate ui-test-authenticated-session --strict`. Must pass.
 - [x] 5.2 Deploy a feature env with the gate on; confirm the two re-enabled tests pass against a real session, and confirm the endpoint is 404 on a gate-off (production-shaped) deploy.
 - [x] 5.3 Update [CLAUDE.md](../../../CLAUDE.md): document the gated test-auth endpoint, its production-safety gate, and that UI auth-tests sign in through it.
-- [ ] 5.4 Archive via `/opsx:archive ui-test-authenticated-session`. Capability promoted to `openspec/specs/ui-test-authenticated-session/`.
+- [x] 5.4 Archive via `/opsx:archive ui-test-authenticated-session`. Capability promoted to `openspec/specs/ui-test-authenticated-session/`.
