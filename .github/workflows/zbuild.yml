@@ -1164,3 +1164,4 @@ jobs:
          
 # ci-trigger: recreate dev env after teardown test (2026-06-08)
 # ci-trigger: production deploy for dev->app release (extract-web-framework-package + aurora teardown fix) 2026-06-09
+# ci-trigger: re-run production deploy 2026-06-09 (multi-region + stable package publish)
