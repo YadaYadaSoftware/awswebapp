@@ -12,14 +12,14 @@
 ## 3. Migrate one test class as proof of concept
 
 - [x] 3.1 Pick the most frequently-flaky test class (consult [`test-summary-reporting`](../test-summary-reporting/proposal.md) summaries — likely `LoginNavigationTests` based on observed history). Change inheritance to `BaseUiTest`. Remove any custom `IPage` / `IBrowserContext` setup; use the base's `Page`.
-- [ ] 3.2 Run the migrated tests against the deployed `dev` env: `cd src/Tjb.UiTests; dotnet test --filter "FullyQualifiedName~LoginNavigation"`. Confirm tests pass. Confirm the OAuth token is fresh (add a debug log line if needed to confirm; remove before commit).
+- [x] 3.2 Run the migrated tests against the deployed `dev` env: `cd src/Tjb.UiTests; dotnet test --filter "FullyQualifiedName~LoginNavigation"`. Confirm tests pass. Confirm the OAuth token is fresh (add a debug log line if needed to confirm; remove before commit).
 - [ ] 3.3 Run a second time within 30 seconds — confirm fixture caches the access token, doesn't re-refresh.
 
 ## 4. Migrate remaining test classes
 
 - [x] 4.1 List all test classes in [src/Tjb.UiTests/](../../../src/Tjb.UiTests/). For each: change inheritance to `BaseUiTest`, remove duplicate setup logic, apply `[Collection("UiTests")]`.
-- [ ] 4.2 Per-class run: confirm passing.
-- [ ] 4.3 Full suite run: confirm passing.
+- [x] 4.2 Per-class run: confirm passing.
+- [x] 4.3 Full suite run: confirm passing.
 
 ## 5. Audit assertions
 
@@ -28,7 +28,7 @@
   - `Assert.Equal` / `Assert.True` / `Assert.False` against synchronous Playwright reads (e.g., `page.TitleAsync().Result`)
   - `WaitForSelector` without an explicit `Timeout` argument
 - [x] 5.2 For each hit, replace with the Playwright-idiomatic `await Expect(...).ToBe*Async(new() { Timeout = 10_000 })` form. Verify the test still asserts the same thing.
-- [ ] 5.3 Run the full suite. Confirm passing.
+- [x] 5.3 Run the full suite. Confirm passing.
 
 ## 6. Add per-test retries for known-flaky tests
 
@@ -38,7 +38,7 @@
 
 ## 7. Observe + adjust
 
-- [ ] 7.1 Push to a feature branch (`stabilize-ui-tests` per the new spec-branch rule). CI runs all UI tests.
+- [x] 7.1 Push to a feature branch (`stabilize-ui-tests` per the new spec-branch rule). CI runs all UI tests.
 - [ ] 7.2 Trigger ~5-10 dev deploys over the next week. Track in summary whether retry-passes are happening. If a test retries-passes most of the time, the root cause is unresolved — investigate further; do NOT just accept retry as the solution.
 - [ ] 7.3 Adjust: tighten timeouts that proved too generous, add retries to newly-identified flaky tests, remove retries from tests that are now stable.
 
