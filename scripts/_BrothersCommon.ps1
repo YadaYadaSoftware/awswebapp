@@ -40,9 +40,9 @@ function Get-FamilyCheckouts {
     # terminating error when the caller's preference is 'Stop'.
     $ErrorActionPreference = 'Continue'
 
-    # The four shared long-lived branches are the homestead, not feature brothers -
+    # The shared long-lived branches are the homestead, not feature brothers -
     # even now that they're materialized as their own worktree folders.
-    $homestead = @('app', 'beta', 'alpha', 'dev')
+    $homestead = @('app', 'test', 'dev')
 
     $ctx = Get-FamilyRoot
     foreach ($dir in Get-ChildItem -Path $ctx.Family -Directory) {

@@ -25,7 +25,7 @@ the in-flight run for that branch; `app` pushes queue instead.
 ## Pipeline stages (jobs)
 
 1. **Get Branch Name** — computes the branch leaf (`{type}/{name}` → `{name}`)
-   and the environment (`app`→Production, `beta`/`alpha`→Staging, else
+   and the environment (`app`→Production, `test`→Staging, else
    Development), and detects `nodeploy`.
 
 2. **Build and Test Applications**
@@ -40,7 +40,7 @@ the in-flight run for that branch; `app` pushes queue instead.
 
 3. **Deploy to AWS** (matrix over regions)
    - Runs in `AWS_REGION_PRIMARY` always; also `AWS_REGION_SECONDARY` for
-     `app`/`beta`/`alpha` (multi-region).
+     `app`/`test` (multi-region).
    - Selects credentials by branch: `app` uses the `*_PROD` secrets; all other
      branches use the non-prod secrets.
    - Processes `secrets.DOMAIN_NAME` into its dashed form (`.`→`-`).
@@ -48,7 +48,7 @@ the in-flight run for that branch; `app` pushes queue instead.
      to the templates S3 bucket
      (`{account}-{dashed-domain}-{region}`), uploading the packaged template
      under the branch prefix. Branch selects the template:
-     - `app`/`beta`/`alpha`/`dev` → `infrastructure/master.template`
+     - `app`/`test`/`dev` → `infrastructure/master.template`
      - all other branches → `infrastructure/application.template`
    - **Builds & pushes the Docker image** to ECR
      (`{account}.dkr.ecr.{region}.amazonaws.com/{dashed-domain}`). The image is

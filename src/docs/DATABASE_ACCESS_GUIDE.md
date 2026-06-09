@@ -4,7 +4,7 @@
 
 The deployed database is **Aurora MySQL Serverless v2** (port 3306), running in
 private subnets and never exposed to the internet. The shared-infrastructure
-branches (`app`, `beta`, `alpha`) run an Aurora Global Cluster; `dev` is
+branches (`app`, `test`) run an Aurora Global Cluster; `dev` is
 single-region. Defined in
 [../../infrastructure/db.template](../../infrastructure/db.template).
 
@@ -15,7 +15,7 @@ run your own MySQL on `localhost` (see "Local development" below).
 
 ## Querying the deployed database: AWS RDS Query Editor
 
-The Aurora clusters for `dev`/`beta`/`alpha` have the RDS Data API HTTP endpoint
+The Aurora clusters for `test`/`dev` have the RDS Data API HTTP endpoint
 enabled (`EnableHttpEndpoint` in
 [../../infrastructure/db.template](../../infrastructure/db.template)), which is
 what the Query Editor uses.

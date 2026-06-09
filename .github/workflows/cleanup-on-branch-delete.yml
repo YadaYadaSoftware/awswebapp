@@ -59,14 +59,14 @@ jobs:
       - name: Protected branch guard
         id: guard
         run: |
-          if [[ " app beta alpha dev " == *" $BRANCH_LEAF "* ]]; then
+          if [[ " app test dev " == *" $BRANCH_LEAF "* ]]; then
             echo "🛡️ Branch leaf '$BRANCH_LEAF' is protected — skipping CloudFormation deletion."
             {
               echo "## Branch Stack Cleanup — Skipped"
               echo ""
               echo "- **Deleted ref:** \`$DELETED_REF\`"
               echo "- **Branch leaf:** \`$BRANCH_LEAF\` (protected)"
-              echo "- **Reason:** \`app\`, \`beta\`, \`alpha\`, and \`dev\` are shared infrastructure and are never auto-deleted."
+              echo "- **Reason:** \`app\`, \`test\`, and \`dev\` are shared infrastructure and are never auto-deleted."
             } >> $GITHUB_STEP_SUMMARY
             echo "protected=true" >> $GITHUB_OUTPUT
           else

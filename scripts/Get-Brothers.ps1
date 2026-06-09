@@ -21,7 +21,7 @@
     current brother is omitted so the output answers "what are my BROTHERS doing".
 
 .PARAMETER IncludeHomestead
-    Also list the homestead worktrees (app/beta/alpha/dev). By default they're
+    Also list the homestead worktrees (app/test/dev). By default they're
     summarized on a single line, since they're shared branches, not feature brothers.
 
 .EXAMPLE
@@ -44,7 +44,7 @@ $ErrorActionPreference = 'Stop'
 
 $all = @(Get-FamilyCheckouts -IncludeSelf:$IncludeSelf)
 
-# Feature brothers vs the homestead (app/beta/alpha/dev). Enumeration + git-state
+# Feature brothers vs the homestead (app/test/dev). Enumeration + git-state
 # lives in Get-FamilyCheckouts (shared with /next); here we just project + split.
 $brothers  = @($all | Where-Object { $IncludeHomestead -or -not $_.IsHomestead })
 $homestead = @($all | Where-Object { $_.IsHomestead })

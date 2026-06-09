@@ -77,7 +77,7 @@ Run `scripts/merge-to-dev.ps1` instead of merging by hand. It:
 
 ### What CI enforces
 
-The `dev`/`alpha`/`beta`/`app` branches **fail the build if the `changes/` folder is non-empty** ([.github/workflows/zbuild.yml](.github/workflows/zbuild.yml)). This is a guard, not an updater — it forces you to flush pending change files into `changelog.md` (via `scripts/merge-to-dev.ps1`) before those branches will build green.
+The `dev`/`test`/`app` branches **fail the build if the `changes/` folder is non-empty** ([.github/workflows/zbuild.yml](.github/workflows/zbuild.yml)). This is a guard, not an updater — it forces you to flush pending change files into `changelog.md` (via `scripts/merge-to-dev.ps1`) before those branches will build green.
 
 ### Changelog Format
 
@@ -154,7 +154,7 @@ When a branch is deleted from the remote (via the GitHub UI, the REST API, or `g
 - **Trigger**: GitHub `delete` event, filtered to `ref_type == 'branch'` (tag deletions are ignored).
 - **Stack name**: `{branch-leaf}-{processed-domain}` — the same formula the deploy workflow uses (`branch-leaf` is the segment after the final `/`; `processed-domain` is `DOMAIN_NAME` with dots replaced by hyphens).
 - **Region**: `us-east-1` only. Non-shared branches never deploy to `us-west-2`, so cross-region cleanup is unnecessary.
-- **Protected branches**: `app`, `beta`, `alpha`, and `dev` are exempt. If one of these is deleted, the workflow exits successfully without making any AWS API calls. A `feature/dev`-style branch (leaf segment `dev`) is also treated as protected, by design.
+- **Protected branches**: `app`, `test`, and `dev` are exempt. If one of these is deleted, the workflow exits successfully without making any AWS API calls. A `feature/dev`-style branch (leaf segment `dev`) is also treated as protected, by design.
 - **What gets deleted**: the CloudFormation stack itself (waiting for `DELETE_COMPLETE` with a 30-minute timeout) and, only on success, the `{branch-leaf}/` prefix in the bootstrap-owned templates bucket that holds packaged SAM templates for the branch. Per [infrastructure/bootstrap.template](infrastructure/bootstrap.template) that bucket is named `{account}-{dashed-domain}-{region}` (e.g. `s3://{account}-appcloud-systems-us-east-1/{branch-leaf}/`). (Note: the cleanup workflow currently references the older `cf-templates-{account}-us-east-1` name instead — a known code bug flagged separately by the audit.)
 - **What does not get cleaned up**: ECR images tagged with the branch name (the ECR repo is shared and uses content-addressed tags). Manage these with an ECR lifecycle policy if pruning is desired.
 
@@ -166,7 +166,7 @@ The system uses these key files:
 - `scripts/create-branch.ps1` - Interactive branch creation
 - `scripts/merge-to-dev.ps1` - Merge a branch into `dev` and flush its `changes/` file into `changelog.md`
 - `scripts/update-changelog.ps1` - Changelog update helper
-- `.github/workflows/zbuild.yml` - CI/CD integration (validates the `changes/` folder is empty on `dev`/`alpha`/`beta`/`app`)
+- `.github/workflows/zbuild.yml` - CI/CD integration (validates the `changes/` folder is empty on `dev`/`test`/`app`)
 - `.github/workflows/cleanup-on-branch-delete.yml` - Stack teardown on branch deletion
 
 No additional configuration is required - the system works out of the box with the existing project setup.
