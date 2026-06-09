@@ -1,5 +1,6 @@
 using Microsoft.Playwright;
 using System.Threading.Tasks;
+using static Microsoft.Playwright.Assertions;
 
 namespace Tjb.UiTests.Pages;
 
@@ -13,6 +14,18 @@ public class MainPage
         _page = page;
         _baseUrl = baseUrl;
     }
+
+    private ILocator LoginLink => _page.Locator("a[href*='Identity/Account/Login']");
+    private ILocator UserGreeting => _page.Locator("a[title='Manage']:has-text('Hello')");
+
+    // Expect-based assertions: built-in waiting/retry so SSR + ALB latency doesn't
+    // surface as an element-not-ready race. Use these in assertion context instead
+    // of the instantaneous Is*VisibleAsync bool checks.
+    public async Task ExpectLoginLinkVisibleAsync(float timeout = 10_000)
+        => await Expect(LoginLink).ToBeVisibleAsync(new() { Timeout = timeout });
+
+    public async Task ExpectUserLoggedInAsync(float timeout = 10_000)
+        => await Expect(UserGreeting).ToBeVisibleAsync(new() { Timeout = timeout });
 
     public async Task NavigateAsync()
     {
