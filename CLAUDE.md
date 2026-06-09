@@ -32,6 +32,7 @@ Beyond being an app, this repo packages its AWS deploy machinery for reuse (open
 - **Deploy as a reusable workflow**: the deploy + post-deployment-UI-test logic lives in [.github/workflows/deploy.yml](.github/workflows/deploy.yml) (`on: workflow_call`), and [zbuild.yml](.github/workflows/zbuild.yml) is a thin caller (`uses: ./.github/workflows/deploy.yml`, `secrets: inherit`). **When editing the deploy pipeline, edit `deploy.yml`, not `zbuild.yml`.** Every project-specific value is a typed input/secret; naming derives from `domain-name` (no `ProjectName` axis — see the §0.1 derive-from-domain decision).
 - **Domain is a repo Variable**: the caller passes `domain-name: ${{ vars.DOMAIN_NAME }}` because `${{ secrets.* }}` is not usable in a reusable-workflow `with:`. A legacy `DOMAIN_NAME` **secret** still exists and is consumed by [cleanup-on-branch-delete.yml](.github/workflows/cleanup-on-branch-delete.yml) and the un-refactored `zbuild.yml` on other branches — don't delete it until those are migrated.
 - **Onboarding a consumer**: [CONSUMING.md](CONSUMING.md) documents the input/secret surface; keep it in sync with `deploy.yml`'s `inputs:`/`secrets:` blocks.
+- **Reference consumer**: [src/sample](src/sample) (`Sample.sln`) is a standalone app consuming the framework packages (`Tjb.Web.Framework`/`Hosting`/`Framework.Data`) **via NuGet only** — zero `ProjectReference` into `src/Tjb.*`. Living proof the framework is reusable, and the artifact `sample-ci-deploy` lifts into CI. See [src/sample/README.md](src/sample/README.md).
 
 ## Common commands
 

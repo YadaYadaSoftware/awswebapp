@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>sample-web-3d2b6c1a-8e44-4f0a-9b21-7c5e0d9a1f33</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- The framework consumed purely as packages from the GitHub Packages feed: the RCL
+         (UI/layout/Identity area/static assets) and the hosting extensions. No src/Tjb.* refs. -->
+    <PackageReference Include="Tjb.Web.Framework" Version="1.1.0.190-dev" />
+    <PackageReference Include="Tjb.Web.Hosting" Version="1.1.0.190-dev" />
+    <PackageReference Include="Microsoft.AspNetCore.Diagnostics.EntityFrameworkCore" Version="8.0.10" />
+    <PackageReference Include="Pomelo.EntityFrameworkCore.MySql" Version="8.0.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Sample.Shared\Sample.Shared.csproj" />
+    <ProjectReference Include="..\Sample.Data\Sample.Data.csproj" />
+    <ProjectReference Include="..\Sample.Migrations\Sample.Migrations.csproj" />
+  </ItemGroup>
+
+</Project>

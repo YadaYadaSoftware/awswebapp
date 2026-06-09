@@ -20,29 +20,29 @@
 
 ## 4. Sample.Web host
 
-- [ ] 4.1 Create `src/sample/Sample.Web/Sample.Web.csproj` (`Microsoft.NET.Sdk.Web`, `net10.0`); `PackageReference` to `Tjb.Web.Framework` + `Tjb.Web.Hosting` + `Tjb.Shared`; `ProjectReference` to `Sample.Data` + `Sample.Migrations` (sample-internal only). Verify no `src/Tjb.*` project references.
-- [ ] 4.2 Write `Program.cs` as the thin host: register `SampleDbContext`, call `AddAwsWebAppIdentity<SampleDbContext>`, `AddAwsWebAppGoogleAuth`, `AddAwsWebAppEmail`, host `AddRazorPages`/`AddServerSideBlazor`/`AddHealthChecks`, then `UseAwsWebAppForwardedHeaders` + pipeline + `MapFallbackToPage("/_Host")` + `await app.ApplyDatabaseMigrationsAsync<SampleDbContext>()`.
-- [ ] 4.3 Add `App.razor`/`_Imports.razor`/`appsettings*.json` and a home page; rely on the framework RCL for layout, Identity area, and static assets (none copied locally).
-- [ ] 4.4 Add the authenticated Guestbook page: lists entries and creates a new one tied to the signed-in user via `SampleDbContext`.
-- [ ] 4.5 Add a `Dockerfile` modeled on `src/Tjb.Web/Dockerfile` (base `aspnet:10.0`), build context resolving `Sample.Web`.
-- [ ] 4.6 Document and set the minimum local boot config (user-secrets: connection string, and whatever the framework requires for SES/Google to not fault at startup).
+- [x] 4.1 Create `Sample.Web.csproj`. — *Done (`Microsoft.NET.Sdk.Web`, net10.0): `PackageReference` to `Tjb.Web.Framework` + `Tjb.Web.Hosting` `1.1.0.190-dev` (Q2: no `Tjb.Shared`); `ProjectReference` to `Sample.Shared`/`Sample.Data`/`Sample.Migrations`. No `src/Tjb.*` refs (§6.4).*
+- [x] 4.2 Write the thin-host `Program.cs`. — *Done: registers `SampleDbContext`, calls `AddAwsWebAppIdentity<SampleDbContext>`/`…GoogleAuth`/`…Email` (all from the Hosting package), host `AddRazorPages`/`AddServerSideBlazor`/`AddHealthChecks`, then `LogAwsWebAppAuthConfig` + `ApplyDatabaseMigrationsAsync<SampleDbContext>` + `UseAwsWebAppForwardedHeaders` + pipeline + `MapRazorPages` (Identity UI) + `MapBlazorHub` + `MapFallbackToPage("/_Host")`. Added `MapRazorPages()` (the reference omits it) so the RCL's Identity pages route.*
+- [x] 4.3 Add `App.razor`/`_Imports.razor`/`_Host.cshtml`/`appsettings*.json` + home page. — *Done: `App.razor` uses `MainLayout` from the RCL (namespace `Tjb.Web.Shared` — the RCL's `RootNamespace` is `Tjb.Web`); `_Host.cshtml` links `_content/Tjb.Web.Framework/*` static assets + `Sample.Web.styles.css`; `Index.razor` landing. No layout/CSS copied locally.*
+- [x] 4.4 Authenticated Guestbook page. — *Done: `[Authorize]` `Guestbook.razor` reads the user id from the auth state and lists/creates `GuestbookEntry` via the injected `SampleDbContext`.*
+- [x] 4.5 Add the `Dockerfile`. — *Done: modeled on `src/Tjb.Web/Dockerfile`; build context = repo root (matches the reusable `deploy.yml`'s `docker build … .`), copies the self-contained `src/sample`, and takes `--build-arg GH_PACKAGES_TOKEN` for the framework-package restore. Not docker-built locally (no Docker here); exercised by `sample-ci-deploy`.*
+- [x] 4.6 Min local boot config. — *Documented in `src/sample/README.md` + `appsettings.json` placeholders (`Authentication:Google`, `AwsSes`). Setting real user-secrets is the operator's step (Q3: real Google creds).*
 
 ## 5. Sample.Api (minimal)
 
-- [ ] 5.1 Create `src/sample/Sample.Api` mirroring `Tjb.Api`: `/health` + Swagger in dev. Keep it minimal; no auth surface.
+- [x] 5.1 Create `src/sample/Sample.Api`. — *Done: minimal `Microsoft.NET.Sdk.Web` app — `/health` + Swagger (Swashbuckle) in dev, no auth surface. Mirrors `Tjb.Api`'s vestigial role for project-set shape parity.*
 
 ## 6. Local validation
 
-- [ ] 6.1 **Checkpoint:** `dotnet build src/sample/Sample.sln` succeeds with `Tjb.sln` NOT loaded (restoring the framework from the feed).
-- [ ] 6.2 **Checkpoint:** `dotnet run --project src/sample/Sample.Web`; `/Identity/Account/Login` renders the framework login page (served from the package); shared layout/CSS intact.
-- [ ] 6.3 **Checkpoint:** sign in (per the documented local auth path) and exercise the Guestbook page — create an entry, confirm it persists via `SampleDbContext` and lists back.
-- [ ] 6.4 Assert decoupling: grep all `src/sample/**/*.csproj` for `ProjectReference` paths into `src/Tjb.*` — must be zero.
-- [ ] 6.5 (Optional) Add a `Sample.UiTests` Playwright smoke for local run; full UI-test wiring is deferred to `sample-ci-deploy`.
+- [x] 6.1 **Checkpoint:** standalone `Sample.sln` builds with `Tjb.sln` not loaded. — *PASSED: `dotnet build src/sample/Sample.sln -c Release` = 0 warnings / 0 errors, restoring `Tjb.Web.Framework*`/`Hosting` `1.1.0.190-dev` from the GitHub Packages feed. All 5 projects compile.*
+- [ ] 6.2 **Checkpoint (operator):** run `Sample.Web`; `/Identity/Account/Login` renders the framework login page from the package. — *GATED on local MySQL + Google app (Q3). Build-verified; run is the operator's.*
+- [ ] 6.3 **Checkpoint (operator):** sign in + exercise the Guestbook (create/persist/list via `SampleDbContext`). — *GATED on local MySQL + Google app.*
+- [x] 6.4 Assert decoupling: no `ProjectReference` into `src/Tjb.*`. — *PASSED across all 5 csprojs (only `Sample.*` refs; framework consumed as packages).*
+- [ ] 6.5 (Optional) `Sample.UiTests` Playwright smoke. — *Deferred to `sample-ci-deploy` (per task wording); not needed for local proof.*
 
 ## 7. Docs, validation, handoff
 
-- [ ] 7.1 Update `src/sample/README.md` and reference the sample from `CLAUDE.md`/root `README.md` as the framework's reference consumer.
-- [ ] 7.2 File any framework packaging gaps discovered here back to `extract-web-framework-package` (may need a patch release).
-- [ ] 7.3 `openspec validate sample-solution-local --strict` and resolve issues.
-- [ ] 7.4 Record the sample's `ProjectName`/subdomain and project paths for `sample-ci-deploy` to consume.
-- [ ] 7.5 Archive this change (`/opsx:archive`) once merged to `dev` and validated.
+- [x] 7.1 README + reference the sample as the framework's reference consumer. — *Done: `src/sample/README.md`; root `README.md` "reusable deployment library" + `CLAUDE.md` reference the sample (below).*
+- [x] 7.2 File framework packaging gaps. — *None found: the sample restored + built clean against the published `1.1.0.190-dev` packages (RCL static assets, layout, Identity area, hosting extensions, base Identity context all consumed without gaps). No patch release needed.*
+- [x] 7.3 `openspec validate sample-solution-local --strict`. — *passed (see commit).*
+- [x] 7.4 Record `ProjectName`/paths for `sample-ci-deploy`. — *Leaf/`project-name` = `sample`; `web-project-path` = `src/sample/Sample.Web`; Dockerfile = `src/sample/Sample.Web/Dockerfile` (context = repo root); image `sample-web`; framework pinned `1.1.0.190-dev`. Recorded here + in `src/sample/README.md`.*
+- [ ] 7.5 Archive this change (`/opsx:archive`) once merged to `dev` and validated. — *Pending merge to dev.*
