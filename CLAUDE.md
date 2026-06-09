@@ -24,6 +24,15 @@ The root `README.md` is partially out of date — trust the code over the README
 - **Hosting**: Containerized — Dockerfile at [src/Tjb.Web/Dockerfile](src/Tjb.Web/Dockerfile) builds a `mcr.microsoft.com/dotnet/aspnet:10.0` image pushed to ECR and run behind an ALB. The README's "AWS Lambda + API Gateway" description is stale; only `Tjb.Api` retains Lambda packaging code (`Amazon.Lambda.AspNetCoreServer`) but the deployed surface is the Web container. Treat `Tjb.Api` as a vestigial/secondary project — `Tjb.Web` is the live application.
 - **Auth**: All real authentication lives in `Tjb.Web` (ASP.NET Identity + Google OAuth). [src/Tjb.Api/Controllers/AuthController.cs](src/Tjb.Api/Controllers/AuthController.cs) is intentionally a no-op ("authentication disabled") — don't try to "fix" it.
 
+## This repo is also a reusable deployment library
+
+Beyond being an app, this repo packages its AWS deploy machinery for reuse (openspec change `make-deployment-stack-reusable`):
+
+- **Templates as a NuGet**: [src/YadaYada.AwsWebApp.DeploymentStack](src/YadaYada.AwsWebApp.DeploymentStack) is a content-only package of every `infrastructure/` template **except `api.template`** (Tjb.Api-specific, excluded). The package id is locked: `YadaYada.AwsWebApp.DeploymentStack`.
+- **Deploy as a reusable workflow**: the deploy + post-deployment-UI-test logic lives in [.github/workflows/deploy.yml](.github/workflows/deploy.yml) (`on: workflow_call`), and [zbuild.yml](.github/workflows/zbuild.yml) is a thin caller (`uses: ./.github/workflows/deploy.yml`, `secrets: inherit`). **When editing the deploy pipeline, edit `deploy.yml`, not `zbuild.yml`.** Every project-specific value is a typed input/secret; naming derives from `domain-name` (no `ProjectName` axis — see the §0.1 derive-from-domain decision).
+- **Domain is a repo Variable**: the caller passes `domain-name: ${{ vars.DOMAIN_NAME }}` because `${{ secrets.* }}` is not usable in a reusable-workflow `with:`. A legacy `DOMAIN_NAME` **secret** still exists and is consumed by [cleanup-on-branch-delete.yml](.github/workflows/cleanup-on-branch-delete.yml) and the un-refactored `zbuild.yml` on other branches — don't delete it until those are migrated.
+- **Onboarding a consumer**: [CONSUMING.md](CONSUMING.md) documents the input/secret surface; keep it in sync with `deploy.yml`'s `inputs:`/`secrets:` blocks.
+
 ## Common commands
 
 ```powershell

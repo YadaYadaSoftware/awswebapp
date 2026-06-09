@@ -83,6 +83,16 @@ on:
         required: false
         type: string
         default: "src/Tjb.UiTests"
+      deployment-stack-version:
+        description: "NuGet version of YadaYada.AwsWebApp.DeploymentStack to extract the CloudFormation templates from. Leave empty when the caller's checkout already contains infrastructure/ (e.g. this repo's self-consume); set it in an external consumer whose checkout lacks the templates."
+        required: false
+        type: string
+        default: ""
+      deployment-stack-feed:
+        description: "NuGet v3 feed URL hosting the deployment-stack package (used only when deployment-stack-version is set)."
+        required: false
+        type: string
+        default: "https://nuget.pkg.github.com/YadaYadaSoftware/index.json"
     secrets:
       AWS_ACCESS_KEY_ID:
         required: true
@@ -101,6 +111,8 @@ on:
       GOOGLE_TEST_ACCESS_TOKEN:
         required: false
       GOOGLE_TEST_REFRESH_TOKEN:
+        required: false
+      DEPLOYMENT_STACK_FEED_TOKEN:
         required: false
 
 jobs:
@@ -140,6 +152,42 @@ jobs:
       if: matrix.deploy
       run: |
         pip install aws-sam-cli
+
+    # Consumer mode: when the caller's checkout does not ship infrastructure/ (i.e. any
+    # repo other than this one), pull the CloudFormation templates from the published
+    # YadaYada.AwsWebApp.DeploymentStack NuGet. Guarded so it is a no-op for this repo's
+    # self-consume (deployment-stack-version defaults to '' and the templates exist).
+    - name: Set up .NET (template extraction)
+      if: matrix.deploy && inputs.deployment-stack-version != '' && hashFiles('infrastructure/master.template') == ''
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ inputs.dotnet-version }}
+
+    - name: Extract reusable CloudFormation templates from NuGet
+      if: matrix.deploy && inputs.deployment-stack-version != '' && hashFiles('infrastructure/master.template') == ''
+      env:
+        FEED: ${{ inputs.deployment-stack-feed }}
+        VERSION: ${{ inputs.deployment-stack-version }}
+        FEED_TOKEN: ${{ secrets.DEPLOYMENT_STACK_FEED_TOKEN }}
+      run: |
+        set -euo pipefail
+        echo "Installing YadaYada.AwsWebApp.DeploymentStack $VERSION from $FEED"
+        cfg=$(mktemp)
+        printf '<?xml version="1.0" encoding="utf-8"?>\n<configuration />\n' > "$cfg"
+        dotnet nuget add source "$FEED" --name deployment-stack \
+          --username github-actions --password "$FEED_TOKEN" \
+          --store-password-in-clear-text --configfile "$cfg"
+        work=$(mktemp -d)
+        dotnet new classlib -n TemplateFetch -o "$work" >/dev/null
+        dotnet add "$work/TemplateFetch.csproj" package YadaYada.AwsWebApp.DeploymentStack \
+          --version "$VERSION" --configfile "$cfg"
+        # NuGet lowercases package ids in the global-packages cache.
+        gp=$(dotnet nuget locals global-packages --list | sed 's/^[^:]*: *//')
+        src="$gp/yadayada.awswebapp.deploymentstack/$VERSION/contentFiles/any/any/infrastructure"
+        [ -d "$src" ] || { echo "ERROR: templates not found at $src after restore" >&2; exit 1; }
+        mkdir -p infrastructure
+        cp -R "$src/." infrastructure/
+        echo "Extracted templates:"; ls -1 infrastructure/
 
     - name: Select AWS credentials by branch
       if: matrix.deploy
