@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Tjb.Data;
 using Tjb.Web.Data;
+using Tjb.Web.TestAuth;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -79,6 +80,11 @@ app.UseAuthorization();
 
 app.MapControllers();
 app.MapHealthChecks("/health");
+
+// Test-only, environment-gated sign-in endpoint (no-op unless TestAuth:Enabled=true).
+// Lets the UI suite establish a real Identity session; off on app. See TestAuthEndpoint.
+app.MapAwsWebAppTestAuth();
+
 app.MapBlazorHub();
 app.MapFallbackToPage("/_Host");
 

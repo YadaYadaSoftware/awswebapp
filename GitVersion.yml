@@ -14,7 +14,7 @@ branches:
   develop:
     regex: ^dev(elop)?(ment)?$
     mode: ContinuousDelivery
-    tag: alpha
+    tag: dev
     increment: Minor
     prevent-increment-of-merged-branch-version: true
     track-merge-target: false
@@ -23,7 +23,7 @@ branches:
   release:
     regex: ^release?[/-]
     mode: ContinuousDelivery
-    tag: beta
+    tag: rc
     increment: Patch
     prevent-increment-of-merged-branch-version: true
     track-merge-target: false
@@ -32,7 +32,7 @@ branches:
   feature:
     regex: ^feature?[/-]
     mode: ContinuousDelivery
-    tag: alpha
+    tag: feature
     increment: Inherit
     prevent-increment-of-merged-branch-version: true
     track-merge-target: false
@@ -41,7 +41,7 @@ branches:
   hotfix:
     regex: ^hotfix?[/-]
     mode: ContinuousDelivery
-    tag: beta
+    tag: hotfix
     increment: Patch
     prevent-increment-of-merged-branch-version: true
     track-merge-target: false

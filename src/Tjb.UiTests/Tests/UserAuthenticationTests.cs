@@ -15,9 +15,7 @@ public class UserAuthenticationTests : BaseUiTest
     public UserAuthenticationTests(OAuthTokenFixture auth, AppReadinessFixture appReady)
         : base(auth, appReady) { }
 
-    // Skipped: depends on token-cookie auth that Tjb.Web correctly ignores (no real session).
-    // Re-enabled by the ui-test-authenticated-session change (openspec/changes/ui-test-authenticated-session).
-    [Fact(Skip = "Token-cookie auth is non-functional; real session pending ui-test-authenticated-session change")]
+    [Fact]
     public async Task LoggedInUser_ShouldDisplayUserName()
     {
         // Set test name for screenshot capture
@@ -27,58 +25,19 @@ public class UserAuthenticationTests : BaseUiTest
         {
             // Arrange
             var mainPage = new MainPage(Page!, Config.BaseUrl);
-            var loginPage = new LoginPage(Page!);
 
-            // Skip test if token-based auth is not configured
-            if (!Config.UseTokenBasedAuth)
+            // Establish a real Identity session via the gated test-auth endpoint. Skips when no
+            // token is configured or the gate is off (404, as on app).
+            if (!await TrySignInViaTestAuthAsync())
             {
-                Console.WriteLine("Skipping test - token-based authentication is not enabled");
                 return;
             }
 
-            // Use the shared, suite-fresh Google access token from the OAuthTokenFixture
-            // rather than reading env directly.
-            var accessToken = AccessToken;
-
-            // Skip test if no token is available
-            if (string.IsNullOrEmpty(accessToken))
-            {
-                Console.WriteLine("Skipping test - no access token available");
-                return;
-            }
-
-            // Act - Navigate to main page
+            // Act - Navigate to main page carrying the session cookie
             await RetryAsync(async () =>
             {
                 await mainPage.NavigateAsync();
             });
-
-            // Check if user is already logged in
-            var isUserLoggedIn = await mainPage.IsUserLoggedInAsync();
-
-            if (!isUserLoggedIn)
-            {
-                // Click login link to go to login page
-                await RetryAsync(async () =>
-                {
-                    await mainPage.ClickLoginLinkAsync();
-                });
-
-                // Verify we're on the login page
-                await loginPage.ExpectOnLoginPageAsync();
-
-                // Use token to authenticate directly (bypass Google OAuth flow)
-                await RetryAsync(async () =>
-                {
-                    await loginPage.AuthenticateWithTokenAsync(accessToken);
-                });
-
-                // Navigate back to main page after authentication
-                await RetryAsync(async () =>
-                {
-                    await mainPage.NavigateAsync();
-                });
-            }
 
             // Assert - Verify user is logged in and name is displayed
             await mainPage.ExpectUserLoggedInAsync();

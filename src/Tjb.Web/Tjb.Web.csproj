@@ -19,6 +19,7 @@
 
   <ItemGroup>
     <PackageReference Include="AWSSDK.SimpleEmail" Version="3.7.300.10" />
+    <PackageReference Include="Google.Apis.Auth" Version="1.68.0" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.Google" Version="8.0.10" />
     <PackageReference Include="Microsoft.AspNetCore.Diagnostics.EntityFrameworkCore" Version="8.0.10" />
     <PackageReference Include="Microsoft.AspNetCore.Identity.UI" Version="8.0.10" />
@@ -32,7 +33,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Tjb.Data\Tjb.Data.csproj" />
     <ProjectReference Include="..\Tjb.Migrations\Tjb.Migrations.csproj" />
-    <!-- Homestead branches (dev/alpha/beta/app) build the reusable web tier from source via
+    <!-- Homestead branches (dev/test/app) build the reusable web tier from source via
          ProjectReference. The package-consumption boundary is proven on feature branches and is the
          real consumption path for the sample solution; dev cannot pin to its own not-yet-published
          package version (build-time bootstrap). See extract-web-framework-package design D4. -->

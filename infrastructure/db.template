@@ -68,11 +68,10 @@ Conditions:
       !Equals [!Ref IsPrimaryRegion, "true"],
       !Equals [!Ref EnableGlobalCluster, "true"],
     ]
-  IsDevBetaOrAlpha:
+  IsTestOrDev:
     !Or [
       !Equals [!Ref EnvironmentToImport, "dev"],
-      !Equals [!Ref EnvironmentToImport, "beta"],
-      !Equals [!Ref EnvironmentToImport, "alpha"],
+      !Equals [!Ref EnvironmentToImport, "test"],
     ]
 
 Resources:
@@ -156,7 +155,7 @@ Resources:
         - error
         - general
         - slowquery
-      EnableHttpEndpoint: !If [IsDevBetaOrAlpha, true, false]
+      EnableHttpEndpoint: !If [IsTestOrDev, true, false]
   # Aurora Serverless v2 Instance
   AuroraInstance:
     Type: AWS::RDS::DBInstance

@@ -85,9 +85,6 @@ public abstract class BaseUiTest : IAsyncLifetime
         Page.SetDefaultTimeout(30_000);
         Page.SetDefaultNavigationTimeout(60_000);
 
-        // Apply the shared OAuth token so authenticated pages don't redirect to sign-in.
-        await ApplyAuthCookieAsync();
-
         // Initialize test data manager
         DataManager = new TestDataManager(Context!, Environment);
 
@@ -102,27 +99,49 @@ public abstract class BaseUiTest : IAsyncLifetime
     }
 
     /// <summary>
-    /// Applies the shared OAuth access token to the browser context as the ASP.NET Identity
-    /// application cookie, so navigating to an authenticated page does not redirect to sign-in.
-    /// No-op when no token is configured (local dev).
+    /// Attempts to establish a REAL ASP.NET Identity session by posting the Google id_token to the
+    /// deployed app's gated test-auth endpoint (<c>POST /test-auth/signin</c>; see the
+    /// ui-test-authenticated-session change). The endpoint validates the id_token and issues a
+    /// genuine <c>.AspNetCore.Identity.Application</c> cookie; because the request goes through the
+    /// browser context's request API, that cookie is stored on the context and used by subsequent
+    /// navigations.
+    /// <para>
+    /// Returns <c>false</c> (so the caller should skip) when there is no id_token configured, or when
+    /// the endpoint returns 404 — which is the EXPECTED state on the production-shaped environments
+    /// (`app`) where the <c>TestAuth</c> gate is off. Throws only on a genuine failure
+    /// (gate on but the sign-in did not succeed).
+    /// </para>
     /// </summary>
-    protected async Task ApplyAuthCookieAsync()
+    protected async Task<bool> TrySignInViaTestAuthAsync()
     {
-        if (Context == null || string.IsNullOrEmpty(AccessToken))
+        var idToken = Auth.IdToken;
+        if (string.IsNullOrEmpty(idToken))
         {
-            return;
+            Console.WriteLine("No Google id_token available from OAuthTokenFixture; skipping authenticated-UI test.");
+            return false;
         }
 
-        await Context.AddCookiesAsync(new[]
-        {
-            new Cookie
+        var response = await Context!.APIRequest.PostAsync($"{Config.BaseUrl.TrimEnd('/')}/test-auth/signin",
+            new APIRequestContextOptions
             {
-                Name = ".AspNetCore.Identity.Application",
-                Value = AccessToken!,
-                Domain = new Uri(Config.BaseUrl).Host,
-                Path = "/"
-            }
-        });
+                Headers = new Dictionary<string, string> { ["Authorization"] = $"Bearer {idToken}" }
+            });
+
+        if (response.Status == 404)
+        {
+            // Gate off on this env (app): the endpoint is intentionally absent. Skip.
+            Console.WriteLine("test-auth endpoint returned 404 — TestAuth gate is off on this env; skipping authenticated-UI test.");
+            return false;
+        }
+
+        if (!response.Ok)
+        {
+            var body = await response.TextAsync();
+            throw new InvalidOperationException(
+                $"test-auth sign-in failed: {response.Status} {response.StatusText}. Body: {body}");
+        }
+
+        return true;
     }
 
     public async Task DisposeAsync()

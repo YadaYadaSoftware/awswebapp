@@ -39,6 +39,13 @@ public class OAuthTokenFixture : IAsyncLifetime
     /// <summary>The current Google access token, or null when no refresh token is configured (local dev).</summary>
     public string? AccessToken { get; private set; }
 
+    /// <summary>
+    /// The current Google id_token (a signed JWT identifying the user). Used by the test-auth
+    /// endpoint to establish a real Identity session (see the ui-test-authenticated-session change).
+    /// Null when no refresh token is configured.
+    /// </summary>
+    public string? IdToken { get; private set; }
+
     /// <summary>UTC timestamp of the most recent successful refresh.</summary>
     public DateTime AcquiredAtUtc { get; private set; } = DateTime.MinValue;
 
@@ -135,12 +142,14 @@ public class OAuthTokenFixture : IAsyncLifetime
         }
 
         AccessToken = token.access_token;
+        IdToken = token.id_token;
         AcquiredAtUtc = DateTime.UtcNow;
     }
 
     private sealed class TokenResponse
     {
         public string? access_token { get; set; }
+        public string? id_token { get; set; }
         public string? token_type { get; set; }
         public int expires_in { get; set; }
     }

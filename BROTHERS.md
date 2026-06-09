@@ -6,8 +6,7 @@ This repo is worked from **multiple sibling folders at once**, so several featur
 C:\Users\hound\source\repos\YadaYadaSoftware\awswebapp\   <- the family directory
 ├─ .bare      # the hub: a bare repo holding all history. No working tree; you never cd here.
 ├─ app        # homestead worktree, always on branch `app`     ┐
-├─ beta       # homestead worktree, always on branch `beta`     │ shared, long-lived
-├─ alpha      # homestead worktree, always on branch `alpha`    │
+├─ test       # homestead worktree, always on branch `test`     │ shared, long-lived
 ├─ dev        # homestead worktree, always on branch `dev`     ┘
 ├─ wilhelm    # a brother: feature work folder on its own branch
 ├─ friedrich  # a brother: another feature, another branch
@@ -24,7 +23,7 @@ Each work folder is a **brother** in a family of Germans. The folder's name **is
 - **What am I working on?** → the branch checked out in this folder, plus its latest commit.
 - **What are my brothers doing?** → the branches + latest commits in the *other* sibling folders.
 
-`app`, `beta`, `alpha`, and `dev` are not brothers — they are the **homestead**: the shared, long-lived worktrees for production (`app`), the staged infra branches (`beta`/`alpha`), and integration (`dev`). Everyone branches from `dev` and merges back through the normal flow. `/whoami` and `/brothers` treat these four as homestead, not feature brothers.
+`app`, `test`, and `dev` are not brothers — they are the **homestead**: the shared, long-lived worktrees for production (`app`), the shared non-prod infra branch (`test`), and integration (`dev`). Everyone branches from `dev` and merges back through the normal flow. `/whoami` and `/brothers` treat these three as homestead, not feature brothers.
 
 ## The name pool
 

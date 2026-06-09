@@ -61,7 +61,7 @@ jobs:
         # Determine Environment based on branch name
         if [ "$BRANCH_NAME" = "app" ]; then
           ENVIRONMENT="Production"
-        elif [[ "$BRANCH_NAME" = "beta" || "$BRANCH_NAME" = "alpha" ]]; then
+        elif [ "$BRANCH_NAME" = "test" ]; then
           ENVIRONMENT="Staging"
         else
           ENVIRONMENT="Development"
@@ -170,7 +170,7 @@ jobs:
         fi
 
     - name: Validate changes folder is empty
-      if: contains(fromJson('["dev", "alpha", "beta", "app"]'), needs.get-branch-name.outputs.branch-name)
+      if: contains(fromJson('["dev", "test", "app"]'), needs.get-branch-name.outputs.branch-name)
       run: |
         echo "🔍 Checking for leftover changes files in changes/ folder..."
 
