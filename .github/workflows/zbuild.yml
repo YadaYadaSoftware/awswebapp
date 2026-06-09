@@ -619,8 +619,8 @@ jobs:
         docker push $ECR_REPO:$BRANCH_TAG
         echo "✅ Pushed branch image: $ECR_REPO:$BRANCH_TAG"
 
-        # Also tag as latest for main branch
-        if [ "$BRANCH_NAME" = "main" ]; then
+        # Also tag as latest for the production (app) branch
+        if [ "$BRANCH_NAME" = "app" ]; then
           docker tag tjb-web:$SRC_CHECKSUM $ECR_REPO:latest
           docker push $ECR_REPO:latest
           echo "✅ Pushed latest image: $ECR_REPO:latest"
