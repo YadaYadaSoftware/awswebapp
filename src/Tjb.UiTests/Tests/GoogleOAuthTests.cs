@@ -82,7 +82,7 @@ public async Task TokenBasedGoogleLogin_ShouldAuthenticateWithValidToken()
 
         // Establish a real Identity session via the gated test-auth endpoint (validates the
         // id_token server-side and issues a genuine Identity cookie). Skips when no token is
-        // configured or the gate is off (404, as on app/beta/alpha).
+        // configured or the gate is off (404, as on app).
         if (!await TrySignInViaTestAuthAsync())
         {
             return;
@@ -114,7 +114,7 @@ public async Task TokenBasedGoogleLogin_ShouldAuthenticateWithValidToken()
     }
 }
 
-    // Security/gate probe (runs on every env, including production-shaped app/beta/alpha):
+    // Security/gate probe (runs on every env, including production-shaped app/test):
     // the test-auth endpoint must NEVER establish a session for a bogus id_token. When the gate is
     // ON it validates and rejects (401/400); when OFF the endpoint is absent (404). Either way it
     // must not return 200, and the app must remain anonymous.

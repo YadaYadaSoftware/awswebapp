@@ -82,7 +82,7 @@ app.MapControllers();
 app.MapHealthChecks("/health");
 
 // Test-only, environment-gated sign-in endpoint (no-op unless TestAuth:Enabled=true).
-// Lets the UI suite establish a real Identity session; off on app/beta/alpha. See TestAuthEndpoint.
+// Lets the UI suite establish a real Identity session; off on app. See TestAuthEndpoint.
 app.MapAwsWebAppTestAuth();
 
 app.MapBlazorHub();
