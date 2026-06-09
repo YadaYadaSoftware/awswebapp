@@ -6,25 +6,49 @@ using System.Collections.Generic;
 using System.Linq;
 using System.IO;
 using Tjb.UiTests;
+using Tjb.UiTests.Fixtures;
 
 namespace Tjb.UiTests;
 
-public class BaseTest : IAsyncLifetime
+/// <summary>
+/// Base class for every UI test. Wires in the suite-level <see cref="OAuthTokenFixture"/>
+/// (fresh Google token) and <see cref="AppReadinessFixture"/> (app warmed up), and gives
+/// each test a <see cref="Page"/> with timeouts sized for SSR + ALB latency and the OAuth
+/// token pre-applied. Derived classes must carry <c>[Collection("UiTests")]</c> and forward
+/// the two fixtures through their constructor.
+/// </summary>
+public abstract class BaseUiTest : IAsyncLifetime
 {
     protected IPlaywright? Playwright { get; private set; }
     protected IBrowser? Browser { get; private set; }
     protected IBrowserContext? Context { get; private set; }
     protected IPage? Page { get; private set; }
 
+    protected OAuthTokenFixture Auth { get; }
+    protected AppReadinessFixture AppReady { get; }
+
     protected TestConfiguration Config => TestConfiguration.Instance;
     protected TestReporter Reporter { get; private set; } = new();
     protected TestEnvironment Environment { get; private set; } = TestEnvironment.GetCurrent();
     protected TestDataManager? DataManager { get; private set; }
 
+    /// <summary>The shared, suite-fresh Google access token (null when no refresh token is configured).</summary>
+    protected string? AccessToken => Auth?.AccessToken;
+
     private string? _currentTestName;
+
+    protected BaseUiTest(OAuthTokenFixture auth, AppReadinessFixture appReady)
+    {
+        Auth = auth;
+        AppReady = appReady;
+    }
 
     public async Task InitializeAsync()
     {
+        // Defensive refresh: a long suite could push the token past ~50min between
+        // collection start and this test. No-ops when the token is still fresh.
+        await Auth.RefreshIfStaleAsync();
+
         // Configure test environment
         Environment.ConfigureTestSettings();
 
@@ -56,6 +80,14 @@ public class BaseTest : IAsyncLifetime
 
         Page = await Context.NewPageAsync();
 
+        // Sensible defaults so no test re-derives them: 30s covers SSR + ALB request
+        // time; 60s navigation supports cold-context first navigation.
+        Page.SetDefaultTimeout(30_000);
+        Page.SetDefaultNavigationTimeout(60_000);
+
+        // Apply the shared OAuth token so authenticated pages don't redirect to sign-in.
+        await ApplyAuthCookieAsync();
+
         // Initialize test data manager
         DataManager = new TestDataManager(Context!, Environment);
 
@@ -67,6 +99,30 @@ public class BaseTest : IAsyncLifetime
         var testResultsDir = Path.Combine(workingDirectory, "src", "TaskManager.UiTests", "TestResults");
         var screenshotsDir = Path.Combine(testResultsDir, "Screenshots");
         Directory.CreateDirectory(screenshotsDir);
+    }
+
+    /// <summary>
+    /// Applies the shared OAuth access token to the browser context as the ASP.NET Identity
+    /// application cookie, so navigating to an authenticated page does not redirect to sign-in.
+    /// No-op when no token is configured (local dev).
+    /// </summary>
+    protected async Task ApplyAuthCookieAsync()
+    {
+        if (Context == null || string.IsNullOrEmpty(AccessToken))
+        {
+            return;
+        }
+
+        await Context.AddCookiesAsync(new[]
+        {
+            new Cookie
+            {
+                Name = ".AspNetCore.Identity.Application",
+                Value = AccessToken!,
+                Domain = new Uri(Config.BaseUrl).Host,
+                Path = "/"
+            }
+        });
     }
 
     public async Task DisposeAsync()
