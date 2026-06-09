@@ -45,4 +45,4 @@
 - [x] 7.2 File framework packaging gaps. — *None found: the sample restored + built clean against the published `1.1.0.190-dev` packages (RCL static assets, layout, Identity area, hosting extensions, base Identity context all consumed without gaps). No patch release needed.*
 - [x] 7.3 `openspec validate sample-solution-local --strict`. — *passed (see commit).*
 - [x] 7.4 Record `ProjectName`/paths for `sample-ci-deploy`. — *Leaf/`project-name` = `sample`; `web-project-path` = `src/sample/Sample.Web`; Dockerfile = `src/sample/Sample.Web/Dockerfile` (context = repo root); image `sample-web`; framework pinned `1.1.0.190-dev`. Recorded here + in `src/sample/README.md`.*
-- [ ] 7.5 Archive this change (`/opsx:archive`) once merged to `dev` and validated. — *Pending merge to dev.*
+- [x] 7.5 Archive this change once merged to `dev`. — *DONE: archived `2026-06-09-sample-solution-local` (spec `sample-consumer-solution` synced), merged to `dev`. Build-validated; the local run-checkpoints (3.5/6.2/6.3) remain the operator's to run and are not blockers for the next change.*
