@@ -27,15 +27,17 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
     <PackageReference Include="Pomelo.EntityFrameworkCore.MySql" Version="8.0.2" />
-    <!-- Reusable web tier consumed as published packages (extract-web-framework-package phase 4).
-         Tjb.Web.Hosting pulls Tjb.Web.Framework + Tjb.Web.Framework.Data transitively. -->
-    <PackageReference Include="Tjb.Web.Framework" Version="1.1.0.158-extract-web-framework-package" />
-    <PackageReference Include="Tjb.Web.Hosting" Version="1.1.0.158-extract-web-framework-package" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Tjb.Data\Tjb.Data.csproj" />
     <ProjectReference Include="..\Tjb.Migrations\Tjb.Migrations.csproj" />
+    <!-- Homestead branches (dev/alpha/beta/app) build the reusable web tier from source via
+         ProjectReference. The package-consumption boundary is proven on feature branches and is the
+         real consumption path for the sample solution; dev cannot pin to its own not-yet-published
+         package version (build-time bootstrap). See extract-web-framework-package design D4. -->
+    <ProjectReference Include="..\Tjb.Web.Framework\Tjb.Web.Framework.csproj" />
+    <ProjectReference Include="..\Tjb.Web.Hosting\Tjb.Web.Hosting.csproj" />
   </ItemGroup>
 
 </Project>
