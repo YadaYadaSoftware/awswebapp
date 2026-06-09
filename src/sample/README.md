@@ -65,18 +65,18 @@ The framework is pinned to **`1.1.0.190-dev`** (the version published to GitHub 
 ## Local run
 
 ```powershell
-# from repo root, with GH_PACKAGES_TOKEN exported
-dotnet restore src/sample/Sample.sln
-dotnet build   src/sample/Sample.sln -c Release      # Tjb.sln is NOT loaded
+# run these from this folder (src/sample/), with GH_PACKAGES_TOKEN exported
+dotnet restore Sample.sln
+dotnet build   Sample.sln -c Release      # Tjb.sln is NOT loaded
 
 # minimum local config (user-secrets on Sample.Web)
-dotnet user-secrets --project src/sample/Sample.Web set "ConnectionStrings:DefaultConnection" "Server=localhost;Database=sampledb;User=root;Password=password;"
-dotnet user-secrets --project src/sample/Sample.Web set "Authentication:Google:ClientId" "<google-client-id>"
-dotnet user-secrets --project src/sample/Sample.Web set "Authentication:Google:ClientSecret" "<google-client-secret>"
+dotnet user-secrets --project Sample.Web set "ConnectionStrings:DefaultConnection" "Server=localhost;Database=sampledb;User=root;Password=password;"
+dotnet user-secrets --project Sample.Web set "Authentication:Google:ClientId" "<google-client-id>"
+dotnet user-secrets --project Sample.Web set "Authentication:Google:ClientSecret" "<google-client-secret>"
 
 # apply migrations + seed, then run
-dotnet run --project src/sample/Sample.Migrations
-dotnet run --project src/sample/Sample.Web
+dotnet run --project Sample.Migrations
+dotnet run --project Sample.Web
 ```
 
 Then browse to the app, sign in via Google, and use the Guestbook page to create/list entries.
