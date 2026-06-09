@@ -32,16 +32,16 @@ The system SHALL accept email requests with To, Subject, HTML body, and plain te
 - **WHEN** an email request includes only HTML body without plain text
 - **THEN** the system sends the email with HTML body and empty plain text body
 
-### Requirement: AWS SES configuration from environment
-The system SHALL read AWS SES configuration from environment variables.
+### Requirement: AWS SES configuration from the `AwsSes` options section
+The system SHALL read AWS SES configuration from the `AwsSes` configuration section, bound to `AwsSesOptions` via `IOptions<>`. The section may be supplied by environment variables (`AwsSes__Region`, `AwsSes__SenderEmail`), `appsettings.json`, or user-secrets.
 
-#### Scenario: Load SES region from environment
+#### Scenario: Load SES region from configuration
 - **WHEN** the application starts
-- **THEN** the AWS region for SES is loaded from the `AWS_REGION` environment variable
+- **THEN** the AWS region for SES is read from `AwsSes:Region` (env var `AwsSes__Region`); in deployed envs this is left empty so the AWS SDK auto-detects the region from Fargate task metadata
 
-#### Scenario: Load sender email from environment
+#### Scenario: Load sender email from configuration
 - **WHEN** the application starts
-- **THEN** the sender email address is loaded from the `AWS_SES_SENDER_EMAIL` environment variable
+- **THEN** the sender email address is read from `AwsSes:SenderEmail` (env var `AwsSes__SenderEmail`)
 
 #### Scenario: Use default configuration if not provided
 - **WHEN** environment variables are not set

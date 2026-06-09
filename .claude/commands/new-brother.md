@@ -24,7 +24,7 @@ Use this whenever you (or a brother) are told **"you have a new brother"**, **"w
    # or with an explicit name and starting branch off dev:
    powershell -NoProfile -File scripts\New-Brother.ps1 -Name friedrich -Branch fix/oauth-callback
    ```
-   It creates the folder as a `git worktree` (based off the `dev` homestead clone if present, else off this repo), starts him from `dev`, and prints his folder, base, state, and head commit.
+   It creates the folder as a `git worktree` (based off the `.bare` hub if present, else the `dev` homestead worktree, else this repo), starts him from `dev`, and prints his folder, base, state, and head commit.
 
 4. **If the script can't run, fall back manually** (from the `dev` homestead if it exists, else this repo):
    ```powershell
