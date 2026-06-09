@@ -108,7 +108,7 @@ public abstract class BaseUiTest : IAsyncLifetime
     /// <para>
     /// Returns <c>false</c> (so the caller should skip) when there is no id_token configured, or when
     /// the endpoint returns 404 — which is the EXPECTED state on the production-shaped environments
-    /// (app/beta/alpha) where the <c>TestAuth</c> gate is off. Throws only on a genuine failure
+    /// (`app`) where the <c>TestAuth</c> gate is off. Throws only on a genuine failure
     /// (gate on but the sign-in did not succeed).
     /// </para>
     /// </summary>
@@ -129,7 +129,7 @@ public abstract class BaseUiTest : IAsyncLifetime
 
         if (response.Status == 404)
         {
-            // Gate off on this env (app/beta/alpha): the endpoint is intentionally absent. Skip.
+            // Gate off on this env (app): the endpoint is intentionally absent. Skip.
             Console.WriteLine("test-auth endpoint returned 404 — TestAuth gate is off on this env; skipping authenticated-UI test.");
             return false;
         }

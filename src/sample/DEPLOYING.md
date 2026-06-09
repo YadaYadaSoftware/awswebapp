@@ -56,11 +56,11 @@ Then a push touching `src/sample/**` runs `sample-deploy.yml`: it builds/tests `
 (restoring the framework with the workflow `GITHUB_TOKEN`), then calls `deploy.yml` with
 `domain-name=sample.appcloud.systems`, `web-dockerfile-path=src/sample/Sample.Web/Dockerfile`,
 `web-image-name=sample-web`, `ui-tests-project-path=src/sample/Sample.UiTests`. The reusable
-workflow deploys (single-region on feature branches, multi-region on `app`/`beta`/`alpha`) and runs
+workflow deploys (single-region on feature branches, multi-region on `app`/`test`) and runs
 the sample UI tests against `https://{leaf}.sample.appcloud.systems`.
 
 **Cost gate:** start with a **feature branch** (single region). Only deploy to the shared-infra
-branches (`dev`/`alpha`/`beta`/`app` — multi-region, second Global Cluster) when you accept the
+branches (`dev`/`test`/`app` — `test`/`app` multi-region, second Global Cluster) when you accept the
 cost (sample-ci-deploy §7, gated on explicit approval).
 
 ## Reconciled input mapping (vs the sample's original design)

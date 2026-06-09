@@ -71,7 +71,7 @@ Conditions:
   # The test-only sign-in endpoint (TestAuth) must be OFF on production (`app`) and ON everywhere the
   # post-deploy UI suite runs (dev, the `test` env, and per-branch feature stacks) so the authenticated
   # tests can establish a real session. BranchName is the branch leaf. See the
-  # ui-test-authenticated-session change. (`beta`/`alpha` were replaced by `test`, which keeps it ON.)
+  # ui-test-authenticated-session change. The shared non-prod env `test` keeps it ON; only `app` disables it.
   TestAuthDisabled: !Equals [!Ref BranchName, "app"]
 
 Resources:

@@ -43,7 +43,7 @@ jobs:
           LEAF=${GITHUB_REF#refs/heads/}; LEAF=${LEAF##*/}
           case "$LEAF" in
             app) ENV=Production ;;
-            beta|alpha) ENV=Staging ;;
+            test) ENV=Staging ;;
             *) ENV=Development ;;
           esac
           echo "branch-name=$LEAF" >> "$GITHUB_OUTPUT"

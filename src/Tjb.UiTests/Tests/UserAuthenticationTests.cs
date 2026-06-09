@@ -27,7 +27,7 @@ public class UserAuthenticationTests : BaseUiTest
             var mainPage = new MainPage(Page!, Config.BaseUrl);
 
             // Establish a real Identity session via the gated test-auth endpoint. Skips when no
-            // token is configured or the gate is off (404, as on app/beta/alpha).
+            // token is configured or the gate is off (404, as on app).
             if (!await TrySignInViaTestAuthAsync())
             {
                 return;

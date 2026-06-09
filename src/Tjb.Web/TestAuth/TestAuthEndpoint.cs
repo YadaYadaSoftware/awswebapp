@@ -12,7 +12,7 @@ namespace Tjb.Web.TestAuth;
 /// bogus cookie (which the app correctly ignores — see the ui-test-authenticated-session change).
 ///
 /// SAFETY: the endpoint is mapped ONLY when <c>TestAuth:Enabled</c> is true. The deploy templates set
-/// that flag false on the shared-infrastructure environments (app/beta/alpha), so the endpoint is
+/// that flag false on production (`app`), so the endpoint is
 /// absent (404) there. It never bypasses Google verification — it requires a real id_token minted for
 /// our client.
 /// </summary>
@@ -30,7 +30,7 @@ public static class TestAuthEndpoint
             return app;
         }
 
-        logger.LogWarning("TestAuth endpoint is ENABLED at POST /test-auth/signin. This must never be enabled in production (app/beta/alpha).");
+        logger.LogWarning("TestAuth endpoint is ENABLED at POST /test-auth/signin. This must never be enabled in production (app).");
 
         app.MapPost("/test-auth/signin", async (
             HttpContext http,
