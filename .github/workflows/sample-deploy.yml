@@ -52,10 +52,65 @@ jobs:
             echo "::notice::Sample deploy is gated off (set repo Variable SAMPLE_DEPLOY_ENABLED=true after provisioning the sample's AWS prerequisites — see src/sample/DEPLOYING.md)."
           fi
 
+  validate-config:
+    name: Validate configuration
+    runs-on: ubuntu-latest
+    needs: [get-branch-name]
+    if: needs.get-branch-name.outputs.enabled == 'true'
+    env:
+      # Secrets can't be enumerated by name, so receive them via env and check emptiness.
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      DATABASE_PASSWORD: ${{ secrets.DATABASE_PASSWORD }}
+      GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+      GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+      FRAMEWORK_FEED_TOKEN: ${{ secrets.FRAMEWORK_FEED_TOKEN }}
+      AWS_ACCESS_KEY_ID_PROD: ${{ secrets.AWS_ACCESS_KEY_ID_PROD }}
+      AWS_SECRET_ACCESS_KEY_PROD: ${{ secrets.AWS_SECRET_ACCESS_KEY_PROD }}
+      GOOGLE_TEST_ACCESS_TOKEN: ${{ secrets.GOOGLE_TEST_ACCESS_TOKEN }}
+      GOOGLE_TEST_REFRESH_TOKEN: ${{ secrets.GOOGLE_TEST_REFRESH_TOKEN }}
+      VAR_DOMAIN_NAME: ${{ vars.DOMAIN_NAME }}
+      VAR_AWS_REGION_PRIMARY: ${{ vars.AWS_REGION_PRIMARY }}
+      VAR_AWS_REGION_SECONDARY: ${{ vars.AWS_REGION_SECONDARY }}
+      VAR_HOSTED_ZONE_ID: ${{ vars.HOSTED_ZONE_ID }}
+    steps:
+      - name: Check required variables and secrets
+        run: |
+          missing=()
+          [ -z "$VAR_DOMAIN_NAME" ]          && missing+=("VARIABLE DOMAIN_NAME")
+          [ -z "$VAR_AWS_REGION_PRIMARY" ]   && missing+=("VARIABLE AWS_REGION_PRIMARY")
+          [ -z "$VAR_AWS_REGION_SECONDARY" ] && missing+=("VARIABLE AWS_REGION_SECONDARY")
+          [ -z "$VAR_HOSTED_ZONE_ID" ]       && missing+=("VARIABLE HOSTED_ZONE_ID")
+          [ -z "$AWS_ACCESS_KEY_ID" ]        && missing+=("SECRET AWS_ACCESS_KEY_ID")
+          [ -z "$AWS_SECRET_ACCESS_KEY" ]    && missing+=("SECRET AWS_SECRET_ACCESS_KEY")
+          [ -z "$DATABASE_PASSWORD" ]        && missing+=("SECRET DATABASE_PASSWORD")
+          [ -z "$GOOGLE_CLIENT_ID" ]         && missing+=("SECRET GOOGLE_CLIENT_ID")
+          [ -z "$GOOGLE_CLIENT_SECRET" ]     && missing+=("SECRET GOOGLE_CLIENT_SECRET")
+          [ -z "$FRAMEWORK_FEED_TOKEN" ]     && missing+=("SECRET FRAMEWORK_FEED_TOKEN (read:packages PAT for the framework feed)")
+
+          # Optional config — warn, do not fail.
+          for o in AWS_ACCESS_KEY_ID_PROD AWS_SECRET_ACCESS_KEY_PROD GOOGLE_TEST_ACCESS_TOKEN GOOGLE_TEST_REFRESH_TOKEN; do
+            [ -z "${!o}" ] && echo "::warning::Optional secret $o is not set (needed for prod-branch deploys / authenticated UI tests)."
+          done
+
+          if [ ${#missing[@]} -gt 0 ]; then
+            {
+              echo "## ❌ Missing required configuration"
+              echo ""
+              echo "Set these in **Settings → Secrets and variables → Actions** (Variables / Secrets tabs), then re-run:"
+              echo ""
+              for m in "${missing[@]}"; do echo "- \`$m\`"; done
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "ERROR: missing required configuration — see the run summary:" >&2
+            for m in "${missing[@]}"; do echo "  - $m" >&2; done
+            exit 1
+          fi
+          echo "✅ All required variables and secrets are set."
+
   build-sample:
     name: Build & Test Sample
     runs-on: ubuntu-latest
-    needs: [get-branch-name]
+    needs: [get-branch-name, validate-config]
     if: needs.get-branch-name.outputs.enabled == 'true'
     permissions:
       contents: read
@@ -64,8 +119,10 @@ jobs:
       custom-version: ${{ steps.version.outputs.custom-version }}
     env:
       # Restores the framework packages (Tjb.Web.Framework / Hosting / Framework.Data) from
-      # GitHub Packages; src/sample/nuget.config expands %GH_PACKAGES_TOKEN%.
-      GH_PACKAGES_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # GitHub Packages; src/sample/nuget.config expands %GH_PACKAGES_TOKEN%. A cross-org fork
+      # sets FRAMEWORK_FEED_TOKEN (read:packages PAT on the framework's org); same-org TaskManager
+      # falls back to the workflow GITHUB_TOKEN.
+      GH_PACKAGES_TOKEN: ${{ secrets.FRAMEWORK_FEED_TOKEN || secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -83,7 +140,7 @@ jobs:
 
   deploy:
     name: Deploy Sample to AWS
-    needs: [build-sample, get-branch-name]
+    needs: [build-sample, get-branch-name, validate-config]
     if: needs.get-branch-name.outputs.enabled == 'true'
     uses: ./.github/workflows/deploy.yml
     with:
@@ -91,7 +148,7 @@ jobs:
       environment: ${{ needs.get-branch-name.outputs.environment }}
       custom-version: ${{ needs.build-sample.outputs.custom-version }}
       domain-name: sample.appcloud.systems
-      hosted-zone-id: Z06422172SASV44F5Y8VA
+      hosted-zone-id: ${{ vars.HOSTED_ZONE_ID }}
       region-primary: ${{ vars.AWS_REGION_PRIMARY }}
       region-secondary: ${{ vars.AWS_REGION_SECONDARY }}
       web-dockerfile-path: src/sample/Sample.Web/Dockerfile
