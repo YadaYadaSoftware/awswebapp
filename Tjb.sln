@@ -21,8 +21,6 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "YadaYada.AwsWebApp.Deployme
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Tjb.Data.Test", "src\Tjb.Data.Test\Tjb.Data.Test.csproj", "{303A6D8A-C214-498D-85A4-68A9D95FBCBB}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{827E0CD3-B72D-47B6-A68D-7590B98EB39B}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Tjb.Web.Framework.Data", "src\Tjb.Web.Framework.Data\Tjb.Web.Framework.Data.csproj", "{3904F534-1DA8-4B6E-BA6A-512E73B615AF}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Tjb.Web.Framework", "src\Tjb.Web.Framework\Tjb.Web.Framework.csproj", "{2BA4044D-D53F-4544-A3EA-967E2BD69C84}"
