@@ -26,16 +26,35 @@ The framework is pinned to **`1.1.0.190-dev`** (the version published to GitHub 
 
 1. **.NET 10 SDK.**
 2. **A GitHub PAT with `read:packages`** to restore the framework packages from this org's feed.
-   Create one at **<https://github.com/settings/tokens/new?scopes=read:packages&description=sample-read-packages>**
+
+   **Create it:** <https://github.com/settings/tokens/new?scopes=read:packages&description=sample-read-packages>
    (the link pre-selects the `read:packages` scope; pick a short expiry, and if the `YadaYadaSoftware`
-   org enforces SSO, click **Configure SSO → Authorize** on the token). Then export it as
-   `GH_PACKAGES_TOKEN` (consumed by [`nuget.config`](nuget.config)):
+   org enforces SSO, click **Configure SSO → Authorize** on the token). Copy the `ghp_…` value.
+
+   **Where it goes:** the token is **not** pasted into any file — [`nuget.config`](nuget.config)
+   references it as `%GH_PACKAGES_TOKEN%`, so you put the value in an **environment variable named
+   `GH_PACKAGES_TOKEN`**. NuGet expands it at `dotnet restore` time. Never commit the literal token.
+
+   **How to set it** — option A, **current shell only** (simplest; gone when the shell closes):
    ```powershell
-   $env:GH_PACKAGES_TOKEN = "<your PAT with read:packages>"
+   # PowerShell
+   $env:GH_PACKAGES_TOKEN = "ghp_xxxxxxxxxxxxxxxxxxxx"
    ```
    ```bash
-   export GH_PACKAGES_TOKEN="<your PAT with read:packages>"
+   # bash/zsh
+   export GH_PACKAGES_TOKEN="ghp_xxxxxxxxxxxxxxxxxxxx"
    ```
+   Option B, **persist for future shells** (a new terminal picks it up automatically):
+   ```powershell
+   # PowerShell (Windows, user-scoped) — restart the terminal afterward
+   [Environment]::SetEnvironmentVariable('GH_PACKAGES_TOKEN', 'ghp_xxxxxxxxxxxxxxxxxxxx', 'User')
+   ```
+   ```bash
+   # bash/zsh — add to ~/.bashrc or ~/.zshrc, then open a new shell
+   echo 'export GH_PACKAGES_TOKEN="ghp_xxxxxxxxxxxxxxxxxxxx"' >> ~/.bashrc
+   ```
+   Run `dotnet restore`/`build` from the **same shell** that has `GH_PACKAGES_TOKEN` set. Revoke the
+   token at <https://github.com/settings/tokens> when you're done.
 3. **A local MySQL** (8.0) reachable at the `DefaultConnection` connection string.
 4. **A Google OAuth app** (local auth is the full Google round-trip — Q3): a client id/secret with
    an authorized redirect URI of `https://localhost:<port>/signin-google`. Supply them via
