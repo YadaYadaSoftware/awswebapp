@@ -40,6 +40,10 @@ Parameters:
     Type: String
     Description: "Branch name to import infrastructure values from"
 
+  SharedLambdaRoleArn:
+    Type: String
+    Description: "ARN of the bootstrap-owned shared Lambda/ECS execution role (passed in by application/master template)."
+
   WebContainerImage:
     Type: String
     Description: "Container image URI for the web application"
@@ -164,14 +168,8 @@ Resources:
         - FARGATE
       Cpu: "512"
       Memory: "1024"
-      ExecutionRoleArn:
-        Fn::ImportValue: !Sub
-          - "SharedLambdaRoleArn-${EnvironmentToImport}-${DomainDashed}"
-          - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
-      TaskRoleArn:
-        Fn::ImportValue: !Sub
-          - "SharedLambdaRoleArn-${EnvironmentToImport}-${DomainDashed}"
-          - DomainDashed: !Join ["-", !Split [".", !Ref DomainName]]
+      ExecutionRoleArn: !Ref SharedLambdaRoleArn
+      TaskRoleArn: !Ref SharedLambdaRoleArn
       ContainerDefinitions:
         - Name: web
           Image: !Ref WebContainerImage

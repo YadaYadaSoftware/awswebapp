@@ -56,6 +56,10 @@ Parameters:
     Type: String
     Description: "ARN of the bootstrap-owned Aurora cluster force-teardown Lambda for this region. Sourced by the deploy workflow from /{dashed-domain}/lambda/aurora-cluster-delete-handler-arn in SSM and passed through master.template. Threaded to DbStack."
 
+  SharedLambdaRoleArn:
+    Type: String
+    Description: "ARN of the bootstrap-owned shared Lambda/ECS execution role. Sourced by the deploy workflow from /{dashed-domain}/iam/shared-lambda-role-arn in SSM and passed through master.template. Surfaced as a stack output for orchestration."
+
   # Google OAuth parameters
   GoogleOAuthClientId:
     Type: String
@@ -75,16 +79,9 @@ Conditions:
     ]
 
 Resources:
-  # Security stack: provides SharedLambdaExecutionRole only. The cluster's
-  # KmsKeyId comes directly from the workflow via the KmsKeyArn parameter
-  # on this template (bootstrap stack's prod or nonprod key, selected by branch).
-  SecurityStack:
-    Type: AWS::CloudFormation::Stack
-    Properties:
-      TemplateURL: ./security.template
-      Parameters:
-        BranchName: !Ref BranchName
-        DomainName: !Ref DomainName
+  # The shared Lambda/ECS execution role is now owned by the bootstrap stack
+  # (move-shared-lambda-role-to-bootstrap); its ARN arrives via the
+  # SharedLambdaRoleArn parameter. No SecurityStack nested stack here anymore.
 
   # Regional VPC
   NetworkingStack:
@@ -142,7 +139,7 @@ Outputs:
 
   SharedLambdaRoleArn:
     Description: ARN of the shared Lambda role
-    Value: !GetAtt SecurityStack.Outputs.SharedLambdaRoleArn
+    Value: !Ref SharedLambdaRoleArn
 
   # Database outputs (for orchestration, not exported)
   DatabaseEndpoint:

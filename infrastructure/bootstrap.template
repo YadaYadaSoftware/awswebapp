@@ -1166,7 +1166,135 @@ Resources:
                 Action: kms:*
                 Resource: "*"
 
+  # ---------- Shared Lambda/ECS execution role (global IAM, primary only) ----------
+  # Single account-wide role assumed by Lambda functions and ECS tasks across every
+  # env stack. Moved here from the per-env security.template (move-shared-lambda-role-to-bootstrap)
+  # so there is exactly one role to audit. Policies are byte-identical to the legacy
+  # security.template; the dashed-domain scope that template derived from DomainName is
+  # ${AWS::StackName} here (the bootstrap stack name IS the dashed domain).
+  SharedLambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Condition: IsPrimary
+    Properties:
+      RoleName: !Sub "${AWS::StackName}-shared-lambda-execution-role"
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+                - ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+      Policies:
+        - PolicyName: SecretsManagerAccess
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                  - secretsmanager:DescribeSecret
+                Resource:
+                  - !Sub "arn:aws:secretsmanager:*:${AWS::AccountId}:secret:${AWS::StackName}/database/regional/*"
+        - PolicyName: CloudWatchLogs
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  - !Sub arn:aws:logs:*:${AWS::AccountId}:*
+        - PolicyName: RDSAccess
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - rds:CreateDBCluster
+                  - rds:ModifyDBCluster
+                  - rds:DeleteDBCluster
+                  - rds:DescribeDBClusters
+                  - rds:DescribeDBInstances
+                  - rds:DescribeGlobalClusters
+                  - rds:ModifyGlobalCluster
+                  - rds:DeleteGlobalCluster
+                  - rds-data:ExecuteStatement
+                  - rds-data:BatchExecuteStatement
+                Resource:
+                  - !Sub "arn:aws:rds:*:${AWS::AccountId}:cluster:${AWS::StackName}-*"
+                  - !Sub "arn:aws:rds::${AWS::AccountId}:global-cluster:${AWS::StackName}-global-cluster"
+        - PolicyName: KMSAccess
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - kms:DescribeKey
+                  - kms:Decrypt
+                  - kms:Encrypt
+                  - kms:GenerateDataKey
+                  - kms:ReEncryptFrom
+                  - kms:ReEncryptTo
+                Resource: "*"
+        - PolicyName: SSMParameterAccess
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                  - ssm:GetParameters
+                Resource:
+                  - "arn:aws:ssm:*:*:parameter/aws/service/ami-amazon-linux-latest/*"
+        - PolicyName: ECRAccess
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ecr:GetAuthorizationToken
+                  - ecr:BatchCheckLayerAvailability
+                  - ecr:GetDownloadUrlForLayer
+                  - ecr:BatchGetImage
+                Resource: "*"
+        - PolicyName: SesAccess
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ses:SendEmail
+                  - ses:SendRawEmail
+                Resource: "*"
+
+  # Published to SSM in BOTH regions (IAM is global, so the ARN is identical). The
+  # deploy workflow looks this up per-region — primary writes via !GetAtt, replica
+  # via the predictable name. Mirrors the Aurora KMS SSM-publishing pattern.
+  SharedLambdaRoleArnParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "/${AWS::StackName}/iam/shared-lambda-role-arn"
+      Type: String
+      Description: "ARN of the account-wide shared Lambda/ECS execution role. Consumed by the deploy workflow's SSM lookup step."
+      Value: !If
+        - IsPrimary
+        - !GetAtt SharedLambdaExecutionRole.Arn
+        - !Sub "arn:aws:iam::${AWS::AccountId}:role/${AWS::StackName}-shared-lambda-execution-role"
+
 Outputs:
+  SharedLambdaRoleArn:
+    Description: "ARN of the account-wide shared Lambda/ECS execution role"
+    Value: !If
+      - IsPrimary
+      - !GetAtt SharedLambdaExecutionRole.Arn
+      - !Sub "arn:aws:iam::${AWS::AccountId}:role/${AWS::StackName}-shared-lambda-execution-role"
+
   AuroraKmsKeyNonprodArn:
     Description: "ARN of the nonprod Aurora KMS key (or replica in this region)"
     Value: !If [IsPrimary, !GetAtt AuroraKmsKeyNonprod.Arn, !GetAtt AuroraKmsKeyNonprodReplica.Arn]
