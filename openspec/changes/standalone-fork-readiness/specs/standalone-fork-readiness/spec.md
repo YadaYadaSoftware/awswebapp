@@ -86,6 +86,29 @@ variables-and-secrets checklist in the sample README SHALL match the preflight's
 - **WHEN** a reader who has only followed the local-run instructions opens `src/sample/README.md`
 - **THEN** a section explains the sample deploys via `sample-deploy.yml`, names the enabling `SAMPLE_DEPLOY_ENABLED` variable and the preflight, lists the required Variables/Secrets, and links to `DEPLOYING.md` and the root README setup guide for the full AWS prerequisites
 
+### Requirement: The setup docs give step-by-step bootstrap-stack deployment instructions
+
+The setup documentation SHALL include concrete, copy-pasteable instructions for deploying the
+per-region bootstrap stack (`infrastructure/bootstrap.template`) — in `src/sample/DEPLOYING.md`,
+referenced from the root README new-repo guide — so a fork operator can stand up the account/region
+prerequisites without reading the template. The instructions SHALL cover at minimum: the stack-name convention (=
+the dashed deployment domain); the `aws cloudformation` deploy command with
+`--capabilities CAPABILITY_NAMED_IAM`; the primary-vs-replica region model (the primary region leaves
+`PrimaryNonprodKeyArn`/`PrimaryProdKeyArn` empty and owns the IAM users + multi-region KMS keys, while
+the secondary region passes the primary stack's `AuroraKmsKeyNonprodArn`/`AuroraKmsKeyProdArn` outputs
+into those parameters); the required deploy order (primary region first, then secondary); and the fact
+that the primary stack's `GitHubActionsUser*` outputs are the source of the
+`AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` (and `_PROD`) repository secrets named in the config
+checklist.
+
+#### Scenario: Operator deploys bootstrap from the docs
+- **WHEN** a fork operator follows the bootstrap deployment instructions for a new domain
+- **THEN** they can deploy the bootstrap stack in the primary region, read its KMS-key ARNs and CI access-key outputs, and deploy the secondary-region stack with the primary's KMS ARNs — without reading the template
+
+#### Scenario: Bootstrap outputs map to the config checklist
+- **WHEN** the operator needs the AWS credential secrets named in the config preflight
+- **THEN** the docs identify the primary bootstrap stack's `GitHubActionsUser*` outputs as the source of `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` (and the optional `_PROD` secrets)
+
 ### Requirement: Workflows are classified for reuse by a fork
 
 The setup documentation SHALL classify each workflow under `.github/workflows/` as KEEP (reusable
