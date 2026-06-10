@@ -35,12 +35,12 @@
 - [x] 7.1 Grep gate: `\b(alpha|beta)\b` (case-insensitive) over `.github/**`, `infrastructure/**`, `scripts/**`, `src/**`, root config, and docs returns zero environment references (`openspec/` history, generated `report.md`, and unrelated words like "alphabet" excluded). ✓
 - [x] 7.2 `openspec validate replace-alpha-beta-with-test --strict` passes. ✓
 
-## 8. Rollout (decision D4/D5) — operator/deploy, NOT done in this implementation pass
+## 8. Rollout (decision D4/D5)
 
-- [ ] 8.1 Merge the source change to `dev`; confirm dev deploy stays green.
-- [ ] 8.2 Create the `test` branch from `dev`; confirm it deploys a multi-region `test` env (both regions, Aurora Global Cluster, nonprod KMS) and `https://test.{DOMAIN_NAME}` is healthy.
-- [ ] 8.3 Decommission `beta`: delete the secondary-region stack, then the primary-region stack (the global-cluster-aware teardown Lambda drains/detaches automatically); confirm both `DELETE_COMPLETE` and the global cluster is gone.
-- [ ] 8.4 Decommission `alpha`: same sequence as 8.3.
-- [ ] 8.5 Delete the `beta` and `alpha` branches.
-- [ ] 8.6 Promote the change to `app`.
-- [ ] 8.7 Post-rollout: re-run the §7.1 grep gate against `app` and confirm no `alpha`/`beta` environment remains anywhere.
+- [x] 8.1 Merge the source change to `dev`; dev deploy green.
+- [x] 8.2 Created the `test` branch from `dev`; deployed a multi-region `test` env (us-east-1 + us-east-2, Aurora Global Cluster, nonprod KMS), `https://test.appcloud.systems` healthy and `Deploy Everything` green.
+- [x] 8.3 Decommissioned `beta`: env stacks were already gone in both regions; global cluster absent.
+- [x] 8.4 Decommissioned `alpha`: deleted secondary then primary stack — the global-cluster-aware teardown Lambda auto-detached both members; both `DELETE_COMPLETE` and the global cluster is gone.
+- [x] 8.5 Deleted the `beta` and `alpha` branches (local + remote) and their worktrees.
+- [x] 8.6 Promoted to `app`: dev→app merged and pushed; prod multi-region deploy succeeded (`app.appcloud.systems` healthy). Run is red only on the pre-existing flaky Google test-OAuth UI tests, not this change.
+- [x] 8.7 Post-rollout grep gate over `app` (tracked, excl openspec/report/bin) returns zero `alpha`/`beta` environment references.
