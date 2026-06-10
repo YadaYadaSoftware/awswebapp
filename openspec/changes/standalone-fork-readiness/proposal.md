@@ -62,8 +62,9 @@ The actual fork/delete/promote/deploy is the user's manual act in the new repo â
 - **Workflows:** `.github/workflows/sample-deploy.yml` (preflight job + token/zone parameterization),
   `.github/workflows/deploy.yml` (optional `framework-feed-token` secret).
 - **Docs:** root `README.md` (new section + inventory table), `CLAUDE.md` (pointer + note that
-  `HOSTED_ZONE_ID` is now a repo Variable), light notes in `src/sample/README.md` / `DEPLOYING.md`
-  about the cross-org `FRAMEWORK_FEED_TOKEN`.
+  `HOSTED_ZONE_ID` is now a repo Variable), a "Deploy via the GitHub pipeline (CI)" section in
+  `src/sample/README.md` (which previously only covered local run), and notes in
+  `src/sample/README.md` / `DEPLOYING.md` about the cross-org `FRAMEWORK_FEED_TOKEN`.
 - **Operator/config:** a new TaskManager repo **Variable** `HOSTED_ZONE_ID = Z06422172SASV44F5Y8VA`
   must be set so the zone parameterization doesn't regress TaskManager (manual, documented).
 - **No source/app/template changes**; TaskManager's build + deploy behavior is unchanged.
