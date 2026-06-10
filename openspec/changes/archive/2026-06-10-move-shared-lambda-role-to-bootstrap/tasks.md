@@ -13,12 +13,17 @@ in-flight `domain-qualified-stack-exports` work (brother `friedrich`) is activel
 Behavior is otherwise byte-identical. **If you actually want the literal `taskmanager-...`
 name, say so and I'll switch it.** Everything below reflects the domain-derived choice.
 
+**RESOLVED 2026-06-10:** the domain-derived naming is accepted and is what shipped to production —
+the live role is `appcloud-systems-shared-lambda-execution-role` at SSM
+`/appcloud-systems/iam/shared-lambda-role-arn`. The spec's `taskmanager-*` literal is superseded
+by the repo's Infrastructure naming convention.
+
 ## 1. Prereqs
 
 - [ ] 1.1 Confirm `centralize-aurora-kms-keys` deployed to all four env stacks; KMS SSM params resolve in both regions. — *Operator/live-AWS verification; not done autonomously. (That change is archived.)*
 - [x] 1.2 Verify no pre-existing IAM role collides with the new name. — *Checked 2026-06-09: `aws iam get-role --role-name appcloud-systems-shared-lambda-execution-role` → `NoSuchEntity` (no collision). Safe to create.*
-- [ ] 1.3 Verify no out-of-tree consumer of the legacy `SharedLambdaRoleArn-*` export. — *Operator/live-AWS audit; not done autonomously.*
-- [ ] 1.4 Verify no AWS resource policy references the existing per-env role ARNs. — *Operator/live-AWS audit; not done autonomously.*
+- [x] 1.3 Verify no out-of-tree consumer of the legacy `SharedLambdaRoleArn-*` export. — *Audited 2026-06-10 (both regions): `aws cloudformation list-exports` returns no `SharedLambdaRoleArn*` export in us-east-1 or us-east-2 — the legacy export is gone. CloudFormation refuses to delete an export that still has importers, so the clean removal of every per-env SecurityStack (incl. the prod `app` deploy) is itself proof nothing imported it.*
+- [x] 1.4 Verify no AWS resource policy references the existing per-env role ARNs. — *Audited 2026-06-10 (both regions): (a) no leftover auto-named `*SharedLambdaExecutionRole*` IAM roles — all per-env roles deleted; only the new `appcloud-systems-shared-lambda-execution-role` remains. (b) Aurora KMS key policies (`alias/appcloud-systems-aurora-{prod,nonprod}`, both regions) carry no `SecurityStack`/old-role-ARN principal. (c) S3 templates-bucket policies (both regions) likewise clean. Dispositive live proof: the production `app` deploy + Post-Deployment UI Tests passed, i.e. ECS tasks successfully assume the new role end-to-end (SES/VPC access intact).*
 
 ## 2. Bootstrap update (Phase 1)
 
@@ -47,15 +52,15 @@ name, say so and I'll switch it.** Everything below reflects the domain-derived 
 
 ## 4. Roll out via deploys (Phase 3)
 
-- [ ] 4.1–4.5 Push to dev → alpha → beta → app, watching each deploy. — *NOT done: this run is explicitly feature-branch-only with no merges/pushes to the shared branches.*
-- [ ] 4.6 Push a feature branch to verify the application-template path picks up the role ARN. — *Branch pushed. The deploy will FAIL at the new "Lookup shared Lambda role ARN from SSM" step until the bootstrap stack (Phase 1, §2.5–2.7) publishes `/{dashed-domain}/iam/shared-lambda-role-arn`. This is the intended fail-loud precondition, not a code defect.*
+- [x] 4.1–4.5 Push to dev → test → app, watching each deploy. — *Rolled out 2026-06-10. Note: `alpha`/`beta` were retired by `replace-alpha-beta-with-test`, so the shared-branch path is now `dev → test → app`. **dev** run 27280018586 green (attempt 2 after a transient ECR-login network timeout on attempt 1, unrelated to this change). **test** run 27283203514 green (both regions + UI tests + publish). **app (prod)** run 27284655263 green on first attempt (both regions + UI tests + publish). Every env now deploys with `SharedLambdaRoleArn` resolved from the bootstrap SSM param.*
+- [x] 4.6 Push a feature branch to verify the application-template path picks up the role ARN. — *Done earlier: branch `move-shared-lambda-role-to-bootstrap` deployed green (run 27242483179) once the bootstrap SSM param existed — the application-template path resolved `/appcloud-systems/iam/shared-lambda-role-arn` and the app ran (HTTP 200).*
 
 ## 5. Validation + cleanup
 
 - [x] 5.1 `openspec validate move-shared-lambda-role-to-bootstrap --strict` — *passed.*
-- [ ] 5.2 Verify each spec scenario against the deployed system. — *Blocked on Phase 1 + Phase 3 (live AWS); deferred.*
+- [x] 5.2 Verify each spec scenario against the deployed system. — *Verified 2026-06-10 against all three deployed envs (dev/test/app, both regions): the single bootstrap-owned role exists once per account, every env stack resolves its ARN from SSM (no per-env role, no `SecurityStack`), and the running app exercises the role's SES/VPC permissions (Post-Deployment UI Tests green in every env). Audits 1.3/1.4 confirm no dangling consumers or resource-policy references.*
 - [ ] 5.3 Drop the §9.1 follow-up bullet from `centralize-aurora-kms-keys/tasks.md`. — *N/A: that change is already archived (not in active changes); not editing archived artifacts.*
-- [ ] 5.4 Archive this change. — *Intentionally NOT done (feature-branch-only run; no merge/archive).*
+- [x] 5.4 Archive this change. — *Done 2026-06-10 after full dev→test→app rollout and the 1.3/1.4 audits.*
 
 ## Implementation notes (autonomous run on branch `move-shared-lambda-role-to-bootstrap`)
 
