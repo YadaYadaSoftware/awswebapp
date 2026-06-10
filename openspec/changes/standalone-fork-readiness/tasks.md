@@ -33,6 +33,11 @@
 - [x] 5b.1 Add a "Deploy via the GitHub pipeline (CI)" section to `src/sample/README.md`: trigger on `src/sample/**`, the `SAMPLE_DEPLOY_ENABLED` gate + `validate-config` preflight, the required Variables/Secrets checklist (mirroring the preflight), and links to `DEPLOYING.md` + the root README "Setting up a new repo" guide. — *Done: section added between "Local run" and the gotchas.*
 - [x] 5b.2 Verify the README checklist matches the preflight's required/optional lists (same as 7.2 for the root README). — *Done: table is identical to the root README's (4 required Variables + the `SAMPLE_DEPLOY_ENABLED` gate; 6 required Secrets; 4 optional).*
 
+## 5c. Bootstrap-stack deployment instructions
+
+- [x] 5c.1 Expand `src/sample/DEPLOYING.md` prerequisite #1 with step-by-step bootstrap deploy: stack-name = dashed domain, `aws cloudformation deploy --capabilities CAPABILITY_NAMED_IAM`, primary-region-first ordering, the primary→secondary KMS-ARN handoff (`PrimaryNonprodKeyArn`/`PrimaryProdKeyArn` empty on primary; secondary passes the primary's `AuroraKmsKeyNonprodArn`/`AuroraKmsKeyProdArn`), and the inline (~47 KB, no S3) note. Keep the account-singleton caveat. — *Done.*
+- [x] 5c.2 Document that the primary stack's `GitHubActionsUser*` outputs are the source of the `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` (+ `_PROD`) repo secrets, with the `describe-stacks` query to read them; note the MSYS path gotcha for `/`-prefixed AWS CLI args on Git Bash. — *Done.*
+
 ## 6. No-regression check for TaskManager
 
 - [x] 6.1 Additive for TaskManager. — *Confirmed by reasoning: TaskManager's `sample-deploy` is gated off so the preflight + build + deploy all skip (no need for `HOSTED_ZONE_ID`/`FRAMEWORK_FEED_TOKEN`); its **main** deploy (`zbuild.yml`) is untouched (literal zone) and `deploy.yml`'s token falls back to `GITHUB_TOKEN` when `framework-feed-token` is empty. Verified on the dev deploy after merge (no regression).*
