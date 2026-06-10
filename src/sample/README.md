@@ -56,11 +56,14 @@ The framework is pinned to **`1.1.0.190-dev`** (the version published to GitHub 
    Run `dotnet restore`/`build` from the **same shell** that has `GH_PACKAGES_TOKEN` set. Revoke the
    token at <https://github.com/settings/tokens> when you're done.
 3. **A local MySQL** (8.0) reachable at the `DefaultConnection` connection string.
-4. **A Google OAuth app** (local auth is the full Google round-trip — Q3): a client id/secret with
-   an authorized redirect URI of `https://localhost:<port>/signin-google`. Supply them via
-   user-secrets (below). Note the framework sets `RequireConfirmedAccount = true`, so first sign-in
-   triggers the SES confirmation-email path — set an `AwsSes` sender/region locally, or accept that
-   the confirmation email won't send in local dev.
+4. **HTTPS dev certificate** — the app runs on HTTPS (`https://localhost:7242`, see launch profile);
+   trust the dev cert once: `dotnet dev-certs https --trust`.
+5. **A Google OAuth app** *(optional locally)* — local auth is the full Google round-trip (Q3). Create
+   a client id/secret with an authorized redirect URI of **`https://localhost:7242/signin-google`**
+   and supply them via user-secrets (below). **Google is optional**: if `Authentication:Google:ClientId`
+   is empty the app still runs (the Google button is just absent) — set the creds to enable it. The
+   framework sets `RequireConfirmedAccount = true`, so first sign-in triggers the SES confirmation-email
+   path — set an `AwsSes` sender/region locally, or accept that the confirmation email won't send.
 
 ## Local run
 
@@ -69,15 +72,38 @@ The framework is pinned to **`1.1.0.190-dev`** (the version published to GitHub 
 dotnet restore Sample.sln
 dotnet build   Sample.sln -c Release      # Tjb.sln is NOT loaded
 
-# minimum local config (user-secrets on Sample.Web)
+# required local config (user-secrets on Sample.Web)
 dotnet user-secrets --project Sample.Web set "ConnectionStrings:DefaultConnection" "Server=localhost;Database=sampledb;User=root;Password=password;"
+
+# OPTIONAL — enable Google sign-in (omit to run without it)
 dotnet user-secrets --project Sample.Web set "Authentication:Google:ClientId" "<google-client-id>"
 dotnet user-secrets --project Sample.Web set "Authentication:Google:ClientSecret" "<google-client-secret>"
 
 # apply migrations — via the design-time factory (needs the dotnet-ef tool: dotnet tool install -g dotnet-ef)
 dotnet ef database update --project Sample.Migrations --startup-project Sample.Migrations
 # (or skip the line above and just run Sample.Web — it migrates on startup)
-dotnet run --project Sample.Web
+dotnet run --project Sample.Web         # serves https://localhost:7242
 ```
 
-Then browse to the app, sign in via Google, and use the Guestbook page to create/list entries.
+Then browse to **https://localhost:7242**, sign in (Google if configured), and use the Guestbook
+page to create/list entries.
+
+## Notes for framework consumers (gotchas)
+
+Things any app consuming `Tjb.Web.Framework` (not just this sample) needs to know:
+
+- **Reference `Microsoft.AspNetCore.Identity.UI` directly.** The framework RCL brings the Identity UI
+  pages, but the consuming web app must add its own
+  `<PackageReference Include="Microsoft.AspNetCore.Identity.UI" Version="8.0.10" />`. The Identity UI's
+  default pages (e.g. `/Identity/Account/Login`) link their CSS from that package's static web assets
+  under `~/Identity/...`; those assets are **not** served through the transitive (via-RCL) reference,
+  so the Login/Register pages render **unstyled** without the direct reference. (The Blazor pages are
+  unaffected — they pull CSS from the RCL's own `_content/Tjb.Web.Framework/...` assets, which *do*
+  flow transitively.) See `Sample.Web.csproj`.
+- **Register Google OAuth only when configured.** `AddAwsWebAppGoogleAuth` wires `AddGoogle`, whose
+  options validate a non-empty `ClientId` on every request — so registering it without
+  `Authentication:Google:ClientId` set throws on each request. Guard the call (see `Program.cs`) if you
+  want the app to run locally without Google creds.
+- **`RequireConfirmedAccount = true`.** The framework requires email confirmation on first sign-in, so a
+  consumer needs a working `AwsSes` sender/region (or must accept the confirmation email won't send in
+  local dev).

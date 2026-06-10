@@ -11,6 +11,67 @@ NuGet package, and the deploy pipeline is a reusable `workflow_call` workflow
 app onboards by deploying one bootstrap stack, installing the package, and calling the workflow
 with ~15 inputs. See **[CONSUMING.md](CONSUMING.md)** for the full guide.
 
+## Setting up a new repo
+
+To stand up **your own deployable app** by forking this repo (e.g. `awswebapp-sample`), delete the
+TaskManager code, promote the sample to be the main app, and deploy it on the same machinery.
+
+### Which workflows to keep
+
+| `.github/workflows/…` | Verdict | Why |
+| --- | --- | --- |
+| `deploy.yml` | **KEEP as-is** | Reusable `workflow_call`; every project/path value is a typed input. |
+| `cleanup-on-branch-delete.yml` | **KEEP as-is** | Generic, domain-derived branch-delete teardown. |
+| `sample-deploy.yml` | **ADAPT** → your main deploy | Already a thin caller of `deploy.yml` + carries the config preflight. Repoint paths/domain/zone, un-gate, rename. |
+| `zbuild.yml` | **DELETE / replace** | TaskManager-specific (packs `Tjb.*`, publishes `src/Tjb.Web`). |
+
+### Steps
+
+1. **Fork** this repo into your new repo.
+2. **Delete** the TaskManager app + framework source: `src/Tjb.Web`, `src/Tjb.Data`, `src/Tjb.Api`,
+   `src/Tjb.Shared`, `src/Tjb.Migrations`, `src/Tjb.Web.Framework*`, `src/Tjb.Web.Hosting`, `Tjb.sln`,
+   and `zbuild.yml`. **Keep** `infrastructure/`, `deploy.yml`, `cleanup-on-branch-delete.yml`,
+   `sample-deploy.yml`, and `src/sample/`.
+3. **Promote** `src/sample` → `src/` (the main app). Update the paths in **`sample-deploy.yml`**
+   (`paths:`, `dotnet restore/build`, `web-dockerfile-path`, `ui-tests-project-path`), the
+   **Dockerfile** `COPY`/`WORKDIR`, **`Sample.sln`**, the **ProjectReferences**, and **`nuget.config`**.
+   (Renaming `Sample.*` → your app's namespace is optional.)
+4. **Framework packages.** Your app consumes `Tjb.Web.Framework`/`Hosting`/`Framework.Data` as NuGet
+   from **this org's GitHub Packages feed** (already in `src/sample/nuget.config`). Because that's a
+   **different org**, the workflow `GITHUB_TOKEN` can't read it — create a **PAT with `read:packages`**
+   on `YadaYadaSoftware` and set it as the secret `FRAMEWORK_FEED_TOKEN`. **Pin an exact framework
+   version** in the `.csproj` files (e.g. `1.1.0.190-dev`) rather than tracking a moving prerelease.
+5. **Set repo Variables and Secrets** (Settings → Secrets and variables → Actions):
+
+   | Variables (required) | Secrets (required) | Optional |
+   | --- | --- | --- |
+   | `DOMAIN_NAME` | `AWS_ACCESS_KEY_ID` | `AWS_ACCESS_KEY_ID_PROD` |
+   | `AWS_REGION_PRIMARY` | `AWS_SECRET_ACCESS_KEY` | `AWS_SECRET_ACCESS_KEY_PROD` |
+   | `AWS_REGION_SECONDARY` | `DATABASE_PASSWORD` | `GOOGLE_TEST_ACCESS_TOKEN` |
+   | `HOSTED_ZONE_ID` | `GOOGLE_CLIENT_ID` | `GOOGLE_TEST_REFRESH_TOKEN` |
+   | `SAMPLE_DEPLOY_ENABLED` = `true` | `GOOGLE_CLIENT_SECRET` | |
+   | | `FRAMEWORK_FEED_TOKEN` | |
+
+   The deploy workflow's **`validate-config` preflight** fails fast and lists exactly which of these are
+   missing — this table matches that check.
+6. **AWS prerequisites** — per region: a **bootstrap stack** (named for your dashed domain), a
+   **Route 53 hosted zone + ACM**, a shared-infra `dev` backend (its own Aurora), and optional SES.
+   Follow **[src/sample/DEPLOYING.md](src/sample/DEPLOYING.md)** — it's written for exactly this.
+7. **Build / test / deploy.** Push. With `SAMPLE_DEPLOY_ENABLED=true`, the workflow runs the preflight
+   → builds/tests your solution → calls `deploy.yml` → deploys (single-region on feature branches,
+   multi-region on the shared-infra branches) → runs the UI tests against `https://<leaf>.<domain>`.
+
+### Troubleshooting
+
+- **Preflight fails listing missing config** → set the named Variable/Secret (step 5) and re-run.
+- **`dotnet restore` 401 / `Unable to load the service index`** → `FRAMEWORK_FEED_TOKEN` is missing or
+  lacks `read:packages` on the framework's org (cross-org feed).
+- **`SSM parameter … is empty or missing`** → the bootstrap stack isn't deployed (or not named for the
+  dashed domain) in that region (step 6).
+- **Empty domain in stack/bucket names** → `DOMAIN_NAME` is a **Secret** instead of a **Variable**;
+  `vars.*` and `secrets.*` are different namespaces.
+- **Prod-branch deploy fails immediately** → set `AWS_ACCESS_KEY_ID_PROD`/`_SECRET_…_PROD`.
+
 ## Architecture Overview
 
 - **Framework**: .NET 10 (`net10.0`) across all projects.
