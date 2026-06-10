@@ -88,6 +88,42 @@ dotnet run --project Sample.Web         # serves https://localhost:7242
 Then browse to **https://localhost:7242**, sign in (Google if configured), and use the Guestbook
 page to create/list entries.
 
+## Deploy via the GitHub pipeline (CI)
+
+The local run above needs no AWS. To deploy the sample to AWS it ships a GitHub Actions pipeline —
+[`.github/workflows/sample-deploy.yml`](../../.github/workflows/sample-deploy.yml), a thin caller of
+the reusable [`deploy.yml`](../../.github/workflows/deploy.yml):
+
+- **Trigger:** a push touching `src/sample/**` runs the workflow. It builds/tests `Sample.sln`
+  (restoring the framework packages), deploys via CloudFormation, then runs the UI tests against
+  `https://{branch-leaf}.sample.appcloud.systems`.
+- **Gated off by default:** the pipeline runs only when the repo Variable `SAMPLE_DEPLOY_ENABLED` is
+  `true`, so it stays dormant in TaskManager's CI. Set it once the AWS prerequisites are in place.
+- **A `validate-config` preflight runs first** and fails fast with a checklist naming any required
+  repo Variable/Secret that's unset — so missing config surfaces immediately, not deep in a Docker
+  build.
+
+**What to configure** (Settings → Secrets and variables → Actions):
+
+| Variables (required) | Secrets (required) | Optional |
+| --- | --- | --- |
+| `DOMAIN_NAME` | `AWS_ACCESS_KEY_ID` | `AWS_ACCESS_KEY_ID_PROD` |
+| `AWS_REGION_PRIMARY` | `AWS_SECRET_ACCESS_KEY` | `AWS_SECRET_ACCESS_KEY_PROD` |
+| `AWS_REGION_SECONDARY` | `DATABASE_PASSWORD` | `GOOGLE_TEST_ACCESS_TOKEN` |
+| `HOSTED_ZONE_ID` | `GOOGLE_CLIENT_ID` | `GOOGLE_TEST_REFRESH_TOKEN` |
+| `SAMPLE_DEPLOY_ENABLED` = `true` | `GOOGLE_CLIENT_SECRET` | |
+| | `FRAMEWORK_FEED_TOKEN` | |
+
+This table mirrors the preflight's lists exactly. `FRAMEWORK_FEED_TOKEN` is a cross-org
+`read:packages` PAT used to restore the framework packages; it **falls back to `GITHUB_TOKEN`** when
+unset, so a same-org caller (TaskManager) needs nothing new.
+
+**Before enabling**, complete the AWS prerequisites (bootstrap stack, Route 53 hosted zone + ACM, a
+`dev` backend, optional SES) in **[DEPLOYING.md](DEPLOYING.md)** — the operator runbook for this
+pipeline. If you're **forking this repo** to stand up your own app, follow the root README's
+**[Setting up a new repo](../../README.md#setting-up-a-new-repo)** guide instead, which wraps these
+same steps with the fork → keep-vs-delete → promote path.
+
 ## Notes for framework consumers (gotchas)
 
 Things any app consuming `Tjb.Web.Framework` (not just this sample) needs to know:
