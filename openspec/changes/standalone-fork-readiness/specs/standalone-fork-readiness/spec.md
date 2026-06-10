@@ -72,6 +72,20 @@ the README SHALL match the preflight's required/optional lists exactly.
 - **WHEN** the README's required/optional config checklist is compared to the preflight's lists
 - **THEN** they name the same variables and secrets
 
+### Requirement: The sample README documents the GitHub deploy pipeline
+
+The `src/sample/README.md` SHALL include a section describing how to deploy the sample through the
+GitHub Actions pipeline (`sample-deploy.yml`), so a reader who has only run the sample locally can
+discover and set up CI deployment. The section SHALL: state that pushes touching `src/sample/**`
+trigger `sample-deploy.yml`; note the `SAMPLE_DEPLOY_ENABLED` gate and the `validate-config`
+preflight; list the required repository Variables and Secrets; and link to `src/sample/DEPLOYING.md`
+(operator/AWS prerequisites) and the root README "Setting up a new repo" guide (fork path). The
+variables-and-secrets checklist in the sample README SHALL match the preflight's lists.
+
+#### Scenario: Reader finds pipeline setup from the sample README
+- **WHEN** a reader who has only followed the local-run instructions opens `src/sample/README.md`
+- **THEN** a section explains the sample deploys via `sample-deploy.yml`, names the enabling `SAMPLE_DEPLOY_ENABLED` variable and the preflight, lists the required Variables/Secrets, and links to `DEPLOYING.md` and the root README setup guide for the full AWS prerequisites
+
 ### Requirement: Workflows are classified for reuse by a fork
 
 The setup documentation SHALL classify each workflow under `.github/workflows/` as KEEP (reusable

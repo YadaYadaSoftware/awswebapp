@@ -28,6 +28,11 @@
 - [x] 5.4 Workflow keep/adapt/delete table + troubleshooting. — *Done.*
 - [x] 5.5 `CLAUDE.md` pointer + `src/sample/DEPLOYING.md` cross-org `FRAMEWORK_FEED_TOKEN` note. — *Done (CLAUDE.md "Forking into a new repo" bullet; DEPLOYING.md "Cross-org forks" note).*
 
+## 5b. Sample README pipeline section
+
+- [x] 5b.1 Add a "Deploy via the GitHub pipeline (CI)" section to `src/sample/README.md`: trigger on `src/sample/**`, the `SAMPLE_DEPLOY_ENABLED` gate + `validate-config` preflight, the required Variables/Secrets checklist (mirroring the preflight), and links to `DEPLOYING.md` + the root README "Setting up a new repo" guide. — *Done: section added between "Local run" and the gotchas.*
+- [x] 5b.2 Verify the README checklist matches the preflight's required/optional lists (same as 7.2 for the root README). — *Done: table is identical to the root README's (4 required Variables + the `SAMPLE_DEPLOY_ENABLED` gate; 6 required Secrets; 4 optional).*
+
 ## 6. No-regression check for TaskManager
 
 - [x] 6.1 Additive for TaskManager. — *Confirmed by reasoning: TaskManager's `sample-deploy` is gated off so the preflight + build + deploy all skip (no need for `HOSTED_ZONE_ID`/`FRAMEWORK_FEED_TOKEN`); its **main** deploy (`zbuild.yml`) is untouched (literal zone) and `deploy.yml`'s token falls back to `GITHUB_TOKEN` when `framework-feed-token` is empty. Verified on the dev deploy after merge (no regression).*
